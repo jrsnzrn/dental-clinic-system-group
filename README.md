@@ -8,7 +8,7 @@ Designed to help clinics manage patient records, appointments, and per-tooth tre
 ## 🚀 Live Demo
 
 🌐 **Hosted App:**
-https://practicefirebase-e1c25.web.app
+https://practicefirebase-e1c25.web.app/
 
 📂 **GitHub Repository:**
 https://github.com/jrsnzrn/dental-clinic-system
