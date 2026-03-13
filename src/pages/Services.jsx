@@ -1,21 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 
 import cleaningImg from "../assets/services/cleaning.png";
-import fillingsImg from "../assets/services/fillings.png";
+import restorationImg from "../assets/services/fillings.png";
 import extractionImg from "../assets/services/extraction.png";
 import bracesImg from "../assets/services/braces.png";
 import rootImg from "../assets/services/rootcanal.png";
 import whiteningImg from "../assets/services/whitening.png";
+import oralsurgeryImg from "../assets/services/whitening.png";
+import crownsImg from "../assets/services/whitening.png";
+import denturesImg from "../assets/services/whitening.png";
+import xrayImg from "../assets/services/whitening.png";
 
 export default function Services() {
   const items = useMemo(
     () => [
       { name: "Cleaning", desc: "Gentle scaling & polishing.", img: cleaningImg },
-      { name: "Fillings", desc: "Tooth-colored restorations.", img: fillingsImg },
+      { name: "Restoration", desc: "Tooth-colored restorations.", img: restorationImg },
       { name: "Extraction", desc: "Safe and comfortable removal.", img: extractionImg },
       { name: "Braces Consultation", desc: "Orthodontic assessment.", img: bracesImg },
       { name: "Root Canal", desc: "Save infected teeth.", img: rootImg },
       { name: "Whitening", desc: "Brighten your smile.", img: whiteningImg },
+      { name: "Oral Surgery", desc: "Brighten your smile.", img: oralsurgeryImg },
+      { name: "Crowns", desc: "Brighten your smile.", img: crownsImg },
+      { name: "Dentures", desc: "Brighten your smile.", img: denturesImg },
+      { name: "X-ray", desc: "Brighten your smile.", img: xrayImg },
     ],
     []
   );

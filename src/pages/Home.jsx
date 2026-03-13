@@ -25,7 +25,7 @@ export default function Home() {
           </div>
 
           <div className="note" style={{ marginTop: 14 }}>
-            Clinic Hours: <b>Mon–Sat • 9:00 AM – 6:00 PM</b>
+            Clinic Hours: <b>Mon–Sat • 8:00 AM – 6:00 PM</b>
           </div>
         </div>
 
