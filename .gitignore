@@ -12,10 +12,7 @@ node_modules
 dist
 .vite
 
-# Environment secrets
-.env
-.env.*
-!.env.example
+
 
 # Firebase
 .firebase
