@@ -89,6 +89,44 @@ a:hover{ opacity: 0.9; }
   flex-wrap: wrap;
 }
 
+.adminSubnav{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.subnavItem{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.03);
+  color: var(--muted);
+  font-weight: 700;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.subnavItem:hover{
+  transform: translateY(-2px);
+  border-color: rgba(79,209,197,0.34);
+  color: var(--text);
+}
+
+.subnavItem.active{
+  color: var(--text);
+  border-color: rgba(79,209,197,0.48);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 32%),
+    rgba(255,255,255,0.05);
+  box-shadow: 0 14px 28px rgba(79,209,197,0.12);
+}
+
 .spacer{ margin-left: auto; }
 
 .badge{
@@ -110,6 +148,17 @@ a:hover{ opacity: 0.9; }
 .logo-tooth{
   display: inline-block;
   animation: floatLogo 3.2s ease-in-out infinite;
+}
+
+.logo-tooth{
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(79,209,197,0.22);
+  background: rgba(79,209,197,0.08);
 }
 
 @keyframes floatLogo{
@@ -223,6 +272,65 @@ button.navItem{
   align-items: center;
 }
 
+.homeHero{
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.22), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(59,130,246,0.18), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+}
+
+.homeHeroCopy{
+  position: relative;
+  z-index: 1;
+}
+
+.homeHeroActions{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.homeHeroStats{
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.homeStat{
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(9,16,32,0.34);
+}
+
+.homeStat strong{
+  display: block;
+  margin-top: 6px;
+}
+
+.homeSplineCard{
+  padding: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 28%),
+    rgba(255,255,255,0.05);
+}
+
+.homeSplineViewport{
+  height: 420px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(7,13,28,0.55);
+}
+
+.homeSplineViewport iframe + div,
+.homeSplineViewport div[style*="Built with Spline"],
+.homeSplineViewport a[href*="spline.design"]{
+  display: none !important;
+}
+
 /* ================================
    CARDS + LISTS + BUTTONS
 ================================ */
@@ -291,6 +399,29 @@ button.navItem{
   margin-top: 8px;
 }
 
+.successBanner{
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 4px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(79,209,197,0.34);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 35%),
+    linear-gradient(135deg, rgba(79,209,197,0.18), rgba(59,130,246,0.08));
+  color: rgba(237,255,252,0.96);
+  box-shadow: 0 18px 38px rgba(79,209,197,0.12);
+}
+
+.successBanner strong{
+  font-size: 16px;
+}
+
+.successBanner span{
+  color: rgba(230,255,250,0.82);
+  font-size: 13px;
+}
+
 .btn{
   padding: 11px 12px;
   border: 1px solid transparent;
@@ -317,6 +448,30 @@ button.navItem{
   border-color: rgba(255,90,122,0.35);
 }
 
+.actionApprove{
+  background: linear-gradient(135deg, rgba(16,185,129,0.42), rgba(79,209,197,0.28));
+  border-color: rgba(16,185,129,0.38);
+}
+
+.actionPending{
+  background: linear-gradient(135deg, rgba(245,158,11,0.20), rgba(251,191,36,0.12));
+  border-color: rgba(245,158,11,0.32);
+}
+
+.actionCheckin{
+  background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(99,102,241,0.12));
+  border-color: rgba(96,165,250,0.26);
+}
+
+.actionCancel{
+  background: linear-gradient(135deg, rgba(255,90,122,0.24), rgba(190,24,93,0.15));
+}
+
+.actionArchive{
+  background: linear-gradient(135deg, rgba(148,163,184,0.18), rgba(71,85,105,0.18));
+  border-color: rgba(148,163,184,0.24);
+}
+
 .hoverLift{
   transition: transform .2s ease, border-color .2s ease, background .2s ease;
 }
@@ -324,6 +479,940 @@ button.navItem{
   transform: translateY(-6px);
   border-color: rgba(79,209,197,0.45);
   background: rgba(255,255,255,0.07);
+}
+
+.statsGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.adminSurface{
+  position: relative;
+}
+
+.adminHero{
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.22), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(245,158,11,0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+  border-color: rgba(255,255,255,0.18);
+}
+
+.bookingsHero{
+  background:
+    radial-gradient(circle at top right, rgba(59,130,246,0.24), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(244,114,182,0.16), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+}
+
+.adminHeroGlow{
+  position: absolute;
+  inset: auto -80px -120px auto;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.10);
+  filter: blur(30px);
+}
+
+.adminHeroContent{
+  position: relative;
+  z-index: 1;
+}
+
+.bookingPage{
+  position: relative;
+}
+
+.bookingHero{
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.20), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(244,114,182,0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+  border-color: rgba(255,255,255,0.16);
+}
+
+.bookingHeroGlow{
+  position: absolute;
+  inset: auto auto -120px -80px;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.10);
+  filter: blur(34px);
+}
+
+.bookingHeroGrid{
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.bookingHeroSummary{
+  display: grid;
+  gap: 10px;
+}
+
+.bookingSummaryCard{
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(9,16,32,0.34);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.12);
+}
+
+.bookingSummaryCard strong{
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.heroEyebrow{
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.82);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.adminStats .statCard{
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+}
+
+.adminStats .statCard::after{
+  content: "";
+  position: absolute;
+  inset: auto -30px -40px auto;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+
+.accentTeal{
+  border-color: rgba(79,209,197,0.30);
+}
+
+.accentBlue{
+  border-color: rgba(96,165,250,0.30);
+}
+
+.accentRose{
+  border-color: rgba(251,113,133,0.28);
+}
+
+.accentGold{
+  border-color: rgba(245,158,11,0.30);
+}
+
+.adminPanelGrid{
+  display: grid;
+  grid-template-columns: minmax(320px, 0.88fr) minmax(0, 1.6fr);
+  gap: 18px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.stackSections{
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.adminEditorCard,
+.adminRecordsCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.035)),
+    rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.18);
+}
+
+.statsGrid.compact{
+  margin-top: 0;
+}
+
+.statCard{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.statLabel{
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.statValue{
+  font-size: 28px;
+  line-height: 1;
+}
+
+.detailedList{
+  gap: 14px;
+}
+
+.detailedItem{
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.detailContent{
+  flex: 1 1 auto;
+  display: grid;
+  gap: 14px;
+}
+
+.detailTopRow{
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.detailTitle{
+  font-size: 18px;
+}
+
+.detailSubtitle{
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.detailGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.detailBox{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.detailLabel{
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.detailNote{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.detailNote p{
+  margin: 8px 0 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.historyPanel{
+  margin-top: 2px;
+}
+
+.historyList{
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.historyRow{
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+
+.historyRow strong{
+  font-size: 14px;
+}
+
+.historyRow p{
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.historyMeta{
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  text-align: right;
+}
+
+.historyMeta > span:first-child{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.noteRibbon{
+  position: relative;
+  background: linear-gradient(135deg, rgba(79,209,197,0.10), rgba(255,255,255,0.04));
+}
+
+.noteRibbon::before{
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+  background: linear-gradient(180deg, #4fd1c5, #f59e0b);
+}
+
+.actionColumn{
+  width: 200px;
+  display: grid;
+  gap: 8px;
+  flex: 0 0 200px;
+}
+
+.actionColumnFriendly{
+  gap: 10px;
+  align-self: stretch;
+}
+
+.statusStack{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.statusPill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.05);
+}
+
+.statusPill.pending{
+  border-color: rgba(255,196,0,0.35);
+  background: rgba(255,196,0,0.12);
+}
+
+.statusPill.approved{
+  border-color: rgba(79,209,197,0.35);
+  background: rgba(79,209,197,0.14);
+}
+
+.statusPill.cancelled{
+  border-color: rgba(255,90,122,0.35);
+  background: rgba(255,90,122,0.14);
+}
+
+.luxeBox{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.12);
+  transition: transform .22s ease, border-color .22s ease, background .22s ease;
+}
+
+.luxeBox:hover{
+  transform: translateY(-3px);
+  border-color: rgba(79,209,197,0.35);
+  background:
+    linear-gradient(180deg, rgba(79,209,197,0.11), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.03);
+}
+
+.patientShowcase,
+.bookingShowcase{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)),
+    rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.10);
+}
+
+.selectedRecord{
+  border-color: rgba(79,209,197,0.40);
+  box-shadow: 0 0 0 1px rgba(79,209,197,0.18), 0 18px 50px rgba(0,0,0,0.16);
+}
+
+.recordTapArea{
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recordTapArea:hover .detailTitle{
+  color: rgba(230,255,250,0.96);
+}
+
+.searchInput{
+  margin-top: 8px;
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.16), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05)),
+    rgba(255,255,255,0.05);
+  border: 1px solid rgba(79,209,197,0.28);
+  box-shadow: 0 14px 28px rgba(0,0,0,0.12);
+  min-height: 52px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.searchInput::placeholder{
+  color: rgba(220,255,250,0.66);
+}
+
+.searchInput:focus{
+  border-color: rgba(79,209,197,0.58);
+  box-shadow: 0 0 0 4px rgba(79,209,197,0.14), 0 16px 30px rgba(79,209,197,0.12);
+}
+
+.editorPreview{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.12), transparent 35%),
+    rgba(255,255,255,0.04);
+}
+
+.emptyEditorState{
+  display: grid;
+  gap: 8px;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+}
+
+.emptyEditorState strong{
+  color: var(--text);
+}
+
+.btnShine{
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(79,209,197,0.40), rgba(59,130,246,0.28));
+}
+
+.btnShine::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 25%, rgba(255,255,255,0.32), transparent 75%);
+  transform: translateX(-130%);
+}
+
+.btnShine:hover::after{
+  animation: navShine 0.9s ease;
+}
+
+.btnSoft{
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+}
+
+.bookingFormCard,
+.bookingDetailsCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.16);
+}
+
+.bookingPrimaryBtn{
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.bookingSecondaryBtn{
+  min-height: 44px;
+}
+
+.bookingRules{
+  display: grid;
+  gap: 8px;
+}
+
+.bookingRules li{
+  list-style: none;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+
+.bookingInfoPanel{
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.bookingInfoRow{
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.09);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+}
+
+.bookingInfoRow strong{
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.32), rgba(251,191,36,0.18));
+  border: 1px solid rgba(245,158,11,0.36);
+  color: rgba(255,248,235,0.96);
+  box-shadow: 0 16px 26px rgba(245,158,11,0.12);
+}
+
+.archiveButton:hover{
+  border-color: rgba(245,158,11,0.56);
+  background: linear-gradient(135deg, rgba(245,158,11,0.42), rgba(251,191,36,0.22));
+}
+
+.patientActionBtn{
+  min-height: 50px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 16px 30px rgba(0,0,0,0.16);
+}
+
+.patientEditBtn{
+  background: linear-gradient(135deg, rgba(79,209,197,0.34), rgba(59,130,246,0.22));
+  border: 1px solid rgba(79,209,197,0.38);
+  color: rgba(240,255,252,0.96);
+}
+
+.patientEditBtn:hover{
+  border-color: rgba(79,209,197,0.56);
+}
+
+.patientPdfBtn{
+  background: linear-gradient(135deg, rgba(96,165,250,0.30), rgba(129,140,248,0.22));
+  border: 1px solid rgba(96,165,250,0.34);
+  color: rgba(238,246,255,0.96);
+}
+
+.patientPdfBtn:hover{
+  border-color: rgba(96,165,250,0.52);
+}
+
+.odontogramWrap{
+  display: grid;
+  gap: 12px;
+}
+
+.adminOdontogram{
+  margin-top: 6px;
+}
+
+.odontogramRow{
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.toothButton{
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.02);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  min-height: 72px;
+}
+
+.toothButton:hover{
+  transform: translateY(-2px);
+  border-color: rgba(79,209,197,0.34);
+}
+
+.toothButton.active{
+  border-color: rgba(79,209,197,0.48);
+  box-shadow: 0 0 0 2px rgba(79,209,197,0.14), 0 18px 28px rgba(79,209,197,0.14);
+  background:
+    radial-gradient(circle at top, rgba(79,209,197,0.18), transparent 55%),
+    rgba(255,255,255,0.05);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.toothButton.focused{
+  border-color: rgba(96,165,250,0.4);
+  box-shadow: 0 0 0 2px rgba(96,165,250,0.12);
+}
+
+.toothButton.hasNote{
+  border-color: rgba(245,158,11,0.36);
+}
+
+.toothNumber{
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.92);
+}
+
+.toothGlyph{
+  font-size: 11px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.chartEditorCard{
+  margin-top: 18px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.toothViewerMeta{
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.viewerFocusCard{
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.16), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+}
+
+.viewerFocusCard strong{
+  font-size: 18px;
+}
+
+.viewerFocusCard span:last-child{
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.viewerStatusRow{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.viewerStatusPill{
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.viewerStatusPill.active{
+  border-color: rgba(79,209,197,0.38);
+  background: rgba(79,209,197,0.12);
+  color: rgba(230,255,250,0.96);
+}
+
+.toothQuickSelector{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.toothQuickChip{
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.toothQuickChip:hover{
+  transform: translateY(-2px);
+  border-color: rgba(96,165,250,0.38);
+}
+
+.toothQuickChip.active{
+  border-color: rgba(79,209,197,0.48);
+  background: linear-gradient(135deg, rgba(79,209,197,0.2), rgba(59,130,246,0.14));
+  box-shadow: 0 14px 28px rgba(79,209,197,0.12);
+}
+
+.toothQuickChip.hasNote{
+  border-color: rgba(245,158,11,0.38);
+}
+
+.toothViewer3d{
+  position: relative;
+  min-height: 620px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top, rgba(79,209,197,0.10), transparent 35%),
+    #fff;
+}
+
+.adminToothChart{
+  min-height: 760px;
+  box-shadow: inset 0 0 0 1px rgba(11,18,32,0.06), 0 22px 48px rgba(0,0,0,0.10);
+}
+
+.toothViewerHalo{
+  position: absolute;
+  z-index: 2;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(79,209,197,0.3), rgba(79,209,197,0.06) 55%, transparent 70%);
+  filter: blur(4px);
+  pointer-events: none;
+  animation: toothPulse 2.2s ease-in-out infinite;
+}
+
+@keyframes toothPulse{
+  0%, 100%{ opacity: 0.58; transform: translate(-50%, -50%) scale(0.94); }
+  50%{ opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+.toothViewer3d canvas{
+  pointer-events: none;
+}
+
+.toothReferenceImage{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  pointer-events: none;
+}
+
+.toothImageSurface{
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: crosshair;
+}
+
+.toothViewerLegend{
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(11,18,32,0.68);
+  backdrop-filter: blur(10px);
+}
+
+.toothViewerLegend span{
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.toothViewerLegend strong{
+  font-size: 22px;
+}
+
+.toothViewerOverlay{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.toothMarker{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(11,18,32,0.82);
+  color: rgba(255,255,255,0.94);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+}
+
+.toothMarker:hover{
+  transform: translate(-50%, -50%) scale(1.08);
+  border-color: rgba(79,209,197,0.55);
+}
+
+.toothMarker.focused{
+  border-color: rgba(96,165,250,0.46);
+  box-shadow: 0 0 0 3px rgba(96,165,250,0.14), 0 14px 28px rgba(59,130,246,0.16);
+}
+
+.toothMarker.active{
+  background: linear-gradient(135deg, rgba(79,209,197,0.88), rgba(59,130,246,0.82));
+  border-color: rgba(255,255,255,0.42);
+  color: #04111e;
+  box-shadow: 0 0 0 4px rgba(79,209,197,0.16), 0 18px 32px rgba(79,209,197,0.20);
+}
+
+.toothMarker.hasNote{
+  border-color: rgba(245,158,11,0.52);
+}
+
+.archiveSummaryGrid{
+  margin-bottom: 14px;
+}
+
+.archiveSummaryCard{
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.03);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.archiveSummaryCard:hover{
+  transform: translateY(-3px);
+  border-color: rgba(79,209,197,0.34);
+}
+
+.archiveSummaryCard.active{
+  border-color: rgba(79,209,197,0.46);
+  box-shadow: 0 14px 28px rgba(79,209,197,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 30%),
+    rgba(255,255,255,0.05);
+}
+
+.selectedToothPanel{
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.14), transparent 32%),
+    rgba(255,255,255,0.03);
+}
+
+.liveFocusPanel{
+  border-color: rgba(96,165,250,0.24);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 34%),
+    rgba(255,255,255,0.03);
+}
+
+.dentistCard{
+  cursor: pointer;
+}
+
+.dentistCard.expanded{
+  border-color: rgba(79,209,197,0.45);
+  background: rgba(255,255,255,0.06);
+}
+
+.schedulerPanel{
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.schedulerGrid{
+  display: grid;
+  gap: 10px;
+}
+
+.schedulerRow{
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 140px 140px;
+  gap: 10px;
+  align-items: center;
+}
+
+.schedulerDay{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.schedulerActions{
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 /* ================================
@@ -750,6 +1839,8 @@ select.input{
 ================================ */
 @media (max-width: 900px){
   .grid{ grid-template-columns: 1fr; }
+  .adminPanelGrid{ grid-template-columns: 1fr; }
+  .bookingHeroGrid{ grid-template-columns: 1fr; }
   .homeHeroGrid{ grid-template-columns: 1fr; }
   .contactGrid{ grid-template-columns: 1fr; }
   .hero > div{ grid-template-columns: 1fr !important; }
@@ -777,4 +1868,35 @@ select.input{
 
   .carouselViewport{ min-height: 460px; }
   .serviceCard{ flex: 0 0 250px; }
+
+  .detailTopRow,
+  .detailedItem{
+    flex-direction: column;
+  }
+
+  .historyRow{
+    flex-direction: column;
+  }
+
+  .odontogramRow{
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .historyMeta{
+    justify-items: start;
+    text-align: left;
+  }
+
+  .editorPreview{
+    flex-direction: column;
+  }
+
+  .actionColumn{
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .schedulerRow{
+    grid-template-columns: 1fr;
+  }
 }

@@ -4,50 +4,47 @@ import { NavLink } from "react-router-dom";
 export default function Home() {
   return (
     <div className="container">
-      <div className="hero homeHeroGrid">
-        {/* LEFT SIDE */}
-        <div style={{ textAlign: "left" }}>
+      <div className="hero homeHero homeHeroGrid">
+        <div className="homeHeroCopy">
+          <span className="heroEyebrow">TopDent Experience</span>
           <h1 style={{ marginBottom: 10 }}>TopDent Dental Clinic</h1>
 
           <p style={{ marginTop: 0 }}>
-            Modern dental care with easy online booking and patient tracking.
-            Explore our interactive 3D tooth.
+            Modern dental care with easier booking, richer patient records, and a cleaner experience for both patients and clinic staff.
           </p>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
-            <NavLink className="btn" to="/book">
+          <div className="homeHeroActions">
+            <NavLink className="btn btnShine" to="/book">
               Book Appointment
             </NavLink>
-
-            <NavLink className="btn secondary" to="/services">
+            <NavLink className="btn secondary btnSoft" to="/services">
               View Services
             </NavLink>
           </div>
 
-          <div className="note" style={{ marginTop: 14 }}>
-            Clinic Hours: <b>Mon–Sat • 8:00 AM – 6:00 PM</b>
+          <div className="homeHeroStats">
+            <div className="homeStat">
+              <span className="detailLabel">Clinic hours</span>
+              <strong>Mon-Sat • 8:00 AM - 6:00 PM</strong>
+            </div>
+            <div className="homeStat">
+              <span className="detailLabel">Patient flow</span>
+              <strong>Booking, approval, charting, and follow-up in one system</strong>
+            </div>
           </div>
         </div>
 
-        {/* RIGHT SIDE — 3D */}
-        <div className="card" style={{ padding: 12 }}>
+        <div className="card homeSplineCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">3D Tooth Viewer</h3>
-              <p className="sub">Drag to rotate • Scroll to zoom</p>
+              <h3 className="title">3D Smile Viewer</h3>
+              <p className="sub">Drag to rotate and explore the new interactive model.</p>
             </div>
-            <span className="badge">Interactive</span>
+            <span className="badge">Live 3D</span>
           </div>
 
-          <div
-            style={{
-              height: 380,
-              borderRadius: 14,
-              overflow: "hidden",
-              border: "1px solid var(--line)",
-            }}
-          >
-            <Spline scene="https://prod.spline.design/nwQB61UEGw-Pns9v/scene.splinecode" />
+          <div className="homeSplineViewport">
+            <Spline scene="https://prod.spline.design/yDUqhqQDbGSX7oy2/scene.splinecode" />
           </div>
         </div>
       </div>
