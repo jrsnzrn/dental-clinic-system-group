@@ -1,48 +1,44 @@
 import { useEffect, useMemo, useState } from "react";
 
-import cleaningImg from "../assets/services/cleaning.png";
-import restorationImg from "../assets/services/fillings.png";
-import extractionImg from "../assets/services/extraction.png";
-import bracesImg from "../assets/services/braces.png";
-import rootImg from "../assets/services/rootcanal.png";
-import whiteningImg from "../assets/services/whitening.png";
-import oralsurgeryImg from "../assets/services/whitening.png";
-import crownsImg from "../assets/services/whitening.png";
-import denturesImg from "../assets/services/whitening.png";
-import xrayImg from "../assets/services/whitening.png";
+const cleaningImg = "/services/cleaning.png";
+const restorationImg = "/services/fillings.png";
+const extractionImg = "/services/extraction.png";
+const bracesImg = "/services/braces.png";
+const rootImg = "/services/rootcanal.png";
+const whiteningImg = "/services/whitening.png";
+const oralsurgeryImg = "/services/extraction.png";
+const crownsImg = "/services/fillings.png";
+const denturesImg = "/services/cleaning.png";
+const xrayImg = "/services/rootcanal.png";
 
 export default function Services() {
   const items = useMemo(
     () => [
-      { name: "Cleaning", desc: "Gentle scaling & polishing.", img: cleaningImg },
+      { name: "Cleaning", desc: "Gentle scaling and polishing.", img: cleaningImg },
       { name: "Restoration", desc: "Tooth-colored restorations.", img: restorationImg },
       { name: "Extraction", desc: "Safe and comfortable removal.", img: extractionImg },
       { name: "Braces Consultation", desc: "Orthodontic assessment.", img: bracesImg },
       { name: "Root Canal", desc: "Save infected teeth.", img: rootImg },
       { name: "Whitening", desc: "Brighten your smile.", img: whiteningImg },
-      { name: "Oral Surgery", desc: "Brighten your smile.", img: oralsurgeryImg },
-      { name: "Crowns", desc: "Brighten your smile.", img: crownsImg },
-      { name: "Dentures", desc: "Brighten your smile.", img: denturesImg },
-      { name: "X-ray", desc: "Brighten your smile.", img: xrayImg },
+      { name: "Oral Surgery", desc: "Minor surgical dental procedures.", img: oralsurgeryImg },
+      { name: "Crowns", desc: "Restore strength and shape of teeth.", img: crownsImg },
+      { name: "Dentures", desc: "Custom removable tooth replacement.", img: denturesImg },
+      { name: "X-ray", desc: "Dental imaging for diagnosis and planning.", img: xrayImg },
     ],
     []
   );
 
   const [index, setIndex] = useState(0);
-
-  // ✅ MUST match CSS breakpoint widths
   const [cardWidth, setCardWidth] = useState(() =>
     window.matchMedia("(max-width: 640px)").matches ? 250 : 300
   );
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
-
     const update = () => setCardWidth(mq.matches ? 250 : 300);
 
     update();
 
-    // modern browsers
     if (mq.addEventListener) mq.addEventListener("change", update);
     else mq.addListener(update);
 
@@ -52,11 +48,9 @@ export default function Services() {
     };
   }, []);
 
-  // infinite loop navigation
   const prev = () => setIndex((i) => (i - 1 + items.length) % items.length);
   const next = () => setIndex((i) => (i + 1) % items.length);
 
-  // center offset calculation
   const gap = 18;
   const offset = (cardWidth + gap) * index;
 
@@ -89,7 +83,7 @@ export default function Services() {
                 className={`serviceCard ${i === index ? "isActive" : "isInactive"}`}
               >
                 <div className="serviceMedia">
-                  <img src={s.img} alt={s.name} />
+                  <img src={s.img} alt={s.name} loading="eager" />
                 </div>
 
                 <div className="serviceBody">
@@ -119,9 +113,9 @@ export default function Services() {
           </p>
 
           <ul className="note" style={{ marginTop: 12, lineHeight: 1.6 }}>
-            <li>✅ Professional sterilization & hygiene</li>
-            <li>✅ Comfort-first procedure</li>
-            <li>✅ Clear explanation before treatment</li>
+            <li>Professional sterilization and hygiene</li>
+            <li>Comfort-first procedure</li>
+            <li>Clear explanation before treatment</li>
           </ul>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
@@ -142,7 +136,7 @@ export default function Services() {
             <div className="item">
               <div className="kv">
                 <strong>Smart Scheduling</strong>
-                <span>Fast booking + confirmation</span>
+                <span>Fast booking and confirmation</span>
               </div>
               <span className="badge">Fast</span>
             </div>
