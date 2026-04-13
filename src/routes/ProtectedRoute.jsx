@@ -1,11 +1,12 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase"; // adjust path to your firebase config
+import { db } from "../firebase";
+import { canAccessRoute, getAdminProfile, getDefaultAdminPath } from "../utils/rbac";
 
-export default function ProtectedRoute({ user, children }) {
+export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminProfile, setAdminProfile] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -13,7 +14,7 @@ export default function ProtectedRoute({ user, children }) {
     async function checkAdmin() {
       if (!user) {
         if (alive) {
-          setIsAdmin(false);
+          setAdminProfile(null);
           setLoading(false);
         }
         return;
@@ -24,13 +25,13 @@ export default function ProtectedRoute({ user, children }) {
         const snap = await getDoc(ref);
 
         if (alive) {
-          setIsAdmin(snap.exists());
+          setAdminProfile(snap.exists() ? getAdminProfile(snap.data()) : null);
           setLoading(false);
         }
       } catch (err) {
-        console.error("Admin check failed:", err);
+        console.error("Admin access check failed:", err);
         if (alive) {
-          setIsAdmin(false);
+          setAdminProfile(null);
           setLoading(false);
         }
       }
@@ -40,11 +41,14 @@ export default function ProtectedRoute({ user, children }) {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [allowedRoles, user]);
 
   if (!user) return <Navigate to="/admin/login" replace />;
-  if (loading) return null; // or a spinner/loading text
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (loading) return null;
+  if (!adminProfile) return <Navigate to="/" replace />;
+  if (!canAccessRoute(adminProfile.role, allowedRoles)) {
+    return <Navigate to={getDefaultAdminPath(adminProfile.role)} replace />;
+  }
 
   return children;
 }

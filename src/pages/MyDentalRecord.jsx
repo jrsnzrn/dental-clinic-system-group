@@ -49,7 +49,8 @@ export default function MyDentalRecord() {
     [chart.teeth]
   );
   function resolveToothFromEvent(event) {
-    const bounds = event.currentTarget.getBoundingClientRect();
+    const image = event.currentTarget.querySelector(".toothReferenceImage");
+    const bounds = image?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect();
     const xPercent = ((event.clientX - bounds.left) / bounds.width) * 100;
     const yPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
     return getClosestToothFromPoint(xPercent, yPercent);

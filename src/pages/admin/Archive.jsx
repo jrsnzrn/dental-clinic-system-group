@@ -37,6 +37,11 @@ function normalizeValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function isArchivedValue(value) {
+  const normalized = normalizeValue(value);
+  return normalized === "archived" || normalized === "archive";
+}
+
 function ArchiveSection({ title, subtitle, count, children, emptyText }) {
   return (
     <div className="card adminRecordsCard bookingSectionCard">
@@ -108,14 +113,20 @@ export default function Archive() {
 
   const archivedPatients = useMemo(() => {
     return patients
-      .filter((patient) => patient.status === "Archived")
+      .filter((patient) => isArchivedValue(patient.status) || isArchivedValue(patient.archiveStatus))
       .filter((patient) => normalizeValue(patient.name).includes(term));
   }, [patients, term]);
 
   const archivedBookings = useMemo(() => {
     return bookings
-      .filter((booking) => booking.archiveStatus === "Archived")
-      .filter((booking) => normalizeValue(booking.fullName).includes(term));
+      .filter(
+        (booking) =>
+          isArchivedValue(booking.archiveStatus) ||
+          isArchivedValue(booking.status)
+      )
+      .filter((booking) =>
+        normalizeValue(booking.fullName || booking.patientKey || booking.name).includes(term)
+      );
   }, [bookings, term]);
 
   const archivedDentists = useMemo(() => {

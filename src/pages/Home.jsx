@@ -1,4 +1,3 @@
-import Spline from "@splinetool/react-spline";
 import { NavLink } from "react-router-dom";
 
 export default function Home() {
@@ -37,14 +36,30 @@ export default function Home() {
         <div className="card homeSplineCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">3D Smile Viewer</h3>
-              <p className="sub">Drag to rotate and explore the new interactive model.</p>
+              <h3 className="title">Clinic Highlights</h3>
+              <p className="sub">A simpler home page focus with faster loading and clearer patient guidance.</p>
             </div>
-            <span className="badge">Live 3D</span>
+            <span className="badge">TopDent</span>
           </div>
 
-          <div className="homeSplineViewport">
-            <Spline scene="https://prod.spline.design/yDUqhqQDbGSX7oy2/scene.splinecode" />
+          <div className="homeHighlightPanel">
+            <div className="homeHighlightCard">
+              <span className="detailLabel">Appointments</span>
+              <strong>Book faster with one saved patient identity</strong>
+              <p>Repeat bookings stay organized under the same patient record for easier tracking.</p>
+            </div>
+
+            <div className="homeHighlightCard">
+              <span className="detailLabel">Dental Record</span>
+              <strong>View tooth notes and record history online</strong>
+              <p>Patients can review dentist comments and chart updates from their own account.</p>
+            </div>
+
+            <div className="homeHighlightCard">
+              <span className="detailLabel">Clinic Workflow</span>
+              <strong>Admin tools built for daily dental operations</strong>
+              <p>Manage bookings, patients, dentists, schedules, and archive records in one place.</p>
+            </div>
           </div>
         </div>
       </div>

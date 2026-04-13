@@ -1,16 +1,44 @@
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../firebase";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../../firebase";
 import { useNavigate } from "react-router-dom";
+import { getAdminProfile, getDefaultAdminPath, ROLE_LABELS, ROLES } from "../../utils/rbac";
+
+const ROLE_OPTIONS = [
+  {
+    value: ROLES.RECEPTIONIST,
+    badge: "Reception",
+    title: "Reception Access",
+    description:
+      "Handles appointment intake, patient coordination, booking updates, and front-desk record flow.",
+  },
+  {
+    value: ROLES.DENTIST,
+    badge: "Dentist",
+    title: "Dentist Access",
+    description:
+      "Focused on patient chart review, dental notes, and treatment-side record management.",
+  },
+  {
+    value: ROLES.ADMIN,
+    badge: "Admin",
+    title: "Administrator Access",
+    description:
+      "Controls the security and integrity of the database, sets up clinic services, and manages system-level accounts for dentists and receptionists with full access to the platform.",
+  },
+];
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState(ROLES.ADMIN);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
 
   const navigate = useNavigate();
+  const currentRole = ROLE_OPTIONS.find((role) => role.value === selectedRole) || ROLE_OPTIONS[2];
 
   async function onLogin(e) {
     e.preventDefault();
@@ -25,10 +53,30 @@ export default function Login() {
 
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      navigate("/admin/patients");
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const adminSnap = await getDoc(doc(db, "admins", credential.user.uid));
+
+      if (!adminSnap.exists()) {
+        await signOut(auth);
+        throw new Error("not-admin");
+      }
+
+      const profile = getAdminProfile(adminSnap.data());
+      if (profile.role !== selectedRole) {
+        await signOut(auth);
+        throw new Error("role-mismatch");
+      }
+
+      navigate(getDefaultAdminPath(profile.role));
     } catch (e) {
-      setErr("Login failed. Check your email/password.");
+      if (e.message === "role-mismatch") {
+        setErr(`This account is not registered for ${ROLE_LABELS[selectedRole].toLowerCase()} access.`);
+      } else if (e.message === "not-admin") {
+        setErr("This account does not exist in the admin access list.");
+      } else {
+        setErr("Login failed. Check your email/password.");
+      }
+
       setShake(true);
       setTimeout(() => setShake(false), 400);
       console.error(e);
@@ -39,27 +87,48 @@ export default function Login() {
 
   return (
     <div className="authWrap">
-      <div className={`authCard ${shake ? "shake" : ""}`}>
+      <div className={`authCard roleAuthCard ${shake ? "shake" : ""}`}>
         <div className="authHeader">
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span className="pill">Admin</span>
-            <span className="pill">Secure Login</span>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span className="pill">Secure Access</span>
+            <span className="pill">{ROLE_LABELS[selectedRole]}</span>
           </div>
 
-          <h2 className="authTitle">Welcome back</h2>
+          <h2 className="authTitle">Role-Based Login</h2>
           <p className="authSub">
-            Sign in to manage patients, appointments, and tooth tracking.
+            Choose the access module first, then sign in with the account assigned to that role in Firebase.
           </p>
+        </div>
+
+        <div className="roleChoiceGrid">
+          {ROLE_OPTIONS.map((role) => (
+            <button
+              key={role.value}
+              type="button"
+              className={`roleChoiceCard ${selectedRole === role.value ? "selected" : ""}`}
+              onClick={() => setSelectedRole(role.value)}
+            >
+              <span className="roleChoiceBadge">{role.badge}</span>
+              <strong>{role.title}</strong>
+              <p>{role.description}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="selectedRolePanel">
+          <span className="detailLabel">Selected module</span>
+          <strong>{currentRole.title}</strong>
+          <p>{currentRole.description}</p>
         </div>
 
         <form onSubmit={onLogin} className="authGrid">
           <div className="inputGroup">
             <div className="label">Email</div>
             <div className="inputIconRow">
-              <div className="inputIcon">✉️</div>
+              <div className="inputIcon">@</div>
               <input
                 className="inputPlain"
-                placeholder="admin@email.com"
+                placeholder={`${selectedRole}@topdent.com`}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -70,10 +139,10 @@ export default function Login() {
           <div className="inputGroup">
             <div className="label">Password</div>
             <div className="inputIconRow">
-              <div className="inputIcon">🔒</div>
+              <div className="inputIcon">#</div>
               <input
                 className="inputPlain"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -83,13 +152,13 @@ export default function Login() {
           </div>
 
           <button className="btn btnWide" type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Login"}
+            {loading ? "Signing in..." : `Login as ${ROLE_LABELS[selectedRole]}`}
           </button>
 
           {err ? <div className="error">{err}</div> : null}
 
           <div className="helperRow">
-            <span>Tip: use the admin account from Firebase Auth</span>
+            <span>Match the selected role with the `role` field inside `admins/{'{uid}'}` in Firestore.</span>
             <span
               className="linkish"
               onClick={() => navigate("/")}

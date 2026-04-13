@@ -89,6 +89,47 @@ a:hover{ opacity: 0.9; }
   flex-wrap: wrap;
 }
 
+.navMenuShell{
+  display: contents;
+}
+
+.menuToggle{
+  display: none;
+  width: 48px;
+  height: 48px;
+  margin-left: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(79,209,197,0.32);
+  background: rgba(255,255,255,0.06);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(8,15,30,0.18);
+}
+
+.menuToggle span{
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--text);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.menuToggle.active span:nth-child(1){
+  transform: translateY(7px) rotate(45deg);
+}
+
+.menuToggle.active span:nth-child(2){
+  opacity: 0;
+}
+
+.menuToggle.active span:nth-child(3){
+  transform: translateY(-7px) rotate(-45deg);
+}
+
 .adminSubnav{
   display: flex;
   flex-wrap: wrap;
@@ -228,6 +269,90 @@ button.navItem{
   animation: navShine 0.9s ease;
 }
 
+.siteFooter{
+  margin-top: 36px;
+  border-top: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.14), transparent 26%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+.siteFooterInner{
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 28px 32px 40px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.9fr;
+  gap: 22px;
+}
+
+.footerBrand{
+  margin-bottom: 14px;
+}
+
+.footerBrandBlock{
+  max-width: 440px;
+}
+
+.footerText{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.footerLinksGroup{
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.footerMetaGroup{
+  justify-items: start;
+}
+
+.footerLabel{
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.footerLink{
+  color: var(--muted);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.footerLink:hover{
+  color: var(--text);
+  transform: translateX(3px);
+}
+
+.footerCopy{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.policyHero{
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(59,130,246,0.14), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+}
+
+.policyCard{
+  min-height: 100%;
+}
+
+.roleBadge{
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+}
+
 @keyframes navShine{
   from{ transform: translateX(-120%); }
   to{ transform: translateX(120%); }
@@ -329,6 +454,35 @@ button.navItem{
 .homeSplineViewport div[style*="Built with Spline"],
 .homeSplineViewport a[href*="spline.design"]{
   display: none !important;
+}
+
+.homeHighlightPanel{
+  display: grid;
+  gap: 12px;
+  min-height: 420px;
+}
+
+.homeHighlightCard{
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.12), transparent 30%),
+    rgba(9,16,32,0.46);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.homeHighlightCard strong{
+  display: block;
+  margin-top: 6px;
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+
+.homeHighlightCard p{
+  margin: 0;
+  color: var(--muted);
+  max-width: none;
 }
 
 /* ================================
@@ -1419,6 +1573,11 @@ button.navItem{
   margin-top: 14px;
 }
 
+.dentistQuickActions{
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 /* ================================
    FORMS
 ================================ */
@@ -1491,6 +1650,10 @@ select.input{
   border-radius: 22px;
   box-shadow: var(--shadow);
   padding: 22px;
+}
+
+.roleAuthCard{
+  width: min(900px, 100%);
 }
 
 .authHeader{ display: grid; gap: 6px; margin-bottom: 14px; }
@@ -1569,6 +1732,93 @@ select.input{
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.04);
   color: var(--muted);
+}
+
+.roleChoiceGrid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.roleChoiceCard{
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.10), transparent 34%),
+    rgba(255,255,255,0.04);
+  padding: 16px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.roleChoiceCard strong{
+  display: block;
+  margin: 8px 0 8px;
+  font-size: 16px;
+}
+
+.roleChoiceCard p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.roleChoiceCard:hover{
+  transform: translateY(-2px);
+  border-color: rgba(79,209,197,0.30);
+}
+
+.roleChoiceCard.selected{
+  border-color: rgba(79,209,197,0.72);
+  box-shadow: 0 22px 44px rgba(79,209,197,0.22), 0 0 0 2px rgba(79,209,197,0.20);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.28), transparent 34%),
+    linear-gradient(180deg, rgba(79,209,197,0.16), rgba(59,130,246,0.08)),
+    rgba(255,255,255,0.08);
+  transform: translateY(-3px) scale(1.01);
+}
+
+.roleChoiceBadge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: rgba(236,248,255,0.88);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.selectedRolePanel{
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(79,209,197,0.48);
+  background:
+    radial-gradient(circle at right, rgba(79,209,197,0.28), transparent 30%),
+    linear-gradient(180deg, rgba(79,209,197,0.14), rgba(255,255,255,0.04));
+  box-shadow: 0 18px 34px rgba(79,209,197,0.14);
+}
+
+.selectedRolePanel strong{
+  display: block;
+  margin-top: 6px;
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.selectedRolePanel p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
 }
 
 .shake{ animation: shake 0.35s ease; }
@@ -1856,6 +2106,48 @@ select.input{
   .navInner{ padding: 12px 14px; }
   .navLinks{ gap: 8px; }
 
+  .menuToggle{
+    display: inline-flex;
+  }
+
+  .navMenuShell{
+    display: none;
+    width: 100%;
+    margin-top: 10px;
+    padding: 14px;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(6,10,24,0.92);
+    box-shadow: 0 22px 40px rgba(0,0,0,0.24);
+  }
+
+  .navMenuShell.open{
+    display: grid;
+    gap: 12px;
+  }
+
+  .navInner{
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .navLinksPrimary,
+  .navLinksUtility{
+    width: 100%;
+    display: grid;
+    gap: 10px;
+  }
+
+  .navLinksPrimary .navItem,
+  .navLinksUtility .navItem{
+    width: 100%;
+    text-align: left;
+  }
+
+  .spacer{
+    display: none;
+  }
+
   .navItem{
     padding: 9px 12px;
     border-radius: 12px;
@@ -1869,6 +2161,15 @@ select.input{
     padding: clamp(22px, 3vw, 42px);
   }
   .hero h1{ font-size: 24px; }
+
+  .siteFooterInner{
+    grid-template-columns: 1fr;
+    padding: 24px 16px 34px;
+  }
+
+  .roleChoiceGrid{
+    grid-template-columns: 1fr;
+  }
 
   .carouselViewport{ min-height: 460px; }
   .serviceCard{ flex: 0 0 250px; }

@@ -9,13 +9,14 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
 import {
   formatDateLabel,
   formatTimeLabel,
   formatTimestamp,
 } from "../../utils/schedule";
 import { createEmptyDentalChart, getClosestToothFromPoint, TOOTH_LABELS, TOOTH_MARKERS } from "../../utils/teeth";
+import { getAdminProfile, ROLES } from "../../utils/rbac";
 
 function normalizeName(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -90,32 +91,40 @@ export default function Patients() {
   const [chartDraft, setChartDraft] = useState(createEmptyDentalChart());
   const [selectedTooth, setSelectedTooth] = useState("11");
   const [hoveredTooth, setHoveredTooth] = useState("");
+  const [adminRole, setAdminRole] = useState(ROLES.ADMIN);
+  const [loadingPatients, setLoadingPatients] = useState(true);
 
   function resolveToothFromEvent(event) {
-    const bounds = event.currentTarget.getBoundingClientRect();
+    const image = event.currentTarget.querySelector(".toothReferenceImage");
+    const bounds = image?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect();
     const xPercent = ((event.clientX - bounds.left) / bounds.width) * 100;
     const yPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
     return getClosestToothFromPoint(xPercent, yPercent);
   }
 
-  async function load() {
+  async function load(role = adminRole) {
+    setLoadingPatients(true);
     const patientQuery = query(collection(db, "patients"), orderBy("createdAt", "desc"));
     const patientSnap = await getDocs(patientQuery);
     let patientList = patientSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    const bookingsSnap = await getDocs(collection(db, "bookings"));
-    const bookingList = bookingsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    let bookingList = [];
 
-    const approvedBookings = bookingList.filter((booking) => booking.status === "approved");
-    for (const booking of approvedBookings) {
-      const hasMatch = patientList.some((patient) => {
-        if (booking.uid && patient.uid === booking.uid) return true;
-        return normalizeName(patient.name) === normalizeName(booking.fullName || booking.patientKey);
-      });
+    if (role !== ROLES.DENTIST) {
+      const bookingsSnap = await getDocs(collection(db, "bookings"));
+      bookingList = bookingsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      if (!hasMatch) {
-        const syncedPatient = await syncPatientRecordFromBooking(booking, patientList);
-        patientList = [syncedPatient, ...patientList];
+      const approvedBookings = bookingList.filter((booking) => booking.status === "approved");
+      for (const booking of approvedBookings) {
+        const hasMatch = patientList.some((patient) => {
+          if (booking.uid && patient.uid === booking.uid) return true;
+          return normalizeName(patient.name) === normalizeName(booking.fullName || booking.patientKey);
+        });
+
+        if (!hasMatch) {
+          const syncedPatient = await syncPatientRecordFromBooking(booking, patientList);
+          patientList = [syncedPatient, ...patientList];
+        }
       }
     }
 
@@ -125,10 +134,24 @@ export default function Patients() {
     if (!selectedPatientId && patientList.length) {
       setSelectedPatientId(patientList[0].id);
     }
+
+    setLoadingPatients(false);
   }
 
   useEffect(() => {
-    load();
+    async function loadAdminRole() {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
+      if (adminSnap.exists()) {
+        const role = getAdminProfile(adminSnap.data()).role;
+        setAdminRole(role);
+        await load(role);
+      }
+    }
+
+    loadAdminRole();
   }, []);
 
   const patientCards = useMemo(() => {
@@ -478,15 +501,27 @@ export default function Patients() {
 
   const focusedTooth = hoveredTooth || selectedTooth;
   const selectedToothComment = chartDraft.teeth?.[selectedTooth] || "";
+  const isReceptionist = adminRole === ROLES.RECEPTIONIST;
+  const isDentist = adminRole === ROLES.DENTIST;
+  const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
+  const canEditPatientProfile = adminRole === ROLES.ADMIN || adminRole === ROLES.RECEPTIONIST;
+  const pageEyebrow = isReceptionist ? "Reception Desk" : isDentist ? "Dentist Workspace" : "Patient Intelligence";
+  const pageTitle = isReceptionist ? "Reception Patient Desk" : isDentist ? "Dentist Patient View" : "Patients Management";
 
   return (
     <div className="container adminSurface">
       <div className="hero adminHero">
         <div className="adminHeroGlow" />
         <div className="adminHeroContent">
-          <span className="heroEyebrow">Patient Intelligence</span>
-          <h1>Patients Management</h1>
-          <p>Track visit history, refine patient information, manage age and contact data, and let the dentist click directly on the dental chart image to leave notes.</p>
+          <span className="heroEyebrow">{pageEyebrow}</span>
+          <h1>{pageTitle}</h1>
+          <p>
+            {isReceptionist
+              ? "Track visit history, refine patient information, review chart notes clearly, and keep front-desk patient records organized."
+              : isDentist
+                ? "Review patient details, inspect dental charts, and manage clinical notes from the dentist workspace."
+              : "Track visit history, refine patient information, manage age and contact data, and let the dentist click directly on the dental chart image to leave notes."}
+          </p>
         </div>
       </div>
 
@@ -514,7 +549,11 @@ export default function Patients() {
           <div className="cardHeader">
             <div>
               <h3 className="title">Edit Patient Details</h3>
-              <p className="sub">Select a patient card on the right to refine their profile, update age, and keep their chart notes organized.</p>
+              <p className="sub">
+                {isDentist
+                  ? "Select a patient card on the right to review patient details and work on the dental chart notes."
+                  : "Select a patient card on the right to refine their profile, update age, and keep their chart notes organized."}
+              </p>
             </div>
             <span className="badge">{selectedPatient ? "Editing" : "Choose a patient"}</span>
           </div>
@@ -539,6 +578,7 @@ export default function Patients() {
                   className="input"
                   placeholder="Full name"
                   value={draft.name}
+                  readOnly={!canEditPatientProfile}
                   onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
                 />
 
@@ -548,6 +588,7 @@ export default function Patients() {
                   min="1"
                   placeholder="Age"
                   value={draft.age}
+                  readOnly={!canEditPatientProfile}
                   onChange={(e) => setDraft((current) => ({ ...current, age: e.target.value }))}
                 />
 
@@ -555,6 +596,7 @@ export default function Patients() {
                   className="input"
                   placeholder="Phone"
                   value={draft.phone}
+                  readOnly={!canEditPatientProfile}
                   onChange={(e) => setDraft((current) => ({ ...current, phone: e.target.value }))}
                 />
 
@@ -562,12 +604,14 @@ export default function Patients() {
                   className="input"
                   placeholder="Email"
                   value={draft.email}
+                  readOnly={!canEditPatientProfile}
                   onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))}
                 />
 
                 <select
                   className="input"
                   value={draft.patientType}
+                  disabled={!canEditPatientProfile}
                   onChange={(e) => setDraft((current) => ({ ...current, patientType: e.target.value }))}
                 >
                   <option>Regular Patient</option>
@@ -577,21 +621,27 @@ export default function Patients() {
                 <select
                   className="input"
                   value={draft.status}
+                  disabled={!canEditPatientProfile}
                   onChange={(e) => setDraft((current) => ({ ...current, status: e.target.value }))}
                 >
                   <option>Active</option>
                   <option>Archived</option>
                 </select>
 
-                <button className="btn btnShine">Save Patient Details</button>
+                {canEditPatientProfile ? <button className="btn btnShine">Save Patient Details</button> : null}
               </form>
 
               <div className="chartEditorCard">
                 <div className="cardHeader" style={{ marginTop: 18 }}>
                   <div>
-                    <h3 className="title">Dental Chart Notes</h3>
-                    <p className="sub">Tap directly on the numbering image below to choose a tooth, then write the dentist note for that specific area.</p>
+                    <h3 className="title">{canEditDentalChart ? "Dental Chart Notes" : "Dental Chart Overview"}</h3>
+                    <p className="sub">
+                      {canEditDentalChart
+                        ? "Tap directly on the numbering image below to choose a tooth, then write the dentist note for that specific area."
+                        : "Reception access can review the patient chart and existing dentist notes here, but note editing stays restricted to dentists and administrators."}
+                    </p>
                   </div>
+                  <span className="badge">{canEditDentalChart ? "Editable" : "Read Only"}</span>
                 </div>
 
                 {selectedPatient.uid ? (
@@ -628,40 +678,56 @@ export default function Patients() {
                       <p>{selectedToothComment || "No note saved for this tooth yet."}</p>
                     </div>
 
-                    <textarea
-                      className="input"
-                      rows={4}
-                      placeholder="Tooth-specific comment"
-                      value={selectedToothComment}
-                      onChange={(e) =>
-                        setChartDraft((current) => ({
-                          ...current,
-                          uid: selectedPatient.uid,
-                          teeth: {
-                            ...(current.teeth || {}),
-                            [selectedTooth]: e.target.value,
-                          },
-                        }))
-                      }
-                    />
+                    {canEditDentalChart ? (
+                      <>
+                        <textarea
+                          className="input"
+                          rows={4}
+                          placeholder="Tooth-specific comment"
+                          value={selectedToothComment}
+                          onChange={(e) =>
+                            setChartDraft((current) => ({
+                              ...current,
+                              uid: selectedPatient.uid,
+                              teeth: {
+                                ...(current.teeth || {}),
+                                [selectedTooth]: e.target.value,
+                              },
+                            }))
+                          }
+                        />
 
-                    <textarea
-                      className="input"
-                      rows={5}
-                      placeholder="General dentist notes"
-                      value={chartDraft.generalNotes || ""}
-                      onChange={(e) =>
-                        setChartDraft((current) => ({
-                          ...current,
-                          uid: selectedPatient.uid,
-                          generalNotes: e.target.value,
-                        }))
-                      }
-                    />
+                        <textarea
+                          className="input"
+                          rows={5}
+                          placeholder="General dentist notes"
+                          value={chartDraft.generalNotes || ""}
+                          onChange={(e) =>
+                            setChartDraft((current) => ({
+                              ...current,
+                              uid: selectedPatient.uid,
+                              generalNotes: e.target.value,
+                            }))
+                          }
+                        />
 
-                    <button className="btn btnShine" type="button" onClick={saveDentalChart}>
-                      Save Dental Chart Notes
-                    </button>
+                        <button className="btn btnShine" type="button" onClick={saveDentalChart}>
+                          Save Dental Chart Notes
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
+                          <span className="detailLabel">General dentist notes</span>
+                          <p>{chartDraft.generalNotes || "No general dentist notes saved yet."}</p>
+                        </div>
+
+                        <div className="emptyEditorState" style={{ marginTop: 12 }}>
+                          <strong>Reception view only</strong>
+                          <p>Dental notes can be reviewed here for coordination, but only dentist and admin accounts can add or edit chart comments.</p>
+                        </div>
+                      </>
+                    )}
                   </>
                 ) : (
                   <div className="emptyEditorState" style={{ marginTop: 12 }}>
@@ -793,7 +859,13 @@ export default function Patients() {
           </ul>
 
           {!filteredPatientCards.length ? (
-            <div className="emptyEditorState">No active patients matched that name.</div>
+            <div className="emptyEditorState">
+              {loadingPatients
+                ? "Loading patient records..."
+                : isDentist
+                  ? "No patient records are available for this dentist view yet."
+                  : "No active patients matched that name."}
+            </div>
           ) : null}
         </div>
       </div>

@@ -232,6 +232,19 @@ export default function Dentists() {
                   <p>{formatScheduleSummary(schedule)}</p>
                 </div>
 
+                <div
+                  className="schedulerActions dentistQuickActions"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button
+                    className="btn archiveButton"
+                    type="button"
+                    onClick={() => archiveDentist(dentist.id)}
+                  >
+                    Archive Dentist
+                  </button>
+                </div>
+
                 {isOpen ? (
                   <div
                     className="schedulerPanel"
@@ -284,13 +297,6 @@ export default function Dentists() {
                     <div className="schedulerActions">
                       <button className="btn" type="button" onClick={() => saveSchedule(dentist)}>
                         Save Schedule
-                      </button>
-                      <button
-                        className="btn secondary"
-                        type="button"
-                        onClick={() => archiveDentist(dentist.id)}
-                      >
-                        Archive Dentist
                       </button>
                       <button
                         className="btn secondary"
