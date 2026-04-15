@@ -1926,6 +1926,39 @@ button.navItem{
   margin: 0;
 }
 
+.auditLogList{
+  margin-top: 0;
+}
+
+.auditDetails{
+  display: grid;
+  gap: 8px;
+}
+
+.auditDetailRow{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.auditDetailRow:last-child{
+  border-bottom: 0;
+}
+
+.auditDetailRow strong{
+  font-size: 12px;
+  text-transform: capitalize;
+  color: rgba(228,240,245,0.86);
+}
+
+.auditDetailRow span{
+  color: var(--muted);
+  text-align: right;
+}
+
 .liveFocusPanel{
   border-color: rgba(96,165,250,0.24);
   background:

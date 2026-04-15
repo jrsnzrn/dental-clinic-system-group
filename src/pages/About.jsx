@@ -8,23 +8,8 @@ export default function About() {
             <span className="heroEyebrow">About TopDent</span>
             <h1>About Us</h1>
             <p>
-              TopDent Dental Clinic is built to make dental care easier for both patients and clinic staff through online booking, organized patient records, and a cleaner daily workflow.
+              TopDent Dental Clinic is a local clinic in Meycauayan, Bulacan committed to providing friendly, reliable, and patient-focused dental care for the community.
             </p>
-          </div>
-
-          <div className="bookingHeroSummary">
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Clinic focus</span>
-              <strong>Modern booking and patient record management</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Patient experience</span>
-              <strong>One profile, easier appointments, clearer records</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Clinic workflow</span>
-              <strong>Patients, bookings, dentists, and archive in one system</strong>
-            </div>
           </div>
         </div>
       </div>
@@ -34,21 +19,21 @@ export default function About() {
           <div className="cardHeader">
             <div>
               <h3 className="title">Who We Are</h3>
-              <p className="sub">A dental clinic experience designed to feel more organized, modern, and easier to manage.</p>
+              <p className="sub">A neighborhood dental clinic serving patients and families in Meycauayan, Bulacan.</p>
             </div>
           </div>
 
           <div className="detailNote historyPanel">
-            <span className="detailLabel">Clinic overview</span>
+            <span className="detailLabel">About the clinic</span>
             <p>
-              TopDent helps patients book appointments using a saved identity, while the clinic team manages schedules, patient records, approvals, and treatment notes from one connected system.
+              We are a local dental clinic focused on making every visit feel approachable, organized, and comfortable. Our goal is to provide quality dental care while building lasting trust with patients in the Meycauayan community.
             </p>
           </div>
 
           <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
-            <span className="detailLabel">What the system supports</span>
+            <span className="detailLabel">What patients can expect</span>
             <p>
-              The platform supports patient sign-up, appointment booking, approval and check-in handling, dentist scheduling, patient record editing, archive management, and patient dental record viewing.
+              Patients can expect attentive service, clear communication, and support for routine checkups, consultations, and continuing dental care. We aim to create a clinic experience that feels personal, professional, and easy to trust.
             </p>
           </div>
         </div>

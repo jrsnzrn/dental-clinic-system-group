@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import { logAdminAction } from "../../utils/audit";
 import {
   formatDateLabel,
   formatTimeLabel,
@@ -203,6 +204,19 @@ export default function Bookings() {
   async function setStatus(id, nextStatus, bookingData) {
     await updateDoc(doc(db, "bookings", id), { status: nextStatus });
 
+    await logAdminAction({
+      action: "update_booking_status",
+      targetType: "booking",
+      targetId: id,
+      targetLabel: bookingData.fullName || bookingData.email || "Booking",
+      details: {
+        status: nextStatus,
+        service: bookingData.service || "",
+        date: bookingData.date || "",
+        time: bookingData.time || "",
+      },
+    });
+
     if (nextStatus === "approved") {
       await syncPatientRecordFromBooking(bookingData);
     }
@@ -212,6 +226,18 @@ export default function Bookings() {
     await updateDoc(doc(db, "bookings", id), {
       archiveStatus: "Archived",
     });
+
+    const booking = bookings.find((entry) => entry.id === id);
+    await logAdminAction({
+      action: "archive_booking",
+      targetType: "booking",
+      targetId: id,
+      targetLabel: booking?.fullName || booking?.email || "Booking",
+      details: {
+        service: booking?.service || "",
+        date: booking?.date || "",
+      },
+    });
   }
 
   async function toggleCheckIn(booking) {
@@ -219,6 +245,17 @@ export default function Bookings() {
 
     await updateDoc(doc(db, "bookings", booking.id), {
       checkedInAt: nextCheckedInAt,
+    });
+
+    await logAdminAction({
+      action: booking.checkedInAt ? "clear_booking_check_in" : "mark_booking_check_in",
+      targetType: "booking",
+      targetId: booking.id,
+      targetLabel: booking.fullName || booking.email || "Booking",
+      details: {
+        date: booking.date || "",
+        time: booking.time || "",
+      },
     });
 
     if (booking.status === "approved") {

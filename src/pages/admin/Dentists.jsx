@@ -18,6 +18,7 @@ import {
   getDentistScheduleStatus,
   normalizeSchedule,
 } from "../../utils/schedule";
+import { logAdminAction } from "../../utils/audit";
 
 const todayKey = DAY_ORDER[(new Date().getDay() + 6) % 7].key;
 
@@ -77,6 +78,16 @@ export default function Dentists() {
       createdAt: serverTimestamp(),
     });
 
+    await logAdminAction({
+      action: "add_dentist",
+      targetType: "dentist",
+      targetLabel: name.trim(),
+      details: {
+        email: email.trim(),
+        specialization: specialization.trim(),
+      },
+    });
+
     setName("");
     setEmail("");
     setSpecialization("");
@@ -107,6 +118,13 @@ export default function Dentists() {
       schedule: nextSchedule,
       status: getDentistScheduleStatus({ schedule: nextSchedule }, todayDate),
     });
+
+    await logAdminAction({
+      action: "update_dentist_schedule",
+      targetType: "dentist",
+      targetId: dentist.id,
+      targetLabel: dentist.name || "Dentist",
+    });
   }
 
   const summary = useMemo(() => {
@@ -125,6 +143,14 @@ export default function Dentists() {
   async function archiveDentist(dentistId) {
     await updateDoc(doc(db, "dentists", dentistId), {
       archiveStatus: "Archived",
+    });
+
+    const dentist = dentists.find((entry) => entry.id === dentistId);
+    await logAdminAction({
+      action: "archive_dentist",
+      targetType: "dentist",
+      targetId: dentistId,
+      targetLabel: dentist?.name || "Dentist",
     });
   }
 

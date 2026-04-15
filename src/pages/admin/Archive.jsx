@@ -8,6 +8,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import { logAdminAction } from "../../utils/audit";
 import {
   formatDateLabel,
   formatScheduleSummary,
@@ -147,22 +148,55 @@ export default function Archive() {
 
   async function restorePatient(id) {
     await updateDoc(doc(db, "patients", id), { status: "Active" });
+    const patient = patients.find((entry) => entry.id === id);
+    await logAdminAction({
+      action: "restore_patient",
+      targetType: "patient",
+      targetId: id,
+      targetLabel: patient?.name || "Patient",
+    });
     await load();
   }
 
   async function restoreBooking(id) {
     await updateDoc(doc(db, "bookings", id), { archiveStatus: "Active" });
+    const booking = bookings.find((entry) => entry.id === id);
+    await logAdminAction({
+      action: "restore_booking",
+      targetType: "booking",
+      targetId: id,
+      targetLabel: booking?.fullName || booking?.email || "Booking",
+    });
     await load();
   }
 
   async function restoreDentist(id) {
     await updateDoc(doc(db, "dentists", id), { archiveStatus: "Active" });
+    const dentist = dentists.find((entry) => entry.id === id);
+    await logAdminAction({
+      action: "restore_dentist",
+      targetType: "dentist",
+      targetId: id,
+      targetLabel: dentist?.name || "Dentist",
+    });
     await load();
   }
 
   async function removeRecord(collectionName, id) {
     if (!confirm("Permanently delete this archived record?")) return;
+    const targetCollections = {
+      patients,
+      dentists,
+      bookings,
+    };
+    const target = (targetCollections[collectionName] || []).find((entry) => entry.id === id);
     await deleteDoc(doc(db, collectionName, id));
+    await logAdminAction({
+      action: "delete_archived_record",
+      targetType: collectionName.slice(0, -1),
+      targetId: id,
+      targetLabel: target?.name || target?.fullName || target?.email || "Archived record",
+    });
     await load();
   }
 

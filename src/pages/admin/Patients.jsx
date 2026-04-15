@@ -15,6 +15,7 @@ import {
   formatTimeLabel,
   formatTimestamp,
 } from "../../utils/schedule";
+import { logAdminAction } from "../../utils/audit";
 import { createEmptyDentalChart, DENTAL_CHART_IMAGE, TOOTH_IDS, TOOTH_LABELS, TOOTH_MARKERS } from "../../utils/teeth";
 import { getAdminProfile, ROLES } from "../../utils/rbac";
 
@@ -243,6 +244,17 @@ export default function Patients() {
       status: draft.status,
     });
 
+    await logAdminAction({
+      action: "update_patient_profile",
+      targetType: "patient",
+      targetId: draft.id,
+      targetLabel: draft.name.trim(),
+      details: {
+        patientType: draft.patientType,
+        status: draft.status,
+      },
+    });
+
     await load();
   }
 
@@ -260,12 +272,31 @@ export default function Patients() {
       },
       { merge: true }
     );
+
+    await logAdminAction({
+      action: "save_dental_chart",
+      targetType: "dental_chart",
+      targetId: selectedPatient.uid,
+      targetLabel: selectedPatient.name || selectedPatient.email || "Dental chart",
+      details: {
+        selectedTeeth,
+        generalNotesLength: String(chartDraft.generalNotes || "").length,
+      },
+    });
   }
 
   async function toggleArchive(patient) {
     await updateDoc(doc(db, "patients", patient.id), {
       status: patient.status === "Archived" ? "Active" : "Archived",
     });
+
+    await logAdminAction({
+      action: patient.status === "Archived" ? "restore_patient" : "archive_patient",
+      targetType: "patient",
+      targetId: patient.id,
+      targetLabel: patient.name || patient.email || "Patient",
+    });
+
     await load();
   }
 
