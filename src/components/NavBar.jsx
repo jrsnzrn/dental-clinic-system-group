@@ -103,6 +103,7 @@ export default function NavBar({
                 <NavLink to="/services" className={navClass} onClick={() => setMenuOpen(false)}>Services</NavLink>
                 <NavLink to="/contact" className={navClass} onClick={() => setMenuOpen(false)}>Contact</NavLink>
                 <NavLink to="/book" className={navClass} onClick={() => setMenuOpen(false)}>Book</NavLink>
+                <NavLink to="/about" className={navClass} onClick={() => setMenuOpen(false)}>About Us</NavLink>
                 {user && <NavLink to="/my-record" className={navClass} onClick={() => setMenuOpen(false)}>My Record</NavLink>}
               </div>
 

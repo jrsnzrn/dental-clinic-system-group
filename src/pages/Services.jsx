@@ -14,16 +14,127 @@ const xrayImg = "/services/rootcanal.png";
 export default function Services() {
   const items = useMemo(
     () => [
-      { name: "Cleaning", desc: "Gentle scaling and polishing.", img: cleaningImg },
-      { name: "Restoration", desc: "Tooth-colored restorations.", img: restorationImg },
-      { name: "Extraction", desc: "Safe and comfortable removal.", img: extractionImg },
-      { name: "Braces Consultation", desc: "Orthodontic assessment.", img: bracesImg },
-      { name: "Root Canal", desc: "Save infected teeth.", img: rootImg },
-      { name: "Whitening", desc: "Brighten your smile.", img: whiteningImg },
-      { name: "Oral Surgery", desc: "Minor surgical dental procedures.", img: oralsurgeryImg },
-      { name: "Crowns", desc: "Restore strength and shape of teeth.", img: crownsImg },
-      { name: "Dentures", desc: "Custom removable tooth replacement.", img: denturesImg },
-      { name: "X-ray", desc: "Dental imaging for diagnosis and planning.", img: xrayImg },
+      {
+        name: "Cleaning",
+        desc: "Professional cleaning for healthier gums and a fresher smile.",
+        price: "PHP 800 starting",
+        img: cleaningImg,
+        notes: [
+          "Gentle scaling and polishing",
+          "Good for routine oral maintenance",
+          "Starting price may vary depending on case",
+        ],
+      },
+      {
+        name: "Restoration",
+        desc: "Tooth-colored restoration for damaged or decayed teeth.",
+        price: "PHP 800 starting",
+        img: restorationImg,
+        notes: [
+          "Restores shape and function",
+          "Tooth-colored material",
+          "Starting price depends on the tooth condition",
+        ],
+      },
+      {
+        name: "Extraction",
+        desc: "Safe and comfortable tooth removal when needed.",
+        price: "PHP 800 starting",
+        img: extractionImg,
+        notes: [
+          "Case assessment before procedure",
+          "Simple extraction starting rate",
+          "Complex cases may have different pricing",
+        ],
+      },
+      {
+        name: "Teeth Whitening",
+        desc: "Whitening treatment designed to brighten your smile in one session.",
+        price: "PHP 8,000",
+        img: whiteningImg,
+        notes: [
+          "Includes 4 cycles in 1 session",
+          "Ideal for cosmetic smile enhancement",
+          "Best result depends on tooth condition",
+        ],
+      },
+      {
+        name: "Oral Surgery",
+        desc: "Minor oral surgical procedures with proper planning and care.",
+        price: "PHP 5,000 starting",
+        img: oralsurgeryImg,
+        notes: [
+          "For more advanced dental cases",
+          "Price depends on surgical complexity",
+          "Clinic assessment required first",
+        ],
+      },
+      {
+        name: "Veneers",
+        desc: "Cosmetic veneer treatment for smile improvement and tooth enhancement.",
+        price: "Depends on procedure and product",
+        img: restorationImg,
+        notes: [
+          "Customized per patient case",
+          "Depends on veneer type and materials used",
+          "Best discussed through consultation",
+        ],
+      },
+      {
+        name: "Crowns",
+        desc: "Dental crowns to restore strength, shape, and appearance of teeth.",
+        price: "PHP 7,000 starting",
+        img: crownsImg,
+        notes: [
+          "Used for damaged or weakened teeth",
+          "Starting price varies by material and case",
+          "Restores both function and appearance",
+        ],
+      },
+      {
+        name: "Dentures",
+        desc: "Custom removable replacement for missing teeth.",
+        price: "PHP 5,000 starting",
+        img: denturesImg,
+        notes: [
+          "Designed per patient need",
+          "Can support comfort and chewing ability",
+          "Final rate depends on denture type",
+        ],
+      },
+      {
+        name: "Root Canal",
+        desc: "Treatment for infected canals to help save the tooth.",
+        price: "PHP 8,000 per canal",
+        img: rootImg,
+        notes: [
+          "Per canal pricing",
+          "Includes unli-shot X-ray",
+          "Best for saving infected teeth when possible",
+        ],
+      },
+      {
+        name: "Braces",
+        desc: "Orthodontic treatment for bite alignment and smile correction.",
+        price: "PHP 5,000 down payment",
+        img: bracesImg,
+        notes: [
+          "Down payment starts at PHP 5,000",
+          "Case evaluation required before treatment",
+          "Payment terms may vary depending on plan",
+        ],
+      },
+      {
+        name: "Dental X-ray",
+        desc: "Diagnostic imaging for treatment planning and case evaluation.",
+        price: "Panoramic: PHP 1,000 • Periapical: PHP 500",
+        img: xrayImg,
+        notes: [
+          "Panoramic X-ray: PHP 1,000",
+          "Periapical X-ray: PHP 500",
+          "Used for diagnosis and treatment planning",
+        ],
+      },
     ],
     []
   );
@@ -53,21 +164,45 @@ export default function Services() {
 
   const gap = 18;
   const offset = (cardWidth + gap) * index;
+  const selected = items[index];
 
   return (
-    <div className="container">
-      <div className="hero">
-        <h1 style={{ marginBottom: 10 }}>Services</h1>
-        <p style={{ marginTop: 0 }}>Use the arrows to browse our treatments.</p>
+    <div className="container bookingPage">
+      <div className="hero bookingHero">
+        <div className="bookingHeroGlow" />
+        <div className="bookingHeroGrid">
+          <div>
+            <span className="heroEyebrow">Dental Services</span>
+            <h1>Clinic Services</h1>
+            <p>
+              Browse our available dental treatments, starting rates, and service information before booking your appointment.
+            </p>
+          </div>
+
+          <div className="bookingHeroSummary">
+            <div className="bookingSummaryCard">
+              <span className="detailLabel">Dentist hours</span>
+              <strong>9:00 AM - 6:00 PM</strong>
+            </div>
+            <div className="bookingSummaryCard">
+              <span className="detailLabel">Front desk hours</span>
+              <strong>8:00 AM - 6:00 PM</strong>
+            </div>
+            <div className="bookingSummaryCard">
+              <span className="detailLabel">Pricing note</span>
+              <strong>Some services have starting rates and final fees may depend on the case</strong>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="carouselWrap">
         <button className="carouselBtn left" onClick={prev} aria-label="Previous">
-          ◀
+          ‹
         </button>
 
         <button className="carouselBtn right" onClick={next} aria-label="Next">
-          ▶
+          ›
         </button>
 
         <div className="carouselViewport">
@@ -77,18 +212,19 @@ export default function Services() {
               transform: `translateX(calc(50% - ${cardWidth / 2}px - ${offset}px))`,
             }}
           >
-            {items.map((s, i) => (
+            {items.map((service, i) => (
               <div
-                key={s.name}
+                key={service.name}
                 className={`serviceCard ${i === index ? "isActive" : "isInactive"}`}
               >
                 <div className="serviceMedia">
-                  <img src={s.img} alt={s.name} loading="eager" />
+                  <img src={service.img} alt={service.name} loading="eager" />
                 </div>
 
                 <div className="serviceBody">
-                  <h3 className="serviceName">{s.name}</h3>
-                  <p className="serviceDesc">{s.desc}</p>
+                  <h3 className="serviceName">{service.name}</h3>
+                  <p className="serviceDesc">{service.desc}</p>
+                  <div className="servicePriceTag">{service.price}</div>
                 </div>
               </div>
             ))}
@@ -97,66 +233,71 @@ export default function Services() {
       </div>
 
       <div className="grid" style={{ marginTop: 18 }}>
-        <div className="card">
+        <div className="card bookingFormCard">
           <div className="cardHeader">
             <div>
               <h3 className="title">Selected Service</h3>
               <p className="sub">
-                Details for: <b>{items[index].name}</b>
+                Details for: <b>{selected.name}</b>
               </p>
             </div>
-            <span className="badge">Info</span>
+            <span className="badge">Price Guide</span>
           </div>
 
-          <p className="sub" style={{ marginTop: 0 }}>
-            {items[index].desc}
-          </p>
+          <div className="serviceFeaturePanel">
+            <div className="servicePriceCard">
+              <span className="detailLabel">Starting rate</span>
+              <strong>{selected.price}</strong>
+            </div>
 
-          <ul className="note" style={{ marginTop: 12, lineHeight: 1.6 }}>
-            <li>Professional sterilization and hygiene</li>
-            <li>Comfort-first procedure</li>
-            <li>Clear explanation before treatment</li>
-          </ul>
+            <div className="detailNote historyPanel">
+              <span className="detailLabel">Service summary</span>
+              <p>{selected.desc}</p>
+            </div>
+          </div>
+
+          <div className="historyList" style={{ marginTop: 14 }}>
+            {selected.notes.map((note) => (
+              <div key={note} className="historyRow">
+                <div>
+                  <strong>{selected.name}</strong>
+                  <p>{note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-            <a className="btn" href="/book">
+            <a className="btn btnShine bookingPrimaryBtn" href="/book">
               Book this service
             </a>
-            <a className="btn secondary" href="/contact">
+            <a className="btn secondary btnSoft bookingSecondaryBtn" href="/contact">
               Ask a question
             </a>
           </div>
         </div>
 
-        <div className="card">
-          <h3 className="title">What’s Included</h3>
-          <p className="sub">A modern clinic workflow for better patient experience.</p>
-
-          <div className="list" style={{ marginTop: 10 }}>
-            <div className="item">
-              <div className="kv">
-                <strong>Smart Scheduling</strong>
-                <span>Fast booking and confirmation</span>
-              </div>
-              <span className="badge">Fast</span>
-            </div>
-
-            <div className="item">
-              <div className="kv">
-                <strong>Secure Records</strong>
-                <span>Patient history stored safely</span>
-              </div>
-              <span className="badge">Secure</span>
-            </div>
-
-            <div className="item">
-              <div className="kv">
-                <strong>Modern Care</strong>
-                <span>Clean, premium experience</span>
-              </div>
-              <span className="badge">Premium</span>
+        <div className="card bookingDetailsCard">
+          <div className="cardHeader">
+            <div>
+              <h3 className="title">Service Overview</h3>
+              <p className="sub">Quick guide to clinic hours and pricing information.</p>
             </div>
           </div>
+
+          <ul className="note bookingRules" style={{ marginTop: 0 }}>
+            <li>Dentist schedule: 9:00 AM to 6:00 PM.</li>
+            <li>Front desk schedule: 8:00 AM to 6:00 PM.</li>
+            <li>Cleaning, restoration, and extraction start at PHP 800.</li>
+            <li>Teeth whitening is PHP 8,000 for 4 cycles in 1 session.</li>
+            <li>Oral surgery starts at PHP 5,000.</li>
+            <li>Veneers depend on the procedure and product used.</li>
+            <li>Crowns start at PHP 7,000.</li>
+            <li>Dentures start at PHP 5,000.</li>
+            <li>Root canal is PHP 8,000 per canal with unli-shot X-ray.</li>
+            <li>Braces start with PHP 5,000 down payment.</li>
+            <li>Dental X-ray rates: PHP 1,000 panoramic and PHP 500 periapical.</li>
+          </ul>
         </div>
       </div>
     </div>

@@ -730,6 +730,152 @@ button.navItem{
   font-size: 15px;
 }
 
+.bookingDatePanel{
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.bookingDatePanelHeader{
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.bookingDateHighlight{
+  min-width: 190px;
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(79,209,197,0.24);
+  background: rgba(6,10,24,0.4);
+  box-shadow: 0 16px 34px rgba(79,209,197,0.12);
+}
+
+.bookingDateHighlight span{
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.bookingDateScroller{
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(84px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.bookingDateChip{
+  min-height: 108px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.03);
+  color: var(--text);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.bookingDateChip:hover{
+  transform: translateY(-4px);
+  border-color: rgba(96,165,250,0.34);
+  box-shadow: 0 18px 30px rgba(8,15,30,0.2);
+}
+
+.bookingDateChip.active{
+  border-color: rgba(79,209,197,0.52);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.22), transparent 34%),
+    linear-gradient(135deg, rgba(79,209,197,0.18), rgba(59,130,246,0.12));
+  box-shadow: 0 20px 38px rgba(79,209,197,0.16), 0 0 0 2px rgba(79,209,197,0.14);
+  transform: translateY(-4px) scale(1.02);
+}
+
+.bookingDateChip:disabled{
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bookingDateChipDay,
+.bookingDateChipMonth{
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.bookingDateChip strong{
+  font-size: 24px;
+  line-height: 1;
+}
+
+.bookingFlowGrid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bookingFieldCard{
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.03);
+}
+
+.bookingInputSpecial{
+  min-height: 50px;
+  border-radius: 14px;
+  background: rgba(8,14,28,0.88);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.bookingMiniSummary{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bookingMiniSummaryCard{
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 30%),
+    rgba(255,255,255,0.03);
+}
+
+.bookingMiniSummaryCard strong{
+  font-size: 15px;
+}
+
 .heroEyebrow{
   display: inline-flex;
   margin-bottom: 10px;
@@ -1056,6 +1202,112 @@ button.navItem{
 .searchInput:focus{
   border-color: rgba(79,209,197,0.58);
   box-shadow: 0 0 0 4px rgba(79,209,197,0.14), 0 16px 30px rgba(79,209,197,0.12);
+}
+
+.patientSearchSpotlight{
+  margin-top: 10px;
+  margin-bottom: 16px;
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(79,209,197,0.24);
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.22), transparent 34%),
+    linear-gradient(135deg, rgba(14,116,144,0.18), rgba(12,18,32,0.12)),
+    rgba(255,255,255,0.04);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.14);
+}
+
+.patientSearchHeader{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.patientSearchEyebrow{
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(172,245,234,0.92);
+}
+
+.patientSearchHint{
+  margin: 0;
+  color: rgba(235,248,247,0.82);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.patientSearchCount{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(79,209,197,0.22);
+  background: rgba(6,20,26,0.34);
+  color: rgba(230,255,250,0.92);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.patientSearchRow{
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.patientSearchInput{
+  margin-top: 0;
+  flex: 1;
+  min-width: 0;
+  border-color: rgba(79,209,197,0.34);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+.searchClearBtn{
+  min-width: 96px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)),
+    rgba(255,255,255,0.04);
+  color: rgba(241,249,248,0.92);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.searchClearBtn:hover{
+  transform: translateY(-1px);
+  border-color: rgba(79,209,197,0.32);
+  background:
+    linear-gradient(180deg, rgba(79,209,197,0.16), rgba(255,255,255,0.05)),
+    rgba(255,255,255,0.05);
+}
+
+.searchClearBtn:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(79,209,197,0.18);
+}
+
+@media (max-width: 720px){
+  .patientSearchHeader,
+  .patientSearchRow{
+    flex-direction: column;
+  }
+
+  .patientSearchCount,
+  .searchClearBtn{
+    width: 100%;
+  }
 }
 
 .editorPreview{
@@ -2098,6 +2350,23 @@ select.input{
   .homeHeroGrid{ grid-template-columns: 1fr; }
   .contactGrid{ grid-template-columns: 1fr; }
   .hero > div{ grid-template-columns: 1fr !important; }
+
+  .bookingDatePanelHeader{
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .bookingDateHighlight{
+    min-width: 0;
+  }
+
+  .bookingFlowGrid{
+    grid-template-columns: 1fr;
+  }
+
+  .bookingMiniSummary{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px){
@@ -2162,6 +2431,55 @@ select.input{
   }
   .hero h1{ font-size: 24px; }
 
+  .bookingFormCard,
+  .bookingDetailsCard{
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .bookingHeroSummary{
+    gap: 8px;
+  }
+
+  .bookingSummaryCard{
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .bookingDatePanel{
+    padding: 14px;
+    border-radius: 20px;
+    gap: 12px;
+  }
+
+  .bookingDateScroller{
+    grid-auto-columns: minmax(78px, 82px);
+    gap: 8px;
+    margin-inline: -2px;
+    padding-inline: 2px;
+  }
+
+  .bookingDateChip{
+    min-height: 94px;
+    padding: 10px 8px;
+    border-radius: 18px;
+  }
+
+  .bookingDateChip strong{
+    font-size: 22px;
+  }
+
+  .bookingFieldCard,
+  .bookingMiniSummaryCard{
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .bookingInputSpecial{
+    min-height: 48px;
+    font-size: 16px;
+  }
+
   .siteFooterInner{
     grid-template-columns: 1fr;
     padding: 24px 16px 34px;
@@ -2177,6 +2495,21 @@ select.input{
   .detailTopRow,
   .detailedItem{
     flex-direction: column;
+  }
+
+  .bookingDatePanelHeader,
+  .bookingFlowGrid,
+  .bookingMiniSummary{
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .detailGrid{
+    grid-template-columns: 1fr;
+  }
+
+  .detailBox{
+    padding: 11px 12px;
   }
 
   .historyRow{

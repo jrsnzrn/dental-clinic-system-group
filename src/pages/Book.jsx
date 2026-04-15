@@ -54,6 +54,21 @@ function getEmptyProfile(email = "") {
   };
 }
 
+function generateUpcomingDates(startDate, count = 12) {
+  const dates = [];
+  const cursor = new Date(startDate);
+
+  while (dates.length < count) {
+    const iso = toLocalISODate(cursor);
+    if (!isSunday(iso)) {
+      dates.push(iso);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+}
+
 export default function Book() {
   const [user, setUser] = useState(null);
   const [patientProfile, setPatientProfile] = useState(null);
@@ -74,6 +89,7 @@ export default function Book() {
 
   const todayStr = toLocalISODate(new Date());
   const allSlots = useMemo(() => generateSlots(), []);
+  const upcomingDates = useMemo(() => generateUpcomingDates(new Date(), 12), []);
   const selectedDayKey = getDayKeyFromDate(date);
 
   useEffect(() => {
@@ -474,52 +490,119 @@ export default function Book() {
                   <option>Whitening</option>
                 </select>
 
-                <input
-                  className="input"
-                  type="date"
-                  value={date}
-                  min={todayStr}
-                  onChange={(e) => setDate(e.target.value)}
-                  disabled={!user || saving}
-                />
+                <div className="bookingDatePanel">
+                  <div className="bookingDatePanelHeader">
+                    <div>
+                      <span className="detailLabel">Choose appointment day</span>
+                      <strong className="detailTitle">{formatDateLabel(date)}</strong>
+                      <p className="detailSubtitle">
+                        Tap one of the suggested clinic days below or use the calendar for another date.
+                      </p>
+                    </div>
+                    <div className="bookingDateHighlight">
+                      <span>Clinic days</span>
+                      <strong>Monday to Saturday</strong>
+                    </div>
+                  </div>
+
+                  <div className="bookingDateScroller">
+                    {upcomingDates.map((optionDate) => {
+                      const optionDay = new Date(`${optionDate}T00:00:00`);
+                      const isSelected = optionDate === date;
+
+                      return (
+                        <button
+                          key={optionDate}
+                          type="button"
+                          className={`bookingDateChip ${isSelected ? "active" : ""}`}
+                          onClick={() => setDate(optionDate)}
+                          disabled={!user || saving}
+                        >
+                          <span className="bookingDateChipDay">
+                            {optionDay.toLocaleDateString("en-US", { weekday: "short" })}
+                          </span>
+                          <strong>{optionDay.toLocaleDateString("en-US", { day: "2-digit" })}</strong>
+                          <span className="bookingDateChipMonth">
+                            {optionDay.toLocaleDateString("en-US", { month: "short" })}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className="bookingFieldCard">
+                    <span className="detailLabel">Pick another date</span>
+                    <input
+                      className="input bookingInputSpecial"
+                      type="date"
+                      value={date}
+                      min={todayStr}
+                      onChange={(e) => setDate(e.target.value)}
+                      disabled={!user || saving}
+                    />
+                  </label>
+                </div>
 
                 {date && isSunday(date) ? (
                   <div className="error">Closed on Sundays. Choose Monday to Saturday.</div>
                 ) : null}
 
-                <select
-                  className="input"
-                  value={selectedDentist}
-                  onChange={(e) => setSelectedDentist(e.target.value)}
-                  disabled={!user || saving || isSunday(date) || !availableDentists.length}
-                >
-                  {availableDentists.length ? (
-                    availableDentists.map((dentist) => (
-                      <option key={dentist.id} value={dentist.name}>
-                        {dentist.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">No dentist available on this day</option>
-                  )}
-                </select>
+                <div className="bookingFlowGrid">
+                  <label className="bookingFieldCard">
+                    <span className="detailLabel">Available dentist</span>
+                    <select
+                      className="input bookingInputSpecial"
+                      value={selectedDentist}
+                      onChange={(e) => setSelectedDentist(e.target.value)}
+                      disabled={!user || saving || isSunday(date) || !availableDentists.length}
+                    >
+                      {availableDentists.length ? (
+                        availableDentists.map((dentist) => (
+                          <option key={dentist.id} value={dentist.name}>
+                            {dentist.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No dentist available on this day</option>
+                      )}
+                    </select>
+                  </label>
 
-                <select
-                  className="input"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  disabled={!user || saving || isSunday(date) || !selectedDentist}
-                >
-                  {availableSlots.length ? (
-                    availableSlots.map((slot) => (
-                      <option key={slot} value={slot}>
-                        {slot}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">No available times today</option>
-                  )}
-                </select>
+                  <label className="bookingFieldCard">
+                    <span className="detailLabel">Choose time slot</span>
+                    <select
+                      className="input bookingInputSpecial"
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                      disabled={!user || saving || isSunday(date) || !selectedDentist}
+                    >
+                      {availableSlots.length ? (
+                        availableSlots.map((slot) => (
+                          <option key={slot} value={slot}>
+                            {formatTimeLabel(slot)}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No available times today</option>
+                      )}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="bookingMiniSummary">
+                  <div className="bookingMiniSummaryCard">
+                    <span className="detailLabel">Selected day</span>
+                    <strong>{formatDateLabel(date)}</strong>
+                  </div>
+                  <div className="bookingMiniSummaryCard">
+                    <span className="detailLabel">Time slot</span>
+                    <strong>{time ? formatTimeLabel(time) : "Choose time"}</strong>
+                  </div>
+                  <div className="bookingMiniSummaryCard">
+                    <span className="detailLabel">Dentist</span>
+                    <strong>{selectedDentist || "Choose dentist"}</strong>
+                  </div>
+                </div>
 
                 <textarea
                   className="input"

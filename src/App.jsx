@@ -12,8 +12,7 @@ import Services from "./pages/Services";
 import Contact from "./pages/Contact";
 import Book from "./pages/Book";
 import MyDentalRecord from "./pages/MyDentalRecord";
-import Terms from "./pages/Terms";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
+import About from "./pages/About";
 
 import Login from "./pages/admin/Login";
 import Dashboard from "./pages/admin/Dashboard";
@@ -81,10 +80,11 @@ export default function App() {
           <Route path="/" element={isAdmin ? adminRedirect : <Home />} />
           <Route path="/services" element={isAdmin ? adminRedirect : <Services />} />
           <Route path="/contact" element={isAdmin ? adminRedirect : <Contact />} />
+          <Route path="/about" element={isAdmin ? adminRedirect : <About />} />
           <Route path="/book" element={isAdmin ? adminRedirect : <Book />} />
           <Route path="/my-record" element={isAdmin ? adminRedirect : <MyDentalRecord />} />
-          <Route path="/terms" element={isAdmin ? adminRedirect : <Terms />} />
-          <Route path="/privacy-policy" element={isAdmin ? adminRedirect : <PrivacyPolicy />} />
+          <Route path="/terms" element={<Navigate to="/about" replace />} />
+          <Route path="/privacy-policy" element={<Navigate to="/about" replace />} />
 
           <Route path="/admin/login" element={isAdmin ? adminRedirect : <Login />} />
 

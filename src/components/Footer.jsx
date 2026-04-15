@@ -9,8 +9,6 @@ export default function Footer({ isAdmin = false }) {
         <div className="footerLinksGroup">
           <span className="footerLabel">Clinic Access</span>
           <NavLink to="/admin/login" className="footerLink">Admin Login</NavLink>
-          <NavLink to="/terms" className="footerLink">Terms and Conditions</NavLink>
-          <NavLink to="/privacy-policy" className="footerLink">Privacy Policy</NavLink>
         </div>
 
         <div className="footerLinksGroup footerMetaGroup">

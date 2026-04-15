@@ -327,12 +327,38 @@ export default function Archive() {
           </NavLink>
         </div>
 
-        <input
-          className="input searchInput"
-          placeholder="Search archived patient or record name"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="patientSearchSpotlight">
+          <div className="patientSearchHeader">
+            <div>
+              <span className="patientSearchEyebrow">Archived Record Search</span>
+              <p className="patientSearchHint">
+                Search archived patients, dentists, or bookings by name to find records faster.
+              </p>
+            </div>
+            <span className="patientSearchCount">
+              {search ? "Filtered archive" : "Ready to search"}
+            </span>
+          </div>
+
+          <div className="patientSearchRow">
+            <input
+              className="input searchInput patientSearchInput"
+              placeholder="Search archived patient or record name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
+            {search ? (
+              <button
+                type="button"
+                className="searchClearBtn"
+                onClick={() => setSearch("")}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
         {loading ? <div className="note">Loading archived records...</div> : null}
         {error ? <div className="error">{error}</div> : null}
       </div>

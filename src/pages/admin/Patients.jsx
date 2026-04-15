@@ -753,12 +753,38 @@ export default function Patients() {
             <span className="badge">{filteredPatientCards.length} records</span>
           </div>
 
-          <input
-            className="input searchInput"
-            placeholder="Search patient name"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="patientSearchSpotlight">
+            <div className="patientSearchHeader">
+              <div>
+                <span className="patientSearchEyebrow">Patient Name Search</span>
+                <p className="patientSearchHint">
+                  Type a first or last name to jump straight to the matching record.
+                </p>
+              </div>
+              <span className="patientSearchCount">
+                {search ? `${filteredPatientCards.length} match${filteredPatientCards.length === 1 ? "" : "es"}` : "Ready to search"}
+              </span>
+            </div>
+
+            <div className="patientSearchRow">
+              <input
+                className="input searchInput patientSearchInput"
+                placeholder="Enter patient name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+
+              {search ? (
+                <button
+                  type="button"
+                  className="searchClearBtn"
+                  onClick={() => setSearch("")}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
 
           <ul className="list detailedList">
             {filteredPatientCards.map((patient) => (
