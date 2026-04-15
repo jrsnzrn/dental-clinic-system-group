@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { createEmptyDentalChart, getClosestToothFromPoint, TOOTH_LABELS, TOOTH_MARKERS } from "../utils/teeth";
+import { createEmptyDentalChart, DENTAL_CHART_IMAGE, TOOTH_IDS, TOOTH_LABELS, TOOTH_MARKERS } from "../utils/teeth";
 
 export default function MyDentalRecord() {
   const [user, setUser] = useState(null);
   const [chart, setChart] = useState(createEmptyDentalChart());
   const [loading, setLoading] = useState(true);
-  const [selectedTooth, setSelectedTooth] = useState("11");
+  const [selectedTeeth, setSelectedTeeth] = useState(["11"]);
   const [hoveredTooth, setHoveredTooth] = useState("");
 
   useEffect(() => {
@@ -41,19 +41,39 @@ export default function MyDentalRecord() {
     return () => unsub();
   }, []);
 
-  const selectedComment = useMemo(() => chart.teeth?.[selectedTooth] || "", [chart.teeth, selectedTooth]);
-  const focusedTooth = hoveredTooth || selectedTooth;
+  const selectedComment = useMemo(() => {
+    const selectedValues = selectedTeeth.map((tooth) => chart.teeth?.[tooth] || "");
+    return selectedValues.every((note) => note === selectedValues[0]) ? selectedValues[0] || "" : "";
+  }, [chart.teeth, selectedTeeth]);
+  const selectedToothEntries = useMemo(
+    () =>
+      selectedTeeth.map((tooth) => ({
+        tooth,
+        label: TOOTH_LABELS[tooth],
+        note: chart.teeth?.[tooth] || "",
+      })),
+    [chart.teeth, selectedTeeth]
+  );
+  const hasMixedSelectedNotes = useMemo(() => {
+    const selectedValues = selectedTeeth.map((tooth) => chart.teeth?.[tooth] || "");
+    return selectedValues.some((note) => note !== selectedValues[0]);
+  }, [chart.teeth, selectedTeeth]);
+  const focusedTooth = hoveredTooth || selectedTeeth[selectedTeeth.length - 1] || "11";
   const focusedComment = chart.teeth?.[focusedTooth] || "";
   const teethWithNotes = useMemo(
     () => Object.keys(chart.teeth || {}).filter((tooth) => chart.teeth?.[tooth]?.trim()),
     [chart.teeth]
   );
-  function resolveToothFromEvent(event) {
-    const image = event.currentTarget.querySelector(".toothReferenceImage");
-    const bounds = image?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect();
-    const xPercent = ((event.clientX - bounds.left) / bounds.width) * 100;
-    const yPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
-    return getClosestToothFromPoint(xPercent, yPercent);
+  const notedSelectedCount = selectedTeeth.filter((tooth) => chart.teeth?.[tooth]?.trim()).length;
+
+  function toggleToothSelection(tooth) {
+    setSelectedTeeth((current) => {
+      if (current.includes(tooth)) {
+        return current.length === 1 ? current : current.filter((entry) => entry !== tooth);
+      }
+
+      return [...current, tooth];
+    });
   }
 
   if (!user) {
@@ -101,47 +121,76 @@ export default function MyDentalRecord() {
           <div className="cardHeader">
             <div>
               <h3 className="title">Dental Numbering Guide</h3>
-              <p className="sub">Tap or hover a tooth on either view. The numbering guide, tooth chips, and note panel all stay linked to the same tooth focus.</p>
+              <p className="sub">Hover a tooth marker to preview it, or tap several teeth to review grouped notes from the numbering guide.</p>
             </div>
           </div>
 
           <div className="toothViewerMeta">
             <div className="viewerFocusCard">
               <span className="detailLabel">Current focus</span>
-              <strong>
-                Tooth {focusedTooth} {" - "} {TOOTH_LABELS[focusedTooth]}
-              </strong>
+              <strong>Tooth {focusedTooth} {" - "} {TOOTH_LABELS[focusedTooth]}</strong>
               <span>{focusedComment ? "Dentist note saved for this tooth." : "No saved tooth note yet."}</span>
             </div>
             <div className="viewerStatusRow">
               <span className="viewerStatusPill active">Dental numbering guide</span>
               <span className="viewerStatusPill">{teethWithNotes.length} teeth with notes</span>
-              <span className="viewerStatusPill">Tap anywhere on the chart</span>
+              <span className="viewerStatusPill">{selectedTeeth.length} selected</span>
             </div>
           </div>
 
           <div className="toothViewer3d">
-            <div
-              className="toothViewerHalo"
-              style={{
-                top: TOOTH_MARKERS[focusedTooth]?.top,
-                left: TOOTH_MARKERS[focusedTooth]?.left,
-              }}
-            />
-            <button
-              type="button"
-              className="toothImageSurface"
-              onClick={(event) => setSelectedTooth(resolveToothFromEvent(event))}
-              onMouseMove={(event) => setHoveredTooth(resolveToothFromEvent(event))}
-              onMouseLeave={() => setHoveredTooth("")}
-              aria-label="Tap inside the dental chart image to inspect a tooth"
-            >
-              <img className="toothReferenceImage" src="/dental-numbering-system.png" alt="Dental numbering system" />
-            </button>
-            <div className="toothViewerLegend">
-              <span>Interactive guide</span>
-              <strong>{focusedTooth}</strong>
+            <div className="toothChartFrame">
+              <div
+                className="toothViewerHalo"
+                style={{
+                  top: TOOTH_MARKERS[focusedTooth]?.top,
+                  left: TOOTH_MARKERS[focusedTooth]?.left,
+                }}
+              />
+              <div className="toothImageSurface" aria-label="Tap a tooth marker to inspect one or more teeth">
+                <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
+                <div className="toothViewerOverlay">
+                  {TOOTH_IDS.map((tooth) => (
+                    <button
+                      key={tooth}
+                      type="button"
+                      className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""} ${focusedTooth === tooth ? "focused" : ""} ${chart.teeth?.[tooth]?.trim() ? "hasNote" : ""}`}
+                      style={{
+                        top: TOOTH_MARKERS[tooth]?.top,
+                        left: TOOTH_MARKERS[tooth]?.left,
+                      }}
+                      onClick={() => toggleToothSelection(tooth)}
+                      onMouseEnter={() => setHoveredTooth(tooth)}
+                      onMouseLeave={() => setHoveredTooth("")}
+                      onFocus={() => setHoveredTooth(tooth)}
+                      onBlur={() => setHoveredTooth("")}
+                      aria-pressed={selectedTeeth.includes(tooth)}
+                      aria-label={`Tooth ${tooth} ${TOOTH_LABELS[tooth]}`}
+                    >
+                      {tooth}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="toothViewerLegend">
+                <span>Interactive guide</span>
+                <strong>{focusedTooth}</strong>
+                <small>{TOOTH_LABELS[focusedTooth]}</small>
+              </div>
             </div>
+          </div>
+
+          <div className="toothSelectedChips" style={{ marginTop: 12 }}>
+            {selectedTeeth.map((tooth) => (
+              <button
+                key={tooth}
+                type="button"
+                className={`toothSelectedChip ${focusedTooth === tooth ? "active" : ""}`}
+                onClick={() => setSelectedTeeth([tooth])}
+              >
+                Tooth {tooth}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -154,11 +203,28 @@ export default function MyDentalRecord() {
           </div>
 
           <div className="detailNote historyPanel selectedToothPanel">
-            <span className="detailLabel">Selected tooth</span>
+            <span className="detailLabel">{selectedTeeth.length > 1 ? "Selected teeth" : "Selected tooth"}</span>
             <p>
-              <strong>{selectedTooth}</strong> {" - "} {TOOTH_LABELS[selectedTooth]}
+              <strong>{selectedTeeth.join(", ")}</strong>
             </p>
-            <p>{selectedComment || "No comment saved for this tooth yet."}</p>
+            <p>
+              {selectedTeeth.length === 1
+                ? TOOTH_LABELS[selectedTeeth[0]]
+                : "Multiple teeth selected for grouped review."}
+            </p>
+            {selectedTeeth.length > 1 ? (
+              <div className="selectedToothNotesList">
+                {selectedToothEntries.map(({ tooth, label, note }) => (
+                  <div key={tooth} className="selectedToothNoteItem">
+                    <strong>Tooth {tooth}</strong>
+                    <span>{label}</span>
+                    <p>{note || "No comment saved for this tooth yet."}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>{selectedComment || "No comment saved for the selected tooth yet."}</p>
+            )}
           </div>
 
           <div className="detailNote historyPanel liveFocusPanel" style={{ marginTop: 12 }}>

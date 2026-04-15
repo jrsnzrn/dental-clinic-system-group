@@ -1576,6 +1576,11 @@ button.navItem{
   color: rgba(230,255,250,0.96);
 }
 
+.viewerStatusPill.subtle{
+  color: rgba(222,233,239,0.72);
+  background: rgba(255,255,255,0.02);
+}
+
 .toothQuickSelector{
   display: flex;
   flex-wrap: wrap;
@@ -1612,6 +1617,8 @@ button.navItem{
 
 .toothViewer3d{
   position: relative;
+  display: grid;
+  gap: 14px;
   min-height: 620px;
   margin-bottom: 16px;
   overflow: hidden;
@@ -1627,11 +1634,25 @@ button.navItem{
   box-shadow: inset 0 0 0 1px rgba(11,18,32,0.06), 0 22px 48px rgba(0,0,0,0.10);
 }
 
+.toothChartFrame{
+  position: relative;
+  width: min(100%, 820px);
+  margin: 0 auto;
+  aspect-ratio: 2 / 3;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(11,18,32,0.08);
+  box-shadow: 0 20px 48px rgba(0,0,0,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.98)),
+    #fff;
+}
+
 .toothViewerHalo{
   position: absolute;
   z-index: 2;
-  width: 88px;
-  height: 88px;
+  width: 56px;
+  height: 56px;
   border-radius: 999px;
   transform: translate(-50%, -50%);
   background: radial-gradient(circle, rgba(79,209,197,0.3), rgba(79,209,197,0.06) 55%, transparent 70%);
@@ -1651,17 +1672,17 @@ button.navItem{
 
 .toothReferenceImage{
   width: 100%;
-  height: auto;
-  max-height: 100%;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
   display: block;
   user-select: none;
   pointer-events: none;
 }
 
 .toothImageSurface{
+  position: relative;
   width: 100%;
-  min-height: inherit;
+  height: 100%;
   padding: 0;
   border: 0;
   display: flex;
@@ -1696,6 +1717,69 @@ button.navItem{
   font-size: 22px;
 }
 
+.toothViewerLegend small{
+  color: rgba(238,245,248,0.86);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.toothToolbar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)),
+    rgba(5,14,24,0.22);
+}
+
+.toothToolbarSummary{
+  display: grid;
+  gap: 8px;
+}
+
+.toothToolbarLabel{
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(173,240,232,0.9);
+}
+
+.toothActionRow{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toothActionBtn{
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(79,209,197,0.28);
+  background: rgba(6,20,26,0.18);
+  color: rgba(231,247,246,0.94);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.toothActionBtn:hover{
+  transform: translateY(-1px);
+  border-color: rgba(79,209,197,0.48);
+  background: rgba(79,209,197,0.14);
+}
+
+.toothActionBtn.secondary{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+}
+
 .toothViewerOverlay{
   position: absolute;
   inset: 0;
@@ -1706,27 +1790,32 @@ button.navItem{
 .toothMarker{
   position: absolute;
   transform: translate(-50%, -50%);
-  min-width: 38px;
-  height: 38px;
+  min-width: 28px;
+  height: 28px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(11,18,32,0.82);
-  color: rgba(255,255,255,0.94);
-  font-size: 12px;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.01);
+  color: transparent;
+  font-size: 9px;
   font-weight: 700;
   cursor: pointer;
   pointer-events: auto;
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+  box-shadow: none;
 }
 
 .toothMarker:hover{
   transform: translate(-50%, -50%) scale(1.08);
   border-color: rgba(79,209,197,0.55);
+  background: rgba(11,18,32,0.76);
+  color: rgba(255,255,255,0.94);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.22);
 }
 
 .toothMarker.focused{
   border-color: rgba(96,165,250,0.46);
+  background: rgba(11,18,32,0.76);
+  color: rgba(255,255,255,0.94);
   box-shadow: 0 0 0 3px rgba(96,165,250,0.14), 0 14px 28px rgba(59,130,246,0.16);
 }
 
@@ -1739,6 +1828,36 @@ button.navItem{
 
 .toothMarker.hasNote{
   border-color: rgba(245,158,11,0.52);
+}
+
+.toothSelectedChips{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toothSelectedChip{
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.05);
+  color: rgba(232,245,244,0.92);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.toothSelectedChip:hover{
+  transform: translateY(-1px);
+  border-color: rgba(79,209,197,0.4);
+}
+
+.toothSelectedChip.active{
+  background: linear-gradient(135deg, rgba(79,209,197,0.9), rgba(59,130,246,0.82));
+  border-color: rgba(255,255,255,0.34);
+  color: #04111e;
 }
 
 .archiveSummaryGrid{
@@ -1779,11 +1898,68 @@ button.navItem{
     rgba(255,255,255,0.03);
 }
 
+.selectedToothNotesList{
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.selectedToothNoteItem{
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
+
+.selectedToothNoteItem strong{
+  font-size: 14px;
+}
+
+.selectedToothNoteItem span{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.selectedToothNoteItem p{
+  margin: 0;
+}
+
 .liveFocusPanel{
   border-color: rgba(96,165,250,0.24);
   background:
     radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 34%),
     rgba(255,255,255,0.03);
+}
+
+@media (max-width: 720px){
+  .toothChartFrame{
+    width: 100%;
+    border-radius: 18px;
+  }
+
+  .toothToolbar{
+    align-items: stretch;
+  }
+
+  .toothToolbarSummary{
+    width: 100%;
+  }
+
+  .toothActionRow{
+    width: 100%;
+  }
+
+  .toothActionBtn{
+    flex: 1;
+  }
+
+  .toothMarker{
+    min-width: 24px;
+    height: 24px;
+    font-size: 8px;
+  }
 }
 
 .dentistCard{

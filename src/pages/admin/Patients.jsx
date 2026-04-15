@@ -15,7 +15,7 @@ import {
   formatTimeLabel,
   formatTimestamp,
 } from "../../utils/schedule";
-import { createEmptyDentalChart, getClosestToothFromPoint, TOOTH_LABELS, TOOTH_MARKERS } from "../../utils/teeth";
+import { createEmptyDentalChart, DENTAL_CHART_IMAGE, TOOTH_IDS, TOOTH_LABELS, TOOTH_MARKERS } from "../../utils/teeth";
 import { getAdminProfile, ROLES } from "../../utils/rbac";
 
 function normalizeName(value) {
@@ -89,17 +89,19 @@ export default function Patients() {
   const [draft, setDraft] = useState(getEmptyDraft());
   const [search, setSearch] = useState("");
   const [chartDraft, setChartDraft] = useState(createEmptyDentalChart());
-  const [selectedTooth, setSelectedTooth] = useState("11");
+  const [selectedTeeth, setSelectedTeeth] = useState(["11"]);
   const [hoveredTooth, setHoveredTooth] = useState("");
   const [adminRole, setAdminRole] = useState(ROLES.ADMIN);
   const [loadingPatients, setLoadingPatients] = useState(true);
 
-  function resolveToothFromEvent(event) {
-    const image = event.currentTarget.querySelector(".toothReferenceImage");
-    const bounds = image?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect();
-    const xPercent = ((event.clientX - bounds.left) / bounds.width) * 100;
-    const yPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
-    return getClosestToothFromPoint(xPercent, yPercent);
+  function toggleToothSelection(tooth) {
+    setSelectedTeeth((current) => {
+      if (current.includes(tooth)) {
+        return current.length === 1 ? current : current.filter((entry) => entry !== tooth);
+      }
+
+      return [...current, tooth];
+    });
   }
 
   async function load(role = adminRole) {
@@ -189,8 +191,13 @@ export default function Patients() {
     if (!selectedPatient) {
       setDraft(getEmptyDraft());
       setChartDraft(createEmptyDentalChart());
+      setSelectedTeeth(["11"]);
+      setHoveredTooth("");
       return;
     }
+
+    setSelectedTeeth(["11"]);
+    setHoveredTooth("");
 
     setDraft({
       id: selectedPatient.id,
@@ -464,7 +471,7 @@ export default function Patients() {
 
             <h2>Dental Chart</h2>
             <div class="chart-wrap">
-              <img src="/dental-numbering-system.png" alt="Dental numbering system chart" />
+              <img src="${DENTAL_CHART_IMAGE}" alt="Dental numbering system chart" />
               ${chartMarkers}
             </div>
 
@@ -499,8 +506,19 @@ export default function Patients() {
     printWindow.document.close();
   }
 
-  const focusedTooth = hoveredTooth || selectedTooth;
-  const selectedToothComment = chartDraft.teeth?.[selectedTooth] || "";
+  const focusedTooth = hoveredTooth || selectedTeeth[selectedTeeth.length - 1] || "11";
+  const selectedToothValues = selectedTeeth.map((tooth) => chartDraft.teeth?.[tooth] || "");
+  const selectedToothEntries = selectedTeeth.map((tooth) => ({
+    tooth,
+    label: TOOTH_LABELS[tooth],
+    note: chartDraft.teeth?.[tooth] || "",
+  }));
+  const selectedToothComment = selectedToothValues.every((note) => note === selectedToothValues[0])
+    ? selectedToothValues[0] || ""
+    : "";
+  const hasMixedSelectedNotes = selectedToothValues.some((note) => note !== selectedToothValues[0]);
+  const selectedTeethSummary = selectedTeeth.join(", ");
+  const notedSelectedCount = selectedTeeth.filter((tooth) => chartDraft.teeth?.[tooth]?.trim()).length;
   const isReceptionist = adminRole === ROLES.RECEPTIONIST;
   const isDentist = adminRole === ROLES.DENTIST;
   const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
@@ -637,7 +655,7 @@ export default function Patients() {
                     <h3 className="title">{canEditDentalChart ? "Dental Chart Notes" : "Dental Chart Overview"}</h3>
                     <p className="sub">
                       {canEditDentalChart
-                        ? "Tap directly on the numbering image below to choose a tooth, then write the dentist note for that specific area."
+                        ? "Tap the tooth markers below to select one or more teeth, then write a note that applies to every selected area."
                         : "Reception access can review the patient chart and existing dentist notes here, but note editing stays restricted to dentists and administrators."}
                     </p>
                   </div>
@@ -647,35 +665,83 @@ export default function Patients() {
                 {selectedPatient.uid ? (
                   <>
                     <div className="toothViewer3d adminToothChart">
-                      <div
-                        className="toothViewerHalo"
-                        style={{
-                          top: TOOTH_MARKERS[focusedTooth]?.top,
-                          left: TOOTH_MARKERS[focusedTooth]?.left,
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="toothImageSurface"
-                        onClick={(event) => setSelectedTooth(resolveToothFromEvent(event))}
-                        onMouseMove={(event) => setHoveredTooth(resolveToothFromEvent(event))}
-                        onMouseLeave={() => setHoveredTooth("")}
-                        aria-label="Tap inside the dental chart image to select a tooth"
-                      >
-                        <img className="toothReferenceImage" src="/dental-numbering-system.png" alt="Dental numbering system" />
-                      </button>
+                      <div className="toothChartFrame">
+                        <div
+                          className="toothViewerHalo"
+                          style={{
+                            top: TOOTH_MARKERS[focusedTooth]?.top,
+                            left: TOOTH_MARKERS[focusedTooth]?.left,
+                          }}
+                        />
+                        <div className="toothImageSurface" aria-label="Tap a tooth marker to select one or more teeth">
+                          <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
+                          <div className="toothViewerOverlay">
+                            {TOOTH_IDS.map((tooth) => (
+                              <button
+                                key={tooth}
+                                type="button"
+                                className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""} ${focusedTooth === tooth ? "focused" : ""} ${chartDraft.teeth?.[tooth]?.trim() ? "hasNote" : ""}`}
+                                style={{
+                                  top: TOOTH_MARKERS[tooth]?.top,
+                                  left: TOOTH_MARKERS[tooth]?.left,
+                                }}
+                                onClick={() => toggleToothSelection(tooth)}
+                                onMouseEnter={() => setHoveredTooth(tooth)}
+                                onMouseLeave={() => setHoveredTooth("")}
+                                onFocus={() => setHoveredTooth(tooth)}
+                                onBlur={() => setHoveredTooth("")}
+                                aria-pressed={selectedTeeth.includes(tooth)}
+                                aria-label={`Tooth ${tooth} ${TOOTH_LABELS[tooth]}`}
+                              >
+                                {tooth}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                       <div className="toothViewerLegend">
-                        <span>Selected tooth</span>
+                        <span>{selectedTeeth.length > 1 ? "Focused tooth" : "Selected tooth"}</span>
                         <strong>{focusedTooth}</strong>
+                        <small>{TOOTH_LABELS[focusedTooth]}</small>
                       </div>
                     </div>
 
+                    <div className="toothSelectedChips" style={{ marginTop: 12 }}>
+                      {selectedTeeth.map((tooth) => (
+                        <button
+                          key={tooth}
+                          type="button"
+                          className={`toothSelectedChip ${focusedTooth === tooth ? "active" : ""}`}
+                          onClick={() => setSelectedTeeth([tooth])}
+                        >
+                          Tooth {tooth}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="detailNote historyPanel selectedToothPanel" style={{ marginTop: 14 }}>
-                      <span className="detailLabel">Selected tooth</span>
+                      <span className="detailLabel">{selectedTeeth.length > 1 ? "Selected teeth" : "Selected tooth"}</span>
                       <p>
-                        <strong>{selectedTooth}</strong> {" - "} {TOOTH_LABELS[selectedTooth]}
+                        <strong>{selectedTeethSummary}</strong>
                       </p>
-                      <p>{selectedToothComment || "No note saved for this tooth yet."}</p>
+                      <p>
+                        {selectedTeeth.length === 1
+                          ? TOOTH_LABELS[selectedTeeth[0]]
+                          : "These teeth will be updated together with the same note."}
+                      </p>
+                      {selectedTeeth.length > 1 ? (
+                        <div className="selectedToothNotesList">
+                          {selectedToothEntries.map(({ tooth, label, note }) => (
+                            <div key={tooth} className="selectedToothNoteItem">
+                              <strong>Tooth {tooth}</strong>
+                              <span>{label}</span>
+                              <p>{note || "No note saved for this tooth yet."}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p>{selectedToothComment || "No note saved for the selected tooth yet."}</p>
+                      )}
                     </div>
 
                     {canEditDentalChart ? (
@@ -683,7 +749,7 @@ export default function Patients() {
                         <textarea
                           className="input"
                           rows={4}
-                          placeholder="Tooth-specific comment"
+                          placeholder={selectedTeeth.length > 1 ? "Shared note for all selected teeth" : "Tooth-specific comment"}
                           value={selectedToothComment}
                           onChange={(e) =>
                             setChartDraft((current) => ({
@@ -691,7 +757,10 @@ export default function Patients() {
                               uid: selectedPatient.uid,
                               teeth: {
                                 ...(current.teeth || {}),
-                                [selectedTooth]: e.target.value,
+                                ...selectedTeeth.reduce((accumulator, tooth) => {
+                                  accumulator[tooth] = e.target.value;
+                                  return accumulator;
+                                }, {}),
                               },
                             }))
                           }
