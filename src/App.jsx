@@ -11,6 +11,7 @@ import Home from "./pages/Home";
 import Services from "./pages/Services";
 import Contact from "./pages/Contact";
 import Book from "./pages/Book";
+import MyAppointments from "./pages/MyAppointments";
 import MyDentalRecord from "./pages/MyDentalRecord";
 import About from "./pages/About";
 
@@ -20,6 +21,7 @@ import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
 import Dentists from "./pages/admin/Dentists";
 import Accounts from "./pages/admin/Accounts";
+import Logs from "./pages/admin/Logs";
 import Archive from "./pages/admin/Archive";
 import { getAdminProfile, getDefaultAdminPath, ROLES } from "./utils/rbac";
 
@@ -82,6 +84,7 @@ export default function App() {
           <Route path="/contact" element={isAdmin ? adminRedirect : <Contact />} />
           <Route path="/about" element={isAdmin ? adminRedirect : <About />} />
           <Route path="/book" element={isAdmin ? adminRedirect : <Book />} />
+          <Route path="/my-appointments" element={isAdmin ? adminRedirect : <MyAppointments />} />
           <Route path="/my-record" element={isAdmin ? adminRedirect : <MyDentalRecord />} />
           <Route path="/terms" element={<Navigate to="/about" replace />} />
           <Route path="/privacy-policy" element={<Navigate to="/about" replace />} />
@@ -144,6 +147,17 @@ export default function App() {
                   allowedRoles={[ROLES.ADMIN]}
                 >
                   <Accounts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="logs"
+              element={
+                <ProtectedRoute
+                  user={user}
+                  allowedRoles={[ROLES.ADMIN]}
+                >
+                  <Logs />
                 </ProtectedRoute>
               }
             />

@@ -3,44 +3,37 @@ import { NavLink, Navigate, useParams } from "react-router-dom";
 import {
   addDoc,
   collection,
+  doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
-  doc,
-  updateDoc,
-  getDocs,
   serverTimestamp,
   Timestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import { logAdminAction } from "../../utils/audit";
-import {
-  formatDateLabel,
-  formatTimeLabel,
-  formatTimestamp,
-} from "../../utils/schedule";
+import { buildBookingAnalytics, normalizeName } from "../../utils/appointments";
+import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const BOOKING_FILTERS = {
   pending: {
     title: "Pending Bookings",
-    subtitle: "New requests stay here until the admin approves or cancels them.",
+    subtitle: "New requests stay here until the clinic approves, cancels, or reviews a reschedule request.",
     emptyText: "No pending bookings right now.",
   },
   approved: {
     title: "Approved Bookings",
-    subtitle: "Approved appointments are separated here so the team can review confirmed visits more easily.",
+    subtitle: "Confirmed appointments stay here so the team can monitor check-ins and active reschedule requests.",
     emptyText: "No approved bookings yet.",
   },
   cancelled: {
     title: "Cancelled Bookings",
-    subtitle: "Cancelled appointments move here automatically so the pending queue stays clean.",
+    subtitle: "Cancelled appointments move here automatically so the active board stays easier to read.",
     emptyText: "No cancelled bookings.",
   },
 };
-
-function normalizeName(value) {
-  return String(value ?? "").trim().toLowerCase();
-}
 
 async function syncPatientRecordFromBooking(bookingData) {
   const patientsSnap = await getDocs(collection(db, "patients"));
@@ -60,7 +53,7 @@ async function syncPatientRecordFromBooking(bookingData) {
     preferredDentist: bookingData.selectedDentist || "",
     latestService: bookingData.service || "",
     latestBookedAt: bookingData.createdAt || null,
-    lastApprovedAt: bookingData.appointmentAt || null,
+    lastApprovedAt: bookingData.approvedAt || bookingData.appointmentAt || null,
     lastAppointmentDate: bookingData.date || "",
     lastAppointmentTime: bookingData.time || "",
     lastCheckedInAt: bookingData.checkedInAt || null,
@@ -78,7 +71,18 @@ async function syncPatientRecordFromBooking(bookingData) {
   });
 }
 
-function BookingCard({ booking, onApprove, onPending, onCheckIn, onCancel, onArchive }) {
+function BookingCard({
+  booking,
+  onApprove,
+  onPending,
+  onCheckIn,
+  onCancel,
+  onArchive,
+  onApproveReschedule,
+  onDeclineReschedule,
+}) {
+  const reschedule = booking.rescheduleRequest;
+
   return (
     <li className="item detailedItem bookingShowcase">
       <div className="detailContent">
@@ -91,8 +95,8 @@ function BookingCard({ booking, onApprove, onPending, onCheckIn, onCancel, onArc
           </div>
           <div className="statusStack">
             <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
-            <span className={`statusPill ${booking.archiveStatus === "Archived" ? "cancelled" : "approved"}`}>
-              {booking.archiveStatus || "Active"}
+            <span className={`statusPill ${booking.checkedInAt ? "approved" : "active"}`}>
+              {booking.checkedInAt ? "checked in" : "visit pending"}
             </span>
           </div>
         </div>
@@ -126,8 +130,33 @@ function BookingCard({ booking, onApprove, onPending, onCheckIn, onCancel, onArc
 
         {booking.notes ? (
           <div className="detailNote noteRibbon">
-            <span className="detailLabel">Notes</span>
+            <span className="detailLabel">Patient notes</span>
             <p>{booking.notes}</p>
+          </div>
+        ) : null}
+
+        {reschedule ? (
+          <div className={`detailNote historyPanel reschedulePanel ${reschedule.status === "pending" ? "attention" : ""}`}>
+            <span className="detailLabel">Reschedule request</span>
+            <p>
+              Requested for <strong>{formatDateLabel(reschedule.requestedDate)}</strong> at{" "}
+              <strong>{formatTimeLabel(reschedule.requestedTime)}</strong>
+            </p>
+            <p>
+              Status: <strong>{reschedule.status || "pending"}</strong>
+              {reschedule.reason ? ` • ${reschedule.reason}` : ""}
+            </p>
+
+            {reschedule.status === "pending" ? (
+              <div className="inlineActionRow">
+                <button className="btn btnShine" type="button" onClick={onApproveReschedule}>
+                  Approve Reschedule
+                </button>
+                <button className="btn secondary btnSoft" type="button" onClick={onDeclineReschedule}>
+                  Decline Request
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -186,23 +215,23 @@ export default function Bookings() {
     [activeBookings]
   );
 
-  const bookingStats = useMemo(() => {
-    const checkedIn = activeBookings.filter((booking) => booking.checkedInAt).length;
-    return {
-      total: activeBookings.length,
-      pending: groupedBookings.pending.length,
-      approved: groupedBookings.approved.length,
-      cancelled: groupedBookings.cancelled.length,
-      checkedIn,
-    };
-  }, [activeBookings, groupedBookings]);
+  const bookingStats = useMemo(() => buildBookingAnalytics(activeBookings), [activeBookings]);
 
   if (!BOOKING_FILTERS[status]) {
     return <Navigate to="/admin/bookings/pending" replace />;
   }
 
   async function setStatus(id, nextStatus, bookingData) {
-    await updateDoc(doc(db, "bookings", id), { status: nextStatus });
+    const payload = {
+      status: nextStatus,
+      statusUpdatedAt: serverTimestamp(),
+    };
+
+    if (nextStatus === "approved") {
+      payload.approvedAt = serverTimestamp();
+    }
+
+    await updateDoc(doc(db, "bookings", id), payload);
 
     await logAdminAction({
       action: "update_booking_status",
@@ -218,7 +247,11 @@ export default function Bookings() {
     });
 
     if (nextStatus === "approved") {
-      await syncPatientRecordFromBooking(bookingData);
+      await syncPatientRecordFromBooking({
+        ...bookingData,
+        status: nextStatus,
+        approvedAt: Timestamp.now(),
+      });
     }
   }
 
@@ -266,6 +299,60 @@ export default function Bookings() {
     }
   }
 
+  async function approveReschedule(booking) {
+    const request = booking.rescheduleRequest;
+    if (!request?.requestedDate || !request?.requestedTime) return;
+
+    const nextAppointment = new Date(`${request.requestedDate}T${request.requestedTime}:00`);
+
+    await updateDoc(doc(db, "bookings", booking.id), {
+      date: request.requestedDate,
+      time: request.requestedTime,
+      appointmentAt: Timestamp.fromDate(nextAppointment),
+      rescheduleRequest: {
+        ...request,
+        status: "approved",
+        reviewedAt: serverTimestamp(),
+      },
+      statusUpdatedAt: serverTimestamp(),
+    });
+
+    await logAdminAction({
+      action: "approve_reschedule_request",
+      targetType: "booking",
+      targetId: booking.id,
+      targetLabel: booking.fullName || booking.email || "Booking",
+      details: {
+        requestedDate: request.requestedDate,
+        requestedTime: request.requestedTime,
+      },
+    });
+  }
+
+  async function declineReschedule(booking) {
+    const request = booking.rescheduleRequest;
+    if (!request) return;
+
+    await updateDoc(doc(db, "bookings", booking.id), {
+      rescheduleRequest: {
+        ...request,
+        status: "declined",
+        reviewedAt: serverTimestamp(),
+      },
+    });
+
+    await logAdminAction({
+      action: "decline_reschedule_request",
+      targetType: "booking",
+      targetId: booking.id,
+      targetLabel: booking.fullName || booking.email || "Booking",
+      details: {
+        requestedDate: request.requestedDate,
+        requestedTime: request.requestedTime,
+      },
+    });
+  }
+
   const activeConfig = BOOKING_FILTERS[status];
   const activeItems = groupedBookings[status];
 
@@ -276,7 +363,7 @@ export default function Bookings() {
         <div className="adminHeroContent">
           <span className="heroEyebrow">Appointment Command Center</span>
           <h1>Bookings</h1>
-          <p>The booking board is now split into separate pages so pending, approved, and cancelled appointments are easier to scan and manage.</p>
+          <p>The booking board now includes clearer patient details, reschedule requests, and quick analytics so the team can scan the day faster.</p>
         </div>
       </div>
 
@@ -300,6 +387,48 @@ export default function Bookings() {
         <div className="statCard accentGold">
           <span className="statLabel">Checked in</span>
           <strong className="statValue">{bookingStats.checkedIn}</strong>
+        </div>
+      </div>
+
+      <div className="analyticsGrid" style={{ marginTop: 18 }}>
+        <div className="card analyticsCard">
+          <span className="detailLabel">Most requested service</span>
+          <strong>{bookingStats.mostRequestedService.label}</strong>
+          <p>{bookingStats.mostRequestedService.count} bookings</p>
+        </div>
+        <div className="card analyticsCard">
+          <span className="detailLabel">Busiest day</span>
+          <strong>{bookingStats.busiestDay.label}</strong>
+          <p>{bookingStats.busiestDay.count} bookings</p>
+        </div>
+        <div className="card analyticsCard">
+          <span className="detailLabel">Most booked dentist</span>
+          <strong>{bookingStats.mostBookedDentist.label}</strong>
+          <p>{bookingStats.mostBookedDentist.count} bookings</p>
+        </div>
+      </div>
+
+      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
+        <div className="cardHeader">
+          <div>
+            <h3 className="title">Monthly Trends</h3>
+            <p className="sub">Quick month-by-month booking counts so the clinic can spot busy periods faster.</p>
+          </div>
+        </div>
+        <div className="timelineStack trendStack">
+          {bookingStats.monthlyTrends.length ? (
+            bookingStats.monthlyTrends.map((entry) => (
+              <div key={entry.month} className="timelineRow">
+                <div className="timelineDot" />
+                <div className="timelineBody">
+                  <strong>{entry.month}</strong>
+                  <p>{entry.count} bookings recorded</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="emptyEditorState">No booking trends available yet.</div>
+          )}
         </div>
       </div>
 
@@ -335,6 +464,8 @@ export default function Bookings() {
                 onCheckIn={() => toggleCheckIn(booking)}
                 onCancel={() => setStatus(booking.id, "cancelled", booking)}
                 onArchive={() => toggleArchive(booking.id)}
+                onApproveReschedule={() => approveReschedule(booking)}
+                onDeclineReschedule={() => declineReschedule(booking)}
               />
             ))}
           </ul>

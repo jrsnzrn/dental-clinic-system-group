@@ -49,3 +49,24 @@ export async function logAdminAction({
     console.error("Audit log write failed:", error);
   }
 }
+
+const ACTION_LABELS = {
+  update_booking_status: "Updated booking status",
+  archive_booking: "Archived booking",
+  clear_booking_check_in: "Cleared patient check-in",
+  mark_booking_check_in: "Marked patient as checked in",
+  approve_reschedule_request: "Approved reschedule request",
+  decline_reschedule_request: "Declined reschedule request",
+  update_patient_profile: "Updated patient profile",
+  save_dental_chart: "Saved dental chart notes",
+  restore_patient: "Restored patient record",
+  archive_patient: "Archived patient record",
+  restore_booking: "Restored booking record",
+  restore_dentist: "Restored dentist record",
+  delete_archived_record: "Deleted archived record",
+  create_staff_account: "Created staff account",
+};
+
+export function getAuditActionLabel(action = "") {
+  return ACTION_LABELS[action] || String(action || "Staff activity").replaceAll("_", " ");
+}

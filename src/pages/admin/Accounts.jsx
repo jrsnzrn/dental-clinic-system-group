@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { db, functions } from "../../firebase";
+import { functions } from "../../firebase";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
-import { formatTimestamp } from "../../utils/schedule";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
 
@@ -22,16 +20,6 @@ export default function Accounts() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [created, setCreated] = useState(null);
-  const [logs, setLogs] = useState([]);
-
-  useEffect(() => {
-    const logsQuery = query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(40));
-    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
-      setLogs(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -126,67 +114,13 @@ export default function Accounts() {
         {error ? <div className="error" style={{ marginTop: 12 }}>{error}</div> : null}
         {success ? <div className="successBanner" style={{ marginTop: 12 }}>{success}</div> : null}
 
-      {created ? (
-        <div className="detailNote historyPanel selectedToothPanel" style={{ marginTop: 14 }}>
-          <span className="detailLabel">Latest created account</span>
-          <p><strong>{created.name}</strong> {" - "} {created.email}</p>
-          <p>Role: {ROLE_LABELS[created.role] || created.role}</p>
-        </div>
-      ) : null}
-      </div>
-
-      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Activity Log</h3>
-            <p className="sub">Review the latest staff actions across bookings, patients, dentists, archive activity, and account creation.</p>
+        {created ? (
+          <div className="detailNote historyPanel selectedToothPanel" style={{ marginTop: 14 }}>
+            <span className="detailLabel">Latest created account</span>
+            <p><strong>{created.name}</strong> {" - "} {created.email}</p>
+            <p>Role: {ROLE_LABELS[created.role] || created.role}</p>
           </div>
-          <span className="badge">{logs.length} entries</span>
-        </div>
-
-        {logs.length ? (
-          <ul className="list detailedList auditLogList">
-            {logs.map((log) => (
-              <li key={log.id} className="item detailedItem bookingShowcase">
-                <div className="detailContent">
-                  <div className="detailTopRow">
-                    <div>
-                      <strong className="detailTitle">{log.actorName || log.actorEmail || "Staff"}</strong>
-                      <p className="detailSubtitle">
-                        {(log.actorRole || "staff").toUpperCase()} • {formatTimestamp(log.createdAt)}
-                      </p>
-                    </div>
-                    <span className="badge">{String(log.action || "").replaceAll("_", " ")}</span>
-                  </div>
-
-                  <div className="detailNote historyPanel">
-                    <span className="detailLabel">Target</span>
-                    <p>
-                      <strong>{log.targetLabel || log.targetType || "Record"}</strong>
-                    </p>
-                    <p>{log.targetType ? `Type: ${log.targetType}` : "No target type recorded."}</p>
-                  </div>
-
-                  {log.details && Object.keys(log.details).length ? (
-                    <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
-                      <span className="detailLabel">Details</span>
-                      <div className="auditDetails">
-                        {Object.entries(log.details).map(([key, value]) => (
-                          <div key={key} className="auditDetailRow">
-                            <strong>{key}</strong>
-                            <span>{Array.isArray(value) ? value.join(", ") : String(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="emptyEditorState">No audit entries yet.</div>
-        )}
+        ) : null}
       </div>
     </div>
   );

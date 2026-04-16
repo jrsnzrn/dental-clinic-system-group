@@ -42,6 +42,7 @@ export const ADMIN_NAV_BY_ROLE = {
     { to: "/admin/bookings", label: "Bookings" },
     { to: "/admin/dentists", label: "Dentists" },
     { to: "/admin/accounts", label: "Accounts" },
+    { to: "/admin/logs", label: "Logs" },
     { to: "/admin/archive", label: "Archive" },
   ],
   [ROLES.RECEPTIONIST]: [

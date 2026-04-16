@@ -929,6 +929,191 @@ button.navItem{
   align-items: start;
 }
 
+.analyticsGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.analyticsCard{
+  border-color: rgba(255,255,255,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.16), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+  min-height: 140px;
+}
+
+.analyticsCard strong{
+  display: block;
+  margin-top: 8px;
+  font-size: 20px;
+}
+
+.analyticsCard p{
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.timelineStack{
+  display: grid;
+  gap: 12px;
+}
+
+.timelineRow{
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.timelineRow:last-child{
+  border-bottom: 0;
+}
+
+.timelineDot{
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-top: 6px;
+  background: rgba(148,163,184,0.88);
+  box-shadow: 0 0 0 6px rgba(148,163,184,0.10);
+}
+
+.timelineDot.active{
+  background: #60a5fa;
+  box-shadow: 0 0 0 6px rgba(96,165,250,0.12);
+}
+
+.timelineDot.pending{
+  background: #facc15;
+  box-shadow: 0 0 0 6px rgba(250,204,21,0.12);
+}
+
+.timelineDot.approved{
+  background: #34d399;
+  box-shadow: 0 0 0 6px rgba(52,211,153,0.12);
+}
+
+.timelineDot.cancelled{
+  background: #fb7185;
+  box-shadow: 0 0 0 6px rgba(251,113,133,0.12);
+}
+
+.timelineBody{
+  display: grid;
+  gap: 6px;
+}
+
+.timelineBody p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.timelineTopRow{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.timelineTopRow strong{
+  font-size: 15px;
+}
+
+.timelineTopRow span{
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.progressGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.progressCard{
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.14), transparent 32%),
+    rgba(255,255,255,0.04);
+}
+
+.progressCard strong{
+  font-size: 18px;
+}
+
+.progressCard p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.progressMiniGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.progressMiniCard{
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.03);
+}
+
+.progressMiniCard.empty{
+  border-style: dashed;
+}
+
+.progressMiniCard strong{
+  font-size: 15px;
+}
+
+.progressMiniCard p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.inlineActionRow{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.reschedulePanel{
+  border-color: rgba(96,165,250,0.24);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 32%),
+    rgba(255,255,255,0.03);
+}
+
+.reschedulePanel.attention{
+  border-color: rgba(250,204,21,0.28);
+  background:
+    radial-gradient(circle at top right, rgba(250,204,21,0.12), transparent 32%),
+    rgba(255,255,255,0.03);
+}
+
+.trendStack .timelineRow{
+  padding-block: 12px;
+}
+
 .stackSections{
   display: grid;
   gap: 18px;
@@ -2708,9 +2893,18 @@ select.input{
 
   .bookingDatePanelHeader,
   .bookingFlowGrid,
-  .bookingMiniSummary{
+  .bookingMiniSummary,
+  .analyticsGrid,
+  .progressGrid,
+  .progressMiniGrid{
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .timelineTopRow{
+    display: grid;
+    gap: 6px;
+    justify-content: start;
   }
 
   .detailGrid{
