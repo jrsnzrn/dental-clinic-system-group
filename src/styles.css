@@ -2,6 +2,32 @@
    GLOBAL THEME + BASE
 ================================ */
 :root{
+  --bg: #0d0a07;
+  --card: rgba(255,255,255,0.05);
+  --card2: rgba(255,255,255,0.08);
+  --text: rgba(255,248,230,0.94);
+  --muted: rgba(255,234,190,0.68);
+  --line: rgba(255,212,94,0.16);
+  --accent: #f7bf19;
+  --danger: #ff6b78;
+  --shadow: 0 20px 60px rgba(0,0,0,0.35);
+
+  --maxw: 1600px;
+}
+
+html[data-theme="light"]{
+  --bg: #f8f3e7;
+  --card: rgba(255,255,255,0.82);
+  --card2: rgba(255,255,255,0.92);
+  --text: #241807;
+  --muted: rgba(54,39,16,0.68);
+  --line: rgba(168,123,26,0.20);
+  --accent: #d59b00;
+  --danger: #d94b61;
+  --shadow: 0 20px 50px rgba(107,79,22,0.14);
+}
+
+html[data-theme="blue"]{
   --bg: #0b1220;
   --card: rgba(255,255,255,0.06);
   --card2: rgba(255,255,255,0.09);
@@ -11,8 +37,6 @@
   --accent: #4fd1c5;
   --danger: #ff5a7a;
   --shadow: 0 20px 60px rgba(0,0,0,0.35);
-
-  --maxw: 1600px;
 }
 
 *{ box-sizing: border-box; }
@@ -25,10 +49,24 @@ body{
   min-height: 100vh;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background:
+    radial-gradient(900px 500px at 15% 10%, rgba(247,191,25,0.18), transparent 65%),
+    radial-gradient(800px 500px at 85% 15%, rgba(255,214,102,0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+
+html[data-theme="light"] body{
+  background:
+    radial-gradient(900px 500px at 15% 10%, rgba(213,155,0,0.14), transparent 65%),
+    radial-gradient(800px 500px at 85% 15%, rgba(255,214,102,0.18), transparent 60%),
+    var(--bg);
+}
+
+html[data-theme="blue"] body{
+  background:
     radial-gradient(900px 500px at 15% 10%, rgba(79,209,197,0.22), transparent 65%),
     radial-gradient(800px 500px at 85% 15%, rgba(99,102,241,0.18), transparent 60%),
     var(--bg);
-  color: var(--text);
 }
 
 #root{ min-height: 100vh; background: transparent; }
@@ -60,7 +98,7 @@ a:hover{ opacity: 0.9; }
   top: 0;
   z-index: 20;
   backdrop-filter: blur(14px);
-  background: rgba(11,18,32,0.65);
+  background: rgba(13,10,7,0.76);
   border-bottom: 1px solid var(--line);
 }
 
@@ -87,6 +125,39 @@ a:hover{ opacity: 0.9; }
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.themeSwitcher{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.themeChip{
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, color .18s ease;
+}
+
+.themeChip:hover{
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text);
+}
+
+.themeChip.active{
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, rgba(255,255,255,0.05));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .navMenuShell{
@@ -186,20 +257,22 @@ a:hover{ opacity: 0.9; }
 }
 
 .logo-text,
-.logo-tooth{
+.brandLogoImage{
   display: inline-block;
   animation: floatLogo 3.2s ease-in-out infinite;
 }
 
-.logo-tooth{
-  font-size: 14px;
+.brandLogoImage{
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 18px;
+  filter: drop-shadow(0 14px 26px rgba(247,191,25,0.18));
+}
+
+.logo-text{
   font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(79,209,197,0.22);
-  background: rgba(79,209,197,0.08);
+  letter-spacing: 0.01em;
 }
 
 @keyframes floatLogo{
@@ -229,21 +302,21 @@ button.navItem{
 
 .navItem:hover{
   color: var(--text);
-  background: rgba(79,209,197,0.14);
-  border-color: rgba(79,209,197,0.45);
+  background: rgba(247,191,25,0.14);
+  border-color: rgba(247,191,25,0.42);
   transform: translateY(-4px) scale(1.10);
   box-shadow:
-    0 12px 30px rgba(79,209,197,0.25),
-    inset 0 0 20px rgba(79,209,197,0.08);
+    0 12px 30px rgba(247,191,25,0.18),
+    inset 0 0 20px rgba(247,191,25,0.08);
 }
 
 .navItem.active{
   color: var(--text);
-  background: rgba(79,209,197,0.22);
-  border-color: rgba(79,209,197,0.55);
+  background: rgba(247,191,25,0.20);
+  border-color: rgba(247,191,25,0.48);
   box-shadow:
-    0 0 0 2px rgba(79,209,197,0.25),
-    0 10px 30px rgba(79,209,197,0.25);
+    0 0 0 2px rgba(247,191,25,0.18),
+    0 10px 30px rgba(247,191,25,0.18);
 }
 
 .navItem:active{
@@ -273,8 +346,316 @@ button.navItem{
   margin-top: 36px;
   border-top: 1px solid var(--line);
   background:
+    radial-gradient(circle at top left, rgba(247,191,25,0.14), transparent 26%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+html[data-theme="light"] .nav{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.90), rgba(250,243,227,0.86)),
+    rgba(248,243,231,0.88);
+  box-shadow: 0 14px 32px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .hero,
+html[data-theme="light"] .adminHero,
+html[data-theme="light"] .bookingHero,
+html[data-theme="light"] .policyHero{
+  background:
+    radial-gradient(circle at top right, rgba(213,155,0,0.12), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(255,214,102,0.12), transparent 26%),
+    linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,249,235,0.78));
+  border-color: rgba(168,123,26,0.18);
+  box-shadow: 0 18px 42px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .adminEditorCard,
+html[data-theme="light"] .adminRecordsCard,
+html[data-theme="light"] .contactCard,
+html[data-theme="light"] .bookingSummaryCard,
+html[data-theme="light"] .bookingFieldCard,
+html[data-theme="light"] .bookingMiniSummaryCard,
+html[data-theme="light"] .bookingDatePanel,
+html[data-theme="light"] .analyticsCard,
+html[data-theme="light"] .progressCard,
+html[data-theme="light"] .progressMiniCard,
+html[data-theme="light"] .homeHighlightCard,
+html[data-theme="light"] .homeStat,
+html[data-theme="light"] .homeSplineCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,248,237,0.82)),
+    rgba(255,255,255,0.82);
+  border-color: rgba(168,123,26,0.16);
+  box-shadow: 0 16px 34px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .adminSurface{
+  color: #241807;
+}
+
+html[data-theme="light"] .adminStats .statCard,
+html[data-theme="light"] .archiveSummaryCard,
+html[data-theme="light"] .statCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,247,227,0.82)),
+    rgba(255,255,255,0.82);
+  border-color: rgba(168,123,26,0.16);
+  box-shadow: 0 14px 28px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .adminStats .statCard::after{
+  background: rgba(213,155,0,0.08);
+}
+
+html[data-theme="light"] .item,
+html[data-theme="light"] .selectedToothNoteItem,
+html[data-theme="light"] .detailNote,
+html[data-theme="light"] .historyPanel,
+html[data-theme="light"] .editorPreview,
+html[data-theme="light"] .detailBox,
+html[data-theme="light"] .iconRow{
+  background: rgba(255,255,255,0.72);
+  border-color: rgba(168,123,26,0.14);
+}
+
+html[data-theme="light"] .bookingSectionCard,
+html[data-theme="light"] .chartEditorCard,
+html[data-theme="light"] .patientSearchSpotlight,
+html[data-theme="light"] .editorPreview,
+html[data-theme="light"] .emptyEditorState,
+html[data-theme="light"] .toothViewerLegend,
+html[data-theme="light"] .toothChartFrame,
+html[data-theme="light"] .toothImageSurface,
+html[data-theme="light"] .toothViewerMeta,
+html[data-theme="light"] .viewerFocusCard,
+html[data-theme="light"] .bookingDateHighlight{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,247,229,0.80)),
+    rgba(255,255,255,0.80);
+  border-color: rgba(168,123,26,0.14);
+  box-shadow: 0 14px 28px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .patientSearchSpotlight,
+html[data-theme="light"] .emptyEditorState{
+  color: #241807;
+}
+
+html[data-theme="light"] .viewerStatusPill,
+html[data-theme="light"] .statusPill.active{
+  background: rgba(255,255,255,0.82);
+  border-color: rgba(168,123,26,0.16);
+  color: #53380d;
+}
+
+html[data-theme="light"] .recordTapArea{
+  color: inherit;
+}
+
+html[data-theme="light"] .navItem,
+html[data-theme="light"] .themeChip,
+html[data-theme="light"] .subnavItem,
+html[data-theme="light"] .badge,
+html[data-theme="light"] .pill{
+  background: rgba(255,255,255,0.78);
+  border-color: rgba(168,123,26,0.16);
+  color: rgba(62,44,14,0.76);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+}
+
+html[data-theme="light"] .navItem:hover,
+html[data-theme="light"] .themeChip:hover,
+html[data-theme="light"] .subnavItem:hover{
+  background: rgba(255,252,244,0.94);
+  border-color: rgba(168,123,26,0.26);
+  color: #241807;
+  box-shadow: 0 10px 22px rgba(168,123,26,0.10);
+}
+
+html[data-theme="light"] .navItem.active,
+html[data-theme="light"] .subnavItem.active,
+html[data-theme="light"] .themeChip.active{
+  background:
+    linear-gradient(180deg, rgba(255,244,213,0.92), rgba(255,238,186,0.86)),
+    rgba(213,155,0,0.14);
+  border-color: rgba(168,123,26,0.34);
+  color: #201505;
+  box-shadow: 0 12px 24px rgba(168,123,26,0.14);
+}
+
+html[data-theme="light"] .badge{
+  background: rgba(255,250,241,0.80);
+}
+
+html[data-theme="light"] .roleBadge{
+  background:
+    linear-gradient(180deg, rgba(255,246,221,0.90), rgba(255,235,183,0.82));
+  border-color: rgba(168,123,26,0.28);
+  color: #241807;
+}
+
+html[data-theme="light"] .btn{
+  background: linear-gradient(135deg, rgba(213,155,0,0.18), rgba(255,214,102,0.18));
+  border-color: rgba(168,123,26,0.18);
+  color: #2b1d07;
+}
+
+html[data-theme="light"] .btn.secondary{
+  background: rgba(255,255,255,0.74);
+  border-color: rgba(168,123,26,0.16);
+  color: #2b1d07;
+}
+
+html[data-theme="light"] .btn.danger{
+  background: rgba(217,75,97,0.10);
+  border-color: rgba(217,75,97,0.24);
+  color: #7a2336;
+}
+
+html[data-theme="light"] .input,
+html[data-theme="light"] .inputPlain,
+html[data-theme="light"] .inputIconRow,
+html[data-theme="light"] select.input,
+html[data-theme="light"] .input[type="date"]{
+  background: rgba(255,255,255,0.84);
+  color: #241807;
+  border-color: rgba(168,123,26,0.16);
+}
+
+html[data-theme="light"] .input::placeholder,
+html[data-theme="light"] .inputPlain::placeholder{
+  color: rgba(72,52,21,0.42);
+}
+
+html[data-theme="light"] .inputIcon{
+  color: rgba(72,52,21,0.60);
+}
+
+html[data-theme="light"] select.input option{
+  background: #fffaf0;
+  color: #241807;
+}
+
+html[data-theme="light"] .detailSubtitle,
+html[data-theme="light"] .sub,
+html[data-theme="light"] .note,
+html[data-theme="light"] .smallMuted,
+html[data-theme="light"] .timelineBody p,
+html[data-theme="light"] .timelineTopRow span,
+html[data-theme="light"] .patientSearchHint,
+html[data-theme="light"] .patientSearchCount,
+html[data-theme="light"] .patientSearchEyebrow,
+html[data-theme="light"] .detailLabel{
+  color: rgba(72,52,21,0.68);
+}
+
+html[data-theme="light"] .toothMarker:hover{
+  background: rgba(36,24,7,0.84);
+  color: rgba(255,255,255,0.94);
+}
+
+html[data-theme="light"] .toothMarker.focused{
+  background: rgba(36,24,7,0.84);
+  color: rgba(255,255,255,0.94);
+}
+
+html[data-theme="light"] .siteFooter{
+  background:
+    radial-gradient(circle at top left, rgba(213,155,0,0.10), transparent 26%),
+    linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.44));
+}
+
+html[data-theme="light"] .menuToggle{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,247,230,0.78));
+  border-color: rgba(168,123,26,0.20);
+  box-shadow: 0 12px 24px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .menuToggle span{
+  background: #2d210e;
+}
+
+html[data-theme="light"] .navMenuShell{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.95), rgba(252,245,229,0.90)),
+    rgba(255,255,255,0.92);
+  border-color: rgba(168,123,26,0.18);
+  box-shadow: 0 24px 44px rgba(120,89,24,0.12);
+}
+
+html[data-theme="blue"] .nav{
+  background: rgba(11,18,32,0.65);
+}
+
+html[data-theme="blue"] .navItem:hover{
+  background: rgba(79,209,197,0.14);
+  border-color: rgba(79,209,197,0.45);
+  box-shadow:
+    0 12px 30px rgba(79,209,197,0.25),
+    inset 0 0 20px rgba(79,209,197,0.08);
+}
+
+html[data-theme="blue"] .navItem.active{
+  background: rgba(79,209,197,0.22);
+  border-color: rgba(79,209,197,0.55);
+  box-shadow:
+    0 0 0 2px rgba(79,209,197,0.25),
+    0 10px 30px rgba(79,209,197,0.25);
+}
+
+html[data-theme="blue"] .brandLogoImage{
+  filter: drop-shadow(0 14px 26px rgba(79,209,197,0.16));
+}
+
+html[data-theme="blue"] .hero,
+html[data-theme="blue"] .adminHero,
+html[data-theme="blue"] .bookingHero,
+html[data-theme="blue"] .policyHero{
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(99,102,241,0.16), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+  border-color: rgba(255,255,255,0.16);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+html[data-theme="blue"] .bookingsHero{
+  background:
+    radial-gradient(circle at top right, rgba(59,130,246,0.24), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(244,114,182,0.16), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+}
+
+html[data-theme="blue"] .adminHeroGlow{
+  background: rgba(255,255,255,0.10);
+}
+
+html[data-theme="blue"] .bookingHeroGlow{
+  background: rgba(255,255,255,0.10);
+}
+
+html[data-theme="blue"] .siteFooter{
+  background:
     radial-gradient(circle at top left, rgba(79,209,197,0.14), transparent 26%),
     linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+html[data-theme="blue"] .btn{
+  background: rgba(79,209,197,0.18);
+  color: var(--text);
+}
+
+html[data-theme="blue"] .btn:hover{
+  border-color: rgba(79,209,197,0.45);
+  background: rgba(79,209,197,0.22);
+}
+
+html[data-theme="blue"] .themeChip.active{
+  background: rgba(79,209,197,0.18);
+  border-color: rgba(79,209,197,0.48);
+  box-shadow: 0 10px 26px rgba(79,209,197,0.18);
 }
 
 .siteFooterInner{
@@ -608,8 +989,8 @@ button.navItem{
 }
 
 .actionPending{
-  background: linear-gradient(135deg, rgba(245,158,11,0.20), rgba(251,191,36,0.12));
-  border-color: rgba(245,158,11,0.32);
+  background: linear-gradient(135deg, rgba(71,85,105,0.30), rgba(100,116,139,0.20));
+  border-color: rgba(100,116,139,0.32);
 }
 
 .actionCheckin{
@@ -624,6 +1005,175 @@ button.navItem{
 .actionArchive{
   background: linear-gradient(135deg, rgba(148,163,184,0.18), rgba(71,85,105,0.18));
   border-color: rgba(148,163,184,0.24);
+}
+
+.patientEditBtn{
+  background: linear-gradient(135deg, rgba(59,130,246,0.26), rgba(147,197,253,0.18));
+  border-color: rgba(96,165,250,0.28);
+}
+
+.patientPdfBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.28), rgba(110,231,183,0.18));
+  border-color: rgba(16,185,129,0.28);
+}
+
+.archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.18));
+  border-color: rgba(245,158,11,0.28);
+}
+
+.dentistQuickActions .btn,
+.schedulerActions .archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.18));
+  border-color: rgba(245,158,11,0.28);
+}
+
+.btnShine{
+  box-shadow: 0 12px 24px rgba(0,0,0,0.16);
+}
+
+.btnShine.actionApprove,
+.btnShine.bookingPrimaryBtn{
+  box-shadow: 0 14px 28px rgba(16,185,129,0.18);
+}
+
+.btn.danger,
+.actionCancel{
+  color: #ffeef2;
+}
+
+html[data-theme="dark"] .actionApprove,
+html[data-theme="dark"] .bookingPrimaryBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.42), rgba(247,191,25,0.20));
+  border-color: rgba(52,211,153,0.34);
+  color: rgba(255,249,235,0.96);
+}
+
+html[data-theme="dark"] .actionPending{
+  background: linear-gradient(135deg, rgba(51,65,85,0.34), rgba(71,85,105,0.24));
+  border-color: rgba(100,116,139,0.34);
+  color: rgba(231,239,252,0.96);
+}
+
+html[data-theme="dark"] .actionCheckin,
+html[data-theme="dark"] .patientEditBtn{
+  background: linear-gradient(135deg, rgba(59,130,246,0.22), rgba(147,197,253,0.14));
+  border-color: rgba(96,165,250,0.30);
+  color: rgba(232,243,255,0.96);
+}
+
+html[data-theme="dark"] .patientPdfBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.26), rgba(110,231,183,0.16));
+  border-color: rgba(52,211,153,0.28);
+  color: rgba(232,255,246,0.96);
+}
+
+html[data-theme="dark"] .actionArchive,
+html[data-theme="dark"] .archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.28), rgba(247,191,25,0.18));
+  border-color: rgba(245,158,11,0.30);
+  color: rgba(255,247,220,0.96);
+}
+
+html[data-theme="dark"] .dentistQuickActions .btn,
+html[data-theme="dark"] .schedulerActions .archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.28), rgba(247,191,25,0.18));
+  border-color: rgba(245,158,11,0.30);
+  color: rgba(255,247,220,0.96);
+}
+
+html[data-theme="light"] .actionApprove,
+html[data-theme="light"] .bookingPrimaryBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(255,244,213,0.92));
+  border-color: rgba(22,163,74,0.24);
+  color: #195d36;
+}
+
+html[data-theme="light"] .actionPending{
+  background: linear-gradient(135deg, rgba(203,213,225,0.34), rgba(241,245,249,0.94));
+  border-color: rgba(100,116,139,0.22);
+  color: #475569;
+}
+
+html[data-theme="light"] .actionCheckin,
+html[data-theme="light"] .patientEditBtn{
+  background: linear-gradient(135deg, rgba(96,165,250,0.18), rgba(239,246,255,0.94));
+  border-color: rgba(59,130,246,0.22);
+  color: #1d4ed8;
+}
+
+html[data-theme="light"] .patientPdfBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.16), rgba(236,253,245,0.94));
+  border-color: rgba(16,185,129,0.22);
+  color: #0f8a5f;
+}
+
+html[data-theme="light"] .btn.danger,
+html[data-theme="light"] .actionCancel{
+  background: linear-gradient(135deg, rgba(251,113,133,0.14), rgba(255,241,242,0.94));
+  border-color: rgba(225,29,72,0.20);
+  color: #b4234c;
+}
+
+html[data-theme="light"] .actionArchive,
+html[data-theme="light"] .archiveButton{
+  background: linear-gradient(135deg, rgba(251,191,36,0.18), rgba(255,251,235,0.94));
+  border-color: rgba(245,158,11,0.20);
+  color: #9a5a00;
+}
+
+html[data-theme="light"] .dentistQuickActions .btn,
+html[data-theme="light"] .schedulerActions .archiveButton{
+  background: linear-gradient(135deg, rgba(251,191,36,0.18), rgba(255,251,235,0.94));
+  border-color: rgba(245,158,11,0.20);
+  color: #9a5a00;
+}
+
+html[data-theme="blue"] .actionApprove,
+html[data-theme="blue"] .bookingPrimaryBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.42), rgba(79,209,197,0.28));
+  border-color: rgba(16,185,129,0.38);
+  color: rgba(238,255,250,0.96);
+}
+
+html[data-theme="blue"] .actionPending{
+  background: linear-gradient(135deg, rgba(51,65,85,0.34), rgba(71,85,105,0.22));
+  border-color: rgba(100,116,139,0.32);
+  color: rgba(234,242,255,0.96);
+}
+
+html[data-theme="blue"] .actionCheckin,
+html[data-theme="blue"] .patientEditBtn{
+  background: linear-gradient(135deg, rgba(59,130,246,0.22), rgba(99,102,241,0.14));
+  border-color: rgba(96,165,250,0.28);
+  color: rgba(235,244,255,0.96);
+}
+
+html[data-theme="blue"] .patientPdfBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.30), rgba(79,209,197,0.18));
+  border-color: rgba(16,185,129,0.30);
+  color: rgba(236,255,248,0.96);
+}
+
+html[data-theme="blue"] .btn.danger,
+html[data-theme="blue"] .actionCancel{
+  background: linear-gradient(135deg, rgba(255,90,122,0.24), rgba(190,24,93,0.15));
+  border-color: rgba(255,90,122,0.35);
+  color: rgba(255,238,244,0.96);
+}
+
+html[data-theme="blue"] .actionArchive,
+html[data-theme="blue"] .archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.16));
+  border-color: rgba(245,158,11,0.28);
+  color: rgba(255,246,219,0.96);
+}
+
+html[data-theme="blue"] .dentistQuickActions .btn,
+html[data-theme="blue"] .schedulerActions .archiveButton{
+  background: linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.16));
+  border-color: rgba(245,158,11,0.28);
+  color: rgba(255,246,219,0.96);
 }
 
 .hoverLift{

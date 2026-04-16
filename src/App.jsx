@@ -25,12 +25,21 @@ import Logs from "./pages/admin/Logs";
 import Archive from "./pages/admin/Archive";
 import { getAdminProfile, getDefaultAdminPath, ROLES } from "./utils/rbac";
 
+const THEMES = ["blue", "dark", "light"];
+
+function getInitialTheme() {
+  if (typeof window === "undefined") return "blue";
+  const savedTheme = window.localStorage.getItem("topdent-theme");
+  return THEMES.includes(savedTheme) ? savedTheme : "blue";
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [adminRole, setAdminRole] = useState("");
+  const [theme, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -67,6 +76,11 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("topdent-theme", theme);
+  }, [theme]);
+
   if (loadingAuth || checkingAdmin) {
     return <div style={{ padding: 20 }}>Loading...</div>;
   }
@@ -75,7 +89,13 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <NavBar isAdmin={isAdmin} user={user} adminRole={adminRole} />
+      <NavBar
+        isAdmin={isAdmin}
+        user={user}
+        adminRole={adminRole}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
 
       <div className="appMain">
         <Routes>
@@ -181,7 +201,7 @@ export default function App() {
         </Routes>
       </div>
 
-      <Footer isAdmin={isAdmin} />
+      <Footer isAdmin={isAdmin} theme={theme} onThemeChange={setTheme} />
     </BrowserRouter>
   );
 }

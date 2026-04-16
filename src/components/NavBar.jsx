@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
+import topDentLogo from "../assets/topdent-logo.png";
 
 export default function NavBar({
   isAdmin: adminFromApp = false,
@@ -73,12 +74,11 @@ export default function NavBar({
   }
 
   const adminLinks = ADMIN_NAV_BY_ROLE[adminRole] || ADMIN_NAV_BY_ROLE[ROLES.ADMIN];
-
   return (
     <div className="nav">
       <div className="navInner">
         <div className="brand brand-bounce">
-          <span className="logo-tooth" aria-hidden="true">🦷</span>
+          <img className="brandLogoImage" src={topDentLogo} alt="TopDent logo" />
           <span className="logo-text">TopDent</span>
           <span className="badge">Dental Clinic</span>
         </div>
@@ -130,9 +130,7 @@ export default function NavBar({
             <div className="spacer" />
 
             <div className="navLinks">
-              {adminRole ? (
-                <span className="badge roleBadge">{ROLE_LABELS[adminRole]}</span>
-              ) : null}
+              {adminRole ? <span className="badge roleBadge">{ROLE_LABELS[adminRole]}</span> : null}
               {user && (
                 <button className="navItem" onClick={logout} type="button">
                   Logout
