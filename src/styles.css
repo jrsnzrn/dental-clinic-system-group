@@ -2644,6 +2644,21 @@ select.input{
   background: rgba(255,255,255,0.07);
 }
 
+.contactMapCard{
+  display: grid;
+  align-content: start;
+}
+
+.contactMapFrame{
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.12), transparent 32%),
+    rgba(7,13,28,0.55);
+  box-shadow: 0 18px 38px rgba(0,0,0,0.18);
+}
+
 .iconRow{
   display: flex;
   align-items: center;

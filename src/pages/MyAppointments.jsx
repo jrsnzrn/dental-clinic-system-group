@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { doc, onSnapshot, orderBy, query, collection, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, query, collection, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../utils/schedule";
-import { isArchivedBooking } from "../utils/appointments";
+import { isArchivedBooking, sortBookings } from "../utils/appointments";
 
 function AppointmentCard({ booking, onStartReschedule }) {
   const isCompleted = Boolean(booking.checkedInAt);
@@ -110,13 +110,18 @@ export default function MyAppointments() {
       return;
     }
 
-    const bookingsQuery = query(collection(db, "bookings"), orderBy("appointmentAt", "desc"));
+    const bookingsQuery = query(
+      collection(db, "bookings"),
+      where("uid", "==", user.uid)
+    );
     const unsubBookings = onSnapshot(
       bookingsQuery,
       (snap) => {
-        const nextBookings = snap.docs
+        const nextBookings = sortBookings(
+          snap.docs
           .map((entry) => ({ id: entry.id, ...entry.data() }))
-          .filter((booking) => booking.uid === user.uid && !isArchivedBooking(booking));
+          .filter((booking) => !isArchivedBooking(booking))
+        );
         setBookings(nextBookings);
         setLoading(false);
       },
