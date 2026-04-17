@@ -11,6 +11,10 @@ function normalizeText(value) {
 export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [targetFilter, setTargetFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
     const logsQuery = query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(80));
@@ -29,19 +33,37 @@ export default function Logs() {
 
   const filteredLogs = useMemo(() => {
     const term = normalizeText(search);
-    if (!term) return logs;
+    return logs.filter((log) => {
+      const matchesSearch =
+        !term ||
+        [
+          log.actorName,
+          log.actorEmail,
+          log.actorRole,
+          log.actionLabel,
+          log.targetLabel,
+          log.targetType,
+        ].some((value) => normalizeText(value).includes(term));
 
-    return logs.filter((log) =>
-      [
-        log.actorName,
-        log.actorEmail,
-        log.actorRole,
-        log.actionLabel,
-        log.targetLabel,
-        log.targetType,
-      ].some((value) => normalizeText(value).includes(term))
-    );
-  }, [logs, search]);
+      const matchesRole = !roleFilter || normalizeText(log.actorRole) === normalizeText(roleFilter);
+      const matchesAction = !actionFilter || normalizeText(log.action) === normalizeText(actionFilter);
+      const matchesTarget = !targetFilter || normalizeText(log.targetType) === normalizeText(targetFilter);
+      const matchesDate =
+        !dateFilter ||
+        (log.createdAt?.toDate?.().toISOString().slice(0, 10) || "") === dateFilter;
+
+      return matchesSearch && matchesRole && matchesAction && matchesTarget && matchesDate;
+    });
+  }, [actionFilter, dateFilter, logs, roleFilter, search, targetFilter]);
+
+  const actionOptions = useMemo(
+    () => [...new Set(logs.map((log) => log.action).filter(Boolean))].sort(),
+    [logs]
+  );
+  const targetOptions = useMemo(
+    () => [...new Set(logs.map((log) => log.targetType).filter(Boolean))].sort(),
+    [logs]
+  );
 
   return (
     <div className="container adminSurface">
@@ -85,6 +107,31 @@ export default function Logs() {
                 Clear
               </button>
             ) : null}
+          </div>
+
+          <div className="bookingFlowGrid" style={{ marginTop: 12 }}>
+            <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+              <option value="">All roles</option>
+              <option value="admin">Administrator</option>
+              <option value="receptionist">Receptionist</option>
+              <option value="dentist">Dentist</option>
+            </select>
+
+            <select className="input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+              <option value="">All actions</option>
+              {actionOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <select className="input" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
+              <option value="">All targets</option>
+              {targetOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <input className="input" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
           </div>
         </div>
       </div>

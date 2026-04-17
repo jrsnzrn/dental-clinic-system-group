@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../firebase";
+import { db, functions } from "../../firebase";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
@@ -17,18 +18,50 @@ function emptyDraft() {
 export default function Accounts() {
   const [draft, setDraft] = useState(emptyDraft());
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [listError, setListError] = useState("");
   const [success, setSuccess] = useState("");
   const [created, setCreated] = useState(null);
+  const [staffAccounts, setStaffAccounts] = useState([]);
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [updatingAccountId, setUpdatingAccountId] = useState("");
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "admins"),
+      (snapshot) => {
+        setListError("");
+        setStaffAccounts(
+          snapshot.docs
+            .map((entry) => ({ id: entry.id, ...entry.data() }))
+            .filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST)
+            .sort((a, b) => {
+              const aTime = a.createdAt?.seconds || 0;
+              const bTime = b.createdAt?.seconds || 0;
+              return bTime - aTime;
+            })
+        );
+        setLoadingStaff(false);
+      },
+      (err) => {
+        setListError(err?.message || "Could not load staff accounts.");
+        setStaffAccounts([]);
+        setLoadingStaff(false);
+        console.error(err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError("");
+    setFormError("");
     setSuccess("");
     setCreated(null);
 
     if (!draft.name.trim() || !draft.email.trim() || !draft.password.trim()) {
-      setError("Complete the staff name, email, password, and role first.");
+      setFormError("Complete the staff name, email, password, and role first.");
       return;
     }
 
@@ -45,10 +78,31 @@ export default function Accounts() {
       setSuccess(`${ROLE_LABELS[draft.role]} account created successfully.`);
       setDraft(emptyDraft());
     } catch (err) {
-      setError(err?.message || "Could not create the staff account.");
+      setFormError(err?.message || "Could not create the staff account.");
       console.error(err);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function toggleStaffStatus(account) {
+    try {
+      setListError("");
+      setSuccess("");
+      setUpdatingAccountId(account.id);
+      await updateDoc(doc(db, "admins", account.id), {
+        disabled: !account.disabled,
+      });
+      setSuccess(
+        `${account.email || account.name || "Staff account"} ${
+          account.disabled ? "enabled" : "disabled"
+        } successfully.`
+      );
+    } catch (err) {
+      setListError(err?.message || "Could not update the staff account status.");
+      console.error(err);
+    } finally {
+      setUpdatingAccountId("");
     }
   }
 
@@ -59,7 +113,7 @@ export default function Accounts() {
         <div className="adminHeroContent">
           <span className="heroEyebrow">Security Control</span>
           <h1>Staff Accounts</h1>
-          <p>Create receptionist, dentist, and additional administrator accounts securely from inside the system instead of manually editing Firestore.</p>
+          <p>Create dentist and receptionist logins, then manage whether those staff accounts can access the system.</p>
         </div>
       </div>
 
@@ -103,7 +157,6 @@ export default function Accounts() {
           >
             <option value={ROLES.RECEPTIONIST}>{ROLE_LABELS[ROLES.RECEPTIONIST]}</option>
             <option value={ROLES.DENTIST}>{ROLE_LABELS[ROLES.DENTIST]}</option>
-            <option value={ROLES.ADMIN}>{ROLE_LABELS[ROLES.ADMIN]}</option>
           </select>
 
           <button className="btn btnShine" type="submit" disabled={submitting}>
@@ -111,7 +164,7 @@ export default function Accounts() {
           </button>
         </form>
 
-        {error ? <div className="error" style={{ marginTop: 12 }}>{error}</div> : null}
+        {formError ? <div className="error" style={{ marginTop: 12 }}>{formError}</div> : null}
         {success ? <div className="successBanner" style={{ marginTop: 12 }}>{success}</div> : null}
 
         {created ? (
@@ -121,6 +174,93 @@ export default function Accounts() {
             <p>Role: {ROLE_LABELS[created.role] || created.role}</p>
           </div>
         ) : null}
+      </div>
+
+      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
+        <div className="cardHeader">
+          <div>
+            <h3 className="title">Staff Access Control</h3>
+            <p className="sub">Enable or disable dentist and receptionist accounts without showing administrator records here.</p>
+          </div>
+          <span className="badge">{loadingStaff ? "Loading..." : `${staffAccounts.length} staff`}</span>
+        </div>
+
+        <ul className="list detailedList">
+          {listError ? (
+            <li className="item detailedItem bookingShowcase">
+              <div className="detailContent">
+                <strong className="detailTitle">Could not load staff accounts</strong>
+                <p className="detailSubtitle">{listError}</p>
+              </div>
+            </li>
+          ) : null}
+
+          {loadingStaff ? (
+            <li className="item detailedItem bookingShowcase">
+              <div className="detailContent">
+                <strong className="detailTitle">Loading staff accounts...</strong>
+                <p className="detailSubtitle">Fetching every saved staff account from Firestore.</p>
+              </div>
+            </li>
+          ) : null}
+
+          {!loadingStaff && !listError && staffAccounts.length === 0 ? (
+            <li className="item detailedItem bookingShowcase">
+              <div className="detailContent">
+                <strong className="detailTitle">No staff accounts found</strong>
+                <p className="detailSubtitle">Dentist and receptionist accounts created from this page will appear here for access control.</p>
+              </div>
+            </li>
+          ) : null}
+
+          {!loadingStaff && !listError ? staffAccounts.map((account) => (
+            <li key={account.id} className="item detailedItem bookingShowcase">
+              <div className="detailContent">
+                <div className="detailTopRow">
+                  <div>
+                    <strong className="detailTitle">{account.name || "No staff name saved"}</strong>
+                    <p className="detailSubtitle">{ROLE_LABELS[account.role] || account.role || "No role saved"}</p>
+                  </div>
+                  <span className={`statusPill ${account.disabled ? "cancelled" : "approved"}`}>
+                    {account.disabled ? "disabled" : "active"}
+                  </span>
+                </div>
+                <div className="detailGrid accountGrid" style={{ marginTop: 12 }}>
+                  <div className="detailBox">
+                    <span className="detailLabel">Staff Name</span>
+                    <strong>{account.name || "No staff name saved"}</strong>
+                  </div>
+                  <div className="detailBox">
+                    <span className="detailLabel">Email</span>
+                    <strong>{account.email || "No email saved"}</strong>
+                  </div>
+                  <div className="detailBox">
+                    <span className="detailLabel">Role</span>
+                    <strong>{ROLE_LABELS[account.role] || account.role || "No role saved"}</strong>
+                  </div>
+                  <div className="detailBox detailBoxWide">
+                    <span className="detailLabel">Account ID</span>
+                    <strong className="accountIdValue">{account.id}</strong>
+                  </div>
+                </div>
+              </div>
+              <div className="actionColumn">
+                <button
+                  className={`btn ${account.disabled ? "patientEditBtn" : "actionPending"}`}
+                  type="button"
+                  onClick={() => toggleStaffStatus(account)}
+                  disabled={updatingAccountId === account.id}
+                >
+                  {updatingAccountId === account.id
+                    ? "Updating..."
+                    : account.disabled
+                      ? "Enable Account"
+                      : "Disable Account"}
+                </button>
+              </div>
+            </li>
+          )) : null}
+        </ul>
       </div>
     </div>
   );

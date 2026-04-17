@@ -38,7 +38,6 @@ export default function Login() {
   const [shake, setShake] = useState(false);
 
   const navigate = useNavigate();
-  const currentRole = ROLE_OPTIONS.find((role) => role.value === selectedRole) || ROLE_OPTIONS[2];
 
   async function onLogin(e) {
     e.preventDefault();
@@ -62,6 +61,10 @@ export default function Login() {
       }
 
       const profile = getAdminProfile(adminSnap.data());
+      if (profile.disabled) {
+        await signOut(auth);
+        throw new Error("account-disabled");
+      }
       if (profile.role !== selectedRole) {
         await signOut(auth);
         throw new Error("role-mismatch");
@@ -69,6 +72,9 @@ export default function Login() {
 
       navigate(getDefaultAdminPath(profile.role));
     } catch (e) {
+      if (e.message === "account-disabled") {
+        setErr("This staff account is disabled. Please contact the administrator.");
+      } else
       if (e.message === "role-mismatch") {
         setErr(`This account is not registered for ${ROLE_LABELS[selectedRole].toLowerCase()} access.`);
       } else if (e.message === "not-admin") {
@@ -113,12 +119,6 @@ export default function Login() {
               <p>{role.description}</p>
             </button>
           ))}
-        </div>
-
-        <div className="selectedRolePanel">
-          <span className="detailLabel">Selected module</span>
-          <strong>{currentRole.title}</strong>
-          <p>{currentRole.description}</p>
         </div>
 
         <form onSubmit={onLogin} className="authGrid">

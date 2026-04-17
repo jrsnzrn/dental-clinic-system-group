@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isStaff() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function staffDoc() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function role() {
+      return isStaff() ? staffDoc().data.role : null;
+    }
+
+    function isAdmin() {
+      return role() == "admin";
+    }
+
+    function isReceptionist() {
+      return role() == "receptionist";
+    }
+
+    function isDentist() {
+      return role() == "dentist";
+    }
+
+    function isAdminOrReceptionist() {
+      return isAdmin() || isReceptionist();
+    }
+
+    function isAnyStaffRole() {
+      return isAdmin() || isReceptionist() || isDentist();
+    }
+
+    match /admins/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /patientProfiles/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /patients/{id} {
+      allow read: if isAnyStaffRole();
+      allow create, update: if isAnyStaffRole();
+      allow delete: if isAdmin() || isReceptionist();
+    }
+
+    match /bookings/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.appointmentAt >= request.time;
+
+      allow read: if isAdminOrReceptionist() ||
+        (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      allow update: if isAdminOrReceptionist() ||
+        (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    match /dentists/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /dentalCharts/{uid} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isAnyStaffRole()
+      );
+
+      allow create, update: if isAdmin() || isDentist();
+      allow delete: if isAdmin();
+    }
+
+    match /auditLogs/{id} {
+      allow read: if isAnyStaffRole();
+      allow create: if isAnyStaffRole();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

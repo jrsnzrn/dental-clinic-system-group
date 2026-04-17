@@ -13,8 +13,12 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import EmptyState from "../../components/EmptyState";
+import { SkeletonList } from "../../components/LoadingSkeleton";
 import { logAdminAction } from "../../utils/audit";
 import { buildBookingAnalytics, normalizeName } from "../../utils/appointments";
+import { buildCalendarCells, getBookingCalendarTone, getCalendarItemLabel } from "../../utils/calendar";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const BOOKING_FILTERS = {
@@ -184,6 +188,8 @@ function BookingCard({
 
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+  const [confirmState, setConfirmState] = useState(null);
   const { status = "pending" } = useParams();
 
   useEffect(() => {
@@ -196,6 +202,7 @@ export default function Bookings() {
           ...d.data(),
         }))
       );
+      setLoadingBookings(false);
     });
 
     return () => unsub();
@@ -216,6 +223,7 @@ export default function Bookings() {
   );
 
   const bookingStats = useMemo(() => buildBookingAnalytics(activeBookings), [activeBookings]);
+  const calendarCells = useMemo(() => buildCalendarCells(bookings, 21), [bookings]);
 
   if (!BOOKING_FILTERS[status]) {
     return <Navigate to="/admin/bookings/pending" replace />;
@@ -356,6 +364,17 @@ export default function Bookings() {
   const activeConfig = BOOKING_FILTERS[status];
   const activeItems = groupedBookings[status];
 
+  function openConfirm(config) {
+    setConfirmState(config);
+  }
+
+  async function handleConfirmAction() {
+    if (!confirmState?.action) return;
+    const action = confirmState.action;
+    setConfirmState(null);
+    await action();
+  }
+
   return (
     <div className="container adminSurface">
       <div className="hero adminHero bookingsHero">
@@ -390,49 +409,61 @@ export default function Bookings() {
         </div>
       </div>
 
-      <div className="analyticsGrid" style={{ marginTop: 18 }}>
-        <div className="card analyticsCard">
-          <span className="detailLabel">Most requested service</span>
-          <strong>{bookingStats.mostRequestedService.label}</strong>
-          <p>{bookingStats.mostRequestedService.count} bookings</p>
-        </div>
-        <div className="card analyticsCard">
-          <span className="detailLabel">Busiest day</span>
-          <strong>{bookingStats.busiestDay.label}</strong>
-          <p>{bookingStats.busiestDay.count} bookings</p>
-        </div>
-        <div className="card analyticsCard">
-          <span className="detailLabel">Most booked dentist</span>
-          <strong>{bookingStats.mostBookedDentist.label}</strong>
-          <p>{bookingStats.mostBookedDentist.count} bookings</p>
-        </div>
-      </div>
-
       <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
         <div className="cardHeader">
           <div>
-            <h3 className="title">Monthly Trends</h3>
-            <p className="sub">Quick month-by-month booking counts so the clinic can spot busy periods faster.</p>
+            <h3 className="title">Color-Coded Clinic Calendar</h3>
           </div>
         </div>
-        <div className="timelineStack trendStack">
-          {bookingStats.monthlyTrends.length ? (
-            bookingStats.monthlyTrends.map((entry) => (
-              <div key={entry.month} className="timelineRow">
-                <div className="timelineDot" />
-                <div className="timelineBody">
-                  <strong>{entry.month}</strong>
-                  <p>{entry.count} bookings recorded</p>
+        <div className="calendarLegend">
+          <div className="calendarLegendItem">
+            <span className="calendarLegendSwatch pending" />
+            <span>Pending</span>
+          </div>
+          <div className="calendarLegendItem">
+            <span className="calendarLegendSwatch approved" />
+            <span>Approved</span>
+          </div>
+          <div className="calendarLegendItem">
+            <span className="calendarLegendSwatch completed" />
+            <span>Completed</span>
+          </div>
+          <div className="calendarLegendItem">
+            <span className="calendarLegendSwatch cancelled" />
+            <span>Cancelled</span>
+          </div>
+          <div className="calendarLegendItem">
+            <span className="calendarLegendSwatch archived" />
+            <span>Archived</span>
+          </div>
+        </div>
+        <div className="calendarGrid">
+          {calendarCells.map((cell) => (
+            <div key={cell.date} className="calendarCell">
+              <div className="calendarCellHeader">
+                <div>
+                  <strong>{cell.label}</strong>
+                  <small>{new Date(`${cell.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long" })}</small>
                 </div>
+                <span className="calendarCellCount">{cell.items.length} bookings</span>
               </div>
-            ))
-          ) : (
-            <div className="emptyEditorState">No booking trends available yet.</div>
-          )}
+              {cell.items.length ? (
+                <div className="calendarItemStack">
+                  {cell.items.slice(0, 4).map((booking) => (
+                    <div key={booking.id} className={`calendarItem ${getBookingCalendarTone(booking)}`}>
+                      {getCalendarItemLabel(booking)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="calendarEmpty">No bookings</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="adminSubnav">
+      <div className="adminSubnav stickySubnav">
         <NavLink to="/admin/bookings/pending" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
           Pending
         </NavLink>
@@ -453,7 +484,9 @@ export default function Bookings() {
           <span className="badge">{activeItems.length} records</span>
         </div>
 
-        {activeItems.length ? (
+        {loadingBookings ? (
+          <SkeletonList count={3} cardClassName="bookingShowcase" />
+        ) : activeItems.length ? (
           <ul className="list detailedList">
             {activeItems.map((booking) => (
               <BookingCard
@@ -461,18 +494,56 @@ export default function Bookings() {
                 booking={booking}
                 onApprove={() => setStatus(booking.id, "approved", booking)}
                 onPending={() => setStatus(booking.id, "pending", booking)}
-                onCheckIn={() => toggleCheckIn(booking)}
-                onCancel={() => setStatus(booking.id, "cancelled", booking)}
-                onArchive={() => toggleArchive(booking.id)}
+                onCheckIn={() =>
+                  openConfirm({
+                    title: booking.checkedInAt ? "Clear check-in?" : "Mark patient as checked in?",
+                    message: booking.checkedInAt
+                      ? "This will remove the current check-in timestamp from the booking."
+                      : "This will mark the patient as checked in for this appointment.",
+                    confirmLabel: booking.checkedInAt ? "Clear Check-in" : "Mark Check-in",
+                    action: () => toggleCheckIn(booking),
+                  })
+                }
+                onCancel={() =>
+                  openConfirm({
+                    title: "Cancel this booking?",
+                    message: "This booking will move to the cancelled section and no longer appear as active.",
+                    confirmLabel: "Cancel Booking",
+                    tone: "danger",
+                    action: () => setStatus(booking.id, "cancelled", booking),
+                  })
+                }
+                onArchive={() =>
+                  openConfirm({
+                    title: "Move this booking to archive?",
+                    message: "Archived bookings are removed from the active booking board but can still be restored later.",
+                    confirmLabel: "Move to Archive",
+                    tone: "archive",
+                    action: () => toggleArchive(booking.id),
+                  })
+                }
                 onApproveReschedule={() => approveReschedule(booking)}
                 onDeclineReschedule={() => declineReschedule(booking)}
               />
             ))}
           </ul>
         ) : (
-          <div className="emptyEditorState">{activeConfig.emptyText}</div>
+          <EmptyState
+            title={activeConfig.title}
+            message={activeConfig.emptyText}
+          />
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmLabel={confirmState?.confirmLabel}
+        tone={confirmState?.tone}
+        onClose={() => setConfirmState(null)}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }

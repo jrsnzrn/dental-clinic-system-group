@@ -83,18 +83,21 @@ export function buildTreatmentProgress(history = []) {
     .sort((a, b) => b.totalSessions - a.totalSessions);
 }
 
-export function buildPatientTimeline(history = [], auditLogs = [], patient = {}) {
+export function buildPatientTimeline(history = []) {
   const bookingEvents = history.flatMap((booking) => {
     const events = [];
+    const timelineStatus = isArchivedBooking(booking)
+      ? "archived"
+      : String(booking.status || "").trim().toLowerCase() || "pending";
 
     if (booking.createdAt) {
       events.push({
         id: `${booking.id}-created`,
         kind: "booking",
         timestamp: booking.createdAt,
-        title: `Booking submitted for ${booking.service || "consultation"}`,
+        title: `Booked ${booking.service || "consultation"}`,
         subtitle: `${booking.selectedDentist || "Clinic dentist"} on ${booking.date || "date pending"} at ${booking.time || "time pending"}`,
-        status: booking.status || "pending",
+        status: timelineStatus === "archived" ? "archived" : "pending",
       });
     }
 
@@ -103,9 +106,9 @@ export function buildPatientTimeline(history = [], auditLogs = [], patient = {})
         id: `${booking.id}-status`,
         kind: "status",
         timestamp: booking.statusUpdatedAt,
-        title: `Booking marked ${booking.status || "pending"}`,
+        title: `Booking ${booking.status || "pending"}`,
         subtitle: booking.service || "Appointment update",
-        status: booking.status || "pending",
+        status: timelineStatus,
       });
     }
 
@@ -116,7 +119,7 @@ export function buildPatientTimeline(history = [], auditLogs = [], patient = {})
         timestamp: booking.checkedInAt,
         title: "Patient checked in",
         subtitle: `${booking.service || "Appointment"} with ${booking.selectedDentist || "clinic dentist"}`,
-        status: "approved",
+        status: timelineStatus === "archived" ? "archived" : "approved",
       });
     }
 
@@ -127,39 +130,16 @@ export function buildPatientTimeline(history = [], auditLogs = [], patient = {})
         timestamp: booking.rescheduleRequest.requestedAt,
         title: "Reschedule requested",
         subtitle: `${booking.rescheduleRequest.requestedDate || "New date"} at ${booking.rescheduleRequest.requestedTime || "new time"}`,
-        status: booking.rescheduleRequest.status || "pending",
+        status: timelineStatus === "archived"
+          ? "archived"
+          : booking.rescheduleRequest.status || "pending",
       });
     }
 
     return events;
   });
 
-  const matchingLogs = auditLogs
-    .filter((log) => {
-      if (log.targetType === "patient") {
-        return log.targetId === patient.id || normalizeName(log.targetLabel) === normalizeName(patient.name);
-      }
-
-      if (log.targetType === "booking") {
-        return history.some((booking) => booking.id === log.targetId);
-      }
-
-      if (log.targetType === "dental_chart") {
-        return patient.uid && log.targetId === patient.uid;
-      }
-
-      return false;
-    })
-    .map((log) => ({
-      id: `audit-${log.id}`,
-      kind: "audit",
-      timestamp: log.createdAt,
-      title: log.actionLabel || log.action || "Staff activity",
-      subtitle: `${log.actorName || "Staff"}${log.actorRole ? ` • ${log.actorRole}` : ""}`,
-      status: "active",
-    }));
-
-  return [...bookingEvents, ...matchingLogs]
+  return bookingEvents
     .filter((entry) => entry.timestamp)
     .sort((a, b) => {
       const aTime = a.timestamp?.seconds || 0;
@@ -218,4 +198,14 @@ export function buildBookingAnalytics(bookings = []) {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([month, count]) => ({ month, count })),
   };
+}
+
+export function isInactivePatient(patient = {}, latestBooking = null, staleDays = 180) {
+  const referenceDate = patient.lastAppointmentDate || latestBooking?.date || "";
+  if (!referenceDate) return false;
+  const visitDate = new Date(`${referenceDate}T00:00:00`);
+  if (Number.isNaN(visitDate.getTime())) return false;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - staleDays);
+  return visitDate < cutoff;
 }

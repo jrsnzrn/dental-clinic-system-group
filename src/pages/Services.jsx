@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { db } from "../firebase";
+import { getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
 
 const cleaningImg = "/services/cleaning.png";
 const restorationImg = "/services/fillings.png";
@@ -12,7 +15,7 @@ const denturesImg = "/services/cleaning.png";
 const xrayImg = "/services/rootcanal.png";
 
 export default function Services() {
-  const items = useMemo(
+  const defaultItems = useMemo(
     () => [
       {
         name: "Cleaning",
@@ -138,6 +141,31 @@ export default function Services() {
     ],
     []
   );
+  const [managedServices, setManagedServices] = useState([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(query(collection(db, "clinicServices"), orderBy("name", "asc")), (snapshot) => {
+      setManagedServices(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  const items = useMemo(() => {
+    const services = getBookingServiceOptions(managedServices);
+    if (!services.length) return defaultItems;
+    return services.map((service) => ({
+      name: service.name,
+      desc: service.description || "Clinic-managed service available for booking.",
+      price: service.startingRate || "Ask the clinic for pricing",
+      duration: `${service.durationMinutes} minutes`,
+      img: getClinicServiceImage(service),
+      notes: [
+        service.description || "Clinic-managed service.",
+        `Category: ${service.category || "General"}`,
+        `Estimated duration: ${service.durationMinutes} minutes`,
+      ],
+    }));
+  }, [defaultItems, managedServices]);
 
   const [index, setIndex] = useState(0);
   const [cardWidth, setCardWidth] = useState(() =>
@@ -248,6 +276,11 @@ export default function Services() {
             <div className="servicePriceCard">
               <span className="detailLabel">Starting rate</span>
               <strong>{selected.price}</strong>
+            </div>
+
+            <div className="servicePriceCard">
+              <span className="detailLabel">Estimated duration</span>
+              <strong>{selected.duration || "Varies by case"}</strong>
             </div>
 
             <div className="detailNote historyPanel">

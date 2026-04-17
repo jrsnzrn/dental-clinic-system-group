@@ -2,8 +2,33 @@ import { useEffect, useMemo, useState } from "react";
 import { doc, onSnapshot, query, collection, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../utils/schedule";
+import { formatDateLabel, formatTimeLabel, formatTimestamp, getClinicAvailability } from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
+import { getActiveClosureForDate } from "../utils/clinic";
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function buildSlots() {
+  const slots = [];
+  for (let h = 9; h <= 17; h += 1) {
+    slots.push(`${pad(h)}:00`);
+    slots.push(`${pad(h)}:30`);
+  }
+  return slots;
+}
+
+function getNextBookableDates(count = 10) {
+  const result = [];
+  const cursor = new Date();
+  while (result.length < count) {
+    const iso = cursor.toISOString().slice(0, 10);
+    if (new Date(`${iso}T00:00:00`).getDay() !== 0) result.push(iso);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
 
 function AppointmentCard({ booking, onStartReschedule }) {
   const isCompleted = Boolean(booking.checkedInAt);
@@ -91,6 +116,9 @@ export default function MyAppointments() {
     requestedTime: "09:00",
     reason: "",
   });
+  const [dentists, setDentists] = useState([]);
+  const [clinicClosures, setClinicClosures] = useState([]);
+  const slotOptions = useMemo(() => buildSlots(), []);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
@@ -135,6 +163,19 @@ export default function MyAppointments() {
     return () => unsubBookings();
   }, [user]);
 
+  useEffect(() => {
+    const unsubDentists = onSnapshot(collection(db, "dentists"), (snapshot) => {
+      setDentists(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    });
+    const unsubClosures = onSnapshot(collection(db, "clinicClosures"), (snapshot) => {
+      setClinicClosures(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    });
+    return () => {
+      unsubDentists();
+      unsubClosures();
+    };
+  }, []);
+
   const groupedBookings = useMemo(() => buildStatusGroups(bookings), [bookings]);
   const nextAppointment = useMemo(
     () =>
@@ -143,6 +184,40 @@ export default function MyAppointments() {
       ) || null,
     [bookings]
   );
+
+  const rescheduleSuggestions = useMemo(() => {
+    if (!editingBookingId) return [];
+    const booking = bookings.find((entry) => entry.id === editingBookingId);
+    if (!booking) return [];
+    const dentist = dentists.find((entry) => entry.name === booking.selectedDentist);
+    if (!dentist) return [];
+
+    const suggestions = [];
+    const dates = getNextBookableDates(14);
+
+    for (const date of dates) {
+      const closure = getActiveClosureForDate(clinicClosures, date);
+      const availability = getClinicAvailability(dentist, date, clinicClosures);
+      if (closure || !availability.available || !availability.schedule?.active) continue;
+
+      for (const slot of slotOptions) {
+        if (slot < availability.schedule.start || slot >= availability.schedule.end) continue;
+        const conflict = bookings.some((entry) =>
+          entry.id !== booking.id &&
+          entry.archiveStatus !== "Archived" &&
+          entry.status !== "cancelled" &&
+          entry.selectedDentist === booking.selectedDentist &&
+          entry.date === date &&
+          entry.time === slot
+        );
+        if (!conflict) {
+          suggestions.push({ date, time: slot });
+        }
+        if (suggestions.length >= 6) return suggestions;
+      }
+    }
+    return suggestions;
+  }, [bookings, clinicClosures, dentists, editingBookingId, slotOptions]);
 
   function startReschedule(booking) {
     setEditingBookingId(booking.id);
@@ -294,6 +369,30 @@ export default function MyAppointments() {
             }
             style={{ marginTop: 14 }}
           />
+
+          {rescheduleSuggestions.length ? (
+            <div className="detailNote historyPanel" style={{ marginTop: 14 }}>
+              <span className="detailLabel">Suggested reschedule slots</span>
+              <div className="inlineActionRow">
+                {rescheduleSuggestions.map((option) => (
+                  <button
+                    key={`${option.date}-${option.time}`}
+                    className="btn secondary btnSoft"
+                    type="button"
+                    onClick={() =>
+                      setRescheduleDraft((current) => ({
+                        ...current,
+                        requestedDate: option.date,
+                        requestedTime: option.time,
+                      }))
+                    }
+                  >
+                    {formatDateLabel(option.date)} • {formatTimeLabel(option.time)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <button
             className="btn btnShine bookingPrimaryBtn"

@@ -5,18 +5,22 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   Timestamp,
 } from "firebase/firestore";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth, db } from "../firebase";
+import EmptyState from "../components/EmptyState";
+import { SkeletonList } from "../components/LoadingSkeleton";
+import { getActiveClosureForDate, getBookingServiceOptions, getClinicServiceImage, hasPotentialDuplicateBooking } from "../utils/clinic";
 import {
   formatDateLabel,
   formatTimeLabel,
-  getDayKeyFromDate,
-  isDentistAvailableOnDate,
-  normalizeSchedule,
+  getClinicAvailability,
+  getDentistDaySchedule,
 } from "../utils/schedule";
 
 function pad(n) {
@@ -74,14 +78,19 @@ export default function Book() {
   const [patientProfile, setPatientProfile] = useState(null);
   const [profileDraft, setProfileDraft] = useState(getEmptyProfile());
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [loadingDentists, setLoadingDentists] = useState(true);
   const [editingProfile, setEditingProfile] = useState(false);
 
   const [service, setService] = useState("Cleaning");
+  const [clinicServices, setClinicServices] = useState([]);
+  const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [selectedDentist, setSelectedDentist] = useState("");
   const [date, setDate] = useState(toLocalISODate(new Date()));
   const [time, setTime] = useState("09:00");
   const [notes, setNotes] = useState("");
+  const [agreedToPrivacyConsent, setAgreedToPrivacyConsent] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
@@ -90,7 +99,12 @@ export default function Book() {
   const todayStr = toLocalISODate(new Date());
   const allSlots = useMemo(() => generateSlots(), []);
   const upcomingDates = useMemo(() => generateUpcomingDates(new Date(), 12), []);
-  const selectedDayKey = getDayKeyFromDate(date);
+  const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
+  const selectedClosure = useMemo(() => getActiveClosureForDate(clinicClosures, date), [clinicClosures, date]);
+  const selectedServiceRecord = useMemo(
+    () => activeServiceOptions.find((entry) => entry.name === service) || null,
+    [activeServiceOptions, service]
+  );
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -103,6 +117,7 @@ export default function Book() {
         setProfileDraft(getEmptyProfile());
         setEditingProfile(false);
         setRecentlySubmitted(false);
+        setAgreedToPrivacyConsent(false);
         return;
       }
 
@@ -144,23 +159,57 @@ export default function Book() {
     const unsub = onSnapshot(collection(db, "dentists"), (snap) => {
       const list = snap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
       setDentists(list);
+      setLoadingDentists(false);
     });
 
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    const unsubServices = onSnapshot(query(collection(db, "clinicServices"), orderBy("name", "asc")), (snap) => {
+      const nextServices = snap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      setClinicServices(nextServices);
+    });
+
+    const unsubClosures = onSnapshot(query(collection(db, "clinicClosures"), orderBy("date", "asc")), (snap) => {
+      setClinicClosures(snap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    });
+
+    const unsubBookings = onSnapshot(collection(db, "bookings"), (snap) => {
+      setBookings(snap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    });
+
+    return () => {
+      unsubServices();
+      unsubClosures();
+      unsubBookings();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeServiceOptions.length && !activeServiceOptions.some((entry) => entry.name === service)) {
+      setService(activeServiceOptions[0].name);
+    }
+  }, [activeServiceOptions, service]);
+
   const availableDentists = useMemo(() => {
     return dentists.filter(
-      (dentist) => dentist.archiveStatus !== "Archived" && isDentistAvailableOnDate(dentist, date)
+      (dentist) =>
+        dentist.archiveStatus !== "Archived" &&
+        getClinicAvailability(dentist, date, clinicClosures).available
     );
-  }, [date, dentists]);
+  }, [clinicClosures, date, dentists]);
 
   const selectedDentistRecord = useMemo(() => {
     return dentists.find((dentist) => dentist.name === selectedDentist) || null;
   }, [dentists, selectedDentist]);
 
-  const selectedSchedule = normalizeSchedule(selectedDentistRecord?.schedule);
-  const selectedDaySchedule = selectedSchedule[selectedDayKey];
+  const selectedDaySchedule = getDentistDaySchedule(selectedDentistRecord, date);
+  const selectedAvailability = getClinicAvailability(selectedDentistRecord, date, clinicClosures);
+  const duplicateWarning = useMemo(
+    () => hasPotentialDuplicateBooking(bookings, { uid: user?.uid, date, service }),
+    [bookings, date, service, user?.uid]
+  );
 
   useEffect(() => {
     if (!availableDentists.length) {
@@ -281,9 +330,13 @@ export default function Book() {
     if (!date) return setError("Please choose a date.");
     if (date < todayStr) return setError("You cannot book before today.");
     if (isSunday(date)) return setError("Clinic is closed on Sundays. Please choose Monday to Saturday.");
+    if (selectedClosure) return setError(`${selectedClosure.label} blocks booking on ${formatDateLabel(date)}. Please choose another day.`);
     if (!time) return setError("Please choose a time.");
+    if (!agreedToPrivacyConsent) {
+      return setError("Please confirm the confidentiality and clinic-use consent before submitting.");
+    }
     if (!selectedDentist) return setError("No dentist is available on that day. Please choose another date.");
-    if (!selectedDentistRecord || !isDentistAvailableOnDate(selectedDentistRecord, date)) {
+    if (!selectedDentistRecord || !selectedAvailability.available) {
       return setError("That dentist is inactive on the selected day. Please choose another dentist or date.");
     }
 
@@ -298,6 +351,27 @@ export default function Book() {
 
     if (date === todayStr && appointmentDate < new Date()) {
       return setError("That time already passed. Choose a later time.");
+    }
+
+    const hasConflict = bookings.some((existing) => {
+      return (
+        existing.archiveStatus !== "Archived" &&
+        existing.status !== "cancelled" &&
+        existing.selectedDentist === selectedDentist &&
+        existing.date === date &&
+        existing.time === time
+      );
+    });
+
+    if (hasConflict) {
+      return setError("That appointment slot is already taken for the selected dentist. Please choose a different time.");
+    }
+
+    if (duplicateWarning) {
+      const shouldContinue = window.confirm(
+        "You already have another booking for the same service on this day. Do you still want to continue?"
+      );
+      if (!shouldContinue) return;
     }
 
     const confirmed = window.confirm(
@@ -325,6 +399,9 @@ export default function Book() {
         date,
         time,
         notes: notes.trim(),
+        privacyConsentAccepted: true,
+        privacyConsentText:
+          "I agree that my personal and medical information will be kept confidential and used for dental and clinic purposes only.",
         status: "pending",
         checkedInAt: null,
         appointmentAt: Timestamp.fromDate(appointmentDate),
@@ -332,6 +409,7 @@ export default function Book() {
       });
 
       setNotes("");
+      setAgreedToPrivacyConsent(false);
       setSuccess("Booking submitted successfully. Your request is now waiting for admin approval.");
       setRecentlySubmitted(true);
     } catch (bookingError) {
@@ -373,7 +451,7 @@ export default function Book() {
             </div>
             <div className="bookingSummaryCard">
               <span className="detailLabel">Clinic schedule</span>
-              <strong>Mon-Sat • 9:00 AM - 6:00 PM</strong>
+              <strong>{selectedClosure ? selectedClosure.label : "Mon-Sat • 9:00 AM - 6:00 PM"}</strong>
             </div>
             <div className="bookingSummaryCard">
               <span className="detailLabel">Booking identity</span>
@@ -410,7 +488,9 @@ export default function Book() {
             </button>
           ) : null}
 
-          {user && (editingProfile || !patientProfile) ? (
+          {user && loadingProfile ? <SkeletonList count={1} /> : null}
+
+          {user && !loadingProfile && (editingProfile || !patientProfile) ? (
             <form className="form" onSubmit={saveProfile} style={{ marginTop: 12 }}>
               <input
                 className="input"
@@ -482,12 +562,15 @@ export default function Book() {
                   onChange={(e) => setService(e.target.value)}
                   disabled={!user || saving}
                 >
-                  <option>Cleaning</option>
-                  <option>Fillings</option>
-                  <option>Extraction</option>
-                  <option>Braces Consultation</option>
-                  <option>Root Canal</option>
-                  <option>Whitening</option>
+                  {activeServiceOptions.length ? (
+                    activeServiceOptions.map((option) => (
+                      <option key={option.name} value={option.name}>
+                        {option.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="Cleaning">Cleaning</option>
+                  )}
                 </select>
 
                 <div className="bookingDatePanel">
@@ -501,7 +584,7 @@ export default function Book() {
                     </div>
                     <div className="bookingDateHighlight">
                       <span>Clinic days</span>
-                      <strong>Monday to Saturday</strong>
+                      <strong>{selectedClosure ? selectedClosure.label : "Monday to Saturday"}</strong>
                     </div>
                   </div>
 
@@ -546,6 +629,17 @@ export default function Book() {
                 {date && isSunday(date) ? (
                   <div className="error">Closed on Sundays. Choose Monday to Saturday.</div>
                 ) : null}
+                {selectedClosure ? (
+                  <div className="error">{selectedClosure.label} blocks booking on this date. Please choose another day.</div>
+                ) : null}
+                {duplicateWarning ? (
+                  <div className="detailNote historyPanel reschedulePanel attention">
+                    <span className="detailLabel">Duplicate booking warning</span>
+                    <p>
+                      You already have another <strong>{service}</strong> booking on <strong>{formatDateLabel(date)}</strong>. The clinic may reject same-day duplicate requests.
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="bookingFlowGrid">
                   <label className="bookingFieldCard">
@@ -554,7 +648,7 @@ export default function Book() {
                       className="input bookingInputSpecial"
                       value={selectedDentist}
                       onChange={(e) => setSelectedDentist(e.target.value)}
-                      disabled={!user || saving || isSunday(date) || !availableDentists.length}
+                      disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
                     >
                       {availableDentists.length ? (
                         availableDentists.map((dentist) => (
@@ -574,7 +668,7 @@ export default function Book() {
                       className="input bookingInputSpecial"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
-                      disabled={!user || saving || isSunday(date) || !selectedDentist}
+                      disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !selectedDentist}
                     >
                       {availableSlots.length ? (
                         availableSlots.map((slot) => (
@@ -588,6 +682,22 @@ export default function Book() {
                     </select>
                   </label>
                 </div>
+
+                {!loadingDentists && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
+                  <EmptyState
+                    compact
+                    title="No dentist available on this day"
+                    message="Try another clinic day or choose a different date so the booking can continue."
+                  />
+                ) : null}
+
+                {!loadingDentists && selectedDentist && !availableSlots.length && !isSunday(date) ? (
+                  <EmptyState
+                    compact
+                    title="No available time slots"
+                    message="This dentist has no open slots left on the selected day. Pick another date or another dentist."
+                  />
+                ) : null}
 
                 <div className="bookingMiniSummary">
                   <div className="bookingMiniSummaryCard">
@@ -613,9 +723,21 @@ export default function Book() {
                   disabled={!user || saving}
                 />
 
+                <label className="bookingConsentCard">
+                  <input
+                    type="checkbox"
+                    checked={agreedToPrivacyConsent}
+                    onChange={(e) => setAgreedToPrivacyConsent(e.target.checked)}
+                    disabled={!user || saving}
+                  />
+                  <span>
+                    I agree that my personal and medical information will be kept confidential and used for dental and clinic purposes only.
+                  </span>
+                </label>
+
                 <button
                   className="btn btnShine bookingPrimaryBtn"
-                  disabled={!user || saving || recentlySubmitted || isSunday(date) || !selectedDentist}
+                  disabled={!user || saving || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentist || !agreedToPrivacyConsent}
                 >
                   {saving ? "Submitting..." : recentlySubmitted ? "Booking Submitted" : "Submit Booking"}
                 </button>
@@ -634,40 +756,62 @@ export default function Book() {
             </div>
           </div>
 
-          <div className="detailGrid">
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Patient name</span>
-              <strong>{patientProfile?.fullName || "Complete sign-up first"}</strong>
+          {loadingProfile ? (
+            <SkeletonList count={1} />
+          ) : (
+          <>
+            <div className="bookingServicePreviewCard">
+              <div className="bookingServicePreviewMedia">
+                <img
+                  src={getClinicServiceImage(selectedServiceRecord || { name: service })}
+                  alt={service}
+                />
+              </div>
+              <div className="bookingServicePreviewContent">
+                <span className="detailLabel">Selected service</span>
+                <strong>{service}</strong>
+                <p>
+                  {selectedServiceRecord?.description || "This service is currently available for booking through the clinic scheduler."}
+                </p>
+              </div>
             </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Patient type</span>
-              <strong>{patientProfile?.patientType || "Complete sign-up first"}</strong>
+
+            <div className="detailGrid" style={{ marginTop: 18 }}>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Patient name</span>
+                <strong>{patientProfile?.fullName || "Complete sign-up first"}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Patient type</span>
+                <strong>{patientProfile?.patientType || "Complete sign-up first"}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Age</span>
+                <strong>{patientProfile?.age || "Complete sign-up first"}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Service</span>
+                <strong>{service}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Preferred dentist</span>
+                <strong>{selectedDentist || "No dentist available"}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Appointment day</span>
+                <strong>{formatDateLabel(date)}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Appointment time</span>
+                <strong>{formatTimeLabel(time)}</strong>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Dentist status</span>
+                <strong>{selectedDentist && selectedDaySchedule?.active ? "Active" : "Inactive"}</strong>
+              </div>
             </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Age</span>
-              <strong>{patientProfile?.age || "Complete sign-up first"}</strong>
-            </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Service</span>
-              <strong>{service}</strong>
-            </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Preferred dentist</span>
-              <strong>{selectedDentist || "No dentist available"}</strong>
-            </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Appointment day</span>
-              <strong>{formatDateLabel(date)}</strong>
-            </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Appointment time</span>
-              <strong>{formatTimeLabel(time)}</strong>
-            </div>
-            <div className="detailBox luxeBox">
-              <span className="detailLabel">Dentist status</span>
-              <strong>{selectedDentist && selectedDaySchedule?.active ? "Active" : "Inactive"}</strong>
-            </div>
-          </div>
+          </>
+          )}
         </div>
       </div>
     </div>

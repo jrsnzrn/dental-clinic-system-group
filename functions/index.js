@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const nodemailer = require("nodemailer");
 
@@ -11,7 +12,7 @@ const auth = admin.auth();
 const gmailEmail = defineSecret("GMAIL_EMAIL");
 const gmailAppPassword = defineSecret("GMAIL_APP_PASSWORD");
 
-const ALLOWED_ROLES = ["admin", "receptionist", "dentist"];
+const ALLOWED_ROLES = ["receptionist", "dentist"];
 
 async function writeAuditLog({
   actorUid = "",
@@ -38,6 +39,23 @@ async function writeAuditLog({
     details,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+}
+
+function serializeAdminDoc(id, data = {}) {
+  const createdAt = data.createdAt;
+
+  return {
+    id,
+    name: data.name || "",
+    email: data.email || "",
+    role: data.role || "",
+    disabled: Boolean(data.disabled),
+    createdBy: data.createdBy || "",
+    createdAt:
+      createdAt && typeof createdAt.toDate === "function"
+        ? createdAt.toDate().toISOString()
+        : null,
+  };
 }
 
 function formatScheduleLabel(booking) {
@@ -160,6 +178,42 @@ TopDent Dental Clinic
   `.trim();
 }
 
+function createReminderEmailHtml(booking, reminderLabel) {
+  const patientName = booking.fullName || "Patient";
+
+  return createEmailShell({
+    eyebrow: "TopDent Appointment Reminder",
+    title: `${reminderLabel} reminder`,
+    intro: `Hello ${patientName}, this is your ${reminderLabel.toLowerCase()} reminder for your approved appointment at TopDent Dental Clinic.`,
+    detailsHtml: createBookingDetailsHtml(booking, "Approved"),
+    closing: "Please arrive a little early for your appointment. If you need to reschedule, contact the clinic as soon as possible.<br /><br /><strong>See you soon,<br />TopDent Dental Clinic</strong>",
+  });
+}
+
+function createReminderEmailText(booking, reminderLabel) {
+  const patientName = booking.fullName || "Patient";
+  const service = booking.service || "Dental appointment";
+  const dentist = booking.selectedDentist || "Assigned dentist";
+  const schedule = formatScheduleLabel(booking);
+
+  return `
+Hello ${patientName},
+
+This is your ${reminderLabel.toLowerCase()} reminder for your approved appointment at TopDent Dental Clinic.
+
+Booking details:
+- Service: ${service}
+- Schedule: ${schedule}
+- Dentist: ${dentist}
+- Status: Approved
+
+Please arrive a little early for your appointment. If you need to reschedule, contact the clinic as soon as possible.
+
+See you soon,
+TopDent Dental Clinic
+  `.trim();
+}
+
 function createTransporter() {
   const senderEmail = gmailEmail.value();
   const senderPassword = gmailAppPassword.value();
@@ -178,6 +232,75 @@ function createTransporter() {
       },
     }),
   };
+}
+
+async function sendReminderWindowEmail({
+  booking,
+  reminderType,
+  reminderLabel,
+  sentField,
+}) {
+  const recipientEmail = String(booking.email || "").trim().toLowerCase();
+  if (!recipientEmail) return;
+  if (booking.archiveStatus === "Archived") return;
+  if (String(booking.status || "").toLowerCase() !== "approved") return;
+  if (booking[sentField]) return;
+
+  let mailer;
+  try {
+    mailer = createTransporter();
+  } catch (error) {
+    console.error(error.message);
+    return;
+  }
+
+  await mailer.transporter.sendMail({
+    from: mailer.senderEmail,
+    to: recipientEmail,
+    subject: `TopDent Appointment Reminder: ${reminderLabel}`,
+    text: createReminderEmailText(booking, reminderLabel),
+    html: createReminderEmailHtml(booking, reminderLabel),
+  });
+
+  await db.collection("bookings").doc(booking.id).set(
+    {
+      [sentField]: admin.firestore.FieldValue.serverTimestamp(),
+      latestReminderType: reminderType,
+    },
+    { merge: true }
+  );
+}
+
+async function processReminderWindow({
+  lowerMinutesAhead,
+  upperMinutesAhead,
+  sentField,
+  reminderType,
+  reminderLabel,
+}) {
+  const now = Date.now();
+  const lowerBound = admin.firestore.Timestamp.fromDate(
+    new Date(now + lowerMinutesAhead * 60 * 1000)
+  );
+  const upperBound = admin.firestore.Timestamp.fromDate(
+    new Date(now + upperMinutesAhead * 60 * 1000)
+  );
+
+  const snapshot = await db
+    .collection("bookings")
+    .where("status", "==", "approved")
+    .where("appointmentAt", ">=", lowerBound)
+    .where("appointmentAt", "<=", upperBound)
+    .get();
+
+  for (const docSnap of snapshot.docs) {
+    await sendReminderWindowEmail({
+      booking: { id: docSnap.id, ...docSnap.data() },
+      reminderType,
+      reminderLabel,
+      sentField,
+    });
+  }
 }
 
 exports.createStaffAccount = onCall(async (request) => {
@@ -259,6 +382,92 @@ exports.createStaffAccount = onCall(async (request) => {
     email,
     role,
     name,
+  };
+});
+
+exports.getStaffAccounts = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be signed in.");
+    }
+
+    console.log(`getStaffAccounts called by uid=${request.auth.uid}`);
+
+    const callerSnap = await db.collection("admins").doc(request.auth.uid).get();
+    if (!callerSnap.exists) {
+      throw new HttpsError("permission-denied", "Only admin accounts can view staff accounts.");
+    }
+
+    const callerRole = String(callerSnap.data()?.role || "").trim().toLowerCase();
+    if (callerRole !== "admin") {
+      throw new HttpsError("permission-denied", "Only administrator accounts can view staff accounts.");
+    }
+
+    const snapshot = await db.collection("admins").orderBy("createdAt", "desc").get();
+    const accounts = snapshot.docs.map((entry) => serializeAdminDoc(entry.id, entry.data()));
+
+    console.log(`getStaffAccounts returning ${accounts.length} accounts`);
+    return accounts;
+  } catch (error) {
+    console.error("getStaffAccounts failed:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", error?.message || "Could not load staff accounts.");
+  }
+});
+
+exports.setStaffAccountDisabled = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.collection("admins").doc(callerUid).get();
+  if (!callerSnap.exists) {
+    throw new HttpsError("permission-denied", "Only admin accounts can manage staff accounts.");
+  }
+
+  const callerRole = String(callerSnap.data()?.role || "").trim().toLowerCase();
+  if (callerRole !== "admin") {
+    throw new HttpsError("permission-denied", "Only administrator accounts can manage staff accounts.");
+  }
+
+  const payload = request.data || {};
+  const targetUid = String(payload.uid || "").trim();
+  const disabled = Boolean(payload.disabled);
+
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "Target staff UID is required.");
+  }
+
+  await auth.updateUser(targetUid, { disabled });
+  await db.collection("admins").doc(targetUid).set({ disabled }, { merge: true });
+
+  const targetSnap = await db.collection("admins").doc(targetUid).get();
+  const targetData = targetSnap.exists ? targetSnap.data() : {};
+
+  await writeAuditLog({
+    actorUid: callerUid,
+    actorName: callerSnap.data()?.name || request.auth.token.email || "Administrator",
+    actorEmail: request.auth.token.email || "",
+    actorRole: callerRole,
+    action: "toggle_staff_account",
+    targetType: "admin_account",
+    targetId: targetUid,
+    targetLabel: targetData?.email || targetData?.name || "Staff account",
+    details: {
+      disabled,
+      role: targetData?.role || "",
+    },
+  });
+
+  return {
+    success: true,
+    uid: targetUid,
+    disabled,
   };
 });
 
@@ -348,5 +557,39 @@ exports.sendSubmittedBookingEmail = onDocumentCreated(
       },
       { merge: true }
     );
+  }
+);
+
+exports.sendDayBeforeBookingReminders = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: "Asia/Manila",
+    secrets: [gmailEmail, gmailAppPassword],
+  },
+  async () => {
+    await processReminderWindow({
+      lowerMinutesAhead: 1425,
+      upperMinutesAhead: 1455,
+      sentField: "dayBeforeReminderSentAt",
+      reminderType: "day_before",
+      reminderLabel: "1 day before",
+    });
+  }
+);
+
+exports.sendHourBeforeBookingReminders = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: "Asia/Manila",
+    secrets: [gmailEmail, gmailAppPassword],
+  },
+  async () => {
+    await processReminderWindow({
+      lowerMinutesAhead: 45,
+      upperMinutesAhead: 75,
+      sentField: "hourBeforeReminderSentAt",
+      reminderType: "hour_before",
+      reminderLabel: "1 hour before",
+    });
   }
 );

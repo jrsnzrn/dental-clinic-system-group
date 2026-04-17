@@ -127,6 +127,14 @@ a:hover{ opacity: 0.9; }
   flex-wrap: wrap;
 }
 
+.navLinksUtility{
+  margin-left: auto;
+}
+
+.navUtilityStandalone{
+  flex: 0 0 auto;
+}
+
 .themeSwitcher{
   display: flex;
   align-items: center;
@@ -380,9 +388,14 @@ html[data-theme="light"] .bookingDatePanel,
 html[data-theme="light"] .analyticsCard,
 html[data-theme="light"] .progressCard,
 html[data-theme="light"] .progressMiniCard,
-html[data-theme="light"] .homeHighlightCard,
-html[data-theme="light"] .homeStat,
-html[data-theme="light"] .homeSplineCard{
+html[data-theme="light"] .homeLandingCopy,
+html[data-theme="light"] .homeRibbonCard,
+html[data-theme="light"] .homeShowcasePrimary,
+html[data-theme="light"] .homeShowcaseSmall,
+html[data-theme="light"] .homeAtmosphereCard,
+html[data-theme="light"] .homeGalleryBand,
+html[data-theme="light"] .homeMosaicCard,
+html[data-theme="light"] .homeMosaicQuote{
   background:
     linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,248,237,0.82)),
     rgba(255,255,255,0.82);
@@ -419,6 +432,39 @@ html[data-theme="light"] .iconRow{
   border-color: rgba(168,123,26,0.14);
 }
 
+html[data-theme="light"] .homeGalleryCaption,
+html[data-theme="light"] .homeShowcaseBadge,
+html[data-theme="light"] .homeMosaicOverlay{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,247,229,0.88));
+  border-color: rgba(168,123,26,0.16);
+  color: #241807;
+}
+
+html[data-theme="light"] .homeMosaicOverlay span{
+  color: rgba(73,50,12,0.82);
+}
+
+html[data-theme="blue"] .homeLandingCopy,
+html[data-theme="blue"] .homeGalleryBand{
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.20), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(59,130,246,0.20), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+}
+
+html[data-theme="blue"] .homeRibbonCard,
+html[data-theme="blue"] .homeShowcasePrimary,
+html[data-theme="blue"] .homeShowcaseSmall,
+html[data-theme="blue"] .homeAtmosphereCard,
+html[data-theme="blue"] .homeMosaicCard,
+html[data-theme="blue"] .homeMosaicQuote{
+  border-color: rgba(96,165,250,0.18);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+}
+
 html[data-theme="light"] .bookingSectionCard,
 html[data-theme="light"] .chartEditorCard,
 html[data-theme="light"] .patientSearchSpotlight,
@@ -449,8 +495,49 @@ html[data-theme="light"] .statusPill.active{
   color: #53380d;
 }
 
+html[data-theme="light"] .statusPill.pending{
+  background: rgba(255,247,204,0.96);
+  border-color: rgba(213,155,0,0.24);
+  color: #8a5b00;
+}
+
+html[data-theme="light"] .statusPill.approved,
+html[data-theme="light"] .statusPill.completed{
+  border-color: rgba(22,163,74,0.22);
+  background: rgba(236,253,245,0.96);
+  color: #12643f;
+}
+
+html[data-theme="light"] .statusPill.cancelled{
+  border-color: rgba(225,29,72,0.20);
+  background: rgba(255,241,242,0.96);
+  color: #b4234c;
+}
+
+html[data-theme="light"] .statusPill.archived{
+  border-color: rgba(148,163,184,0.24);
+  background: rgba(248,250,252,0.98);
+  color: #475569;
+}
+
 html[data-theme="light"] .recordTapArea{
   color: inherit;
+}
+
+html[data-theme="light"] .patientRecordPeek span,
+html[data-theme="light"] .workspaceTab{
+  background: rgba(255,255,255,0.82);
+  border-color: rgba(168,123,26,0.16);
+  color: rgba(72,52,21,0.76);
+}
+
+html[data-theme="light"] .workspaceTab.active{
+  color: #241807;
+  border-color: rgba(168,123,26,0.30);
+  background:
+    radial-gradient(circle at top right, rgba(213,155,0,0.12), transparent 36%),
+    linear-gradient(180deg, rgba(255,250,239,0.96), rgba(255,240,208,0.90));
+  box-shadow: 0 12px 24px rgba(120,89,24,0.10);
 }
 
 html[data-theme="light"] .navItem,
@@ -496,15 +583,16 @@ html[data-theme="light"] .roleBadge{
 }
 
 html[data-theme="light"] .btn{
-  background: linear-gradient(135deg, rgba(213,155,0,0.18), rgba(255,214,102,0.18));
-  border-color: rgba(168,123,26,0.18);
+  background: linear-gradient(135deg, rgba(255,249,238,0.98), rgba(255,239,203,0.90));
+  border-color: rgba(168,123,26,0.20);
   color: #2b1d07;
+  box-shadow: 0 12px 24px rgba(168,123,26,0.08);
 }
 
 html[data-theme="light"] .btn.secondary{
-  background: rgba(255,255,255,0.74);
-  border-color: rgba(168,123,26,0.16);
-  color: #2b1d07;
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,247,229,0.92));
+  border-color: rgba(168,123,26,0.20);
+  color: #5f4516;
 }
 
 html[data-theme="light"] .btn.danger{
@@ -643,13 +731,32 @@ html[data-theme="blue"] .siteFooter{
 }
 
 html[data-theme="blue"] .btn{
-  background: rgba(79,209,197,0.18);
+  background: linear-gradient(135deg, rgba(79,209,197,0.18), rgba(59,130,246,0.12));
+  border-color: rgba(79,209,197,0.20);
   color: var(--text);
 }
 
 html[data-theme="blue"] .btn:hover{
   border-color: rgba(79,209,197,0.45);
   background: rgba(79,209,197,0.22);
+}
+
+html[data-theme="dark"] .btn{
+  background: linear-gradient(135deg, rgba(247,191,25,0.14), rgba(124,84,14,0.18));
+  border-color: rgba(247,191,25,0.18);
+  color: rgba(255,248,230,0.96);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.20);
+}
+
+html[data-theme="dark"] .btn:hover{
+  border-color: rgba(247,191,25,0.34);
+  background: linear-gradient(135deg, rgba(247,191,25,0.18), rgba(124,84,14,0.24));
+}
+
+html[data-theme="dark"] .btn.secondary{
+  background: linear-gradient(135deg, rgba(29,22,14,0.92), rgba(58,43,22,0.78));
+  border-color: rgba(247,191,25,0.16);
+  color: rgba(255,237,194,0.92);
 }
 
 html[data-theme="blue"] .themeChip.active{
@@ -726,6 +833,78 @@ html[data-theme="blue"] .themeChip.active{
   min-height: 100%;
 }
 
+.aboutGrid{
+  align-items: stretch;
+}
+
+.aboutStoryCard,
+.aboutPhotoCard{
+  min-height: 100%;
+}
+
+.aboutPhotoFrame{
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(7,13,28,0.55);
+  min-height: 520px;
+}
+
+.aboutClinicImage{
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  object-fit: cover;
+  display: block;
+}
+
+.aboutPhotoOverlay{
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background:
+    linear-gradient(180deg, rgba(8,14,28,0.78), rgba(8,14,28,0.64));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.24);
+}
+
+.aboutPrinciplesList{
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+}
+
+.aboutTermsCard .detailBox{
+  min-height: 100%;
+}
+
+html[data-theme="light"] .aboutPhotoFrame{
+  border-color: rgba(168,123,26,0.16);
+  box-shadow: 0 16px 34px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .aboutPhotoOverlay{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,247,228,0.78));
+  border-color: rgba(168,123,26,0.16);
+}
+
+html[data-theme="light"] .aboutPrinciplesList{
+  color: #241807;
+}
+
+html[data-theme="blue"] .aboutPhotoOverlay{
+  background:
+    linear-gradient(180deg, rgba(11,18,32,0.80), rgba(11,18,32,0.66));
+}
+
 .roleBadge{
   min-height: 42px;
   display: inline-flex;
@@ -771,99 +950,237 @@ html[data-theme="blue"] .themeChip.active{
   margin-top: 18px;
 }
 
-.homeHeroGrid{
+.homePage{
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 18px;
-  align-items: center;
+  gap: 22px;
 }
 
-.homeHero{
-  overflow: hidden;
+.homeLanding{
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.homeLandingCopy{
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  padding: 34px;
+  border-radius: 30px;
+  border: 1px solid var(--line);
   background:
-    radial-gradient(circle at top left, rgba(79,209,197,0.22), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(59,130,246,0.18), transparent 30%),
-    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+    radial-gradient(circle at top left, rgba(79,209,197,0.18), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(59,130,246,0.16), transparent 26%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  box-shadow: var(--shadow);
 }
 
-.homeHeroCopy{
-  position: relative;
-  z-index: 1;
+.homeLandingCopy h1{
+  margin: 0;
+  font-size: clamp(36px, 4.6vw, 58px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  max-width: 10ch;
+}
+
+.homeLandingCopy p{
+  margin: 0;
+  max-width: 58ch;
+  color: var(--muted);
+  line-height: 1.7;
 }
 
 .homeHeroActions{
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 16px;
 }
 
-.homeHeroStats{
+.homeStatRibbon{
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 6px;
 }
 
-.homeStat{
-  padding: 14px 16px;
-  border-radius: 18px;
+.homeRibbonCard{
+  padding: 16px 18px;
+  border-radius: 20px;
   border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(9,16,32,0.34);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+    rgba(9,16,32,0.32);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
-.homeStat strong{
+.homeRibbonCard strong{
   display: block;
   margin-top: 6px;
 }
 
-.homeSplineCard{
-  padding: 14px;
-  background:
-    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 28%),
-    rgba(255,255,255,0.05);
+.homeLandingVisual{
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 16px;
 }
 
-.homeSplineViewport{
-  height: 420px;
-  border-radius: 18px;
+.homeShowcasePrimary,
+.homeShowcaseSmall,
+.homeMosaicCard{
+  position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(7,13,28,0.55);
+  border-radius: 30px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.14), transparent 30%),
+    rgba(255,255,255,0.04);
+  box-shadow: 0 22px 60px rgba(0,0,0,0.20);
 }
 
-.homeSplineViewport iframe + div,
-.homeSplineViewport div[style*="Built with Spline"],
-.homeSplineViewport a[href*="spline.design"]{
-  display: none !important;
+.homeShowcasePrimary{
+  min-height: 620px;
 }
 
-.homeHighlightPanel{
+.homeShowcaseSecondary{
   display: grid;
-  gap: 12px;
-  min-height: 420px;
+  gap: 16px;
 }
 
-.homeHighlightCard{
-  padding: 18px;
-  border-radius: 18px;
+.homeShowcaseSmall{
+  min-height: 298px;
+  border-radius: 26px;
+}
+
+.homeShowcasePrimary img,
+.homeShowcaseSmall img,
+.homeMosaicCard img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.45s ease, filter 0.45s ease;
+}
+
+.homeShowcasePrimary:hover img,
+.homeShowcaseSmall:hover img,
+.homeMosaicCard:hover img{
+  transform: scale(1.05);
+  filter: saturate(1.04);
+}
+
+.homeShowcaseBadge,
+.homeMosaicOverlay{
+  position: absolute;
+  inset: auto 14px 14px 14px;
+  display: grid;
+  gap: 6px;
+  padding: 15px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background:
+    linear-gradient(180deg, rgba(7,13,28,0.84), rgba(7,13,28,0.72));
+  backdrop-filter: blur(10px);
+}
+
+.homeShowcaseBadge.top{
+  inset: 14px 14px auto 14px;
+}
+
+.homeShowcaseBadge strong,
+.homeMosaicOverlay strong{
+  font-size: 15px;
+}
+
+.homeMosaicOverlay span{
+  color: rgba(226,232,240,0.84);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.homeAtmosphereCard{
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 24px;
+  min-height: 306px;
+  border-radius: 26px;
   border: 1px solid rgba(255,255,255,0.12);
   background:
-    radial-gradient(circle at top right, rgba(79,209,197,0.12), transparent 30%),
-    rgba(9,16,32,0.46);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    radial-gradient(circle at top right, rgba(96,165,250,0.16), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  box-shadow: 0 18px 42px rgba(0,0,0,0.18);
 }
 
-.homeHighlightCard strong{
-  display: block;
-  margin-top: 6px;
-  margin-bottom: 8px;
-  font-size: 17px;
+.homeAtmosphereCard strong{
+  font-size: 24px;
+  line-height: 1.2;
 }
 
-.homeHighlightCard p{
-  margin: 0;
+.homeAtmosphereCard p{
   color: var(--muted);
-  max-width: none;
+  line-height: 1.65;
+}
+
+.homeGalleryBand{
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  border-radius: 30px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 22%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+  box-shadow: var(--shadow);
+}
+
+.homeGalleryIntro{
+  display: grid;
+  gap: 8px;
+  max-width: 760px;
+}
+
+.homeGalleryIntro h2{
+  margin: 0;
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.homeMosaicGrid{
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr) minmax(260px, 0.72fr);
+  gap: 16px;
+}
+
+.homeMosaicCard{
+  min-height: 340px;
+  border-radius: 26px;
+}
+
+.homeMosaicCard.wide{
+  min-height: 360px;
+}
+
+.homeMosaicQuote{
+  display: grid;
+  align-content: space-between;
+  gap: 14px;
+  padding: 24px;
+  min-height: 340px;
+  border-radius: 26px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at bottom left, rgba(79,209,197,0.14), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  box-shadow: 0 18px 42px rgba(0,0,0,0.18);
+}
+
+.homeMosaicQuote p{
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.45;
+  color: var(--text);
 }
 
 /* ================================
@@ -955,6 +1272,45 @@ html[data-theme="blue"] .themeChip.active{
 .successBanner span{
   color: rgba(230,255,250,0.82);
   font-size: 13px;
+}
+
+html[data-theme="light"] .successBanner{
+  border-color: rgba(168,123,26,0.20);
+  background:
+    radial-gradient(circle at top right, rgba(213,155,0,0.12), transparent 35%),
+    linear-gradient(135deg, rgba(255,251,241,0.98), rgba(255,241,205,0.90));
+  color: #2b1d07;
+  box-shadow: 0 18px 34px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .successBanner span{
+  color: rgba(72,52,21,0.78);
+}
+
+html[data-theme="blue"] .successBanner{
+  border-color: rgba(79,209,197,0.34);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 35%),
+    linear-gradient(135deg, rgba(79,209,197,0.18), rgba(59,130,246,0.08));
+  color: rgba(237,255,252,0.96);
+  box-shadow: 0 18px 38px rgba(79,209,197,0.12);
+}
+
+html[data-theme="blue"] .successBanner span{
+  color: rgba(230,255,250,0.82);
+}
+
+html[data-theme="dark"] .successBanner{
+  border-color: rgba(247,191,25,0.22);
+  background:
+    radial-gradient(circle at top right, rgba(247,191,25,0.16), transparent 35%),
+    linear-gradient(135deg, rgba(46,33,18,0.94), rgba(26,19,11,0.90));
+  color: rgba(255,240,205,0.96);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.22);
+}
+
+html[data-theme="dark"] .successBanner span{
+  color: rgba(255,226,170,0.76);
 }
 
 .btn{
@@ -1426,6 +1782,36 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   font-size: 15px;
 }
 
+.bookingConsentCard{
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.03);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.bookingConsentCard input{
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+html[data-theme="light"] .bookingConsentCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.90), rgba(255,247,229,0.82)),
+    rgba(255,255,255,0.84);
+  border-color: rgba(168,123,26,0.16);
+  color: #241807;
+}
+
 .heroEyebrow{
   display: inline-flex;
   margin-bottom: 10px;
@@ -1552,6 +1938,11 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   box-shadow: 0 0 0 6px rgba(251,113,133,0.12);
 }
 
+.timelineDot.archived{
+  background: #94a3b8;
+  box-shadow: 0 0 0 6px rgba(148,163,184,0.14);
+}
+
 .timelineBody{
   display: grid;
   gap: 6px;
@@ -1586,6 +1977,38 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   gap: 12px;
 }
 
+.clinicalPlanGrid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.clinicalPlanGrid > .card{
+  min-height: 100%;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)),
+    rgba(255,255,255,0.03);
+  box-shadow: 0 18px 38px rgba(3, 10, 24, 0.16);
+}
+
+.clinicalPlanGrid .cardHeader{
+  margin-bottom: 14px;
+}
+
+.clinicalPlanGrid .cardHeader .title{
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.clinicalPlanGrid .cardHeader .sub{
+  max-width: 42ch;
+}
+
 .progressCard{
   display: grid;
   gap: 8px;
@@ -1605,6 +2028,90 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   margin: 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.clinicalPlanGrid .progressCard{
+  gap: 10px;
+  padding: 18px;
+  border-radius: 20px;
+}
+
+.roadmapCardGrid{
+  display: grid;
+  gap: 14px;
+}
+
+.roadmapCard{
+  gap: 12px;
+}
+
+.roadmapCardTop{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.roadmapMeta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.clinicalPlanGrid .timelineStack{
+  gap: 0;
+  padding: 4px 0;
+}
+
+.clinicalPlanGrid .timelineRow{
+  padding: 16px 0;
+}
+
+.clinicalPlanGrid .timelineBody{
+  display: grid;
+  gap: 8px;
+}
+
+.clinicalPlanGrid .timelineBody p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.careGuidanceList{
+  display: grid;
+  gap: 14px;
+}
+
+.careGuidanceCard{
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(16,185,129,0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.03);
+}
+
+.careGuidanceTop{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.careGuidanceCard p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.clinicalInfoEmpty{
+  min-height: 180px;
 }
 
 .progressMiniGrid{
@@ -1749,6 +2256,25 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   padding: 12px;
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.detailBox strong{
+  min-width: 0;
+}
+
+.accountGrid{
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.detailBoxWide{
+  grid-column: 1 / -1;
+}
+
+.accountIdValue{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.5;
 }
 
 .detailLabel{
@@ -1832,6 +2358,9 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   display: grid;
   gap: 8px;
   flex: 0 0 200px;
+  align-self: flex-start;
+  position: sticky;
+  top: 92px;
 }
 
 .actionColumnFriendly{
@@ -1861,17 +2390,38 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
 
 .statusPill.pending{
   border-color: rgba(255,196,0,0.35);
-  background: rgba(255,196,0,0.12);
+  background: rgba(255,196,0,0.14);
+  color: rgba(255,241,186,0.96);
 }
 
 .statusPill.approved{
   border-color: rgba(79,209,197,0.35);
   background: rgba(79,209,197,0.14);
+  color: rgba(228,255,249,0.96);
 }
 
 .statusPill.cancelled{
   border-color: rgba(255,90,122,0.35);
   background: rgba(255,90,122,0.14);
+  color: rgba(255,232,238,0.96);
+}
+
+.statusPill.active{
+  border-color: rgba(96,165,250,0.30);
+  background: rgba(96,165,250,0.12);
+  color: rgba(231,242,255,0.96);
+}
+
+.statusPill.archived{
+  border-color: rgba(148,163,184,0.30);
+  background: rgba(148,163,184,0.14);
+  color: rgba(241,245,249,0.96);
+}
+
+.statusPill.completed{
+  border-color: rgba(34,197,94,0.32);
+  background: rgba(34,197,94,0.12);
+  color: rgba(230,255,240,0.96);
 }
 
 .luxeBox{
@@ -1898,6 +2448,17 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   border-color: rgba(255,255,255,0.10);
 }
 
+.stickySubnav{
+  position: sticky;
+  top: 78px;
+  z-index: 6;
+  padding: 12px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
 .selectedRecord{
   border-color: rgba(79,209,197,0.40);
   box-shadow: 0 0 0 1px rgba(79,209,197,0.18), 0 18px 50px rgba(0,0,0,0.16);
@@ -1915,6 +2476,76 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
 
 .recordTapArea:hover .detailTitle{
   color: rgba(230,255,250,0.96);
+}
+
+.patientRecordCard.collapsed{
+  padding: 14px 16px;
+}
+
+.patientRecordCard.expanded{
+  padding: 18px;
+}
+
+.patientRecordPeek{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.patientRecordPeek span{
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+
+.patientRecordHint{
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 180px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.patientWorkspaceTabs{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workspaceTab{
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+
+.workspaceTab:hover{
+  transform: translateY(-1px);
+  color: var(--text);
+  border-color: rgba(79,209,197,0.34);
+}
+
+.workspaceTab.active{
+  color: var(--text);
+  border-color: rgba(79,209,197,0.48);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 36%),
+    rgba(255,255,255,0.06);
+  box-shadow: 0 12px 24px rgba(79,209,197,0.12);
+}
+
+.compactOverviewCard{
+  border-style: solid;
 }
 
 .searchInput{
@@ -2073,6 +2704,435 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   color: var(--text);
 }
 
+.emptyEditorState.compact{
+  padding: 16px 18px;
+}
+
+.clinicalPlanGrid .emptyEditorState{
+  display: grid;
+  gap: 10px;
+  min-height: 220px;
+  align-content: center;
+  justify-items: start;
+  padding: 22px 22px;
+  border-radius: 20px;
+  border: 1px dashed rgba(255,255,255,0.16);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.10), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
+    rgba(255,255,255,0.02);
+  text-align: left;
+}
+
+.clinicalPlanGrid .emptyEditorState strong{
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.clinicalPlanGrid .emptyEditorState p{
+  margin: 0;
+  max-width: 34ch;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.skeletonList{
+  display: grid;
+  gap: 14px;
+}
+
+.skeletonCard{
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.02);
+}
+
+.skeletonBlock{
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.08);
+}
+
+.skeletonBlock::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.20), transparent);
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+.skeletonTitle{
+  width: 42%;
+  height: 18px;
+}
+
+.skeletonLine{
+  width: 100%;
+  height: 12px;
+  margin-top: 12px;
+}
+
+.skeletonLine.short{
+  width: 70%;
+}
+
+.skeletonGrid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.skeletonMini{
+  height: 68px;
+}
+
+@keyframes skeletonShimmer{
+  100%{
+    transform: translateX(100%);
+  }
+}
+
+.confirmModalCard{
+  width: min(520px, 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.confirmModalCard::before{
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, rgba(79,209,197,0.95), rgba(59,130,246,0.85));
+}
+
+.confirmModalCard.danger::before{
+  background: linear-gradient(90deg, rgba(255,90,122,0.98), rgba(190,24,93,0.88));
+}
+
+.confirmModalCard.archive::before{
+  background: linear-gradient(90deg, rgba(156,163,175,0.98), rgba(107,114,128,0.88));
+}
+
+.modalTitleGroup{
+  display: grid;
+  gap: 6px;
+}
+
+.modalToneLabel{
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(79,209,197,0.26);
+  background: rgba(79,209,197,0.12);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.modalToneLabel.danger{
+  border-color: rgba(255,90,122,0.28);
+  background: rgba(255,90,122,0.12);
+}
+
+.modalToneLabel.archive{
+  border-color: rgba(156,163,175,0.26);
+  background: rgba(156,163,175,0.12);
+}
+
+.confirmModalBody{
+  padding: 18px 18px 8px;
+}
+
+.confirmModalBody p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+}
+
+.confirmModalActions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  flex-wrap: wrap;
+}
+
+.confirmModalActions .btn{
+  min-height: 44px;
+  min-width: 132px;
+}
+
+.calendarGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.calendarLegend{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 16px;
+}
+
+.calendarLegendItem{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.calendarLegendSwatch{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.calendarLegendSwatch.pending{ background: #f5c000; }
+.calendarLegendSwatch.approved{ background: #4fd1c5; }
+.calendarLegendSwatch.completed{ background: #22c55e; }
+.calendarLegendSwatch.cancelled{ background: #ff5a7a; }
+.calendarLegendSwatch.archived{ background: #9ca3af; }
+
+.calendarCell{
+  position: relative;
+  padding: 15px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.02);
+  box-shadow: 0 18px 34px rgba(3, 10, 24, 0.16);
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.calendarCell::before{
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, rgba(79,209,197,0.85), rgba(59,130,246,0.75));
+  opacity: 0.9;
+}
+
+.calendarCell:hover{
+  transform: translateY(-2px);
+  border-color: rgba(79,209,197,0.24);
+  box-shadow: 0 24px 44px rgba(3, 10, 24, 0.22);
+}
+
+.calendarCellHeader{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.calendarCellHeader > div{
+  display: grid;
+  gap: 4px;
+}
+
+.calendarCellHeader strong{
+  font-size: 15px;
+}
+
+.calendarCellHeader small,
+.calendarCellHeader span,
+.calendarEmpty{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.calendarCellCount{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.calendarItemStack{
+  display: grid;
+  gap: 8px;
+}
+
+.calendarItem{
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+.calendarItem.pending{
+  background: rgba(255,196,0,0.12);
+  border-color: rgba(255,196,0,0.28);
+}
+
+.calendarItem.approved{
+  background: rgba(79,209,197,0.12);
+  border-color: rgba(79,209,197,0.28);
+}
+
+.calendarItem.completed{
+  background: rgba(34,197,94,0.12);
+  border-color: rgba(34,197,94,0.28);
+}
+
+.calendarItem.cancelled{
+  background: rgba(255,90,122,0.12);
+  border-color: rgba(255,90,122,0.28);
+}
+
+.calendarItem.archived{
+  background: rgba(156,163,175,0.16);
+  border-color: rgba(156,163,175,0.34);
+}
+
+html[data-theme="light"] .calendarLegendItem{
+  background: rgba(255,255,255,0.88);
+  border-color: rgba(168,123,26,0.16);
+  color: #7b5713;
+}
+
+html[data-theme="light"] .clinicalPlanGrid > .card{
+  border-color: rgba(168,123,26,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(239,184,16,0.10), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,247,229,0.92)),
+    rgba(255,255,255,0.90);
+  box-shadow: 0 18px 36px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .clinicalPlanGrid .emptyEditorState{
+  border-color: rgba(168,123,26,0.18);
+  background:
+    radial-gradient(circle at top right, rgba(239,184,16,0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,250,239,0.92)),
+    rgba(255,255,255,0.90);
+}
+
+html[data-theme="light"] .careGuidanceCard{
+  border-color: rgba(168,123,26,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(22,163,74,0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,250,239,0.92)),
+    rgba(255,255,255,0.90);
+  box-shadow: 0 16px 30px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .patientPrimaryChartCard{
+  border-color: rgba(168,123,26,0.20);
+  box-shadow: 0 20px 38px rgba(120,89,24,0.12);
+}
+
+html[data-theme="dark"] .clinicalPlanGrid > .card{
+  border-color: rgba(247,191,25,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(247,191,25,0.10), transparent 34%),
+    linear-gradient(180deg, rgba(39,28,16,0.90), rgba(24,18,11,0.86)),
+    rgba(18,13,8,0.84);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+}
+
+html[data-theme="dark"] .clinicalPlanGrid .emptyEditorState{
+  border-color: rgba(247,191,25,0.18);
+  background:
+    radial-gradient(circle at top right, rgba(247,191,25,0.08), transparent 34%),
+    linear-gradient(180deg, rgba(39,28,16,0.88), rgba(24,18,11,0.82)),
+    rgba(18,13,8,0.80);
+}
+
+html[data-theme="dark"] .careGuidanceCard{
+  border-color: rgba(247,191,25,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(22,163,74,0.12), transparent 34%),
+    linear-gradient(180deg, rgba(39,28,16,0.90), rgba(24,18,11,0.84)),
+    rgba(18,13,8,0.82);
+}
+
+html[data-theme="dark"] .patientPrimaryChartCard{
+  border-color: rgba(247,191,25,0.20);
+  box-shadow: 0 24px 44px rgba(0,0,0,0.30);
+}
+
+html[data-theme="light"] .calendarCell{
+  border-color: rgba(168,123,26,0.14);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,247,229,0.92)),
+    rgba(255,255,255,0.88);
+  box-shadow: 0 18px 36px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .calendarCell::before{
+  background: linear-gradient(90deg, rgba(213,155,0,0.92), rgba(239,184,16,0.76));
+}
+
+html[data-theme="light"] .calendarCell:hover{
+  border-color: rgba(168,123,26,0.26);
+  box-shadow: 0 22px 44px rgba(120,89,24,0.14);
+}
+
+html[data-theme="light"] .calendarCellCount{
+  border-color: rgba(168,123,26,0.18);
+  background: rgba(255,252,245,0.94);
+  color: #6b4c10;
+}
+
+html[data-theme="dark"] .calendarLegendItem{
+  background: rgba(247,191,25,0.08);
+  border-color: rgba(247,191,25,0.18);
+  color: rgba(255,232,188,0.88);
+}
+
+html[data-theme="dark"] .calendarCell{
+  border-color: rgba(247,191,25,0.14);
+  background:
+    linear-gradient(180deg, rgba(39,28,16,0.90), rgba(24,18,11,0.88)),
+    rgba(18,13,8,0.84);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+}
+
+html[data-theme="dark"] .calendarCell::before{
+  background: linear-gradient(90deg, rgba(247,191,25,0.92), rgba(191,132,16,0.82));
+}
+
+html[data-theme="dark"] .calendarCell:hover{
+  border-color: rgba(247,191,25,0.24);
+}
+
 .btnShine{
   position: relative;
   overflow: hidden;
@@ -2107,10 +3167,60 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
 .bookingPrimaryBtn{
   min-height: 48px;
   font-size: 15px;
+  border-radius: 16px;
+  padding-inline: 18px;
 }
 
 .bookingSecondaryBtn{
   min-height: 44px;
+}
+
+.homeHeroActions .btn{
+  min-height: 50px;
+  padding-inline: 18px;
+  border-radius: 16px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+html[data-theme="blue"] .homeHeroActions .bookingPrimaryBtn{
+  background: linear-gradient(135deg, rgba(79,209,197,0.34), rgba(59,130,246,0.24));
+  border-color: rgba(79,209,197,0.34);
+  color: rgba(239,252,255,0.98);
+}
+
+html[data-theme="blue"] .homeHeroActions .btnSoft{
+  background: linear-gradient(135deg, rgba(16,24,40,0.82), rgba(30,41,59,0.66));
+  border-color: rgba(96,165,250,0.20);
+  color: rgba(232,243,255,0.96);
+}
+
+html[data-theme="dark"] .homeHeroActions .bookingPrimaryBtn{
+  background: linear-gradient(135deg, rgba(247,191,25,0.26), rgba(16,185,129,0.18));
+  border-color: rgba(247,191,25,0.30);
+  color: rgba(255,247,220,0.98);
+  box-shadow: 0 18px 34px rgba(124,84,14,0.20);
+}
+
+html[data-theme="dark"] .homeHeroActions .btnSoft{
+  background: linear-gradient(135deg, rgba(36,27,15,0.96), rgba(68,49,24,0.78));
+  border-color: rgba(247,191,25,0.18);
+  color: rgba(255,233,190,0.94);
+}
+
+html[data-theme="light"] .homeHeroActions .bookingPrimaryBtn{
+  background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(255,244,213,0.98));
+  border-color: rgba(22,163,74,0.22);
+  color: #195d36;
+  box-shadow: 0 16px 28px rgba(22,163,74,0.10);
+}
+
+html[data-theme="light"] .homeHeroActions .btnSoft{
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,246,226,0.92));
+  border-color: rgba(168,123,26,0.18);
+  color: #7b5713;
+  box-shadow: 0 14px 24px rgba(168,123,26,0.08);
 }
 
 .bookingRules{
@@ -2259,6 +3369,11 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   margin-top: 18px;
   padding-top: 4px;
   border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.patientPrimaryChartCard{
+  border-color: rgba(79,209,197,0.22);
+  box-shadow: 0 22px 48px rgba(5, 16, 31, 0.22);
 }
 
 .toothViewerMeta{
@@ -2779,6 +3894,11 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
 ================================ */
 .form{ display: grid; gap: 10px; }
 
+.uploadField{
+  display: grid;
+  gap: 8px;
+}
+
 .input{
   width: 100%;
   padding: 11px 12px;
@@ -2790,6 +3910,41 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
 }
 
 .input::placeholder{ color: rgba(255,255,255,0.45); }
+
+.treatmentPhotoPreviewGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.treatmentPhotoPreviewGrid.compact{
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 4px;
+}
+
+.treatmentPhotoPreviewCard{
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.03);
+}
+
+.treatmentPhotoPreviewCard.compact{
+  padding: 10px;
+}
+
+.treatmentPhotoPreviewCard img{
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
 
 .input:focus{
   border-color: rgba(79,209,197,0.55);
@@ -2993,30 +4148,6 @@ select.input{
   text-transform: uppercase;
 }
 
-.selectedRolePanel{
-  margin-bottom: 16px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(79,209,197,0.48);
-  background:
-    radial-gradient(circle at right, rgba(79,209,197,0.28), transparent 30%),
-    linear-gradient(180deg, rgba(79,209,197,0.14), rgba(255,255,255,0.04));
-  box-shadow: 0 18px 34px rgba(79,209,197,0.14);
-}
-
-.selectedRolePanel strong{
-  display: block;
-  margin-top: 6px;
-  margin-bottom: 8px;
-  font-size: 18px;
-}
-
-.selectedRolePanel p{
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
 .shake{ animation: shake 0.35s ease; }
 
 @keyframes shake{
@@ -3101,12 +4232,85 @@ select.input{
 .serviceMedia img{
   width: 92px;
   height: 92px;
-  object-fit: contain;
+  object-fit: cover;
   transition: transform .4s ease;
+  border-radius: 18px;
 }
 
 .serviceCard.isActive .serviceMedia img{
   animation: iconFloat 2.2s ease-in-out infinite;
+}
+
+.serviceAdminPreviewFrame{
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  display: grid;
+  place-items: center;
+}
+
+.serviceAdminPreviewImage{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.serviceImageDetailBox{
+  display: grid;
+  gap: 10px;
+}
+
+.serviceImageUrlValue{
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.bookingServicePreviewCard{
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.02);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.16);
+}
+
+.bookingServicePreviewMedia{
+  width: 110px;
+  height: 110px;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(79,209,197,0.18), rgba(59,130,246,0.14));
+}
+
+.bookingServicePreviewMedia img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bookingServicePreviewContent{
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.bookingServicePreviewContent strong{
+  font-size: 22px;
+}
+
+.bookingServicePreviewContent p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 @keyframes iconFloat{
@@ -3153,6 +4357,114 @@ select.input{
 
 .carouselBtn.left{ left: 8px; }
 .carouselBtn.right{ right: 8px; }
+
+html[data-theme="light"] .serviceCard{
+  border-color: rgba(168,123,26,0.16);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,247,229,0.84)),
+    rgba(255,255,255,0.84);
+  box-shadow: 0 18px 34px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .serviceCard.isActive{
+  border-color: rgba(168,123,26,0.42);
+  box-shadow:
+    0 34px 88px rgba(120,89,24,0.16),
+    0 0 0 3px rgba(213,155,0,0.12);
+}
+
+html[data-theme="light"] .serviceMedia{
+  background: linear-gradient(135deg, rgba(255,239,198,0.84), rgba(255,250,239,0.94));
+}
+
+html[data-theme="light"] .serviceAdminPreviewFrame,
+html[data-theme="light"] .bookingServicePreviewMedia{
+  border-color: rgba(168,123,26,0.16);
+}
+
+html[data-theme="light"] .bookingServicePreviewCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,248,235,0.90)),
+    #fffaf0;
+  border-color: rgba(168,123,26,0.16);
+  box-shadow: 0 18px 42px rgba(168,123,26,0.10);
+}
+
+html[data-theme="light"] .carouselBtn{
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,243,214,0.90));
+  border-color: rgba(168,123,26,0.18);
+  color: #7b5713;
+  box-shadow: 0 14px 24px rgba(120,89,24,0.10);
+}
+
+html[data-theme="light"] .carouselBtn:hover{
+  border-color: rgba(168,123,26,0.30);
+  background: linear-gradient(180deg, rgba(255,252,245,0.98), rgba(255,238,198,0.92));
+}
+
+html[data-theme="blue"] .serviceCard{
+  border-color: rgba(96,165,250,0.14);
+  background:
+    linear-gradient(180deg, rgba(17,24,39,0.88), rgba(15,23,42,0.76)),
+    rgba(255,255,255,0.04);
+}
+
+html[data-theme="blue"] .serviceCard.isActive{
+  border-color: rgba(79,209,197,0.62);
+  box-shadow:
+    0 40px 120px rgba(0,0,0,0.55),
+    0 0 0 3px rgba(79,209,197,0.20);
+}
+
+html[data-theme="blue"] .carouselBtn{
+  background: rgba(11,18,32,0.82);
+  border-color: rgba(79,209,197,0.18);
+  color: rgba(238,248,255,0.96);
+}
+
+html[data-theme="dark"] .serviceCard{
+  border-color: rgba(247,191,25,0.16);
+  background:
+    linear-gradient(180deg, rgba(34,24,14,0.88), rgba(18,13,8,0.82)),
+    rgba(255,255,255,0.04);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+}
+
+html[data-theme="dark"] .serviceCard.isActive{
+  border-color: rgba(247,191,25,0.46);
+  box-shadow:
+    0 38px 110px rgba(0,0,0,0.52),
+    0 0 0 3px rgba(247,191,25,0.14);
+}
+
+html[data-theme="dark"] .serviceMedia{
+  background: linear-gradient(135deg, rgba(247,191,25,0.18), rgba(124,84,14,0.18));
+}
+
+html[data-theme="dark"] .bookingServicePreviewCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+    rgba(15,23,42,0.88);
+}
+
+html[data-theme="blue"] .bookingServicePreviewCard{
+  background:
+    linear-gradient(180deg, rgba(96,165,250,0.09), rgba(59,130,246,0.04)),
+    rgba(10,18,34,0.88);
+  border-color: rgba(96,165,250,0.18);
+}
+
+html[data-theme="dark"] .carouselBtn{
+  background: linear-gradient(180deg, rgba(39,28,16,0.96), rgba(25,18,11,0.92));
+  border-color: rgba(247,191,25,0.18);
+  color: rgba(255,232,188,0.96);
+  box-shadow: 0 14px 24px rgba(0,0,0,0.22);
+}
+
+html[data-theme="dark"] .carouselBtn:hover{
+  border-color: rgba(247,191,25,0.32);
+  background: linear-gradient(180deg, rgba(58,42,22,0.98), rgba(31,22,13,0.94));
+}
 
 /* hint row */
 .scrollHintRow{
@@ -3248,8 +4560,10 @@ select.input{
   position: fixed;
   inset: 0;
   z-index: 999;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(6px);
+  background:
+    radial-gradient(circle at top, rgba(79,209,197,0.12), transparent 34%),
+    rgba(3, 10, 24, 0.62);
+  backdrop-filter: blur(10px);
   display: grid;
   place-items: center;
   padding: 18px;
@@ -3258,24 +4572,28 @@ select.input{
 .modalCard{
   width: min(920px, 100%);
   border: 1px solid var(--line);
-  background: rgba(11,18,32,0.85);
-  border-radius: 18px;
-  box-shadow: var(--shadow);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+    rgba(11,18,32,0.92);
+  border-radius: 22px;
+  box-shadow: 0 28px 80px rgba(0,0,0,0.34);
   overflow: hidden;
+  max-height: min(88vh, 960px);
 }
 
 .modalHeader{
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 18px 18px 16px;
   border-bottom: 1px solid var(--line);
 }
 
 .modalHeader h3{
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
+  line-height: 1.25;
 }
 
 .modalClose{
@@ -3286,10 +4604,84 @@ select.input{
   background: rgba(255,255,255,0.06);
   color: var(--text);
   cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
 .modalClose:hover{
   border-color: rgba(79,209,197,0.5);
+  background: rgba(255,255,255,0.10);
+  transform: translateY(-1px);
+}
+
+html[data-theme="light"] .modalOverlay{
+  background:
+    radial-gradient(circle at top, rgba(217,184,107,0.20), transparent 34%),
+    rgba(120, 96, 52, 0.22);
+}
+
+html[data-theme="light"] .modalCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,248,235,0.94)),
+    #fffaf0;
+  border-color: rgba(168,123,26,0.16);
+  box-shadow: 0 26px 70px rgba(168,123,26,0.14);
+}
+
+html[data-theme="light"] .confirmModalBody p{
+  background: rgba(255,255,255,0.92);
+  border-color: rgba(168,123,26,0.14);
+  color: #6d5430;
+}
+
+html[data-theme="light"] .modalClose{
+  background: rgba(255,255,255,0.92);
+  border-color: rgba(168,123,26,0.18);
+  color: #5f4516;
+}
+
+html[data-theme="light"] .modalClose:hover{
+  border-color: rgba(168,123,26,0.30);
+  background: rgba(255,248,235,0.96);
+}
+
+html[data-theme="dark"] .modalOverlay{
+  background:
+    radial-gradient(circle at top, rgba(247,191,25,0.10), transparent 32%),
+    rgba(5, 8, 16, 0.74);
+}
+
+html[data-theme="dark"] .modalCard{
+  background:
+    linear-gradient(180deg, rgba(31,41,55,0.96), rgba(15,23,42,0.94)),
+    rgba(15,23,42,0.96);
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 28px 84px rgba(0,0,0,0.42);
+}
+
+html[data-theme="dark"] .confirmModalBody p{
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.08);
+}
+
+html[data-theme="blue"] .modalOverlay{
+  background:
+    radial-gradient(circle at top, rgba(96,165,250,0.16), transparent 34%),
+    rgba(5, 11, 26, 0.66);
+}
+
+html[data-theme="blue"] .modalCard{
+  background:
+    linear-gradient(180deg, rgba(15,23,42,0.95), rgba(10,18,34,0.94)),
+    rgba(10,18,34,0.95);
+  border-color: rgba(96,165,250,0.18);
+  box-shadow: 0 28px 84px rgba(2,8,23,0.44);
+}
+
+html[data-theme="blue"] .confirmModalBody p{
+  background: rgba(96,165,250,0.06);
+  border-color: rgba(96,165,250,0.16);
 }
 
 .mapFrame{
@@ -3306,9 +4698,40 @@ select.input{
   .grid{ grid-template-columns: 1fr; }
   .adminPanelGrid{ grid-template-columns: 1fr; }
   .bookingHeroGrid{ grid-template-columns: 1fr; }
-  .homeHeroGrid{ grid-template-columns: 1fr; }
+  .homeLanding{ grid-template-columns: 1fr; }
+  .homeLandingVisual{ grid-template-columns: 1fr; }
+  .homeMosaicGrid{ grid-template-columns: 1fr; }
+  .homeStatRibbon{ grid-template-columns: 1fr; }
   .contactGrid{ grid-template-columns: 1fr; }
   .hero > div{ grid-template-columns: 1fr !important; }
+
+  .homePage{
+    gap: 18px;
+  }
+
+  .homeLanding{
+    gap: 18px;
+  }
+
+  .homeLandingCopy{
+    padding: 26px;
+  }
+
+  .homeLandingVisual{
+    gap: 14px;
+  }
+
+  .homeShowcasePrimary{
+    min-height: 440px;
+  }
+
+  .homeShowcaseSmall,
+  .homeAtmosphereCard,
+  .homeMosaicCard,
+  .homeMosaicQuote,
+  .homeMosaicCard.wide{
+    min-height: 260px;
+  }
 
   .bookingDatePanelHeader{
     display: grid;
@@ -3325,6 +4748,29 @@ select.input{
 
   .bookingMiniSummary{
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px){
+  .modalOverlay{
+    padding: 12px;
+  }
+
+  .modalHeader{
+    padding: 16px 16px 14px;
+  }
+
+  .confirmModalBody{
+    padding: 16px 16px 6px;
+  }
+
+  .confirmModalActions{
+    padding: 12px 16px 16px;
+    flex-direction: column-reverse;
+  }
+
+  .confirmModalActions .btn{
+    width: 100%;
   }
 }
 
@@ -3364,6 +4810,15 @@ select.input{
     width: 100%;
     display: grid;
     gap: 10px;
+    margin-left: 0;
+  }
+
+  .navUtilityStandalone{
+    width: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 0;
   }
 
   .navLinksPrimary .navItem,
@@ -3389,6 +4844,85 @@ select.input{
     padding: clamp(22px, 3vw, 42px);
   }
   .hero h1{ font-size: 24px; }
+
+  .homeHeroActions{
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .homeLandingCopy,
+  .homeGalleryBand,
+  .homeAtmosphereCard,
+  .homeMosaicQuote{
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .homeLandingCopy h1{
+    max-width: none;
+    font-size: clamp(28px, 9vw, 38px);
+    line-height: 1.05;
+  }
+
+  .homeLandingCopy p,
+  .homeAtmosphereCard p,
+  .homeMosaicQuote p{
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .homeShowcasePrimary,
+  .homeShowcaseSmall,
+  .homeMosaicCard,
+  .homeMosaicCard.wide{
+    min-height: 220px;
+    border-radius: 22px;
+  }
+
+  .homeShowcasePrimary{
+    min-height: 300px;
+  }
+
+  .homeShowcaseSecondary{
+    gap: 12px;
+  }
+
+  .homeStatRibbon{
+    gap: 10px;
+  }
+
+  .homeRibbonCard{
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .homeRibbonCard strong{
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .homeShowcaseBadge,
+  .homeMosaicOverlay{
+    inset: auto 10px 10px 10px;
+    padding: 10px 11px;
+  }
+
+  .homeShowcaseBadge strong,
+  .homeMosaicOverlay strong{
+    font-size: 14px;
+  }
+
+  .homeMosaicOverlay span{
+    font-size: 12px;
+  }
+
+  .homeShowcaseBadge.top{
+    inset: 10px 10px auto 10px;
+  }
+
+  .homeGalleryIntro h2{
+    font-size: clamp(24px, 7vw, 32px);
+  }
 
   .bookingFormCard,
   .bookingDetailsCard{
@@ -3451,6 +4985,16 @@ select.input{
   .carouselViewport{ min-height: 460px; }
   .serviceCard{ flex: 0 0 250px; }
 
+  .bookingServicePreviewCard{
+    grid-template-columns: 1fr;
+  }
+
+  .bookingServicePreviewMedia{
+    width: 100%;
+    max-width: 180px;
+    height: 180px;
+  }
+
   .detailTopRow,
   .detailedItem{
     flex-direction: column;
@@ -3464,6 +5008,20 @@ select.input{
   .progressMiniGrid{
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .clinicalPlanGrid{
+    grid-template-columns: 1fr;
+  }
+
+  .clinicalPlanGrid > .card{
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .clinicalPlanGrid .emptyEditorState{
+    min-height: 180px;
+    padding: 18px;
   }
 
   .timelineTopRow{
@@ -3500,9 +5058,60 @@ select.input{
   .actionColumn{
     width: 100%;
     flex-basis: auto;
+    position: static;
   }
 
   .schedulerRow{
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px){
+  .container{
+    padding: 14px;
+  }
+
+  .homeLandingCopy,
+  .homeGalleryBand,
+  .homeAtmosphereCard,
+  .homeMosaicQuote{
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .homeLandingCopy h1{
+    font-size: 30px;
+  }
+
+  .homeHeroActions .btn{
+    width: 100%;
+    justify-content: center;
+  }
+
+  .homeShowcasePrimary,
+  .homeShowcaseSmall,
+  .homeMosaicCard,
+  .homeMosaicCard.wide{
+    min-height: 200px;
+    border-radius: 20px;
+  }
+
+  .homeShowcaseBadge,
+  .homeMosaicOverlay{
+    border-radius: 16px;
+  }
+
+  .heroEyebrow{
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .confirmModalActions{
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .skeletonGrid{
     grid-template-columns: 1fr;
   }
 }

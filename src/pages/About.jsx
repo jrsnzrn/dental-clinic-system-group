@@ -1,3 +1,5 @@
+import clinicPhoto from "../assets/about-clinic.jpg";
+
 export default function About() {
   return (
     <div className="container bookingPage">
@@ -8,59 +10,75 @@ export default function About() {
             <span className="heroEyebrow">About TopDent</span>
             <h1>About Us</h1>
             <p>
-              TopDent Dental Clinic is a local clinic in Meycauayan, Bulacan committed to providing friendly, reliable, and patient-focused dental care for the community.
+              Topdent Clinic was built on a passion for delivering reliable and patient-focused dental services. Our goal has always been to combine modern dental techniques with genuine care, ensuring every visit is a positive and comfortable experience.
             </p>
+          </div>
+          <div className="bookingHeroSummary">
+            <div className="bookingSummaryCard">
+              <span className="detailLabel">Since</span>
+              <strong>2022</strong>
+            </div>
+            <div className="bookingSummaryCard">
+              <span className="detailLabel">Clinic Focus</span>
+              <strong>Reliable and patient-focused dental care</strong>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid" style={{ marginTop: 18 }}>
-        <div className="card bookingFormCard">
+      <div className="grid aboutGrid" style={{ marginTop: 18 }}>
+        <div className="card bookingFormCard aboutStoryCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">Who We Are</h3>
-              <p className="sub">A neighborhood dental clinic serving patients and families in Meycauayan, Bulacan.</p>
+              <h3 className="title">TopDent Story</h3>
+              <p className="sub">A clinic experience designed to feel modern, calm, and welcoming for every patient.</p>
             </div>
           </div>
 
           <div className="detailNote historyPanel">
-            <span className="detailLabel">About the clinic</span>
+            <span className="detailLabel">Clinic Mission</span>
             <p>
-              We are a local dental clinic focused on making every visit feel approachable, organized, and comfortable. Our goal is to provide quality dental care while building lasting trust with patients in the Meycauayan community.
+              We focus on creating a dependable dental experience where patients feel informed, comfortable, and genuinely cared for from booking to treatment.
             </p>
           </div>
 
           <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
-            <span className="detailLabel">What patients can expect</span>
+            <span className="detailLabel">What Patients Experience</span>
             <p>
-              Patients can expect attentive service, clear communication, and support for routine checkups, consultations, and continuing dental care. We aim to create a clinic experience that feels personal, professional, and easy to trust.
+              Patients can expect attentive service, organized appointments, modern dental support, and a clinic environment built around comfort and trust.
             </p>
           </div>
         </div>
 
-        <div className="card bookingDetailsCard">
+        <div className="card bookingDetailsCard aboutPhotoCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">Clinic Principles</h3>
-              <p className="sub">Simple rules that guide how the clinic uses the system.</p>
+              <h3 className="title">Inside the Clinic</h3>
+              <p className="sub">A warm and welcoming waiting area that reflects the clinic’s patient-first approach.</p>
             </div>
           </div>
 
-          <ul className="note bookingRules" style={{ marginTop: 0 }}>
-            <li>Patients should use one consistent profile for cleaner tracking.</li>
-            <li>Appointments are reviewed by the clinic before they are considered approved.</li>
-            <li>Dentist availability follows the weekly schedule set by the clinic.</li>
-            <li>Patient data should only be accessed by authorized clinic staff.</li>
-          </ul>
+          <div className="aboutPhotoFrame">
+            <img className="aboutClinicImage" src={clinicPhoto} alt="TopDent clinic interior" />
+
+            <div className="aboutPhotoOverlay">
+              <span className="detailLabel">Clinic Principles</span>
+              <ul className="aboutPrinciplesList">
+                <li>Patient comfort comes first in every visit.</li>
+                <li>Modern dental care should still feel personal and friendly.</li>
+                <li>Reliable service starts with clear communication and trust.</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="stackSections">
-        <div className="card adminRecordsCard">
+        <div className="card adminRecordsCard aboutTermsCard">
           <div className="cardHeader">
             <div>
               <h3 className="title">Terms and Conditions</h3>
-              <p className="sub">These terms explain how bookings, clinic communication, and patient information are handled through the TopDent website.</p>
+              <p className="sub">A quick guide to how bookings and patient information are handled through the TopDent website.</p>
             </div>
           </div>
 
@@ -69,7 +87,7 @@ export default function About() {
               <span className="detailLabel">Appointments</span>
               <strong>Requests are reviewed by the clinic</strong>
               <p className="sub">
-                Booking requests sent through the website are subject to review and availability. Submitting a request does not automatically confirm an appointment until it is approved by the clinic.
+                Booking requests are subject to review and availability and are only confirmed after clinic approval.
               </p>
             </div>
 
@@ -77,7 +95,7 @@ export default function About() {
               <span className="detailLabel">Patient Information</span>
               <strong>Accurate information is required</strong>
               <p className="sub">
-                Patients are expected to provide accurate details so the clinic can manage records, schedules, and follow-up communication properly.
+                Patients are expected to provide accurate details so records, schedules, and communication remain organized.
               </p>
             </div>
 
@@ -85,7 +103,7 @@ export default function About() {
               <span className="detailLabel">Clinic Rights</span>
               <strong>The clinic may adjust bookings</strong>
               <p className="sub">
-                The clinic may reschedule, decline, or cancel requests when dentist availability changes, operating hours are affected, or submitted information is incomplete.
+                The clinic may reschedule, decline, or cancel requests when availability changes or submitted information is incomplete.
               </p>
             </div>
           </div>

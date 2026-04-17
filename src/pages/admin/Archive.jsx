@@ -8,6 +8,9 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import EmptyState from "../../components/EmptyState";
+import { SkeletonList } from "../../components/LoadingSkeleton";
 import { logAdminAction } from "../../utils/audit";
 import {
   formatDateLabel,
@@ -53,7 +56,7 @@ function ArchiveSection({ title, subtitle, count, children, emptyText }) {
         </div>
         <span className="badge">{count} records</span>
       </div>
-      {count ? <ul className="list detailedList">{children}</ul> : <div className="emptyEditorState">{emptyText}</div>}
+      {count ? <ul className="list detailedList">{children}</ul> : <EmptyState title={title} message={emptyText} compact />}
     </div>
   );
 }
@@ -65,6 +68,7 @@ export default function Archive() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [confirmState, setConfirmState] = useState(null);
   const { section = "patients" } = useParams();
 
   async function load() {
@@ -183,7 +187,6 @@ export default function Archive() {
   }
 
   async function removeRecord(collectionName, id) {
-    if (!confirm("Permanently delete this archived record?")) return;
     const targetCollections = {
       patients,
       dentists,
@@ -198,6 +201,17 @@ export default function Archive() {
       targetLabel: target?.name || target?.fullName || target?.email || "Archived record",
     });
     await load();
+  }
+
+  function openConfirm(config) {
+    setConfirmState(config);
+  }
+
+  async function handleConfirmAction() {
+    if (!confirmState?.action) return;
+    const action = confirmState.action;
+    setConfirmState(null);
+    await action();
   }
 
   const archiveBody =
@@ -225,7 +239,18 @@ export default function Archive() {
               <button className="btn secondary" onClick={() => restorePatient(patient.id)}>
                 Restore
               </button>
-              <button className="btn danger" onClick={() => removeRecord("patients", patient.id)}>
+              <button
+                className="btn danger"
+                onClick={() =>
+                  openConfirm({
+                    title: "Delete archived patient permanently?",
+                    message: "This archived patient record will be deleted completely and cannot be recovered.",
+                    confirmLabel: "Delete Permanently",
+                    tone: "danger",
+                    action: () => removeRecord("patients", patient.id),
+                  })
+                }
+              >
                 Delete Permanently
               </button>
             </div>
@@ -260,7 +285,18 @@ export default function Archive() {
               <button className="btn secondary" onClick={() => restoreDentist(dentist.id)}>
                 Restore
               </button>
-              <button className="btn danger" onClick={() => removeRecord("dentists", dentist.id)}>
+              <button
+                className="btn danger"
+                onClick={() =>
+                  openConfirm({
+                    title: "Delete archived dentist permanently?",
+                    message: "This archived dentist record will be deleted completely and cannot be recovered.",
+                    confirmLabel: "Delete Permanently",
+                    tone: "danger",
+                    action: () => removeRecord("dentists", dentist.id),
+                  })
+                }
+              >
                 Delete Permanently
               </button>
             </div>
@@ -306,7 +342,18 @@ export default function Archive() {
               <button className="btn secondary" onClick={() => restoreBooking(booking.id)}>
                 Restore
               </button>
-              <button className="btn danger" onClick={() => removeRecord("bookings", booking.id)}>
+              <button
+                className="btn danger"
+                onClick={() =>
+                  openConfirm({
+                    title: "Delete archived booking permanently?",
+                    message: "This archived booking will be deleted completely and cannot be recovered.",
+                    confirmLabel: "Delete Permanently",
+                    tone: "danger",
+                    action: () => removeRecord("bookings", booking.id),
+                  })
+                }
+              >
                 Delete Permanently
               </button>
             </div>
@@ -393,11 +440,21 @@ export default function Archive() {
             ) : null}
           </div>
         </div>
-        {loading ? <div className="note">Loading archived records...</div> : null}
+        {loading ? <SkeletonList count={2} /> : null}
         {error ? <div className="error">{error}</div> : null}
       </div>
 
-      {archiveBody}
+      {!loading ? archiveBody : null}
+
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmLabel={confirmState?.confirmLabel}
+        tone={confirmState?.tone}
+        onClose={() => setConfirmState(null)}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }

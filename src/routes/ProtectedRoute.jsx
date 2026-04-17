@@ -46,6 +46,7 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
   if (!user) return <Navigate to="/admin/login" replace />;
   if (loading) return null;
   if (!adminProfile) return <Navigate to="/" replace />;
+  if (adminProfile.disabled) return <Navigate to="/admin/login" replace />;
   if (!canAccessRoute(adminProfile.role, allowedRoles)) {
     return <Navigate to={getDefaultAdminPath(adminProfile.role)} replace />;
   }

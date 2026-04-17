@@ -10,8 +10,11 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import EmptyState from "../../components/EmptyState";
+import { SkeletonList } from "../../components/LoadingSkeleton";
 import { getAuditActionLabel, logAdminAction } from "../../utils/audit";
-import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, normalizeName } from "../../utils/appointments";
+import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, isInactivePatient, normalizeName } from "../../utils/appointments";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 import {
   createEmptyDentalChart,
@@ -34,13 +37,71 @@ function getEmptyDraft() {
   };
 }
 
-function getPatientHistory(bookings, patient) {
+function emptyTreatmentDraft() {
+  return {
+    title: "",
+    targetDate: "",
+    status: "Planned",
+    instructions: "",
+    beforeImageUrl: "",
+    afterImageUrl: "",
+  };
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not load image preview."));
+    image.src = src;
+  });
+}
+
+async function compressImageFile(file) {
+  if (!file) return "";
+
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  const maxWidth = 1280;
+  const scale = image.width > maxWidth ? maxWidth / image.width : 1;
+
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) return dataUrl;
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.78);
+}
+
+function emptyCareDraft() {
+  return {
+    recommendation: "",
+    followUpDate: "",
+    prescription: "",
+  };
+}
+
+function getPatientHistory(bookings, patient, options = {}) {
+  const { includeArchived = false } = options;
+
   return bookings
     .filter((booking) => {
       if (patient.uid && booking.uid) return patient.uid === booking.uid;
       return normalizeName(booking.fullName || booking.patientKey) === normalizeName(patient.name);
     })
-    .filter((booking) => booking.archiveStatus !== "Archived")
+    .filter((booking) => includeArchived || booking.archiveStatus !== "Archived")
     .sort((a, b) => {
       const aTime = a.appointmentAt?.seconds || a.createdAt?.seconds || 0;
       const bTime = b.appointmentAt?.seconds || b.createdAt?.seconds || 0;
@@ -49,6 +110,12 @@ function getPatientHistory(bookings, patient) {
 }
 
 export default function Patients() {
+  const PATIENT_VIEWS = {
+    DETAILS: "details",
+    CHART: "chart",
+    PLAN: "plan",
+    TIMELINE: "timeline",
+  };
   const [patients, setPatients] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -60,6 +127,10 @@ export default function Patients() {
   const [hoveredTooth, setHoveredTooth] = useState("");
   const [adminRole, setAdminRole] = useState(ROLES.ADMIN);
   const [loadingPatients, setLoadingPatients] = useState(true);
+  const [confirmState, setConfirmState] = useState(null);
+  const [treatmentDraft, setTreatmentDraft] = useState(emptyTreatmentDraft());
+  const [careDraft, setCareDraft] = useState(emptyCareDraft());
+  const [activePatientView, setActivePatientView] = useState("details");
 
   function toggleToothSelection(tooth) {
     setSelectedTeeth((current) => {
@@ -101,10 +172,6 @@ export default function Patients() {
     setBookings(bookingList);
     setAuditLogs(nextAuditLogs);
 
-    if (!selectedPatientId && patientList.length) {
-      setSelectedPatientId(patientList[0].id);
-    }
-
     setLoadingPatients(false);
   }
 
@@ -129,14 +196,19 @@ export default function Patients() {
       .filter((patient) => patient.status !== "Archived")
       .map((patient) => {
         const history = adminRole === ROLES.DENTIST ? [] : getPatientHistory(bookings, patient);
+        const allHistory = adminRole === ROLES.DENTIST ? [] : getPatientHistory(bookings, patient, { includeArchived: true });
         const latest = getLatestBooking(history);
+        const latestOverall = getLatestBooking(allHistory);
 
         return {
           ...patient,
           history,
+          allHistory,
           latest,
+          latestOverall,
+          inactiveFlag: isInactivePatient(patient, latest),
           progress: buildTreatmentProgress(history),
-          timeline: buildPatientTimeline(history, auditLogs, patient),
+          timeline: buildPatientTimeline(allHistory),
         };
       });
   }, [adminRole, auditLogs, bookings, patients]);
@@ -158,9 +230,13 @@ export default function Patients() {
       setChartDraft(createEmptyDentalChart());
       setSelectedTeeth(["11"]);
       setHoveredTooth("");
+      setTreatmentDraft(emptyTreatmentDraft());
+      setCareDraft(emptyCareDraft());
+      setActivePatientView(PATIENT_VIEWS.DETAILS);
       return;
     }
 
+    setActivePatientView(PATIENT_VIEWS.DETAILS);
     setSelectedTeeth(["11"]);
     setHoveredTooth("");
     setDraft({
@@ -172,6 +248,8 @@ export default function Patients() {
       patientType: selectedPatient.patientType || "Regular Patient",
       status: selectedPatient.status || "Active",
     });
+    setTreatmentDraft(emptyTreatmentDraft());
+    setCareDraft(emptyCareDraft());
 
     async function loadDentalChart() {
       if (!selectedPatient.uid) {
@@ -232,6 +310,7 @@ export default function Patients() {
         patientEmail: selectedPatient.email || "",
         generalNotes: chartDraft.generalNotes || "",
         teeth: chartDraft.teeth || {},
+        toothConditions: chartDraft.toothConditions || {},
       },
       { merge: true }
     );
@@ -250,6 +329,71 @@ export default function Patients() {
     await load();
   }
 
+  async function addTreatmentPlan() {
+    if (!selectedPatient || !treatmentDraft.title.trim()) return;
+    const nextPlans = [
+      ...(selectedPatient.treatmentPlans || []),
+      {
+        ...treatmentDraft,
+        title: treatmentDraft.title.trim(),
+        instructions: treatmentDraft.instructions.trim(),
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    await updateDoc(doc(db, "patients", selectedPatient.id), {
+      treatmentPlans: nextPlans,
+    });
+
+    await logAdminAction({
+      action: "add_treatment_plan",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: { title: treatmentDraft.title.trim(), targetDate: treatmentDraft.targetDate || "" },
+    });
+
+    setTreatmentDraft(emptyTreatmentDraft());
+    await load();
+  }
+
+  async function handleTreatmentImageUpload(field, file) {
+    if (!file) return;
+
+    const optimizedImage = await compressImageFile(file);
+    setTreatmentDraft((current) => ({
+      ...current,
+      [field]: optimizedImage,
+    }));
+  }
+
+  async function addCareRecommendation() {
+    if (!selectedPatient || !careDraft.recommendation.trim()) return;
+    const nextRecommendations = [
+      ...(selectedPatient.careRecommendations || []),
+      {
+        ...careDraft,
+        recommendation: careDraft.recommendation.trim(),
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    await updateDoc(doc(db, "patients", selectedPatient.id), {
+      careRecommendations: nextRecommendations,
+    });
+
+    await logAdminAction({
+      action: "add_care_recommendation",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: { followUpDate: careDraft.followUpDate || "" },
+    });
+
+    setCareDraft(emptyCareDraft());
+    await load();
+  }
+
   async function toggleArchive(patient) {
     await updateDoc(doc(db, "patients", patient.id), {
       status: patient.status === "Archived" ? "Active" : "Archived",
@@ -263,6 +407,17 @@ export default function Patients() {
     });
 
     await load();
+  }
+
+  function openConfirm(config) {
+    setConfirmState(config);
+  }
+
+  async function handleConfirmAction() {
+    if (!confirmState?.action) return;
+    const action = confirmState.action;
+    setConfirmState(null);
+    await action();
   }
 
   async function exportPatientPdf(patient) {
@@ -289,6 +444,54 @@ export default function Patients() {
             <td>${entry.progressLabel}</td>
             <td>${entry.completionState}</td>
           </tr>
+        `
+      )
+      .join("");
+
+    const treatmentPlanCards = (patient.treatmentPlans || [])
+      .map(
+        (plan) => `
+          <div class="treatment-card">
+            <div class="treatment-top">
+              <div>
+                <div class="label">Procedure</div>
+                <strong>${plan.title || "Untitled procedure"}</strong>
+              </div>
+              <span class="status-chip">${plan.status || "Planned"}</span>
+            </div>
+            <p class="treatment-copy">${plan.instructions || "No clinical notes added."}</p>
+            <div class="treatment-meta">
+              <div><span class="label">Target date</span><strong>${plan.targetDate || "No target date"}</strong></div>
+            </div>
+            ${
+              plan.beforeImageUrl || plan.afterImageUrl
+                ? `
+                  <div class="photo-grid">
+                    ${
+                      plan.beforeImageUrl
+                        ? `
+                          <div class="photo-card">
+                            <div class="label">Before Photo</div>
+                            <img src="${plan.beforeImageUrl}" alt="${plan.title || "Treatment"} before photo" />
+                          </div>
+                        `
+                        : ""
+                    }
+                    ${
+                      plan.afterImageUrl
+                        ? `
+                          <div class="photo-card">
+                            <div class="label">After Photo</div>
+                            <img src="${plan.afterImageUrl}" alt="${plan.title || "Treatment"} after photo" />
+                          </div>
+                        `
+                        : ""
+                    }
+                  </div>
+                `
+                : ""
+            }
+          </div>
         `
       )
       .join("");
@@ -335,6 +538,7 @@ export default function Patients() {
           <title>${patient.name} Patient Record</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 18px; color: #1f2937; }
+            h1, h2 { page-break-after: avoid; }
             .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
             .card { border: 1px solid #d7e3f4; border-radius: 16px; padding: 14px; }
             .label { font-size: 12px; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
@@ -344,6 +548,20 @@ export default function Patients() {
             .chart-wrap { position: relative; margin-top: 18px; border: 1px solid #d7e3f4; border-radius: 18px; overflow: hidden; }
             .chart-wrap img { width: 100%; display: block; }
             .chart-marker { position: absolute; transform: translate(-50%, -50%); min-width: 34px; height: 34px; border-radius: 999px; background: rgba(11, 18, 32, 0.88); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+            .section { margin-top: 22px; }
+            .treatment-stack { display: grid; gap: 14px; margin-top: 14px; }
+            .treatment-card { border: 1px solid #d7e3f4; border-radius: 18px; padding: 14px; background: linear-gradient(180deg, #ffffff, #f8fbff); page-break-inside: avoid; }
+            .treatment-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+            .treatment-copy { margin: 10px 0 0; line-height: 1.6; color: #475569; }
+            .treatment-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+            .status-chip { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #0f172a; font-size: 12px; font-weight: 700; }
+            .photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px; }
+            .photo-card { border: 1px solid #dbe6f5; border-radius: 16px; padding: 10px; background: #fff; }
+            .photo-card img { width: 100%; height: auto; max-height: 260px; object-fit: cover; border-radius: 12px; display: block; }
+            @media print {
+              body { padding: 10px; }
+              .photo-card img { max-height: 220px; }
+            }
           </style>
         </head>
         <body>
@@ -364,6 +582,10 @@ export default function Patients() {
             <thead><tr><th>Service</th><th>Sessions</th><th>Progress</th><th>State</th></tr></thead>
             <tbody>${progressRows || '<tr><td colspan="4">No treatment progress yet.</td></tr>'}</tbody>
           </table>
+          <div class="section">
+            <h2>Procedure Roadmap</h2>
+            <div class="treatment-stack">${treatmentPlanCards || '<div class="card">No procedure plans saved yet.</div>'}</div>
+          </div>
           <h2>Dental Chart</h2>
           <div class="chart-wrap">
             <img src="${DENTAL_CHART_IMAGE}" alt="Dental numbering system chart" />
@@ -386,14 +608,19 @@ export default function Patients() {
 
   const focusedTooth = hoveredTooth || selectedTeeth[selectedTeeth.length - 1] || "11";
   const selectedToothValues = selectedTeeth.map((tooth) => chartDraft.teeth?.[tooth] || "");
+  const selectedToothConditions = selectedTeeth.map((tooth) => chartDraft.toothConditions?.[tooth] || "healthy");
   const selectedToothEntries = selectedTeeth.map((tooth) => ({
     tooth,
     label: TOOTH_LABELS[tooth],
     note: chartDraft.teeth?.[tooth] || "",
+    condition: chartDraft.toothConditions?.[tooth] || "healthy",
   }));
   const selectedToothComment = selectedToothValues.every((note) => note === selectedToothValues[0])
     ? selectedToothValues[0] || ""
     : "";
+  const selectedToothCondition = selectedToothConditions.every((value) => value === selectedToothConditions[0])
+    ? selectedToothConditions[0]
+    : "healthy";
   const isReceptionist = adminRole === ROLES.RECEPTIONIST;
   const isDentist = adminRole === ROLES.DENTIST;
   const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
@@ -430,17 +657,13 @@ export default function Patients() {
           <span className="statLabel">Archived</span>
           <strong className="statValue">{patients.filter((patient) => patient.status === "Archived").length}</strong>
         </div>
-        <div className="statCard accentRose">
-          <span className="statLabel">Timeline events</span>
-          <strong className="statValue">{selectedPatient?.timeline.length || 0}</strong>
-        </div>
       </div>
 
       <div className="adminPanelGrid">
         <div className="card adminEditorCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">Edit Patient Details</h3>
+              <h3 className="title">Patient Details</h3>
               <p className="sub">
                 {isDentist
                   ? "Select a patient on the right to review details, treatment progress, and chart notes."
@@ -450,9 +673,11 @@ export default function Patients() {
             <span className="badge">{selectedPatient ? "Patient selected" : "Choose a patient"}</span>
           </div>
 
-          {selectedPatient ? (
+          {loadingPatients ? (
+            <SkeletonList count={2} />
+          ) : selectedPatient ? (
             <>
-              <div className="editorPreview">
+              <div className="editorPreview" style={{ display: "none" }}>
                 <div>
                   <span className="detailLabel">Current patient</span>
                   <strong className="detailTitle">{selectedPatient.name}</strong>
@@ -465,136 +690,47 @@ export default function Patients() {
                 </span>
               </div>
 
-              <form onSubmit={savePatientDetails} className="form">
-                <input className="input" placeholder="Full name" value={draft.name} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
-                <input className="input" type="number" min="1" placeholder="Age" value={draft.age} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, age: e.target.value }))} />
-                <input className="input" placeholder="Phone" value={draft.phone} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, phone: e.target.value }))} />
-                <input className="input" placeholder="Email" value={draft.email} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))} />
-                <select className="input" value={draft.patientType} disabled={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, patientType: e.target.value }))}>
-                  <option>Regular Patient</option>
-                  <option>Ortho Patient</option>
-                </select>
-                <select className="input" value={draft.status} disabled={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, status: e.target.value }))}>
-                  <option>Active</option>
-                  <option>Archived</option>
-                </select>
-                {canEditPatientProfile ? <button className="btn btnShine">Save Patient Details</button> : null}
-              </form>
-
-              <div className="analyticsGrid" style={{ marginTop: 18 }}>
+              <div className="analyticsGrid" style={{ display: "none" }}>
                 <div className="card analyticsCard">
                   <span className="detailLabel">Appointments made</span>
-                  <strong>{selectedPatient.history.length}</strong>
-                  <p>All visits linked to this patient record</p>
+                  <strong>{selectedPatient.allHistory.length}</strong>
+                  <p>All bookings linked to this patient record, including archived ones</p>
                 </div>
                 <div className="card analyticsCard">
                   <span className="detailLabel">Latest visit</span>
-                  <strong>{selectedPatient.latest?.service || "No visit yet"}</strong>
-                  <p>{selectedPatient.latest ? formatDateLabel(selectedPatient.latest.date) : "Waiting for first appointment"}</p>
+                  <strong>{selectedPatient.latestOverall?.service || "No visit yet"}</strong>
+                  <p>{selectedPatient.latestOverall ? formatDateLabel(selectedPatient.latestOverall.date) : "Waiting for first appointment"}</p>
                 </div>
                 <div className="card analyticsCard">
                   <span className="detailLabel">Preferred dentist</span>
-                  <strong>{selectedPatient.preferredDentist || selectedPatient.latest?.selectedDentist || "No dentist yet"}</strong>
-                  <p>Latest dentist tied to this record</p>
+                  <strong>{selectedPatient.preferredDentist || selectedPatient.latestOverall?.selectedDentist || "No dentist yet"}</strong>
+                  <p>Latest dentist tied to this record, even if the booking was archived later</p>
                 </div>
               </div>
 
-              <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
+              <div className="patientWorkspaceTabs">
+                <button type="button" className={`workspaceTab ${activePatientView === PATIENT_VIEWS.DETAILS ? "active" : ""}`} onClick={() => setActivePatientView(PATIENT_VIEWS.DETAILS)}>
+                  Patient Details
+                </button>
+                <button type="button" className={`workspaceTab ${activePatientView === PATIENT_VIEWS.CHART ? "active" : ""}`} onClick={() => setActivePatientView(PATIENT_VIEWS.CHART)}>
+                  Dental Chart
+                </button>
+                <button type="button" className={`workspaceTab ${activePatientView === PATIENT_VIEWS.PLAN ? "active" : ""}`} onClick={() => setActivePatientView(PATIENT_VIEWS.PLAN)}>
+                  Clinical Plan
+                </button>
+                <button type="button" className={`workspaceTab ${activePatientView === PATIENT_VIEWS.TIMELINE ? "active" : ""}`} onClick={() => setActivePatientView(PATIENT_VIEWS.TIMELINE)}>
+                  Visit Timeline
+                </button>
+              </div>
+
+              {activePatientView === PATIENT_VIEWS.CHART ? (
+              <div className="card adminRecordsCard patientPrimaryChartCard" style={{ marginTop: 18 }}>
                 <div className="cardHeader">
                   <div>
-                    <h3 className="title">Treatment Progress Tracker</h3>
-                    <p className="sub">Track repeated services as sessions so ongoing treatments are easier to follow.</p>
-                  </div>
-                  <span className="badge">{selectedPatient.progress.length} services</span>
-                </div>
-
-                {selectedPatient.progress.length ? (
-                  <div className="progressGrid">
-                    {selectedPatient.progress.map((entry) => (
-                      <div key={`${entry.service}-${entry.latestDate}`} className="progressCard">
-                        <span className="detailLabel">{entry.service}</span>
-                        <strong>{entry.progressLabel}</strong>
-                        <p>{entry.totalSessions} total sessions • {entry.dentistSummary}</p>
-                        <span className={`statusPill ${entry.completionState === "Completed" ? "approved" : entry.completionState === "Paused" ? "cancelled" : "pending"}`}>
-                          {entry.completionState}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="emptyEditorState">No treatment progress history yet for this patient.</div>
-                )}
-              </div>
-
-              <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-                <div className="cardHeader">
-                  <div>
-                    <h3 className="title">Patient Visit Timeline</h3>
-                    <p className="sub">A clean timeline of bookings, check-ins, and staff actions tied to this patient record.</p>
-                  </div>
-                  <span className="badge">{selectedPatient.timeline.length} events</span>
-                </div>
-
-                {selectedPatient.timeline.length ? (
-                  <div className="timelineStack">
-                    {selectedPatient.timeline.map((entry) => (
-                      <div key={entry.id} className="timelineRow">
-                        <div className={`timelineDot ${entry.status || "active"}`} />
-                        <div className="timelineBody">
-                          <div className="timelineTopRow">
-                            <strong>{entry.title}</strong>
-                            <span>{formatTimestamp(entry.timestamp)}</span>
-                          </div>
-                          <p>{entry.subtitle}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="emptyEditorState">No timeline events are available for this patient yet.</div>
-                )}
-              </div>
-
-              <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-                <div className="cardHeader">
-                  <div>
-                    <h3 className="title">Role-Based Activity Log</h3>
-                    <p className="sub">Recent staff actions related to this patient record, including profile edits and chart updates.</p>
-                  </div>
-                  <span className="badge">
-                    {selectedPatient.timeline.filter((entry) => entry.kind === "audit").length} staff actions
-                  </span>
-                </div>
-
-                {selectedPatient.timeline.filter((entry) => entry.kind === "audit").length ? (
-                  <div className="timelineStack">
-                    {selectedPatient.timeline
-                      .filter((entry) => entry.kind === "audit")
-                      .map((entry) => (
-                        <div key={entry.id} className="timelineRow">
-                          <div className="timelineDot active" />
-                          <div className="timelineBody">
-                            <div className="timelineTopRow">
-                              <strong>{entry.title}</strong>
-                              <span>{formatTimestamp(entry.timestamp)}</span>
-                            </div>
-                            <p>{entry.subtitle}</p>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="emptyEditorState">No staff activity log entries are available for this patient yet.</div>
-                )}
-              </div>
-
-              <div className="chartEditorCard">
-                <div className="cardHeader" style={{ marginTop: 18 }}>
-                  <div>
-                    <h3 className="title">{canEditDentalChart ? "Dental Chart Notes" : "Dental Chart Overview"}</h3>
+                    <h3 className="title">{canEditDentalChart ? "Dental Chart" : "Dental Chart Overview"}</h3>
                     <p className="sub">
                       {canEditDentalChart
-                        ? "Tap the tooth markers to select one or more teeth, then write a note that applies to every selected area."
+                        ? "Open the patient chart first, select the teeth you need, and save focused dental notes in a cleaner workflow."
                         : "Reception access can review the patient chart and existing dentist notes here, but note editing stays restricted."}
                     </p>
                   </div>
@@ -653,7 +789,7 @@ export default function Patients() {
                           {selectedToothEntries.map(({ tooth, label, note }) => (
                             <div key={tooth} className="selectedToothNoteItem">
                               <strong>Tooth {tooth}</strong>
-                              <span>{label}</span>
+                              <span>{label} • {chartDraft.toothConditions?.[tooth] || "healthy"}</span>
                               <p>{note || "No note saved for this tooth yet."}</p>
                             </div>
                           ))}
@@ -685,6 +821,31 @@ export default function Patients() {
                           }
                         />
 
+                        <select
+                          className="input"
+                          value={selectedToothCondition}
+                          onChange={(e) =>
+                            setChartDraft((current) => ({
+                              ...current,
+                              uid: selectedPatient.uid,
+                              toothConditions: {
+                                ...(current.toothConditions || {}),
+                                ...selectedTeeth.reduce((accumulator, tooth) => {
+                                  accumulator[tooth] = e.target.value;
+                                  return accumulator;
+                                }, {}),
+                              },
+                            }))
+                          }
+                        >
+                          <option value="healthy">Healthy</option>
+                          <option value="observation">For Observation</option>
+                          <option value="treated">Treated</option>
+                          <option value="missing">Missing</option>
+                          <option value="decayed">Decayed</option>
+                          <option value="extraction_needed">Extraction Needed</option>
+                        </select>
+
                         <textarea
                           className="input"
                           rows={5}
@@ -712,17 +873,275 @@ export default function Patients() {
                     )}
                   </>
                 ) : (
-                  <div className="emptyEditorState" style={{ marginTop: 12 }}>
-                    This patient does not have a signed-in account linked yet, so the dental chart cannot be shown in the patient portal.
-                  </div>
+                  <EmptyState
+                    compact
+                    title="No linked patient account yet"
+                    message="This patient record is not linked to a signed-in patient account yet, so the dental chart cannot appear in the patient portal."
+                  />
                 )}
               </div>
+              ) : null}
+
+              {activePatientView === PATIENT_VIEWS.DETAILS ? (
+              <div className="card adminRecordsCard compactOverviewCard" style={{ marginTop: 18 }}>
+                <div className="cardHeader">
+                  <div>
+                    <h3 className="title">Patient Details</h3>
+                    <p className="sub">Update the patient profile in the same focused workspace flow as the chart, clinical plan, and visit timeline.</p>
+                  </div>
+                  <span className="badge">Profile</span>
+                </div>
+
+                <div className="editorPreview">
+                  <div>
+                    <span className="detailLabel">Current patient</span>
+                    <strong className="detailTitle">{selectedPatient.name}</strong>
+                    <p className="detailSubtitle">
+                      Age {selectedPatient.age || "-"} • {selectedPatient.latestOverall?.service || "No recent service"} • {selectedPatient.latestOverall?.selectedDentist || "No preferred dentist yet"}
+                    </p>
+                  </div>
+                  <span className={`statusPill ${draft.status === "Archived" ? "archived" : "approved"}`}>
+                    {draft.status}
+                  </span>
+                </div>
+
+                <div className="analyticsGrid" style={{ marginTop: 18 }}>
+                  <div className="card analyticsCard">
+                    <span className="detailLabel">Appointments made</span>
+                    <strong>{selectedPatient.allHistory.length}</strong>
+                    <p>All bookings linked to this patient record, including archived ones</p>
+                  </div>
+                  <div className="card analyticsCard">
+                    <span className="detailLabel">Latest visit</span>
+                    <strong>{selectedPatient.latestOverall?.service || "No visit yet"}</strong>
+                    <p>{selectedPatient.latestOverall ? formatDateLabel(selectedPatient.latestOverall.date) : "Waiting for first appointment"}</p>
+                  </div>
+                  <div className="card analyticsCard">
+                    <span className="detailLabel">Preferred dentist</span>
+                    <strong>{selectedPatient.preferredDentist || selectedPatient.latestOverall?.selectedDentist || "No dentist yet"}</strong>
+                    <p>Latest dentist tied to this record, even if the booking was archived later</p>
+                  </div>
+                </div>
+
+                <form onSubmit={savePatientDetails} className="form">
+                  <input className="input" placeholder="Full name" value={draft.name} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
+                  <input className="input" type="number" min="1" placeholder="Age" value={draft.age} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, age: e.target.value }))} />
+                  <input className="input" placeholder="Phone" value={draft.phone} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, phone: e.target.value }))} />
+                  <input className="input" placeholder="Email" value={draft.email} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))} />
+                  <select className="input" value={draft.patientType} disabled={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, patientType: e.target.value }))}>
+                    <option>Regular Patient</option>
+                    <option>Ortho Patient</option>
+                  </select>
+                  <select className="input" value={draft.status} disabled={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, status: e.target.value }))}>
+                    <option>Active</option>
+                    <option>Archived</option>
+                  </select>
+                  {canEditPatientProfile ? <button className="btn btnShine">Save Patient Details</button> : null}
+                </form>
+              </div>
+              ) : null}
+
+              {activePatientView === PATIENT_VIEWS.PLAN ? (
+              <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
+                <div className="cardHeader">
+                  <div>
+                    <h3 className="title">Clinical Plan and Follow-Up</h3>
+                    <p className="sub">Organize the next treatment steps and home-care instructions in a clearer, easier-to-scan patient summary.</p>
+                  </div>
+                  <span className="badge">{(selectedPatient.treatmentPlans || []).length + (selectedPatient.careRecommendations || []).length} saved items</span>
+                </div>
+
+                {canEditDentalChart ? (
+                  <div className="stackSections">
+                  <div className="form">
+                    <span className="detailLabel">Procedure roadmap</span>
+                    <input className="input" placeholder="Procedure, phase, or treatment title" value={treatmentDraft.title} onChange={(e) => setTreatmentDraft((current) => ({ ...current, title: e.target.value }))} />
+                    <div className="bookingFlowGrid">
+                      <input className="input" type="date" value={treatmentDraft.targetDate} onChange={(e) => setTreatmentDraft((current) => ({ ...current, targetDate: e.target.value }))} />
+                      <select className="input" value={treatmentDraft.status} onChange={(e) => setTreatmentDraft((current) => ({ ...current, status: e.target.value }))}>
+                        <option>Planned</option>
+                        <option>In Progress</option>
+                        <option>Completed</option>
+                      </select>
+                    </div>
+                    <textarea className="input" rows={3} placeholder="Clinical notes, session goals, or procedure instructions" value={treatmentDraft.instructions} onChange={(e) => setTreatmentDraft((current) => ({ ...current, instructions: e.target.value }))} />
+                    <div className="bookingFlowGrid">
+                      <label className="uploadField">
+                        <span className="detailLabel">Upload before photo</span>
+                        <input
+                          className="input"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleTreatmentImageUpload("beforeImageUrl", e.target.files?.[0])}
+                        />
+                      </label>
+                      <label className="uploadField">
+                        <span className="detailLabel">Upload after photo</span>
+                        <input
+                          className="input"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleTreatmentImageUpload("afterImageUrl", e.target.files?.[0])}
+                        />
+                      </label>
+                    </div>
+                    {(treatmentDraft.beforeImageUrl || treatmentDraft.afterImageUrl) ? (
+                      <div className="treatmentPhotoPreviewGrid">
+                        {treatmentDraft.beforeImageUrl ? (
+                          <div className="treatmentPhotoPreviewCard">
+                            <span className="detailLabel">Before preview</span>
+                            <img src={treatmentDraft.beforeImageUrl} alt="Before treatment preview" />
+                          </div>
+                        ) : null}
+                        {treatmentDraft.afterImageUrl ? (
+                          <div className="treatmentPhotoPreviewCard">
+                            <span className="detailLabel">After preview</span>
+                            <img src={treatmentDraft.afterImageUrl} alt="After treatment preview" />
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <button className="btn btnShine" type="button" onClick={addTreatmentPlan}>Save Procedure Plan</button>
+                  </div>
+                  <div className="form">
+                    <span className="detailLabel">Home care and return visit</span>
+                    <textarea className="input" rows={3} placeholder="Aftercare advice, reminder, or next-step guidance" value={careDraft.recommendation} onChange={(e) => setCareDraft((current) => ({ ...current, recommendation: e.target.value }))} />
+                    <div className="bookingFlowGrid">
+                      <input className="input" type="date" value={careDraft.followUpDate} onChange={(e) => setCareDraft((current) => ({ ...current, followUpDate: e.target.value }))} />
+                      <input className="input" placeholder="Prescription or special instruction" value={careDraft.prescription} onChange={(e) => setCareDraft((current) => ({ ...current, prescription: e.target.value }))} />
+                    </div>
+                    <button className="btn btnShine" type="button" onClick={addCareRecommendation}>Save Follow-Up Guidance</button>
+                  </div>
+                  </div>
+                ) : null}
+
+                <div className="grid clinicalPlanGrid" style={{ marginTop: 14 }}>
+                  <div className="card">
+                    <div className="cardHeader">
+                      <div>
+                        <h3 className="title">Procedure Roadmap</h3>
+                        <p className="sub">Planned procedures, active treatment phases, and completed work for this patient.</p>
+                      </div>
+                      <span className="badge">{(selectedPatient.treatmentPlans || []).length}</span>
+                    </div>
+                    {(selectedPatient.treatmentPlans || []).length ? (
+                      <div className="roadmapCardGrid">
+                        {selectedPatient.treatmentPlans.map((plan, index) => (
+                          <div key={`${plan.title}-${index}`} className="progressCard roadmapCard">
+                            <div className="roadmapCardTop">
+                              <div>
+                                <span className="detailLabel">Target date</span>
+                                <strong>{plan.title}</strong>
+                              </div>
+                              <span className={`statusPill ${plan.status === "Completed" ? "completed" : plan.status === "In Progress" ? "approved" : "pending"}`}>
+                                {plan.status || "Planned"}
+                              </span>
+                            </div>
+                            <div className="roadmapMeta">
+                              <span>{plan.targetDate || "No target date yet"}</span>
+                            </div>
+                            <p>{plan.instructions || "No clinical instructions added yet."}</p>
+                            {(plan.beforeImageUrl || plan.afterImageUrl) ? (
+                              <div className="treatmentPhotoPreviewGrid compact">
+                                {plan.beforeImageUrl ? (
+                                  <div className="treatmentPhotoPreviewCard compact">
+                                    <span className="detailLabel">Before</span>
+                                    <img src={plan.beforeImageUrl} alt={`${plan.title} before`} />
+                                  </div>
+                                ) : null}
+                                {plan.afterImageUrl ? (
+                                  <div className="treatmentPhotoPreviewCard compact">
+                                    <span className="detailLabel">After</span>
+                                    <img src={plan.afterImageUrl} alt={`${plan.title} after`} />
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="emptyEditorState clinicalInfoEmpty">
+                        <strong>No procedure roadmap yet</strong>
+                        <p>Add the next procedure or treatment phase so the clinical plan stays visible for the team.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="card">
+                    <div className="cardHeader">
+                      <div>
+                        <h3 className="title">Care Guidance</h3>
+                        <p className="sub">Aftercare reminders, follow-up dates, and prescription guidance for this patient.</p>
+                      </div>
+                      <span className="badge">{(selectedPatient.careRecommendations || []).length}</span>
+                    </div>
+                    {(selectedPatient.careRecommendations || []).length ? (
+                      <div className="careGuidanceList">
+                        {selectedPatient.careRecommendations.map((entry, index) => (
+                          <div key={`${entry.recommendation}-${index}`} className="careGuidanceCard">
+                            <div className="careGuidanceTop">
+                              <div>
+                                <strong>{entry.recommendation}</strong>
+                              </div>
+                              <span className="statusPill active">{entry.followUpDate || "No follow-up date"}</span>
+                            </div>
+                            <p>{entry.prescription || "No prescription or extra instruction added yet."}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="emptyEditorState clinicalInfoEmpty">
+                        <strong>No care guidance yet</strong>
+                        <p>Add aftercare instructions, a return date, or a prescription note so the patient handoff is clearer.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              ) : null}
+
+              {activePatientView === PATIENT_VIEWS.TIMELINE ? (
+              <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
+                <div className="cardHeader">
+                  <div>
+                    <h3 className="title">Patient Visit Timeline</h3>
+                    <p className="sub">Visit-related activity only: bookings, approvals, reschedules, and check-ins connected to this patient.</p>
+                  </div>
+                  <span className="badge">{selectedPatient.timeline.length} events</span>
+                </div>
+
+                {selectedPatient.timeline.length ? (
+                  <div className="timelineStack">
+                    {selectedPatient.timeline.map((entry) => (
+                      <div key={entry.id} className="timelineRow">
+                        <div className={`timelineDot ${entry.status || "active"}`} />
+                        <div className="timelineBody">
+                          <div className="timelineTopRow">
+                            <strong>{entry.title}</strong>
+                            <span>{formatTimestamp(entry.timestamp)}</span>
+                          </div>
+                          <p>{entry.subtitle}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    compact
+                    title="No timeline events yet"
+                    message="Bookings, approvals, reschedules, and check-ins will appear here once this patient starts visiting the clinic."
+                  />
+                )}
+              </div>
+              ) : null}
+
             </>
           ) : (
-            <div className="emptyEditorState">
-              <strong>No patient selected</strong>
-              <p>Pick a patient card to view their treatment progress, appointment timeline, and dental chart here.</p>
-            </div>
+            <EmptyState
+              title="No patient selected"
+              message="Select a patient card on the right to open their workspace, edit details, and review chart, plan, or visit history."
+            />
           )}
         </div>
         <div className="card adminRecordsCard">
@@ -755,85 +1174,126 @@ export default function Patients() {
             </div>
           </div>
 
-          <ul className="list detailedList">
-            {filteredPatientCards.map((patient) => (
-              <li key={patient.id} className={`item detailedItem patientShowcase ${selectedPatientId === patient.id ? "selectedRecord" : ""}`}>
+          {loadingPatients ? <SkeletonList count={3} cardClassName="patientShowcase" /> : <ul className="list detailedList">
+            {filteredPatientCards.map((patient) => {
+              const isExpanded = selectedPatientId === patient.id;
+              return (
+              <li key={patient.id} className={`item detailedItem patientShowcase patientRecordCard ${isExpanded ? "selectedRecord expanded" : "collapsed"}`}>
                 <button type="button" className="recordTapArea" onClick={() => setSelectedPatientId(patient.id)}>
                   <div className="detailContent">
                     <div className="detailTopRow">
                       <div>
                         <strong className="detailTitle">{patient.name}</strong>
                         <p className="detailSubtitle">
-                          Age {patient.age || "-"} • {patient.patientType || "Regular Patient"} • {patient.phone || "No phone"} • {patient.email || "No email"}
+                          Age {patient.age || "-"} • {patient.patientType || "Regular Patient"} • {patient.phone || "No phone"}
                         </p>
                       </div>
-                      <span className={`statusPill ${patient.status === "Archived" ? "cancelled" : "approved"}`}>{patient.status || "Active"}</span>
-                    </div>
-
-                    <div className="detailGrid">
-                      <div className="detailBox luxeBox">
-                        <span className="detailLabel">Latest service</span>
-                        <strong>{patient.latestService || patient.latest?.service || "No bookings yet"}</strong>
-                      </div>
-                      <div className="detailBox luxeBox">
-                        <span className="detailLabel">Preferred dentist</span>
-                        <strong>{patient.preferredDentist || patient.latest?.selectedDentist || "No dentist yet"}</strong>
-                      </div>
-                      <div className="detailBox luxeBox">
-                        <span className="detailLabel">Last visit day</span>
-                        <strong>{formatDateLabel(patient.lastAppointmentDate || patient.latest?.date)}</strong>
-                      </div>
-                      <div className="detailBox luxeBox">
-                        <span className="detailLabel">Timeline events</span>
-                        <strong>{patient.timeline.length}</strong>
+                      <div className="statusStack">
+                        {patient.inactiveFlag ? <span className="statusPill archived">inactive patient</span> : null}
+                        <span className={`statusPill ${patient.status === "Archived" ? "archived" : "approved"}`}>{patient.status || "Active"}</span>
                       </div>
                     </div>
 
-                    <div className="progressMiniGrid">
-                      {patient.progress.slice(0, 3).map((entry) => (
-                        <div key={`${patient.id}-${entry.service}`} className="progressMiniCard">
-                          <span className="detailLabel">{entry.service}</span>
-                          <strong>{entry.progressLabel}</strong>
-                          <p>{entry.completionState}</p>
-                        </div>
-                      ))}
-                      {!patient.progress.length ? (
-                        <div className="progressMiniCard empty">
-                          <span className="detailLabel">Treatment progress</span>
-                          <strong>No treatment sessions yet</strong>
-                          <p>This patient has no repeated services to track yet.</p>
-                        </div>
-                      ) : null}
+                    <div className="patientRecordPeek">
+                      <span>{patient.latestService || patient.latest?.service || "No bookings yet"}</span>
+                      <span>{patient.preferredDentist || patient.latest?.selectedDentist || "No dentist yet"}</span>
+                      <span>{formatDateLabel(patient.lastAppointmentDate || patient.latest?.date)}</span>
                     </div>
+
+                    {isExpanded ? (
+                      <>
+                        <div className="detailGrid">
+                          <div className="detailBox luxeBox">
+                            <span className="detailLabel">Latest service</span>
+                            <strong>{patient.latestService || patient.latest?.service || "No bookings yet"}</strong>
+                          </div>
+                          <div className="detailBox luxeBox">
+                            <span className="detailLabel">Preferred dentist</span>
+                            <strong>{patient.preferredDentist || patient.latest?.selectedDentist || "No dentist yet"}</strong>
+                          </div>
+                          <div className="detailBox luxeBox">
+                            <span className="detailLabel">Last visit day</span>
+                            <strong>{formatDateLabel(patient.lastAppointmentDate || patient.latest?.date)}</strong>
+                          </div>
+                        </div>
+
+                        <div className="progressMiniGrid">
+                          {patient.progress.slice(0, 3).map((entry) => (
+                            <div key={`${patient.id}-${entry.service}`} className="progressMiniCard">
+                              <span className="detailLabel">{entry.service}</span>
+                              <strong>{entry.progressLabel}</strong>
+                              <p>{entry.completionState}</p>
+                            </div>
+                          ))}
+                          {!patient.progress.length ? (
+                            <div className="progressMiniCard empty">
+                              <span className="detailLabel">Treatment progress</span>
+                              <strong>No treatment sessions yet</strong>
+                              <p>This patient has no repeated services to track yet.</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 </button>
 
-                <div className="actionColumn actionColumnFriendly">
-                  <button className="btn patientActionBtn patientEditBtn" onClick={() => setSelectedPatientId(patient.id)}>
-                    Open Patient Editor
-                  </button>
-                  <button className="btn patientActionBtn patientPdfBtn" onClick={() => exportPatientPdf(patient)}>
-                    Download Record PDF
-                  </button>
-                  <button className="btn patientActionBtn archiveButton" onClick={() => toggleArchive(patient)}>
-                    Move to Archive
-                  </button>
-                </div>
+                {isExpanded ? (
+                  <div className="actionColumn actionColumnFriendly">
+                    <button className="btn patientActionBtn patientEditBtn" onClick={() => { setSelectedPatientId(patient.id); setActivePatientView(PATIENT_VIEWS.DETAILS); }}>
+                      Open Patient Workspace
+                    </button>
+                    <button className="btn patientActionBtn patientPdfBtn" onClick={() => exportPatientPdf(patient)}>
+                      Download Record PDF
+                    </button>
+                    <button
+                      className="btn patientActionBtn archiveButton"
+                      onClick={() =>
+                        openConfirm({
+                          title: patient.status === "Archived" ? "Restore patient record?" : "Move patient to archive?",
+                          message: patient.status === "Archived"
+                            ? "This patient will return to the active patient list."
+                            : "This patient will be moved out of the active patient list and into archive.",
+                          confirmLabel: patient.status === "Archived" ? "Restore Patient" : "Move to Archive",
+                          tone: "archive",
+                          action: () => toggleArchive(patient),
+                        })
+                      }
+                    >
+                      Move to Archive
+                    </button>
+                  </div>
+                ) : (
+                  <div className="patientRecordHint">
+                    <span>Tap to open patient workspace</span>
+                  </div>
+                )}
               </li>
-            ))}
-          </ul>
+            )})}
+          </ul>}
 
-          {!filteredPatientCards.length ? (
-            <div className="emptyEditorState">
-              {loadingPatients
-                ? "Loading patient records..."
-                : isDentist
-                  ? "No patient records are available for this dentist view yet."
-                  : "No active patients matched that name."}
-            </div>
+          {!loadingPatients && !filteredPatientCards.length ? (
+            <EmptyState
+              title={isDentist ? "No patients available yet" : "No matching patient records"}
+              message={
+                isDentist
+                  ? "Patients will appear here once approved records are available for dentist review."
+                  : "Try another patient name or clear the search to see the full active list."
+              }
+            />
           ) : null}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmLabel={confirmState?.confirmLabel}
+        tone={confirmState?.tone}
+        onClose={() => setConfirmState(null)}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }

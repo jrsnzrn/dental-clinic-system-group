@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -17,6 +17,7 @@ export default function NavBar({
   const [isAdmin, setIsAdmin] = useState(adminFromApp);
   const [adminRole, setAdminRole] = useState(adminRoleFromApp);
   const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -64,6 +65,10 @@ export default function NavBar({
     setMenuOpen(false);
   }, [user, isAdmin]);
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
   async function logout() {
     try {
       await signOut(auth);
@@ -107,29 +112,41 @@ export default function NavBar({
                 {user && <NavLink to="/my-appointments" className={navClass} onClick={() => setMenuOpen(false)}>My Appointments</NavLink>}
                 {user && <NavLink to="/my-record" className={navClass} onClick={() => setMenuOpen(false)}>My Record</NavLink>}
               </div>
-
-              <div className={`navLinks navLinksUtility ${menuOpen ? "open" : ""}`}>
-                {user && (
-                  <button className="navItem" onClick={logout} type="button">
-                    Logout
-                  </button>
-                )}
-              </div>
             </div>
+
+            {user && (
+              <div className="navLinks navLinksUtility navUtilityStandalone">
+                <button className="navItem" onClick={logout} type="button">
+                  Logout
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <>
-            <div className="navLinks">
-              {adminLinks.map((link) => (
-                <NavLink key={link.to} to={link.to} className={navClass}>
-                  {link.label}
-                </NavLink>
-              ))}
+            <button
+              type="button"
+              className={`menuToggle ${menuOpen ? "active" : ""}`}
+              aria-label="Toggle navigation menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((current) => !current)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+
+            <div className={`navMenuShell ${menuOpen ? "open" : ""}`}>
+              <div className={`navLinks navLinksPrimary ${menuOpen ? "open" : ""}`}>
+                {adminLinks.map((link) => (
+                  <NavLink key={link.to} to={link.to} className={navClass} onClick={() => setMenuOpen(false)}>
+                    {link.label}
+                  </NavLink>
+                ))}
+              </div>
             </div>
 
-            <div className="spacer" />
-
-            <div className="navLinks">
+            <div className="navLinks navLinksUtility navUtilityStandalone">
               {adminRole ? <span className="badge roleBadge">{ROLE_LABELS[adminRole]}</span> : null}
               {user && (
                 <button className="navItem" onClick={logout} type="button">

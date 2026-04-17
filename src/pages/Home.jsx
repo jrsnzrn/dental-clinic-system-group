@@ -1,68 +1,104 @@
 import { NavLink } from "react-router-dom";
+import frontDeskPhoto from "../assets/home-clinic-frontdesk.jpg";
+import treatmentPhoto from "../assets/home-clinic-treatment.jpg";
+import lobbyWidePhoto from "../assets/home-clinic-lobby-wide.jpg";
+import lobbyPhoto from "../assets/home-clinic-lobby.jpg";
 
 export default function Home() {
   return (
-    <div className="container">
-      <div className="hero homeHero homeHeroGrid">
-        <div className="homeHeroCopy">
-          <span className="heroEyebrow">TopDent Experience</span>
-          <h1 style={{ marginBottom: 10 }}>TopDent Dental Clinic</h1>
-
-          <p style={{ marginTop: 0 }}>
-            Modern dental care with easier booking, richer patient records, and a cleaner experience for both patients and clinic staff.
+    <div className="container homePage">
+      <section className="homeLanding">
+        <div className="homeLandingCopy">
+          <span className="heroEyebrow">TopDent Dental Clinic</span>
+          <h1>Just a clinic that feels warm, clean, and welcoming.</h1>
+          <p>
+            TopDent blends a friendlier patient atmosphere with smoother booking and a more organized clinic experience, so every visit feels easier from arrival to treatment.
           </p>
 
           <div className="homeHeroActions">
-            <NavLink className="btn btnShine" to="/book">
+            <NavLink className="btn btnShine bookingPrimaryBtn" to="/book">
               Book Appointment
             </NavLink>
-            <NavLink className="btn secondary btnSoft" to="/services">
-              View Services
+            <NavLink className="btn secondary btnSoft" to="/about">
+              See Our Clinic
             </NavLink>
           </div>
 
-          <div className="homeHeroStats">
-            <div className="homeStat">
+          <div className="homeStatRibbon">
+            <div className="homeRibbonCard">
               <span className="detailLabel">Clinic hours</span>
               <strong>Mon-Sat • 8:00 AM - 6:00 PM</strong>
             </div>
-            <div className="homeStat">
-              <span className="detailLabel">Patient flow</span>
-              <strong>Booking, approval, charting, and follow-up in one system</strong>
+            <div className="homeRibbonCard">
+              <span className="detailLabel">Since</span>
+              <strong>Serving patients since 2022</strong>
             </div>
           </div>
         </div>
 
-        <div className="card homeSplineCard">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Clinic Highlights</h3>
-              <p className="sub">A simpler home page focus with faster loading and clearer patient guidance.</p>
+        <div className="homeLandingVisual">
+          <article className="homeShowcasePrimary">
+            <img src={frontDeskPhoto} alt="TopDent front desk team" />
+            <div className="homeShowcaseBadge top">
+              <span className="detailLabel">Reception</span>
+              <strong>Friendly welcome and patient assistance</strong>
             </div>
-            <span className="badge">TopDent</span>
-          </div>
+          </article>
 
-          <div className="homeHighlightPanel">
-            <div className="homeHighlightCard">
-              <span className="detailLabel">Appointments</span>
-              <strong>Book faster with one saved patient identity</strong>
-              <p>Repeat bookings stay organized under the same patient record for easier tracking.</p>
-            </div>
-
-            <div className="homeHighlightCard">
-              <span className="detailLabel">Dental Record</span>
-              <strong>View tooth notes and record history online</strong>
-              <p>Patients can review dentist comments and chart updates from their own account.</p>
+          <article className="homeShowcaseSecondary">
+            <div className="homeShowcaseSmall">
+              <img src={treatmentPhoto} alt="TopDent treatment room" />
+              <div className="homeShowcaseBadge">
+                <span className="detailLabel">Treatment Room</span>
+                <strong>Clean, calm, and organized care</strong>
+              </div>
             </div>
 
-            <div className="homeHighlightCard">
-              <span className="detailLabel">Clinic Workflow</span>
-              <strong>Admin tools built for daily dental operations</strong>
-              <p>Manage bookings, patients, dentists, schedules, and archive records in one place.</p>
+            <div className="homeAtmosphereCard">
+              <span className="detailLabel">Clinic atmosphere</span>
+              <strong>Bright interiors, gentle care, and a more comfortable visit</strong>
+              <p>
+                Designed to feel less intimidating and more welcoming for patients and families.
+              </p>
             </div>
-          </div>
+          </article>
         </div>
-      </div>
+      </section>
+
+      <section className="homeGalleryBand">
+        <div className="homeGalleryIntro">
+          <span className="heroEyebrow">Inside TopDent</span>
+          <h2>A clinic space that feels lively, personal, and easy to return to.</h2>
+        </div>
+
+        <div className="homeMosaicGrid">
+          <article className="homeMosaicCard wide">
+            <img src={lobbyWidePhoto} alt="TopDent clinic waiting area" />
+            <div className="homeMosaicOverlay">
+              <strong>Comfortable waiting area</strong>
+              <span>A brighter lobby that helps patients feel settled before treatment.</span>
+            </div>
+          </article>
+
+          <article className="homeMosaicCard">
+            <img src={lobbyPhoto} alt="TopDent clinic interior seating area" />
+            <div className="homeMosaicOverlay">
+              <strong>Relaxed clinic corner</strong>
+              <span>Warm seating and a calmer clinic mood for everyday visits.</span>
+            </div>
+          </article>
+
+          <article className="homeMosaicQuote">
+            <span className="heroEyebrow">Patient-first feel</span>
+            <p>
+              From the entrance to the dental chair, the clinic is arranged to feel cleaner, softer, and more reassuring.
+            </p>
+            <NavLink className="btn secondary btnSoft" to="/contact">
+              Visit the Clinic
+            </NavLink>
+          </article>
+        </div>
+      </section>
     </div>
   );
 }

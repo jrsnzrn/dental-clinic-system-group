@@ -14,8 +14,10 @@ import { db } from "../../firebase";
 import {
   DAY_ORDER,
   createDefaultSchedule,
+  formatExceptionSummary,
   formatScheduleSummary,
   getDentistScheduleStatus,
+  normalizeScheduleExceptions,
   normalizeSchedule,
 } from "../../utils/schedule";
 import { logAdminAction } from "../../utils/audit";
@@ -26,7 +28,9 @@ export default function Dentists() {
   const [dentists, setDentists] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [expandedDentistId, setExpandedDentistId] = useState("");
+  const [detailDrafts, setDetailDrafts] = useState({});
   const [draftSchedules, setDraftSchedules] = useState({});
+  const [exceptionDrafts, setExceptionDrafts] = useState({});
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -42,10 +46,33 @@ export default function Dentists() {
       }));
 
       setDentists(nextDentists);
+      setDetailDrafts((current) => {
+        const next = { ...current };
+        nextDentists.forEach((dentist) => {
+          next[dentist.id] = current[dentist.id] || {
+            email: dentist.email || "",
+            specialization: dentist.specialization || "",
+          };
+        });
+        return next;
+      });
       setDraftSchedules((current) => {
         const next = { ...current };
         nextDentists.forEach((dentist) => {
           next[dentist.id] = current[dentist.id] || normalizeSchedule(dentist.schedule);
+        });
+        return next;
+      });
+      setExceptionDrafts((current) => {
+        const next = { ...current };
+        nextDentists.forEach((dentist) => {
+          next[dentist.id] = current[dentist.id] || {
+            date: "",
+            label: "",
+            active: false,
+            start: "09:00",
+            end: "18:00",
+          };
         });
         return next;
       });
@@ -97,6 +124,62 @@ export default function Dentists() {
     return bookings.filter((b) => b.selectedDentist === dentistName).length;
   }
 
+  function updateDetailDraft(dentistId, field, value) {
+    setDetailDrafts((current) => ({
+      ...current,
+      [dentistId]: {
+        ...current[dentistId],
+        [field]: value,
+      },
+    }));
+  }
+
+  async function saveDentistDetails(dentist) {
+    const draft = detailDrafts[dentist.id] || {
+      email: dentist.email || "",
+      specialization: dentist.specialization || "",
+    };
+
+    const nextEmail = draft.email.trim();
+    const nextSpecialization = draft.specialization.trim();
+
+    await updateDoc(doc(db, "dentists", dentist.id), {
+      email: nextEmail,
+      specialization: nextSpecialization,
+    });
+
+    setDentists((current) =>
+      current.map((entry) =>
+        entry.id === dentist.id
+          ? {
+              ...entry,
+              email: nextEmail,
+              specialization: nextSpecialization,
+            }
+          : entry
+      )
+    );
+
+    setDetailDrafts((current) => ({
+      ...current,
+      [dentist.id]: {
+        email: nextEmail,
+        specialization: nextSpecialization,
+      },
+    }));
+
+    await logAdminAction({
+      action: "update_dentist_profile",
+      targetType: "dentist",
+      targetId: dentist.id,
+      targetLabel: dentist.name || "Dentist",
+      details: {
+        email: nextEmail,
+        specialization: nextSpecialization,
+      },
+    });
+  }
+
   function updateDraftSchedule(dentistId, dayKey, field, value) {
     setDraftSchedules((current) => ({
       ...current,
@@ -125,6 +208,68 @@ export default function Dentists() {
       targetId: dentist.id,
       targetLabel: dentist.name || "Dentist",
     });
+  }
+
+  function updateExceptionDraft(dentistId, field, value) {
+    setExceptionDrafts((current) => ({
+      ...current,
+      [dentistId]: {
+        ...current[dentistId],
+        [field]: value,
+      },
+    }));
+  }
+
+  async function addException(dentist) {
+    const draft = exceptionDrafts[dentist.id];
+    if (!draft?.date || !draft?.label) return;
+
+    const currentExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions);
+    const nextExceptions = [
+      ...currentExceptions.filter((entry) => entry.date !== draft.date),
+      {
+        date: draft.date,
+        label: draft.label,
+        type: "exception",
+        active: draft.active,
+        start: draft.start,
+        end: draft.end,
+      },
+    ];
+
+    await updateDoc(doc(db, "dentists", dentist.id), {
+      scheduleExceptions: nextExceptions,
+    });
+
+    await logAdminAction({
+      action: "add_dentist_schedule_exception",
+      targetType: "dentist",
+      targetId: dentist.id,
+      targetLabel: dentist.name || "Dentist",
+      details: {
+        date: draft.date,
+        label: draft.label,
+        active: draft.active,
+      },
+    });
+
+    setExceptionDrafts((current) => ({
+      ...current,
+      [dentist.id]: {
+        date: "",
+        label: "",
+        active: false,
+        start: "09:00",
+        end: "18:00",
+      },
+    }));
+  }
+
+  async function removeException(dentist, date) {
+    const nextExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions).filter(
+      (entry) => entry.date !== date
+    );
+    await updateDoc(doc(db, "dentists", dentist.id), { scheduleExceptions: nextExceptions });
   }
 
   const summary = useMemo(() => {
@@ -220,7 +365,12 @@ export default function Dentists() {
       <ul className="list" style={{ marginTop: 20 }}>
         {visibleDentists.map((dentist) => {
           const isOpen = expandedDentistId === dentist.id;
+          const detailDraft = detailDrafts[dentist.id] || {
+            email: dentist.email || "",
+            specialization: dentist.specialization || "",
+          };
           const schedule = normalizeSchedule(draftSchedules[dentist.id] || dentist.schedule);
+          const scheduleExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions);
           const isActiveToday = schedule[todayKey]?.active;
 
           return (
@@ -258,6 +408,11 @@ export default function Dentists() {
                   <p>{formatScheduleSummary(schedule)}</p>
                 </div>
 
+                <div className="detailNote">
+                  <span className="detailLabel">Schedule exceptions</span>
+                  <p>{formatExceptionSummary(scheduleExceptions)}</p>
+                </div>
+
                 <div
                   className="schedulerActions dentistQuickActions"
                   onClick={(event) => event.stopPropagation()}
@@ -278,8 +433,52 @@ export default function Dentists() {
                   >
                     <div className="cardHeader" style={{ marginBottom: 8 }}>
                       <div>
+                        <h3 className="title">Dentist Details</h3>
+                        <p className="sub">Update the clinic-facing email and specialization shown in the dentist management list.</p>
+                      </div>
+                    </div>
+
+                    <div className="bookingFlowGrid">
+                      <input
+                        className="input"
+                        type="email"
+                        placeholder="Dentist email"
+                        value={detailDraft.email}
+                        onChange={(event) => updateDetailDraft(dentist.id, "email", event.target.value)}
+                      />
+                      <input
+                        className="input"
+                        placeholder="Specialization"
+                        value={detailDraft.specialization}
+                        onChange={(event) => updateDetailDraft(dentist.id, "specialization", event.target.value)}
+                      />
+                    </div>
+
+                    <div className="inlineActionRow">
+                      <button className="btn btnShine" type="button" onClick={() => saveDentistDetails(dentist)}>
+                        Save Dentist Details
+                      </button>
+                      <button
+                        className="btn secondary"
+                        type="button"
+                        onClick={() =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [dentist.id]: {
+                              email: dentist.email || "",
+                              specialization: dentist.specialization || "",
+                            },
+                          }))
+                        }
+                      >
+                        Reset Details
+                      </button>
+                    </div>
+
+                    <div className="cardHeader" style={{ marginBottom: 8, marginTop: 16 }}>
+                      <div>
                         <h3 className="title">Adjust Schedule</h3>
-                        <p className="sub">Turn each day on or off and set the dentist’s working hours.</p>
+                        <p className="sub">Turn each day on or off and set the dentist's working hours.</p>
                       </div>
                     </div>
 
@@ -336,6 +535,51 @@ export default function Dentists() {
                       >
                         Reset Changes
                       </button>
+                    </div>
+
+                    <div className="card adminRecordsCard" style={{ marginTop: 14 }}>
+                      <div className="cardHeader">
+                        <div>
+                          <h3 className="title">Schedule Exceptions</h3>
+                          <p className="sub">Use date-specific overrides for leave, half-days, holidays, or emergency changes.</p>
+                        </div>
+                      </div>
+
+                      <div className="bookingFlowGrid">
+                        <input className="input" type="date" value={exceptionDrafts[dentist.id]?.date || ""} onChange={(event) => updateExceptionDraft(dentist.id, "date", event.target.value)} />
+                        <input className="input" placeholder="Label (e.g. Leave, Half-day)" value={exceptionDrafts[dentist.id]?.label || ""} onChange={(event) => updateExceptionDraft(dentist.id, "label", event.target.value)} />
+                      </div>
+
+                      <div className="bookingFlowGrid" style={{ marginTop: 12 }}>
+                        <select className="input" value={String(exceptionDrafts[dentist.id]?.active || false)} onChange={(event) => updateExceptionDraft(dentist.id, "active", event.target.value === "true")}>
+                          <option value="false">Unavailable all day</option>
+                          <option value="true">Available with custom hours</option>
+                        </select>
+                        <input className="input" type="time" value={exceptionDrafts[dentist.id]?.start || "09:00"} disabled={!exceptionDrafts[dentist.id]?.active} onChange={(event) => updateExceptionDraft(dentist.id, "start", event.target.value)} />
+                        <input className="input" type="time" value={exceptionDrafts[dentist.id]?.end || "18:00"} disabled={!exceptionDrafts[dentist.id]?.active} onChange={(event) => updateExceptionDraft(dentist.id, "end", event.target.value)} />
+                      </div>
+
+                      <div className="inlineActionRow">
+                        <button className="btn btnShine" type="button" onClick={() => addException(dentist)}>
+                          Save Exception
+                        </button>
+                      </div>
+
+                      {scheduleExceptions.length ? (
+                        <ul className="list" style={{ marginTop: 14 }}>
+                          {scheduleExceptions.map((entry) => (
+                            <li key={`${dentist.id}-${entry.date}`} className="item">
+                              <div className="kv">
+                                <strong>{entry.date} • {entry.label}</strong>
+                                <span>{entry.active ? `${entry.start} - ${entry.end}` : "Unavailable all day"}</span>
+                              </div>
+                              <button className="btn danger" type="button" onClick={() => removeException(dentist, entry.date)}>
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}

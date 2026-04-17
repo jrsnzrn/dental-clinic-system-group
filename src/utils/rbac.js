@@ -41,6 +41,7 @@ export const ADMIN_NAV_BY_ROLE = {
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Bookings" },
     { to: "/admin/dentists", label: "Dentists" },
+    { to: "/admin/services", label: "Services" },
     { to: "/admin/accounts", label: "Accounts" },
     { to: "/admin/logs", label: "Logs" },
     { to: "/admin/archive", label: "Archive" },
