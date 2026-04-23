@@ -5,6 +5,7 @@ import { db, functions } from "../../firebase";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
+const SET_STAFF_DISABLED = httpsCallable(functions, "setStaffAccountDisabled");
 
 function emptyDraft() {
   return {
@@ -35,6 +36,7 @@ export default function Accounts() {
           snapshot.docs
             .map((entry) => ({ id: entry.id, ...entry.data() }))
             .filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST)
+            .filter((entry) => entry.archiveStatus !== "Archived")
             .sort((a, b) => {
               const aTime = a.createdAt?.seconds || 0;
               const bTime = b.createdAt?.seconds || 0;
@@ -90,7 +92,8 @@ export default function Accounts() {
       setListError("");
       setSuccess("");
       setUpdatingAccountId(account.id);
-      await updateDoc(doc(db, "admins", account.id), {
+      await SET_STAFF_DISABLED({
+        uid: account.id,
         disabled: !account.disabled,
       });
       setSuccess(
@@ -100,6 +103,28 @@ export default function Accounts() {
       );
     } catch (err) {
       setListError(err?.message || "Could not update the staff account status.");
+      console.error(err);
+    } finally {
+      setUpdatingAccountId("");
+    }
+  }
+
+  async function archiveStaffAccount(account) {
+    if (!account.disabled) {
+      setListError("Disable the staff account first before archiving it.");
+      return;
+    }
+
+    try {
+      setListError("");
+      setSuccess("");
+      setUpdatingAccountId(account.id);
+      await updateDoc(doc(db, "admins", account.id), {
+        archiveStatus: "Archived",
+      });
+      setSuccess(`${account.email || account.name || "Staff account"} archived successfully.`);
+    } catch (err) {
+      setListError(err?.message || "Could not archive the staff account.");
       console.error(err);
     } finally {
       setUpdatingAccountId("");
@@ -256,6 +281,14 @@ export default function Accounts() {
                     : account.disabled
                       ? "Enable Account"
                       : "Disable Account"}
+                </button>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => archiveStaffAccount(account)}
+                  disabled={updatingAccountId === account.id || !account.disabled}
+                >
+                  {updatingAccountId === account.id ? "Updating..." : "Archive Account"}
                 </button>
               </div>
             </li>

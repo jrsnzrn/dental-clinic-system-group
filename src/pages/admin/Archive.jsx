@@ -30,6 +30,11 @@ const ARCHIVE_FILTERS = {
     subtitle: "Dentists removed from the active scheduler and booking selection.",
     emptyText: "No archived dentists matched your search.",
   },
+  accounts: {
+    title: "Archived Staff Accounts",
+    subtitle: "Disabled receptionist and dentist accounts moved away from the active staff list.",
+    emptyText: "No archived staff accounts matched your search.",
+  },
   bookings: {
     title: "Archived Bookings",
     subtitle: "Old or inactive booking records separated from the live booking board.",
@@ -64,6 +69,7 @@ function ArchiveSection({ title, subtitle, count, children, emptyText }) {
 export default function Archive() {
   const [patients, setPatients] = useState([]);
   const [dentists, setDentists] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
@@ -75,9 +81,10 @@ export default function Archive() {
     setLoading(true);
     setError("");
 
-    const [patientResult, dentistResult, bookingResult] = await Promise.allSettled([
+    const [patientResult, dentistResult, accountResult, bookingResult] = await Promise.allSettled([
       getDocs(collection(db, "patients")),
       getDocs(collection(db, "dentists")),
+      getDocs(collection(db, "admins")),
       getDocs(collection(db, "bookings")),
     ]);
 
@@ -93,13 +100,23 @@ export default function Archive() {
       setDentists([]);
     }
 
+    if (accountResult.status === "fulfilled") {
+      setAccounts(
+        accountResult.value.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter((entry) => entry.role === "receptionist" || entry.role === "dentist")
+      );
+    } else {
+      setAccounts([]);
+    }
+
     if (bookingResult.status === "fulfilled") {
       setBookings(bookingResult.value.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
     } else {
       setBookings([]);
     }
 
-    const failures = [patientResult, dentistResult, bookingResult].filter(
+    const failures = [patientResult, dentistResult, accountResult, bookingResult].filter(
       (result) => result.status === "rejected"
     );
 
@@ -140,9 +157,18 @@ export default function Archive() {
       .filter((dentist) => normalizeValue(dentist.name).includes(term));
   }, [dentists, term]);
 
+  const archivedAccounts = useMemo(() => {
+    return accounts
+      .filter((account) => isArchivedValue(account.archiveStatus))
+      .filter((account) =>
+        normalizeValue(account.name || account.email).includes(term)
+      );
+  }, [accounts, term]);
+
   const archiveCounts = {
     patients: archivedPatients.length,
     dentists: archivedDentists.length,
+    accounts: archivedAccounts.length,
     bookings: archivedBookings.length,
   };
 
@@ -186,10 +212,23 @@ export default function Archive() {
     await load();
   }
 
+  async function restoreAccount(id) {
+    await updateDoc(doc(db, "admins", id), { archiveStatus: "Active" });
+    const account = accounts.find((entry) => entry.id === id);
+    await logAdminAction({
+      action: "restore_staff_account",
+      targetType: "admin_account",
+      targetId: id,
+      targetLabel: account?.email || account?.name || "Staff account",
+    });
+    await load();
+  }
+
   async function removeRecord(collectionName, id) {
     const targetCollections = {
       patients,
       dentists,
+      admins: accounts,
       bookings,
     };
     const target = (targetCollections[collectionName] || []).find((entry) => entry.id === id);
@@ -303,6 +342,48 @@ export default function Archive() {
           </li>
         ))}
       </ArchiveSection>
+    ) : section === "accounts" ? (
+      <ArchiveSection
+        title={ARCHIVE_FILTERS.accounts.title}
+        subtitle={ARCHIVE_FILTERS.accounts.subtitle}
+        count={archivedAccounts.length}
+        emptyText={ARCHIVE_FILTERS.accounts.emptyText}
+      >
+        {archivedAccounts.map((account) => (
+          <li key={account.id} className="item detailedItem bookingShowcase">
+            <div className="detailContent">
+              <div className="detailTopRow">
+                <div>
+                  <strong className="detailTitle">{account.name || "No staff name saved"}</strong>
+                  <p className="detailSubtitle">
+                    {account.role || "No role"} • {account.email || "No email"}
+                  </p>
+                </div>
+                <span className="statusPill cancelled">Archived</span>
+              </div>
+            </div>
+            <div className="actionColumn">
+              <button className="btn secondary" onClick={() => restoreAccount(account.id)}>
+                Restore
+              </button>
+              <button
+                className="btn danger"
+                onClick={() =>
+                  openConfirm({
+                    title: "Delete archived staff record permanently?",
+                    message: "This archived staff access record will be deleted from Firestore completely and cannot be recovered.",
+                    confirmLabel: "Delete Permanently",
+                    tone: "danger",
+                    action: () => removeRecord("admins", account.id),
+                  })
+                }
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </li>
+        ))}
+      </ArchiveSection>
     ) : (
       <ArchiveSection
         title={ARCHIVE_FILTERS.bookings.title}
@@ -391,6 +472,10 @@ export default function Archive() {
             <strong className="statValue">{archiveCounts.dentists}</strong>
           </div>
           <div className="archiveSummaryCard active">
+            <span className="statLabel">Archived staff</span>
+            <strong className="statValue">{archiveCounts.accounts}</strong>
+          </div>
+          <div className="archiveSummaryCard active">
             <span className="statLabel">Archived bookings</span>
             <strong className="statValue">{archiveCounts.bookings}</strong>
           </div>
@@ -402,6 +487,9 @@ export default function Archive() {
           </NavLink>
           <NavLink to="/admin/archive/dentists" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
             Archived Dentists
+          </NavLink>
+          <NavLink to="/admin/archive/accounts" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
+            Archived Staff
           </NavLink>
           <NavLink to="/admin/archive/bookings" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
             Archived Bookings

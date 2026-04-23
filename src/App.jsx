@@ -19,6 +19,7 @@ import Login from "./pages/admin/Login";
 import Dashboard from "./pages/admin/Dashboard";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
+import Braces from "./pages/admin/Braces";
 import Dentists from "./pages/admin/Dentists";
 import ServicesAdmin from "./pages/admin/ServicesAdmin";
 import Accounts from "./pages/admin/Accounts";
@@ -124,7 +125,7 @@ export default function App() {
           onThemeChange={setTheme}
         />
 
-        <div className="appMain">
+        <div className={`appMain ${isAdmin ? "adminAppMain" : ""}`}>
           <Routes>
             <Route path="/" element={isAdmin ? adminRedirect : <Home />} />
             <Route path="/services" element={isAdmin ? adminRedirect : <Services />} />
@@ -162,7 +163,7 @@ export default function App() {
                 }
               />
               <Route path="bookings">
-                <Route index element={<Navigate to="pending" replace />} />
+                <Route index element={<Navigate to="calendar" replace />} />
                 <Route
                   path=":status"
                   element={
@@ -175,6 +176,17 @@ export default function App() {
                   }
                 />
               </Route>
+              <Route
+                path="braces"
+                element={
+                  <ProtectedRoute
+                    user={user}
+                    allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
+                  >
+                    <Braces />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="dentists"
                 element={

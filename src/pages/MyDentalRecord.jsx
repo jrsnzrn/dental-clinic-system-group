@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase";
+import { buildBracesAccount, formatCurrency, getInstallmentLabel } from "../utils/braces";
 import { createEmptyDentalChart, DENTAL_CHART_IMAGE, TOOTH_IDS, TOOTH_LABELS, TOOTH_MARKERS } from "../utils/teeth";
+import { formatDateLabel, formatTimeLabel } from "../utils/schedule";
 
 export default function MyDentalRecord() {
   const [user, setUser] = useState(null);
   const [chart, setChart] = useState(createEmptyDentalChart());
+  const [bracesAccount, setBracesAccount] = useState(null);
+  const [bracesPayments, setBracesPayments] = useState([]);
+  const [bracesAdjustments, setBracesAdjustments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTeeth, setSelectedTeeth] = useState(["11"]);
   const [hoveredTooth, setHoveredTooth] = useState("");
@@ -17,22 +22,46 @@ export default function MyDentalRecord() {
 
       if (!nextUser) {
         setChart(createEmptyDentalChart());
+        setBracesAccount(null);
+        setBracesPayments([]);
+        setBracesAdjustments([]);
         setLoading(false);
         return;
       }
 
       setLoading(true);
       try {
-        const snap = await getDoc(doc(db, "dentalCharts", nextUser.uid));
-        if (snap.exists()) {
+        const [chartSnap, bracesAccountSnap, bracesPaymentsSnap, bracesAdjustmentsSnap] = await Promise.all([
+          getDoc(doc(db, "dentalCharts", nextUser.uid)),
+          getDocs(query(collection(db, "bracesAccounts"), where("uid", "==", nextUser.uid))),
+          getDocs(query(collection(db, "bracesPayments"), where("uid", "==", nextUser.uid))),
+          getDocs(query(collection(db, "bracesAdjustments"), where("uid", "==", nextUser.uid))),
+        ]);
+
+        if (chartSnap.exists()) {
           setChart({
             uid: nextUser.uid,
-            generalNotes: snap.data().generalNotes || "",
-            teeth: snap.data().teeth || {},
+            generalNotes: chartSnap.data().generalNotes || "",
+            teeth: chartSnap.data().teeth || {},
           });
         } else {
           setChart(createEmptyDentalChart(nextUser.uid));
         }
+
+        const rawAccount = bracesAccountSnap.docs[0]
+          ? { id: bracesAccountSnap.docs[0].id, ...bracesAccountSnap.docs[0].data() }
+          : null;
+        const paymentRows = bracesPaymentsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+
+        setBracesPayments(
+          paymentRows.sort((a, b) => String(b.paymentDate || "").localeCompare(String(a.paymentDate || "")))
+        );
+        setBracesAdjustments(
+          bracesAdjustmentsSnap.docs
+            .map((entry) => ({ id: entry.id, ...entry.data() }))
+            .sort((a, b) => `${a.adjustmentDate || ""} ${a.adjustmentTime || ""}`.localeCompare(`${b.adjustmentDate || ""} ${b.adjustmentTime || ""}`))
+        );
+        setBracesAccount(rawAccount ? buildBracesAccount(rawAccount, paymentRows) : null);
       } finally {
         setLoading(false);
       }
@@ -111,6 +140,10 @@ export default function MyDentalRecord() {
             <div className="bookingSummaryCard">
               <span className="detailLabel">Chart status</span>
               <strong>{loading ? "Loading..." : "Available to view"}</strong>
+            </div>
+            <div className="bookingSummaryCard">
+              <span className="detailLabel">Braces tracking</span>
+              <strong>{bracesAccount ? bracesAccount.paymentState : "No braces plan yet"}</strong>
             </div>
           </div>
         </div>
@@ -238,6 +271,93 @@ export default function MyDentalRecord() {
           <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
             <span className="detailLabel">General dentist notes</span>
             <p>{chart.generalNotes || "No general notes saved yet."}</p>
+          </div>
+
+          <div className="detailNote historyPanel bracesPatientPanel" style={{ marginTop: 12 }}>
+            <span className="detailLabel">Braces payment status</span>
+            {bracesAccount ? (
+              <>
+                <p>
+                  <strong>{bracesAccount.paymentState}</strong>
+                </p>
+                <div className="detailGrid">
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">Total cost</span>
+                    <strong>{formatCurrency(bracesAccount.totalCost)}</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">Amount paid</span>
+                    <strong>{formatCurrency(bracesAccount.amountPaid)}</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">Remaining balance</span>
+                    <strong>{formatCurrency(bracesAccount.remainingBalance)}</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">{getInstallmentLabel(bracesAccount.planFrequency)}</span>
+                    <strong>{formatCurrency(bracesAccount.installmentAmount || bracesAccount.monthlyAmount)}</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">Payment schedule</span>
+                    <strong>{bracesAccount.planFrequency}</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">Discount applied</span>
+                    <strong>{((bracesAccount.discountRate || 0) * 100).toFixed(bracesAccount.discountRate ? 1 : 0)}%</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
+                    <span className="detailLabel">Next expected payment</span>
+                    <strong>{bracesAccount.nextDueDate ? formatDateLabel(bracesAccount.nextDueDate) : "No due date"}</strong>
+                  </div>
+                </div>
+
+                <div className="historyList" style={{ marginTop: 12 }}>
+                  {bracesPayments.length ? (
+                    bracesPayments.map((payment) => (
+                      <div key={payment.id} className="historyRow bracesHistoryRow">
+                        <div>
+                          <strong>{formatCurrency(payment.amount)}</strong>
+                          <p>{payment.method || "Manual payment"}{payment.notes ? ` • ${payment.notes}` : ""}</p>
+                        </div>
+                        <div className="historyMeta">
+                          <span>{formatDateLabel(payment.paymentDate)}</span>
+                          <span className="statusPill active">{payment.method || "Cash"}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No braces payments have been logged yet.</p>
+                  )}
+                </div>
+
+                <div className="historyList" style={{ marginTop: 12 }}>
+                  <span className="detailLabel">Braces adjustment schedule</span>
+                  {bracesAdjustments.length ? (
+                    bracesAdjustments.map((adjustment) => (
+                      <div key={adjustment.id} className="historyRow bracesHistoryRow">
+                        <div>
+                          <strong>{adjustment.notes || "Braces adjustment visit"}</strong>
+                          <p>
+                            {adjustment.dentist || "No dentist"}
+                            {adjustment.adjustmentTime ? ` • ${formatTimeLabel(adjustment.adjustmentTime)}` : ""}
+                          </p>
+                        </div>
+                        <div className="historyMeta">
+                          <span>{formatDateLabel(adjustment.adjustmentDate)}</span>
+                          <span className={`statusPill ${String(adjustment.status || "").toLowerCase() === "cancelled" ? "cancelled" : String(adjustment.status || "").toLowerCase() === "completed" ? "approved" : "active"}`}>
+                            {adjustment.status || "Scheduled"}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No braces adjustments have been scheduled yet.</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p>No braces installment account is linked to your record yet. The clinic can set one up for you when your braces plan starts.</p>
+            )}
           </div>
         </div>
       </div>

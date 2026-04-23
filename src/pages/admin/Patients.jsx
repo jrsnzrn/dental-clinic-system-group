@@ -14,6 +14,8 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { getAuditActionLabel, logAdminAction } from "../../utils/audit";
+import { buildBracesAccount, formatCurrency } from "../../utils/braces";
+import { buildFullName, splitFullName } from "../../utils/names";
 import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, isInactivePatient, normalizeName } from "../../utils/appointments";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 import {
@@ -28,6 +30,9 @@ import { getAdminProfile, ROLES } from "../../utils/rbac";
 function getEmptyDraft() {
   return {
     id: "",
+    firstName: "",
+    middleName: "",
+    lastName: "",
     name: "",
     age: "",
     phone: "",
@@ -118,8 +123,10 @@ export default function Patients() {
   };
   const [patients, setPatients] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [dentistProfiles, setDentistProfiles] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [patientWorkspaceOpen, setPatientWorkspaceOpen] = useState(false);
   const [draft, setDraft] = useState(getEmptyDraft());
   const [search, setSearch] = useState("");
   const [chartDraft, setChartDraft] = useState(createEmptyDentalChart());
@@ -131,6 +138,10 @@ export default function Patients() {
   const [treatmentDraft, setTreatmentDraft] = useState(emptyTreatmentDraft());
   const [careDraft, setCareDraft] = useState(emptyCareDraft());
   const [activePatientView, setActivePatientView] = useState("details");
+  const [currentDentistIdentity, setCurrentDentistIdentity] = useState({
+    uid: "",
+    email: "",
+  });
 
   function toggleToothSelection(tooth) {
     setSelectedTeeth((current) => {
@@ -145,10 +156,11 @@ export default function Patients() {
   async function load(role = adminRole) {
     setLoadingPatients(true);
 
-    const [patientsResult, bookingsResult, logsResult] = await Promise.allSettled([
+    const [patientsResult, bookingsResult, logsResult, dentistsResult] = await Promise.allSettled([
       getDocs(query(collection(db, "patients"), orderBy("createdAt", "desc"))),
       role === ROLES.DENTIST ? Promise.resolve({ docs: [] }) : getDocs(collection(db, "bookings")),
       getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, "dentists")),
     ]);
 
     const patientList =
@@ -167,10 +179,18 @@ export default function Patients() {
             actionLabel: getAuditActionLabel(entry.data().action),
           }))
         : [];
+    const nextDentistProfiles =
+      dentistsResult.status === "fulfilled"
+        ? dentistsResult.value.docs.map((entry) => ({
+            id: entry.id,
+            ...entry.data(),
+          }))
+        : [];
 
     setPatients(patientList);
     setBookings(bookingList);
     setAuditLogs(nextAuditLogs);
+    setDentistProfiles(nextDentistProfiles);
 
     setLoadingPatients(false);
   }
@@ -179,6 +199,10 @@ export default function Patients() {
     async function loadAdminRole() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
+      setCurrentDentistIdentity({
+        uid: currentUser.uid,
+        email: String(currentUser.email || "").trim().toLowerCase(),
+      });
 
       const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
       if (adminSnap.exists()) {
@@ -191,12 +215,27 @@ export default function Patients() {
     loadAdminRole();
   }, []);
 
+  const linkedDentistProfile = useMemo(() => {
+    if (adminRole !== ROLES.DENTIST) return null;
+
+    return (
+      dentistProfiles.find((dentist) => dentist.linkedStaffUid === currentDentistIdentity.uid) ||
+      dentistProfiles.find(
+        (dentist) =>
+          String(dentist.linkedStaffEmail || "").trim().toLowerCase() === currentDentistIdentity.email
+      ) ||
+      null
+    );
+  }, [adminRole, currentDentistIdentity.email, currentDentistIdentity.uid, dentistProfiles]);
+
   const patientCards = useMemo(() => {
+    const filteredBookings = bookings;
+
     return patients
       .filter((patient) => patient.status !== "Archived")
       .map((patient) => {
-        const history = adminRole === ROLES.DENTIST ? [] : getPatientHistory(bookings, patient);
-        const allHistory = adminRole === ROLES.DENTIST ? [] : getPatientHistory(bookings, patient, { includeArchived: true });
+        const history = getPatientHistory(filteredBookings, patient);
+        const allHistory = getPatientHistory(filteredBookings, patient, { includeArchived: true });
         const latest = getLatestBooking(history);
         const latestOverall = getLatestBooking(allHistory);
 
@@ -210,8 +249,14 @@ export default function Patients() {
           progress: buildTreatmentProgress(history),
           timeline: buildPatientTimeline(allHistory),
         };
+      })
+      .filter((patient) => {
+        if (adminRole !== ROLES.DENTIST) return true;
+        if (!linkedDentistProfile?.name) return false;
+
+        return normalizeName(patient.preferredDentist) === normalizeName(linkedDentistProfile.name);
       });
-  }, [adminRole, auditLogs, bookings, patients]);
+  }, [adminRole, auditLogs, bookings, linkedDentistProfile?.name, patients]);
 
   const filteredPatientCards = useMemo(() => {
     const term = normalizeName(search);
@@ -223,6 +268,10 @@ export default function Patients() {
     () => patientCards.find((patient) => patient.id === selectedPatientId) || null,
     [patientCards, selectedPatientId]
   );
+
+  useEffect(() => {
+    setPatientWorkspaceOpen(false);
+  }, [selectedPatientId]);
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -241,6 +290,9 @@ export default function Patients() {
     setHoveredTooth("");
     setDraft({
       id: selectedPatient.id,
+      firstName: selectedPatient.firstName || splitFullName(selectedPatient.name || "").firstName || "",
+      middleName: selectedPatient.middleName || splitFullName(selectedPatient.name || "").middleName || "",
+      lastName: selectedPatient.lastName || splitFullName(selectedPatient.name || "").lastName || "",
       name: selectedPatient.name || "",
       age: selectedPatient.age || "",
       phone: selectedPatient.phone || "",
@@ -274,10 +326,15 @@ export default function Patients() {
 
   async function savePatientDetails(e) {
     e.preventDefault();
-    if (!draft.id || !draft.name.trim()) return;
+    if (!draft.id || !draft.firstName.trim() || !draft.lastName.trim()) return;
+
+    const fullName = buildFullName(draft);
 
     await updateDoc(doc(db, "patients", draft.id), {
-      name: draft.name.trim(),
+      firstName: draft.firstName.trim(),
+      middleName: draft.middleName.trim(),
+      lastName: draft.lastName.trim(),
+      name: fullName,
       age: String(draft.age).trim(),
       phone: draft.phone.trim(),
       email: draft.email.trim(),
@@ -421,15 +478,35 @@ export default function Patients() {
   }
 
   async function exportPatientPdf(patient) {
+    const nameParts = splitFullName(patient.name || "");
+    const firstName = patient.firstName || nameParts.firstName || "";
+    const middleName = patient.middleName || nameParts.middleName || "";
+    const lastName = patient.lastName || nameParts.lastName || "";
+    const latestVisit = patient.latestOverall || patient.latest || null;
+    const careRows = (patient.careRecommendations || [])
+      .map(
+        (care) => `
+          <tr>
+            <td>${care.recommendation || "No recommendation"}</td>
+            <td>${care.followUpDate ? formatDateLabel(care.followUpDate) : "No follow-up date"}</td>
+            <td>${care.prescription || "No prescription note"}</td>
+          </tr>
+        `
+      )
+      .join("");
+
     const historyRows = (patient.history || [])
       .map(
         (booking) => `
           <tr>
+            <td>${booking.fullName || patient.name || "Not set"}</td>
             <td>${booking.service || "Not set"}</td>
             <td>${formatDateLabel(booking.date)}</td>
             <td>${formatTimeLabel(booking.time)}</td>
             <td>${booking.selectedDentist || "No dentist"}</td>
             <td>${booking.status || "pending"}</td>
+            <td>${booking.latestBookedAt ? formatTimestamp(booking.latestBookedAt) : booking.createdAt ? formatTimestamp(booking.createdAt) : "Not logged"}</td>
+            <td>${booking.checkedInAt ? formatTimestamp(booking.checkedInAt) : patient.lastCheckedInAt ? formatTimestamp(patient.lastCheckedInAt) : "Not checked in"}</td>
           </tr>
         `
       )
@@ -496,6 +573,36 @@ export default function Patients() {
       )
       .join("");
 
+    let bracesSummary = null;
+    if (patient.id) {
+      const bracesAccountSnap = await getDoc(doc(db, "bracesAccounts", patient.id));
+      if (bracesAccountSnap.exists()) {
+        const paymentsSnap = await getDocs(collection(db, "bracesPayments"));
+        const matchingPayments = paymentsSnap.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter(
+            (entry) =>
+              entry.patientId === patient.id ||
+              (patient.uid && entry.uid && entry.uid === patient.uid)
+          );
+
+        bracesSummary = buildBracesAccount(bracesAccountSnap.data(), matchingPayments);
+      }
+    }
+
+    const bracesPaymentRows = (bracesSummary?.payments || [])
+      .map(
+        (payment) => `
+          <tr>
+            <td>${payment.paymentDate ? formatDateLabel(payment.paymentDate) : "No date"}</td>
+            <td>${formatCurrency(payment.amount)}</td>
+            <td>${payment.method || "Cash"}</td>
+            <td>${payment.note || "No note"}</td>
+          </tr>
+        `
+      )
+      .join("");
+
     let dentalChart = createEmptyDentalChart(patient.uid || "");
     if (patient.uid) {
       const chartSnap = await getDoc(doc(db, "dentalCharts", patient.uid));
@@ -539,7 +646,9 @@ export default function Patients() {
           <style>
             body { font-family: Arial, sans-serif; padding: 18px; color: #1f2937; }
             h1, h2 { page-break-after: avoid; }
+            .header-copy { color: #475569; margin: 8px 0 0; line-height: 1.6; }
             .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+            .meta.metaWide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .card { border: 1px solid #d7e3f4; border-radius: 16px; padding: 14px; }
             .label { font-size: 12px; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
             table { width: 100%; border-collapse: collapse; margin-top: 18px; }
@@ -558,6 +667,9 @@ export default function Patients() {
             .photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px; }
             .photo-card { border: 1px solid #dbe6f5; border-radius: 16px; padding: 10px; background: #fff; }
             .photo-card img { width: 100%; height: auto; max-height: 260px; object-fit: cover; border-radius: 12px; display: block; }
+            .summary-banner { border: 1px solid #d7e3f4; border-radius: 22px; padding: 18px; background: linear-gradient(135deg, #fff8e8, #ffffff); }
+            .summary-title { margin: 0; font-size: 28px; }
+            .summary-sub { margin: 8px 0 0; color: #475569; }
             @media print {
               body { padding: 10px; }
               .photo-card img { max-height: 220px; }
@@ -565,23 +677,76 @@ export default function Patients() {
           </style>
         </head>
         <body>
-          <h1>TopDent Patient Record</h1>
-          <div class="meta">
+          <div class="summary-banner">
+            <h1 class="summary-title">TopDent Patient Record</h1>
+            <p class="summary-sub">Updated clinic summary including patient identity, appointments, follow-up notes, braces payments, and dental chart details.</p>
+          </div>
+          <div class="section">
+            <h2>Patient Summary</h2>
+            <div class="meta metaWide">
+              <div class="card"><div class="label">Last name</div><strong>${lastName || "-"}</strong></div>
+              <div class="card"><div class="label">First name</div><strong>${firstName || "-"}</strong></div>
+              <div class="card"><div class="label">Middle name</div><strong>${middleName || "-"}</strong></div>
+            </div>
+          </div>
+      <div class="meta">
             <div class="card"><div class="label">Full name</div><strong>${patient.name || "-"}</strong></div>
             <div class="card"><div class="label">Age</div><strong>${patient.age || "-"}</strong></div>
             <div class="card"><div class="label">Phone</div><strong>${patient.phone || "-"}</strong></div>
             <div class="card"><div class="label">Email</div><strong>${patient.email || "-"}</strong></div>
+            <div class="card"><div class="label">Patient type</div><strong>${patient.patientType || "Regular Patient"}</strong></div>
+            <div class="card"><div class="label">Record status</div><strong>${patient.status || "Active"}</strong></div>
+            <div class="card"><div class="label">Preferred dentist</div><strong>${patient.preferredDentist || latestVisit?.selectedDentist || "No dentist yet"}</strong></div>
+            <div class="card"><div class="label">Latest service</div><strong>${patient.latestService || latestVisit?.service || "No service yet"}</strong></div>
+            <div class="card"><div class="label">Last visit day</div><strong>${patient.lastAppointmentDate ? formatDateLabel(patient.lastAppointmentDate) : latestVisit?.date ? formatDateLabel(latestVisit.date) : "No visit yet"}</strong></div>
+            <div class="card"><div class="label">Booked at</div><strong>${patient.latestBookedAt ? formatTimestamp(patient.latestBookedAt) : "No booking timestamp"}</strong></div>
+            <div class="card"><div class="label">Checked in at</div><strong>${patient.lastCheckedInAt ? formatTimestamp(patient.lastCheckedInAt) : "Not checked in"}</strong></div>
+            <div class="card"><div class="label">Approved visits</div><strong>${patient.totalApproved || 0}</strong></div>
           </div>
           <h2>Appointment History</h2>
           <table>
-            <thead><tr><th>Service</th><th>Date</th><th>Time</th><th>Dentist</th><th>Status</th></tr></thead>
-            <tbody>${historyRows || '<tr><td colspan="5">No appointment history yet.</td></tr>'}</tbody>
+            <thead><tr><th>Patient</th><th>Service</th><th>Date</th><th>Time</th><th>Dentist</th><th>Status</th><th>Booked at</th><th>Checked in at</th></tr></thead>
+            <tbody>${historyRows || '<tr><td colspan="8">No appointment history yet.</td></tr>'}</tbody>
           </table>
           <h2>Treatment Progress</h2>
           <table>
             <thead><tr><th>Service</th><th>Sessions</th><th>Progress</th><th>State</th></tr></thead>
             <tbody>${progressRows || '<tr><td colspan="4">No treatment progress yet.</td></tr>'}</tbody>
           </table>
+          <div class="section">
+            <h2>Care Recommendations</h2>
+            <table>
+              <thead><tr><th>Recommendation</th><th>Follow-up date</th><th>Prescription / Note</th></tr></thead>
+              <tbody>${careRows || '<tr><td colspan="3">No care recommendations saved yet.</td></tr>'}</tbody>
+            </table>
+          </div>
+          ${
+            bracesSummary
+              ? `
+                <div class="section">
+                  <h2>Braces Payment Summary</h2>
+                  <div class="meta metaWide">
+                    <div class="card"><div class="label">Plan state</div><strong>${bracesSummary.planState || "Active"}</strong></div>
+                    <div class="card"><div class="label">Payment status</div><strong>${bracesSummary.paymentState || "Payment Plan Ready"}</strong></div>
+                    <div class="card"><div class="label">Start date</div><strong>${bracesSummary.startDate ? formatDateLabel(bracesSummary.startDate) : "No start date"}</strong></div>
+                    <div class="card"><div class="label">Total treatment cost</div><strong>${formatCurrency(bracesSummary.totalCost)}</strong></div>
+                    <div class="card"><div class="label">Expected down payment</div><strong>${formatCurrency(bracesSummary.downPaymentExpected)}</strong></div>
+                    <div class="card"><div class="label">Monthly payment</div><strong>${formatCurrency(bracesSummary.monthlyAmount)}</strong></div>
+                    <div class="card"><div class="label">Plan duration</div><strong>${bracesSummary.planMonths || 0} months</strong></div>
+                    <div class="card"><div class="label">Amount paid</div><strong>${formatCurrency(bracesSummary.amountPaid)}</strong></div>
+                    <div class="card"><div class="label">Remaining balance</div><strong>${formatCurrency(bracesSummary.remainingBalance)}</strong></div>
+                    <div class="card"><div class="label">Expected by now</div><strong>${formatCurrency(bracesSummary.expectedPaidByNow)}</strong></div>
+                    <div class="card"><div class="label">Progress</div><strong>${bracesSummary.progressPercent || 0}% paid</strong></div>
+                    <div class="card"><div class="label">Plan notes</div><strong>${bracesSummary.notes || "No braces notes saved."}</strong></div>
+                  </div>
+                  <table>
+                    <thead><tr><th>Payment date</th><th>Amount</th><th>Method</th><th>Note</th></tr></thead>
+                    <tbody>${bracesPaymentRows || '<tr><td colspan="4">No braces payments logged yet.</td></tr>'}</tbody>
+                  </table>
+                </div>
+              `
+              : ""
+          }
           <div class="section">
             <h2>Procedure Roadmap</h2>
             <div class="treatment-stack">${treatmentPlanCards || '<div class="card">No procedure plans saved yet.</div>'}</div>
@@ -659,7 +824,8 @@ export default function Patients() {
         </div>
       </div>
 
-      <div className="adminPanelGrid">
+      <div className={`adminPanelGrid ${patientWorkspaceOpen ? "workspaceMode" : "recordsOnlyMode"}`}>
+        {patientWorkspaceOpen ? (
         <div className="card adminEditorCard">
           <div className="cardHeader">
             <div>
@@ -708,6 +874,67 @@ export default function Patients() {
                 </div>
               </div>
 
+              {false ? (
+                <div className="workspaceLaunchCard" style={{ marginTop: 18 }}>
+                  <div className="editorPreview">
+                    <div>
+                      <span className="detailLabel">Selected patient</span>
+                      <strong className="detailTitle">{selectedPatient.name}</strong>
+                      <p className="detailSubtitle">
+                        Age {selectedPatient.age || "-"} • {selectedPatient.latestOverall?.service || "No recent service"} • {selectedPatient.latestOverall?.selectedDentist || "No preferred dentist yet"}
+                      </p>
+                    </div>
+                    <span className={`statusPill ${draft.status === "Archived" ? "archived" : "approved"}`}>
+                      {draft.status}
+                    </span>
+                  </div>
+
+                  <div className="analyticsGrid workspacePreviewStats" style={{ marginTop: 18 }}>
+                    <div className="card analyticsCard">
+                      <span className="detailLabel">Appointments made</span>
+                      <strong>{selectedPatient.allHistory.length}</strong>
+                      <p>All bookings linked to this patient record, including archived ones</p>
+                    </div>
+                    <div className="card analyticsCard">
+                      <span className="detailLabel">Latest visit</span>
+                      <strong>{selectedPatient.latestOverall?.service || "No visit yet"}</strong>
+                      <p>{selectedPatient.latestOverall ? formatDateLabel(selectedPatient.latestOverall.date) : "Waiting for first appointment"}</p>
+                    </div>
+                    <div className="card analyticsCard">
+                      <span className="detailLabel">Preferred dentist</span>
+                      <strong>{selectedPatient.preferredDentist || selectedPatient.latestOverall?.selectedDentist || "No dentist yet"}</strong>
+                      <p>Latest dentist tied to this record, even if the booking was archived later</p>
+                    </div>
+                  </div>
+
+                  <div className="workspaceLaunchActions">
+                    <button
+                      type="button"
+                      className="btn btnShine patientActionBtn patientEditBtn"
+                      onClick={() => {
+                        setActivePatientView(PATIENT_VIEWS.DETAILS);
+                        setPatientWorkspaceOpen(true);
+                      }}
+                    >
+                      Open Patient Workspace
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {patientWorkspaceOpen ? (
+              <>
+              <div className="workspaceTopBar">
+                <button
+                  type="button"
+                  className="btn secondary workspaceBackBtn"
+                  onClick={() => setPatientWorkspaceOpen(false)}
+                >
+                  Back to Patient List
+                </button>
+                <span className="badge">Workspace Open</span>
+              </div>
+
               <div className="patientWorkspaceTabs">
                 <button type="button" className={`workspaceTab ${activePatientView === PATIENT_VIEWS.DETAILS ? "active" : ""}`} onClick={() => setActivePatientView(PATIENT_VIEWS.DETAILS)}>
                   Patient Details
@@ -722,8 +949,10 @@ export default function Patients() {
                   Visit Timeline
                 </button>
               </div>
+              </>
+              ) : null}
 
-              {activePatientView === PATIENT_VIEWS.CHART ? (
+              {patientWorkspaceOpen && activePatientView === PATIENT_VIEWS.CHART ? (
               <div className="card adminRecordsCard patientPrimaryChartCard" style={{ marginTop: 18 }}>
                 <div className="cardHeader">
                   <div>
@@ -882,7 +1111,7 @@ export default function Patients() {
               </div>
               ) : null}
 
-              {activePatientView === PATIENT_VIEWS.DETAILS ? (
+              {patientWorkspaceOpen && activePatientView === PATIENT_VIEWS.DETAILS ? (
               <div className="card adminRecordsCard compactOverviewCard" style={{ marginTop: 18 }}>
                 <div className="cardHeader">
                   <div>
@@ -924,7 +1153,9 @@ export default function Patients() {
                 </div>
 
                 <form onSubmit={savePatientDetails} className="form">
-                  <input className="input" placeholder="Full name" value={draft.name} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} />
+                  <input className="input" placeholder="First name" value={draft.firstName} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, firstName: e.target.value, name: buildFullName({ ...current, firstName: e.target.value }) }))} />
+                  <input className="input" placeholder="Middle name" value={draft.middleName} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, middleName: e.target.value, name: buildFullName({ ...current, middleName: e.target.value }) }))} />
+                  <input className="input" placeholder="Last name" value={draft.lastName} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, lastName: e.target.value, name: buildFullName({ ...current, lastName: e.target.value }) }))} />
                   <input className="input" type="number" min="1" placeholder="Age" value={draft.age} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, age: e.target.value }))} />
                   <input className="input" placeholder="Phone" value={draft.phone} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, phone: e.target.value }))} />
                   <input className="input" placeholder="Email" value={draft.email} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))} />
@@ -941,7 +1172,7 @@ export default function Patients() {
               </div>
               ) : null}
 
-              {activePatientView === PATIENT_VIEWS.PLAN ? (
+              {patientWorkspaceOpen && activePatientView === PATIENT_VIEWS.PLAN ? (
               <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
                 <div className="cardHeader">
                   <div>
@@ -1101,7 +1332,7 @@ export default function Patients() {
               </div>
               ) : null}
 
-              {activePatientView === PATIENT_VIEWS.TIMELINE ? (
+              {patientWorkspaceOpen && activePatientView === PATIENT_VIEWS.TIMELINE ? (
               <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
                 <div className="cardHeader">
                   <div>
@@ -1144,6 +1375,8 @@ export default function Patients() {
             />
           )}
         </div>
+        ) : null}
+        {!patientWorkspaceOpen ? (
         <div className="card adminRecordsCard">
           <div className="cardHeader">
             <div>
@@ -1179,7 +1412,7 @@ export default function Patients() {
               const isExpanded = selectedPatientId === patient.id;
               return (
               <li key={patient.id} className={`item detailedItem patientShowcase patientRecordCard ${isExpanded ? "selectedRecord expanded" : "collapsed"}`}>
-                <button type="button" className="recordTapArea" onClick={() => setSelectedPatientId(patient.id)}>
+                <button type="button" className="recordTapArea" onClick={() => { setSelectedPatientId(patient.id); setPatientWorkspaceOpen(false); }}>
                   <div className="detailContent">
                     <div className="detailTopRow">
                       <div>
@@ -1240,7 +1473,7 @@ export default function Patients() {
 
                 {isExpanded ? (
                   <div className="actionColumn actionColumnFriendly">
-                    <button className="btn patientActionBtn patientEditBtn" onClick={() => { setSelectedPatientId(patient.id); setActivePatientView(PATIENT_VIEWS.DETAILS); }}>
+                    <button className="btn patientActionBtn patientEditBtn" onClick={() => { setSelectedPatientId(patient.id); setActivePatientView(PATIENT_VIEWS.DETAILS); setPatientWorkspaceOpen(true); }}>
                       Open Patient Workspace
                     </button>
                     <button className="btn patientActionBtn patientPdfBtn" onClick={() => exportPatientPdf(patient)}>
@@ -1283,6 +1516,7 @@ export default function Patients() {
             />
           ) : null}
         </div>
+        ) : null}
       </div>
 
       <ConfirmDialog

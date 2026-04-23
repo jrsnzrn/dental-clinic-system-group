@@ -17,11 +17,17 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { logAdminAction } from "../../utils/audit";
+import { buildFullName, splitFullName } from "../../utils/names";
 import { buildBookingAnalytics, normalizeName } from "../../utils/appointments";
 import { buildCalendarCells, getBookingCalendarTone, getCalendarItemLabel } from "../../utils/calendar";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const BOOKING_FILTERS = {
+  calendar: {
+    title: "Booking Calendar",
+    subtitle: "Scan the appointment load by day, then open any date to see every patient booked there.",
+    emptyText: "No booking days available right now.",
+  },
   pending: {
     title: "Pending Bookings",
     subtitle: "New requests stay here until the clinic approves, cancels, or reviews a reschedule request.",
@@ -47,9 +53,22 @@ async function syncPatientRecordFromBooking(bookingData) {
     return normalizeName(patient.name) === normalizeName(bookingData.fullName || bookingData.patientKey);
   });
 
+  const parsedName = splitFullName(bookingData.fullName || "");
+  const firstName = bookingData.firstName || parsedName.firstName || "";
+  const middleName = bookingData.middleName || parsedName.middleName || "";
+  const lastName = bookingData.lastName || parsedName.lastName || "";
+
   const payload = {
     uid: bookingData.uid || "",
-    name: bookingData.fullName || "Unnamed Patient",
+    firstName,
+    middleName,
+    lastName,
+    name: buildFullName({
+      firstName,
+      middleName,
+      lastName,
+      fallback: bookingData.fullName || "Unnamed Patient",
+    }),
     age: bookingData.age || "",
     phone: bookingData.phone || "",
     email: bookingData.email || "",
@@ -190,6 +209,7 @@ export default function Bookings() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
+  const [selectedCalendarCell, setSelectedCalendarCell] = useState(null);
   const { status = "pending" } = useParams();
 
   useEffect(() => {
@@ -409,61 +429,10 @@ export default function Bookings() {
         </div>
       </div>
 
-      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Color-Coded Clinic Calendar</h3>
-          </div>
-        </div>
-        <div className="calendarLegend">
-          <div className="calendarLegendItem">
-            <span className="calendarLegendSwatch pending" />
-            <span>Pending</span>
-          </div>
-          <div className="calendarLegendItem">
-            <span className="calendarLegendSwatch approved" />
-            <span>Approved</span>
-          </div>
-          <div className="calendarLegendItem">
-            <span className="calendarLegendSwatch completed" />
-            <span>Completed</span>
-          </div>
-          <div className="calendarLegendItem">
-            <span className="calendarLegendSwatch cancelled" />
-            <span>Cancelled</span>
-          </div>
-          <div className="calendarLegendItem">
-            <span className="calendarLegendSwatch archived" />
-            <span>Archived</span>
-          </div>
-        </div>
-        <div className="calendarGrid">
-          {calendarCells.map((cell) => (
-            <div key={cell.date} className="calendarCell">
-              <div className="calendarCellHeader">
-                <div>
-                  <strong>{cell.label}</strong>
-                  <small>{new Date(`${cell.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long" })}</small>
-                </div>
-                <span className="calendarCellCount">{cell.items.length} bookings</span>
-              </div>
-              {cell.items.length ? (
-                <div className="calendarItemStack">
-                  {cell.items.slice(0, 4).map((booking) => (
-                    <div key={booking.id} className={`calendarItem ${getBookingCalendarTone(booking)}`}>
-                      {getCalendarItemLabel(booking)}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="calendarEmpty">No bookings</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="adminSubnav stickySubnav">
+        <NavLink to="/admin/bookings/calendar" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
+          Calendar
+        </NavLink>
         <NavLink to="/admin/bookings/pending" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
           Pending
         </NavLink>
@@ -481,10 +450,67 @@ export default function Bookings() {
             <h3 className="title">{activeConfig.title}</h3>
             <p className="sub">{activeConfig.subtitle}</p>
           </div>
-          <span className="badge">{activeItems.length} records</span>
+          <span className="badge">{status === "calendar" ? `${calendarCells.length} days` : `${activeItems.length} records`}</span>
         </div>
 
-        {loadingBookings ? (
+        {status === "calendar" ? (
+          <>
+            <div className="calendarLegend">
+              <div className="calendarLegendItem">
+                <span className="calendarLegendSwatch pending" />
+                <span>Pending</span>
+              </div>
+              <div className="calendarLegendItem">
+                <span className="calendarLegendSwatch approved" />
+                <span>Approved</span>
+              </div>
+              <div className="calendarLegendItem">
+                <span className="calendarLegendSwatch completed" />
+                <span>Completed</span>
+              </div>
+              <div className="calendarLegendItem">
+                <span className="calendarLegendSwatch cancelled" />
+                <span>Cancelled</span>
+              </div>
+              <div className="calendarLegendItem">
+                <span className="calendarLegendSwatch archived" />
+                <span>Archived</span>
+              </div>
+            </div>
+            <div className="calendarGrid">
+              {calendarCells.map((cell) => (
+                <button
+                  key={cell.date}
+                  type="button"
+                  className={`calendarCell ${cell.items.length ? "interactive" : ""}`}
+                  onClick={() => setSelectedCalendarCell(cell)}
+                >
+                  <div className="calendarCellHeader">
+                    <div>
+                      <strong>{cell.label}</strong>
+                      <small>{new Date(`${cell.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long" })}</small>
+                    </div>
+                    <span className="calendarCellCount">{cell.items.length} bookings</span>
+                  </div>
+                  {cell.items.length ? (
+                    <div className="calendarItemStack">
+                      {cell.items.slice(0, 4).map((booking) => (
+                        <div key={booking.id} className={`calendarItem ${getBookingCalendarTone(booking)}`}>
+                          {getCalendarItemLabel(booking)}
+                        </div>
+                      ))}
+                      {cell.items.length > 4 ? (
+                        <div className="calendarMoreHint">Tap to view all {cell.items.length} bookings</div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="calendarEmpty">No bookings</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : loadingBookings ? (
           <SkeletonList count={3} cardClassName="bookingShowcase" />
         ) : activeItems.length ? (
           <ul className="list detailedList">
@@ -544,6 +570,50 @@ export default function Bookings() {
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}
       />
+
+      {selectedCalendarCell ? (
+        <div className="modalOverlay" onClick={() => setSelectedCalendarCell(null)}>
+          <div className="modalCard bookingDayModal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div className="modalTitleGroup">
+                <span className="heroEyebrow">Day Schedule</span>
+                <h3>{selectedCalendarCell.label}</h3>
+                <p>{selectedCalendarCell.items.length} booking{selectedCalendarCell.items.length === 1 ? "" : "s"} scheduled for this day.</p>
+              </div>
+              <button type="button" className="modalClose" onClick={() => setSelectedCalendarCell(null)}>
+                ×
+              </button>
+            </div>
+
+            <div className="bookingDayModalBody">
+              {selectedCalendarCell.items.length ? (
+                <div className="historyList">
+                  {selectedCalendarCell.items.map((booking) => (
+                    <div key={booking.id} className="historyRow bookingDayRow">
+                      <div>
+                        <strong>{booking.fullName || "No name"}</strong>
+                        <p>
+                          {booking.service || "No service"} • {formatTimeLabel(booking.time)} • {booking.selectedDentist || "No dentist"}
+                        </p>
+                      </div>
+                      <div className="historyMeta">
+                        <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
+                        <span>{booking.phone || booking.email || "No contact saved"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  compact
+                  title="No bookings on this day"
+                  message="This calendar day is still open with no scheduled patients."
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

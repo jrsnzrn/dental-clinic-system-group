@@ -16,6 +16,7 @@ import { auth, db } from "../firebase";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
 import { getActiveClosureForDate, getBookingServiceOptions, getClinicServiceImage, hasPotentialDuplicateBooking } from "../utils/clinic";
+import { buildFullName, splitFullName } from "../utils/names";
 import {
   formatDateLabel,
   formatTimeLabel,
@@ -50,6 +51,9 @@ function generateSlots() {
 
 function getEmptyProfile(email = "") {
   return {
+    firstName: "",
+    middleName: "",
+    lastName: "",
     fullName: "",
     age: "",
     phone: "",
@@ -128,8 +132,17 @@ export default function Book() {
 
         if (snap.exists()) {
           const data = snap.data();
+          const parsedName = splitFullName(data.fullName || "");
           const nextProfile = {
-            fullName: data.fullName || "",
+            firstName: data.firstName || parsedName.firstName || "",
+            middleName: data.middleName || parsedName.middleName || "",
+            lastName: data.lastName || parsedName.lastName || "",
+            fullName: buildFullName({
+              firstName: data.firstName || parsedName.firstName || "",
+              middleName: data.middleName || parsedName.middleName || "",
+              lastName: data.lastName || parsedName.lastName || "",
+              fallback: data.fullName || "",
+            }),
             age: data.age || "",
             phone: data.phone || "",
             patientType: data.patientType || "Regular Patient",
@@ -266,8 +279,12 @@ export default function Book() {
       setError("Please sign in first.");
       return;
     }
-    if (!profileDraft.fullName.trim()) {
-      setError("Please enter your full name.");
+    if (!profileDraft.firstName.trim()) {
+      setError("Please enter the first name.");
+      return;
+    }
+    if (!profileDraft.lastName.trim()) {
+      setError("Please enter the last name.");
       return;
     }
     if (!String(profileDraft.age).trim()) {
@@ -279,10 +296,14 @@ export default function Book() {
       return;
     }
 
+    const normalizedFullName = buildFullName(profileDraft);
     const nextProfile = {
       uid: user.uid,
       email: user.email || profileDraft.email || "",
-      fullName: profileDraft.fullName.trim(),
+      firstName: profileDraft.firstName.trim(),
+      middleName: profileDraft.middleName.trim(),
+      lastName: profileDraft.lastName.trim(),
+      fullName: normalizedFullName,
       age: String(profileDraft.age).trim(),
       phone: profileDraft.phone.trim(),
       patientType: profileDraft.patientType,
@@ -294,6 +315,9 @@ export default function Book() {
       await setDoc(doc(db, "patientProfiles", user.uid), nextProfile, { merge: true });
 
       const savedProfile = {
+        firstName: nextProfile.firstName,
+        middleName: nextProfile.middleName,
+        lastName: nextProfile.lastName,
         fullName: nextProfile.fullName,
         age: nextProfile.age,
         phone: nextProfile.phone,
@@ -324,7 +348,7 @@ export default function Book() {
       setError("Please complete your patient profile before booking.");
       return;
     }
-    if (!patientProfile?.fullName) return setError("Please complete your patient profile first.");
+    if (!patientProfile?.firstName || !patientProfile?.lastName) return setError("Please complete your patient profile first.");
     if (!patientProfile?.age) return setError("Please complete your patient profile first.");
     if (!patientProfile?.phone) return setError("Please complete your patient profile first.");
     if (!date) return setError("Please choose a date.");
@@ -388,6 +412,9 @@ export default function Book() {
         uid: user.uid,
         patientProfileId: user.uid,
         email: patientProfile.email || user.email || "",
+        firstName: patientProfile.firstName || "",
+        middleName: patientProfile.middleName || "",
+        lastName: patientProfile.lastName || "",
         fullName: patientProfile.fullName,
         patientKey: patientProfile.fullName.toLowerCase(),
         age: patientProfile.age,
@@ -494,9 +521,25 @@ export default function Book() {
             <form className="form" onSubmit={saveProfile} style={{ marginTop: 12 }}>
               <input
                 className="input"
-                placeholder="Full name"
-                value={profileDraft.fullName}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, fullName: e.target.value }))}
+                placeholder="First name"
+                value={profileDraft.firstName}
+                onChange={(e) => setProfileDraft((current) => ({ ...current, firstName: e.target.value }))}
+                disabled={saving || loadingProfile}
+              />
+
+              <input
+                className="input"
+                placeholder="Middle name"
+                value={profileDraft.middleName}
+                onChange={(e) => setProfileDraft((current) => ({ ...current, middleName: e.target.value }))}
+                disabled={saving || loadingProfile}
+              />
+
+              <input
+                className="input"
+                placeholder="Last name"
+                value={profileDraft.lastName}
+                onChange={(e) => setProfileDraft((current) => ({ ...current, lastName: e.target.value }))}
                 disabled={saving || loadingProfile}
               />
 

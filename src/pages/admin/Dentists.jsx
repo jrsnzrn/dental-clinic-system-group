@@ -21,20 +21,22 @@ import {
   normalizeSchedule,
 } from "../../utils/schedule";
 import { logAdminAction } from "../../utils/audit";
+import { ROLES } from "../../utils/rbac";
 
 const todayKey = DAY_ORDER[(new Date().getDay() + 6) % 7].key;
 
 export default function Dentists() {
   const [dentists, setDentists] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [staffAccounts, setStaffAccounts] = useState([]);
   const [expandedDentistId, setExpandedDentistId] = useState("");
   const [detailDrafts, setDetailDrafts] = useState({});
   const [draftSchedules, setDraftSchedules] = useState({});
   const [exceptionDrafts, setExceptionDrafts] = useState({});
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [specialization, setSpecialization] = useState("");
+  const [linkedStaffUid, setLinkedStaffUid] = useState("");
 
   useEffect(() => {
     const q = query(collection(db, "dentists"), orderBy("createdAt", "desc"));
@@ -52,6 +54,7 @@ export default function Dentists() {
           next[dentist.id] = current[dentist.id] || {
             email: dentist.email || "",
             specialization: dentist.specialization || "",
+            linkedStaffUid: dentist.linkedStaffUid || "",
           };
         });
         return next;
@@ -82,6 +85,19 @@ export default function Dentists() {
   }, []);
 
   useEffect(() => {
+    const staffQuery = query(collection(db, "admins"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(staffQuery, (snap) => {
+      setStaffAccounts(
+        snap.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter((entry) => entry.role === ROLES.DENTIST && entry.archiveStatus !== "Archived")
+      );
+    });
+
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     async function loadBookings() {
       const snap = await getDocs(collection(db, "bookings"));
       setBookings(snap.docs.map((d) => d.data()));
@@ -95,11 +111,15 @@ export default function Dentists() {
     if (!name.trim()) return;
 
     const schedule = createDefaultSchedule();
+    const linkedStaff = staffAccounts.find((entry) => entry.id === linkedStaffUid) || null;
 
     await addDoc(collection(db, "dentists"), {
       name: name.trim(),
-      email: email.trim(),
+      email: linkedStaff?.email || "",
       specialization: specialization.trim(),
+      linkedStaffUid: linkedStaff?.id || "",
+      linkedStaffEmail: linkedStaff?.email || "",
+      linkedStaffName: linkedStaff?.name || "",
       schedule,
       status: getDentistScheduleStatus({ schedule }, new Date().toISOString().slice(0, 10)),
       createdAt: serverTimestamp(),
@@ -110,14 +130,15 @@ export default function Dentists() {
       targetType: "dentist",
       targetLabel: name.trim(),
       details: {
-        email: email.trim(),
+        email: linkedStaff?.email || "",
         specialization: specialization.trim(),
+        linkedStaffUid: linkedStaff?.id || "",
       },
     });
 
     setName("");
-    setEmail("");
     setSpecialization("");
+    setLinkedStaffUid("");
   }
 
   function getBookingCount(dentistName) {
@@ -138,14 +159,19 @@ export default function Dentists() {
     const draft = detailDrafts[dentist.id] || {
       email: dentist.email || "",
       specialization: dentist.specialization || "",
+      linkedStaffUid: dentist.linkedStaffUid || "",
     };
 
     const nextEmail = draft.email.trim();
     const nextSpecialization = draft.specialization.trim();
+    const linkedStaff = staffAccounts.find((entry) => entry.id === draft.linkedStaffUid) || null;
 
     await updateDoc(doc(db, "dentists", dentist.id), {
       email: nextEmail,
       specialization: nextSpecialization,
+      linkedStaffUid: linkedStaff?.id || "",
+      linkedStaffEmail: linkedStaff?.email || "",
+      linkedStaffName: linkedStaff?.name || "",
     });
 
     setDentists((current) =>
@@ -155,6 +181,9 @@ export default function Dentists() {
               ...entry,
               email: nextEmail,
               specialization: nextSpecialization,
+              linkedStaffUid: linkedStaff?.id || "",
+              linkedStaffEmail: linkedStaff?.email || "",
+              linkedStaffName: linkedStaff?.name || "",
             }
           : entry
       )
@@ -165,6 +194,7 @@ export default function Dentists() {
       [dentist.id]: {
         email: nextEmail,
         specialization: nextSpecialization,
+        linkedStaffUid: linkedStaff?.id || "",
       },
     }));
 
@@ -176,6 +206,7 @@ export default function Dentists() {
       details: {
         email: nextEmail,
         specialization: nextSpecialization,
+        linkedStaffUid: linkedStaff?.id || "",
       },
     });
   }
@@ -325,17 +356,22 @@ export default function Dentists() {
 
             <input
               className="input"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
-            <input
-              className="input"
               placeholder="Specialization (e.g. Orthodontist)"
               value={specialization}
               onChange={(e) => setSpecialization(e.target.value)}
             />
+            <select
+              className="input"
+              value={linkedStaffUid}
+              onChange={(e) => setLinkedStaffUid(e.target.value)}
+            >
+              <option value="">Link dentist staff account</option>
+              {staffAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name || account.email} {account.email ? `- ${account.email}` : ""}
+                </option>
+              ))}
+            </select>
 
             <button className="btn">Add Dentist</button>
           </form>
@@ -368,6 +404,7 @@ export default function Dentists() {
           const detailDraft = detailDrafts[dentist.id] || {
             email: dentist.email || "",
             specialization: dentist.specialization || "",
+            linkedStaffUid: dentist.linkedStaffUid || "",
           };
           const schedule = normalizeSchedule(draftSchedules[dentist.id] || dentist.schedule);
           const scheduleExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions);
@@ -393,6 +430,9 @@ export default function Dentists() {
                     <strong className="detailTitle">{dentist.name}</strong>
                     <p className="detailSubtitle">
                       {dentist.specialization || "No specialization"} • {dentist.email || "No email"}
+                    </p>
+                    <p className="detailSubtitle">
+                      {dentist.linkedStaffName || dentist.linkedStaffEmail || "No linked dentist login yet"}
                     </p>
                   </div>
                   <div className="statusStack">
@@ -441,17 +481,22 @@ export default function Dentists() {
                     <div className="bookingFlowGrid">
                       <input
                         className="input"
-                        type="email"
-                        placeholder="Dentist email"
-                        value={detailDraft.email}
-                        onChange={(event) => updateDetailDraft(dentist.id, "email", event.target.value)}
-                      />
-                      <input
-                        className="input"
                         placeholder="Specialization"
                         value={detailDraft.specialization}
                         onChange={(event) => updateDetailDraft(dentist.id, "specialization", event.target.value)}
                       />
+                      <select
+                        className="input"
+                        value={detailDraft.linkedStaffUid || ""}
+                        onChange={(event) => updateDetailDraft(dentist.id, "linkedStaffUid", event.target.value)}
+                      >
+                        <option value="">No linked dentist login</option>
+                        {staffAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name || account.email} {account.email ? `- ${account.email}` : ""}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="inlineActionRow">
@@ -467,6 +512,7 @@ export default function Dentists() {
                             [dentist.id]: {
                               email: dentist.email || "",
                               specialization: dentist.specialization || "",
+                              linkedStaffUid: dentist.linkedStaffUid || "",
                             },
                           }))
                         }

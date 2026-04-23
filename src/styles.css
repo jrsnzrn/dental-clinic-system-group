@@ -90,6 +90,11 @@ a:hover{ opacity: 0.9; }
   min-height: calc(100vh - 70px);
 }
 
+.adminAppMain{
+  margin-left: 248px;
+  min-height: 100vh;
+}
+
 /* ================================
    NAVBAR
 ================================ */
@@ -100,6 +105,239 @@ a:hover{ opacity: 0.9; }
   backdrop-filter: blur(14px);
   background: rgba(13,10,7,0.76);
   border-bottom: 1px solid var(--line);
+}
+
+.adminSidebar{
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 248px;
+  z-index: 40;
+  padding: 14px;
+  border-right: 1px solid rgba(255,255,255,0.10);
+  background:
+    radial-gradient(circle at top left, rgba(79,209,197,0.14), transparent 26%),
+    linear-gradient(180deg, rgba(10,16,30,0.96), rgba(7,11,22,0.98));
+  box-shadow: 20px 0 60px rgba(0,0,0,0.18);
+}
+
+.adminSidebarInner{
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.02);
+}
+
+.adminSidebarBrand{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.adminSidebarBrand strong{
+  display: block;
+  font-size: 17px;
+}
+
+.adminSidebarBrand span{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.adminSidebarLogo{
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  border-radius: 16px;
+  padding: 7px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.adminSidebarMeta{
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,0.14), transparent 30%),
+    rgba(255,255,255,0.03);
+}
+
+.adminSidebarMeta strong{
+  font-size: 15px;
+}
+
+.adminSidebarMeta p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.adminSidebarNav{
+  display: grid;
+  gap: 8px;
+}
+
+.adminSidebarLink{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.02);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 15px;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.adminSidebarLink:hover{
+  transform: translateX(4px);
+  color: var(--text);
+  border-color: rgba(79,209,197,0.28);
+}
+
+.adminSidebarLink.active{
+  color: var(--text);
+  border-color: rgba(79,209,197,0.48);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 28%),
+    linear-gradient(135deg, rgba(79,209,197,0.12), rgba(59,130,246,0.08));
+  box-shadow: 0 16px 30px rgba(79,209,197,0.10);
+}
+
+.adminSidebarBullet{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.38);
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.05);
+}
+
+.adminSidebarLink.active .adminSidebarBullet{
+  background: #4fd1c5;
+  box-shadow: 0 0 0 4px rgba(79,209,197,0.14);
+}
+
+.adminSidebarFooter{
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.adminSidebarRole{
+  width: 100%;
+  justify-content: center;
+}
+
+.adminSidebarLogout{
+  width: 100%;
+  min-height: 44px;
+}
+
+.adminMobileBar{
+  display: none;
+}
+
+.adminMobileBrand{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adminMobileBrand strong{
+  display: block;
+  font-size: 15px;
+}
+
+.adminMobileBrand span{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workspaceLaunchCard{
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.14), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+}
+
+.workspacePreviewStats{
+  margin-top: 0;
+}
+
+.workspaceLaunchActions{
+  display: flex;
+  justify-content: flex-start;
+}
+
+.workspaceTopBar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.workspaceBackBtn{
+  min-height: 48px;
+  padding-inline: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(248,113,113,0.42);
+  background:
+    radial-gradient(circle at top right, rgba(254,202,202,0.18), transparent 36%),
+    linear-gradient(135deg, rgba(185,28,28,0.96), rgba(127,29,29,0.94));
+  color: #fff5f5;
+  box-shadow: 0 16px 34px rgba(127,29,29,0.28);
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease, border-color .2s ease;
+}
+
+.workspaceBackBtn:hover{
+  transform: translateY(-2px) scale(1.01);
+  border-color: rgba(254,202,202,0.64);
+  box-shadow: 0 22px 42px rgba(127,29,29,0.34);
+  filter: saturate(1.08);
+}
+
+.workspaceBackBtn:active{
+  transform: translateY(0);
+}
+
+.workspaceBackBtn:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(254,202,202,0.24),
+    0 18px 36px rgba(127,29,29,0.34);
+}
+
+.bracesWorkspaceLaunch{
+  margin-top: 8px;
+}
+
+.adminAppMain .container{
+  width: min(100%, 1380px);
+  max-width: calc(100vw - 280px);
+  margin: 0 auto;
+  padding: 22px 24px 32px;
 }
 
 .navInner{
@@ -661,6 +899,64 @@ html[data-theme="light"] .menuToggle{
   box-shadow: 0 12px 24px rgba(120,89,24,0.10);
 }
 
+html[data-theme="light"] .adminSidebar,
+html[data-theme="light"] .adminMobileBar{
+  background:
+    radial-gradient(circle at top left, rgba(213,155,0,0.12), transparent 26%),
+    linear-gradient(180deg, rgba(255,251,244,0.98), rgba(248,241,226,0.98));
+  border-color: rgba(168,123,26,0.14);
+}
+
+html[data-theme="light"] .adminSidebarInner,
+html[data-theme="light"] .workspaceLaunchCard{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,248,237,0.84)),
+    rgba(255,255,255,0.86);
+  border-color: rgba(168,123,26,0.16);
+  box-shadow: 0 16px 34px rgba(120,89,24,0.08);
+}
+
+html[data-theme="light"] .adminSidebarBrand strong,
+html[data-theme="light"] .adminSidebarMeta strong,
+html[data-theme="light"] .adminMobileBrand strong{
+  color: #2b1d07;
+}
+
+html[data-theme="light"] .adminSidebarBrand span,
+html[data-theme="light"] .adminSidebarMeta p,
+html[data-theme="light"] .adminMobileBrand span{
+  color: #6d5430;
+}
+
+html[data-theme="light"] .adminSidebarLink{
+  background: rgba(255,255,255,0.72);
+  border-color: rgba(168,123,26,0.14);
+  color: #6d5430;
+}
+
+html[data-theme="light"] .adminSidebarLink:hover,
+html[data-theme="light"] .adminSidebarLink.active{
+  color: #241807;
+  border-color: rgba(168,123,26,0.30);
+}
+
+html[data-theme="light"] .adminSidebarLink.active{
+  background:
+    linear-gradient(180deg, rgba(255,244,213,0.92), rgba(255,238,186,0.86)),
+    rgba(213,155,0,0.14);
+  box-shadow: 0 12px 24px rgba(168,123,26,0.14);
+}
+
+html[data-theme="light"] .adminSidebarBullet{
+  background: rgba(168,123,26,0.34);
+  box-shadow: 0 0 0 4px rgba(168,123,26,0.08);
+}
+
+html[data-theme="light"] .adminSidebarLink.active .adminSidebarBullet{
+  background: #d59b00;
+  box-shadow: 0 0 0 4px rgba(213,155,0,0.12);
+}
+
 html[data-theme="light"] .menuToggle span{
   background: #2d210e;
 }
@@ -734,6 +1030,35 @@ html[data-theme="blue"] .btn{
   background: linear-gradient(135deg, rgba(79,209,197,0.18), rgba(59,130,246,0.12));
   border-color: rgba(79,209,197,0.20);
   color: var(--text);
+}
+
+html[data-theme="blue"] .adminSidebar,
+html[data-theme="blue"] .adminMobileBar{
+  background:
+    radial-gradient(circle at top left, rgba(96,165,250,0.16), transparent 28%),
+    linear-gradient(180deg, rgba(7,16,34,0.98), rgba(5,12,26,0.98));
+  border-color: rgba(96,165,250,0.12);
+}
+
+html[data-theme="blue"] .adminSidebarInner,
+html[data-theme="blue"] .workspaceLaunchCard{
+  background:
+    linear-gradient(180deg, rgba(15,23,42,0.88), rgba(10,18,34,0.82)),
+    rgba(10,18,34,0.84);
+  border-color: rgba(96,165,250,0.14);
+  box-shadow: 0 18px 36px rgba(2,8,23,0.20);
+}
+
+html[data-theme="blue"] .adminSidebarLink{
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(96,165,250,0.10);
+}
+
+html[data-theme="blue"] .adminSidebarLink.active{
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,0.20), transparent 30%),
+    linear-gradient(135deg, rgba(59,130,246,0.16), rgba(79,209,197,0.10));
+  border-color: rgba(96,165,250,0.26);
 }
 
 html[data-theme="blue"] .btn:hover{
@@ -1569,6 +1894,13 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
     linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
 }
 
+.bracesHero{
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,0.22), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(79,209,197,0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+}
+
 .adminHeroGlow{
   position: absolute;
   inset: auto -80px -120px auto;
@@ -1863,6 +2195,18 @@ html[data-theme="light"] .bookingConsentCard{
   gap: 18px;
   margin-top: 18px;
   align-items: start;
+}
+
+.adminPanelGrid.workspaceMode{
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.adminPanelGrid.workspaceMode > .adminEditorCard{
+  width: 100%;
+}
+
+.adminPanelGrid.recordsOnlyMode{
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .analyticsGrid{
@@ -2339,6 +2683,55 @@ html[data-theme="light"] .bookingConsentCard{
   font-size: 12px;
 }
 
+.bracesEditorCard{
+  gap: 18px;
+}
+
+.bracesPatientHeader{
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,0.14), transparent 30%),
+    rgba(255,255,255,0.03);
+  margin-bottom: 14px;
+}
+
+.bracesSummaryGrid{
+  margin-top: 18px;
+}
+
+.bracesPaymentCard{
+  margin-top: 18px;
+  border-color: rgba(245,158,11,0.18);
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,0.12), transparent 28%),
+    rgba(255,255,255,0.03);
+}
+
+.bracesPatientCard{
+  border-color: rgba(255,255,255,0.10);
+}
+
+.bracesHistoryRow{
+  align-items: center;
+}
+
+.bracesCurrencyStat{
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.bracesPatientPanel{
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,0.12), transparent 32%),
+    rgba(255,255,255,0.03);
+}
+
 .noteRibbon{
   position: relative;
   background: linear-gradient(135deg, rgba(79,209,197,0.10), rgba(255,255,255,0.04));
@@ -2514,25 +2907,52 @@ html[data-theme="light"] .bookingConsentCard{
 .patientWorkspaceTabs{
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(79,209,197,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(79,209,197,0.08), transparent 36%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
+    rgba(255,255,255,0.025);
 }
 
 .workspaceTab{
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.04);
-  color: var(--muted);
-  font-weight: 700;
+  position: relative;
+  overflow: hidden;
+  min-height: 50px;
+  padding: 0 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03)),
+    rgba(255,255,255,0.04);
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.workspaceTab::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.18) 48%, transparent 100%);
+  transform: translateX(-120%);
+  transition: transform .45s ease;
 }
 
 .workspaceTab:hover{
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.01);
   color: var(--text);
   border-color: rgba(79,209,197,0.34);
+  box-shadow: 0 16px 30px rgba(0,0,0,0.14);
+}
+
+.workspaceTab:hover::before{
+  transform: translateX(120%);
 }
 
 .workspaceTab.active{
@@ -2540,8 +2960,18 @@ html[data-theme="light"] .bookingConsentCard{
   border-color: rgba(79,209,197,0.48);
   background:
     radial-gradient(circle at top right, rgba(79,209,197,0.18), transparent 36%),
-    rgba(255,255,255,0.06);
-  box-shadow: 0 12px 24px rgba(79,209,197,0.12);
+    linear-gradient(135deg, rgba(16,185,129,0.18), rgba(14,165,233,0.12)),
+    rgba(255,255,255,0.08);
+  box-shadow:
+    0 16px 32px rgba(79,209,197,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.14);
+}
+
+.workspaceTab:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(79,209,197,0.16),
+    0 16px 28px rgba(79,209,197,0.16);
 }
 
 .compactOverviewCard{
@@ -2929,6 +3359,13 @@ html[data-theme="light"] .bookingConsentCard{
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+button.calendarCell{
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
 .calendarCell::before{
   content: "";
   position: absolute;
@@ -2942,6 +3379,10 @@ html[data-theme="light"] .bookingConsentCard{
   transform: translateY(-2px);
   border-color: rgba(79,209,197,0.24);
   box-shadow: 0 24px 44px rgba(3, 10, 24, 0.22);
+}
+
+.calendarCell.interactive{
+  cursor: pointer;
 }
 
 .calendarCellHeader{
@@ -3019,6 +3460,30 @@ html[data-theme="light"] .bookingConsentCard{
 .calendarItem.archived{
   background: rgba(156,163,175,0.16);
   border-color: rgba(156,163,175,0.34);
+}
+
+.calendarMoreHint{
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 2px 0;
+}
+
+.bookingDayModal{
+  width: min(860px, 100%);
+}
+
+.bookingDayModalBody{
+  padding: 0 18px 18px;
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+}
+
+.bookingDayModalBody .emptyState{
+  margin-top: 0;
+}
+
+.bookingDayRow{
+  align-items: center;
 }
 
 html[data-theme="light"] .calendarLegendItem{
@@ -4749,6 +5214,49 @@ html[data-theme="blue"] .confirmModalBody p{
   .bookingMiniSummary{
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .bracesPatientHeader{
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .adminAppMain{
+    margin-left: 0;
+    padding-top: 86px;
+  }
+
+  .adminAppMain .container{
+    width: 100%;
+    max-width: none;
+    padding: 18px 16px 28px;
+  }
+
+  .adminMobileBar{
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    background: rgba(10,16,30,0.94);
+    backdrop-filter: blur(14px);
+  }
+
+  .adminSidebar{
+    transform: translateX(-105%);
+    transition: transform .24s ease;
+    width: min(320px, 88vw);
+    padding: 14px;
+  }
+
+  .adminSidebar.open{
+    transform: translateX(0);
+  }
 }
 
 @media (max-width: 640px){
@@ -4779,6 +5287,14 @@ html[data-theme="blue"] .confirmModalBody p{
 
   .navInner{ padding: 12px 14px; }
   .navLinks{ gap: 8px; }
+
+  .adminMobileBar{
+    padding: 12px 14px;
+  }
+
+  .adminSidebar{
+    width: min(300px, 92vw);
+  }
 
   .menuToggle{
     display: inline-flex;
@@ -4930,6 +5446,11 @@ html[data-theme="blue"] .confirmModalBody p{
     border-radius: 20px;
   }
 
+  .bracesPaymentCard{
+    padding: 14px;
+    border-radius: 20px;
+  }
+
   .bookingHeroSummary{
     gap: 8px;
   }
@@ -5008,6 +5529,10 @@ html[data-theme="blue"] .confirmModalBody p{
   .progressMiniGrid{
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .bracesCurrencyStat{
+    font-size: 18px;
   }
 
   .clinicalPlanGrid{
