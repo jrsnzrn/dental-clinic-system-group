@@ -1,26 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, useParams } from "react-router-dom";
 import {
-  addDoc,
   collection,
-  doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
-import { logAdminAction } from "../../utils/audit";
-import { buildFullName, splitFullName } from "../../utils/names";
-import { buildBookingAnalytics, normalizeName } from "../../utils/appointments";
+import { buildBookingAnalytics } from "../../utils/appointments";
 import { buildCalendarCells, getBookingCalendarTone, getCalendarItemLabel } from "../../utils/calendar";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
+
+const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
+const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
+const ARCHIVE_BOOKING = httpsCallable(functions, "archiveBooking");
+const APPROVE_RESCHEDULE = httpsCallable(functions, "approveReschedule");
+const DECLINE_RESCHEDULE = httpsCallable(functions, "declineReschedule");
 
 const BOOKING_FILTERS = {
   calendar: {
@@ -45,53 +44,26 @@ const BOOKING_FILTERS = {
   },
 };
 
-async function syncPatientRecordFromBooking(bookingData) {
-  const patientsSnap = await getDocs(collection(db, "patients"));
-  const match = patientsSnap.docs.find((patientDoc) => {
-    const patient = patientDoc.data();
-    if (bookingData.uid && patient.uid === bookingData.uid) return true;
-    return normalizeName(patient.name) === normalizeName(bookingData.fullName || bookingData.patientKey);
-  });
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
 
-  const parsedName = splitFullName(bookingData.fullName || "");
-  const firstName = bookingData.firstName || parsedName.firstName || "";
-  const middleName = bookingData.middleName || parsedName.middleName || "";
-  const lastName = bookingData.lastName || parsedName.lastName || "";
+function timeToMinutes(timeStr = "") {
+  const [hourText = "0", minuteText = "0"] = String(timeStr).split(":");
+  return Number(hourText) * 60 + Number(minuteText);
+}
 
-  const payload = {
-    uid: bookingData.uid || "",
-    firstName,
-    middleName,
-    lastName,
-    name: buildFullName({
-      firstName,
-      middleName,
-      lastName,
-      fallback: bookingData.fullName || "Unnamed Patient",
-    }),
-    age: bookingData.age || "",
-    phone: bookingData.phone || "",
-    email: bookingData.email || "",
-    patientType: bookingData.patientType || "Regular Patient",
-    preferredDentist: bookingData.selectedDentist || "",
-    latestService: bookingData.service || "",
-    latestBookedAt: bookingData.createdAt || null,
-    lastApprovedAt: bookingData.approvedAt || bookingData.appointmentAt || null,
-    lastAppointmentDate: bookingData.date || "",
-    lastAppointmentTime: bookingData.time || "",
-    lastCheckedInAt: bookingData.checkedInAt || null,
-    status: "Active",
-  };
+function minutesToTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${pad(hours)}:${pad(minutes)}`;
+}
 
-  if (match) {
-    await updateDoc(doc(db, "patients", match.id), payload);
-    return;
-  }
-
-  await addDoc(collection(db, "patients"), {
-    ...payload,
-    createdAt: serverTimestamp(),
-  });
+function getBookingTimeRange(booking) {
+  if (!booking?.time) return "Not set";
+  const endTime = booking.estimatedEndTime
+    || minutesToTime(timeToMinutes(booking.time) + Number(booking.estimatedDurationMinutes || 60));
+  return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
 }
 
 function BookingCard({
@@ -105,6 +77,7 @@ function BookingCard({
   onDeclineReschedule,
 }) {
   const reschedule = booking.rescheduleRequest;
+  const appointmentTimeRange = getBookingTimeRange(booking);
 
   return (
     <li className="item detailedItem bookingShowcase">
@@ -139,7 +112,7 @@ function BookingCard({
           </div>
           <div className="detailBox luxeBox">
             <span className="detailLabel">Appointment time</span>
-            <strong>{formatTimeLabel(booking.time)}</strong>
+            <strong>{appointmentTimeRange}</strong>
           </div>
           <div className="detailBox luxeBox">
             <span className="detailLabel">Booked at</span>
@@ -210,6 +183,7 @@ export default function Bookings() {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [selectedCalendarCell, setSelectedCalendarCell] = useState(null);
+  const [actionError, setActionError] = useState("");
   const { status = "pending" } = useParams();
 
   useEffect(() => {
@@ -249,136 +223,34 @@ export default function Bookings() {
     return <Navigate to="/admin/bookings/pending" replace />;
   }
 
-  async function setStatus(id, nextStatus, bookingData) {
-    const payload = {
-      status: nextStatus,
-      statusUpdatedAt: serverTimestamp(),
-    };
-
-    if (nextStatus === "approved") {
-      payload.approvedAt = serverTimestamp();
+  async function runBookingAction(action) {
+    setActionError("");
+    try {
+      await action();
+    } catch (error) {
+      console.error(error);
+      setActionError(error?.message || "The booking action could not be completed.");
     }
+  }
 
-    await updateDoc(doc(db, "bookings", id), payload);
-
-    await logAdminAction({
-      action: "update_booking_status",
-      targetType: "booking",
-      targetId: id,
-      targetLabel: bookingData.fullName || bookingData.email || "Booking",
-      details: {
-        status: nextStatus,
-        service: bookingData.service || "",
-        date: bookingData.date || "",
-        time: bookingData.time || "",
-      },
-    });
-
-    if (nextStatus === "approved") {
-      await syncPatientRecordFromBooking({
-        ...bookingData,
-        status: nextStatus,
-        approvedAt: Timestamp.now(),
-      });
-    }
+  async function setStatus(id, nextStatus) {
+    await SET_BOOKING_STATUS({ bookingId: id, status: nextStatus });
   }
 
   async function toggleArchive(id) {
-    await updateDoc(doc(db, "bookings", id), {
-      archiveStatus: "Archived",
-    });
-
-    const booking = bookings.find((entry) => entry.id === id);
-    await logAdminAction({
-      action: "archive_booking",
-      targetType: "booking",
-      targetId: id,
-      targetLabel: booking?.fullName || booking?.email || "Booking",
-      details: {
-        service: booking?.service || "",
-        date: booking?.date || "",
-      },
-    });
+    await ARCHIVE_BOOKING({ bookingId: id });
   }
 
   async function toggleCheckIn(booking) {
-    const nextCheckedInAt = booking.checkedInAt ? null : Timestamp.now();
-
-    await updateDoc(doc(db, "bookings", booking.id), {
-      checkedInAt: nextCheckedInAt,
-    });
-
-    await logAdminAction({
-      action: booking.checkedInAt ? "clear_booking_check_in" : "mark_booking_check_in",
-      targetType: "booking",
-      targetId: booking.id,
-      targetLabel: booking.fullName || booking.email || "Booking",
-      details: {
-        date: booking.date || "",
-        time: booking.time || "",
-      },
-    });
-
-    if (booking.status === "approved") {
-      await syncPatientRecordFromBooking({
-        ...booking,
-        checkedInAt: nextCheckedInAt,
-      });
-    }
-  }
-
-  async function approveReschedule(booking) {
-    const request = booking.rescheduleRequest;
-    if (!request?.requestedDate || !request?.requestedTime) return;
-
-    const nextAppointment = new Date(`${request.requestedDate}T${request.requestedTime}:00`);
-
-    await updateDoc(doc(db, "bookings", booking.id), {
-      date: request.requestedDate,
-      time: request.requestedTime,
-      appointmentAt: Timestamp.fromDate(nextAppointment),
-      rescheduleRequest: {
-        ...request,
-        status: "approved",
-        reviewedAt: serverTimestamp(),
-      },
-      statusUpdatedAt: serverTimestamp(),
-    });
-
-    await logAdminAction({
-      action: "approve_reschedule_request",
-      targetType: "booking",
-      targetId: booking.id,
-      targetLabel: booking.fullName || booking.email || "Booking",
-      details: {
-        requestedDate: request.requestedDate,
-        requestedTime: request.requestedTime,
-      },
-    });
+    await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
   }
 
   async function declineReschedule(booking) {
-    const request = booking.rescheduleRequest;
-    if (!request) return;
+    await DECLINE_RESCHEDULE({ bookingId: booking.id });
+  }
 
-    await updateDoc(doc(db, "bookings", booking.id), {
-      rescheduleRequest: {
-        ...request,
-        status: "declined",
-        reviewedAt: serverTimestamp(),
-      },
-    });
-
-    await logAdminAction({
-      action: "decline_reschedule_request",
-      targetType: "booking",
-      targetId: booking.id,
-      targetLabel: booking.fullName || booking.email || "Booking",
-      details: {
-        requestedDate: request.requestedDate,
-        requestedTime: request.requestedTime,
-      },
-    });
+  async function approveReschedule(booking) {
+    await APPROVE_RESCHEDULE({ bookingId: booking.id });
   }
 
   const activeConfig = BOOKING_FILTERS[status];
@@ -392,7 +264,7 @@ export default function Bookings() {
     if (!confirmState?.action) return;
     const action = confirmState.action;
     setConfirmState(null);
-    await action();
+    await runBookingAction(action);
   }
 
   return (
@@ -452,6 +324,12 @@ export default function Bookings() {
           </div>
           <span className="badge">{status === "calendar" ? `${calendarCells.length} days` : `${activeItems.length} records`}</span>
         </div>
+
+        {actionError ? (
+          <div className="formError" role="alert">
+            {actionError}
+          </div>
+        ) : null}
 
         {status === "calendar" ? (
           <>
@@ -518,8 +396,8 @@ export default function Bookings() {
               <BookingCard
                 key={booking.id}
                 booking={booking}
-                onApprove={() => setStatus(booking.id, "approved", booking)}
-                onPending={() => setStatus(booking.id, "pending", booking)}
+                onApprove={() => runBookingAction(() => setStatus(booking.id, "approved"))}
+                onPending={() => runBookingAction(() => setStatus(booking.id, "pending"))}
                 onCheckIn={() =>
                   openConfirm({
                     title: booking.checkedInAt ? "Clear check-in?" : "Mark patient as checked in?",
@@ -536,7 +414,7 @@ export default function Bookings() {
                     message: "This booking will move to the cancelled section and no longer appear as active.",
                     confirmLabel: "Cancel Booking",
                     tone: "danger",
-                    action: () => setStatus(booking.id, "cancelled", booking),
+                    action: () => setStatus(booking.id, "cancelled"),
                   })
                 }
                 onArchive={() =>
@@ -548,8 +426,8 @@ export default function Bookings() {
                     action: () => toggleArchive(booking.id),
                   })
                 }
-                onApproveReschedule={() => approveReschedule(booking)}
-                onDeclineReschedule={() => declineReschedule(booking)}
+                onApproveReschedule={() => runBookingAction(() => approveReschedule(booking))}
+                onDeclineReschedule={() => runBookingAction(() => declineReschedule(booking))}
               />
             ))}
           </ul>
@@ -593,7 +471,7 @@ export default function Bookings() {
                       <div>
                         <strong>{booking.fullName || "No name"}</strong>
                         <p>
-                          {booking.service || "No service"} • {formatTimeLabel(booking.time)} • {booking.selectedDentist || "No dentist"}
+                          {booking.service || "No service"} • {getBookingTimeRange(booking)} • {booking.selectedDentist || "No dentist"}
                         </p>
                       </div>
                       <div className="historyMeta">

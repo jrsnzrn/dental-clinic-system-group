@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import CursorAura from "../components/CursorAura";
 import frontDeskPhoto from "../assets/home-clinic-frontdesk.jpg";
 import treatmentPhoto from "../assets/home-clinic-treatment.jpg";
 import lobbyWidePhoto from "../assets/home-clinic-lobby-wide.jpg";
@@ -7,7 +8,9 @@ import lobbyPhoto from "../assets/home-clinic-lobby.jpg";
 export default function Home() {
   return (
     <div className="container homePage">
-      <section className="homeLanding">
+      <CursorAura />
+
+      <section className="homeLanding" data-mascot-target="home-hero">
         <div className="homeLandingCopy">
           <span className="heroEyebrow">TopDent Dental Clinic</span>
           <h1>Just a clinic that feels warm, clean, and welcoming.</h1>
@@ -16,7 +19,7 @@ export default function Home() {
           </p>
 
           <div className="homeHeroActions">
-            <NavLink className="btn btnShine bookingPrimaryBtn" to="/book">
+            <NavLink className="btn btnShine bookingPrimaryBtn" to="/book" data-mascot-target="book">
               Book Appointment
             </NavLink>
             <NavLink className="btn secondary btnSoft" to="/about">
@@ -65,7 +68,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homeGalleryBand">
+      <section className="homeGalleryBand" data-mascot-target="home-gallery">
         <div className="homeGalleryIntro">
           <span className="heroEyebrow">Inside TopDent</span>
           <h2>A clinic space that feels lively, personal, and easy to return to.</h2>

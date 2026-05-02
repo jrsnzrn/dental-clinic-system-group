@@ -7,7 +7,8 @@ import {
   getDocs,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
@@ -18,6 +19,11 @@ import {
   formatTimeLabel,
   formatTimestamp,
 } from "../../utils/schedule";
+
+const RESTORE_BOOKING = httpsCallable(functions, "restoreBooking");
+const DELETE_ARCHIVED_BOOKING = httpsCallable(functions, "deleteArchivedBooking");
+const RESTORE_STAFF_ACCOUNT = httpsCallable(functions, "restoreStaffAccount");
+const DELETE_ARCHIVED_STAFF_ACCOUNT = httpsCallable(functions, "deleteArchivedStaffAccount");
 
 const ARCHIVE_FILTERS = {
   patients: {
@@ -189,14 +195,7 @@ export default function Archive() {
   }
 
   async function restoreBooking(id) {
-    await updateDoc(doc(db, "bookings", id), { archiveStatus: "Active" });
-    const booking = bookings.find((entry) => entry.id === id);
-    await logAdminAction({
-      action: "restore_booking",
-      targetType: "booking",
-      targetId: id,
-      targetLabel: booking?.fullName || booking?.email || "Booking",
-    });
+    await RESTORE_BOOKING({ bookingId: id });
     await load();
   }
 
@@ -213,14 +212,7 @@ export default function Archive() {
   }
 
   async function restoreAccount(id) {
-    await updateDoc(doc(db, "admins", id), { archiveStatus: "Active" });
-    const account = accounts.find((entry) => entry.id === id);
-    await logAdminAction({
-      action: "restore_staff_account",
-      targetType: "admin_account",
-      targetId: id,
-      targetLabel: account?.email || account?.name || "Staff account",
-    });
+    await RESTORE_STAFF_ACCOUNT({ uid: id });
     await load();
   }
 
@@ -232,6 +224,18 @@ export default function Archive() {
       bookings,
     };
     const target = (targetCollections[collectionName] || []).find((entry) => entry.id === id);
+    if (collectionName === "bookings") {
+      await DELETE_ARCHIVED_BOOKING({ bookingId: id });
+      await load();
+      return;
+    }
+
+    if (collectionName === "admins") {
+      await DELETE_ARCHIVED_STAFF_ACCOUNT({ uid: id });
+      await load();
+      return;
+    }
+
     await deleteDoc(doc(db, collectionName, id));
     await logAdminAction({
       action: "delete_archived_record",

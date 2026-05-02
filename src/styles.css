@@ -103,6 +103,7 @@ a:hover{ opacity: 0.9; }
   top: 0;
   z-index: 20;
   backdrop-filter: blur(14px);
+  overflow: visible;
   background: rgba(13,10,7,0.76);
   border-bottom: 1px solid var(--line);
 }
@@ -113,6 +114,7 @@ a:hover{ opacity: 0.9; }
   width: 248px;
   z-index: 40;
   padding: 14px;
+  overflow: hidden;
   border-right: 1px solid rgba(255,255,255,0.10);
   background:
     radial-gradient(circle at top left, rgba(79,209,197,0.14), transparent 26%),
@@ -124,13 +126,32 @@ a:hover{ opacity: 0.9; }
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+  isolation: isolate;
   gap: 14px;
   padding: 10px;
+  overflow: hidden;
   border-radius: 24px;
   border: 1px solid rgba(255,255,255,0.08);
   background:
     linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
     rgba(255,255,255,0.02);
+}
+
+.adminSidebar::before{
+  content: none;
+}
+
+.adminSidebarInner::before{
+  content: none;
+}
+
+.adminSidebarBrand,
+.adminSidebarMeta,
+.adminSidebarNav,
+.adminSidebarFooter{
+  position: relative;
+  z-index: 1;
 }
 
 .adminSidebarBrand{
@@ -345,6 +366,7 @@ a:hover{ opacity: 0.9; }
   align-items: center;
   gap: 12px;
   padding: 14px 22px;
+  overflow: visible;
   max-width: var(--maxw);
   margin: 0 auto;
   flex-wrap: wrap;
@@ -363,6 +385,7 @@ a:hover{ opacity: 0.9; }
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  overflow: visible;
 }
 
 .navLinksUtility{
@@ -408,6 +431,7 @@ a:hover{ opacity: 0.9; }
 
 .navMenuShell{
   display: contents;
+  overflow: visible;
 }
 
 .menuToggle{
@@ -685,10 +709,7 @@ html[data-theme="light"] .homeMosaicOverlay span{
 
 html[data-theme="blue"] .homeLandingCopy,
 html[data-theme="blue"] .homeGalleryBand{
-  background:
-    radial-gradient(circle at top left, rgba(79,209,197,0.20), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(59,130,246,0.20), transparent 30%),
-    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
 }
 
 html[data-theme="blue"] .homeRibbonCard,
@@ -698,9 +719,7 @@ html[data-theme="blue"] .homeAtmosphereCard,
 html[data-theme="blue"] .homeMosaicCard,
 html[data-theme="blue"] .homeMosaicQuote{
   border-color: rgba(96,165,250,0.18);
-  background:
-    radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 30%),
-    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
 }
 
 html[data-theme="light"] .bookingSectionCard,
@@ -1276,8 +1295,82 @@ html[data-theme="blue"] .aboutPhotoOverlay{
 }
 
 .homePage{
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 22px;
+}
+
+.homePage > *{
+  position: relative;
+  z-index: 1;
+}
+
+.homeCursorAura{
+  --auraOpacity: 0;
+  --auraPrimary: rgba(247,191,25,0.24);
+  --auraSecondary: rgba(255,228,196,0.20);
+  --auraCore: rgba(255,249,240,0.68);
+  --auraTrail: rgba(255,214,153,0.22);
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: var(--auraOpacity);
+  transition: opacity 220ms ease;
+}
+
+.homeCursorAuraLayer,
+.homeCursorAuraCore,
+.homeCursorAuraTrail{
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.homeCursorAuraLayer{
+  border-radius: 999px;
+  filter: blur(34px);
+  mix-blend-mode: screen;
+  opacity: 0.95;
+}
+
+.homeCursorAuraLayerPrimary{
+  width: clamp(180px, 20vw, 280px);
+  height: clamp(180px, 20vw, 280px);
+  background:
+    radial-gradient(circle, var(--auraPrimary) 0%, rgba(255,255,255,0.14) 38%, transparent 72%);
+}
+
+.homeCursorAuraLayerSecondary{
+  width: clamp(280px, 28vw, 420px);
+  height: clamp(280px, 28vw, 420px);
+  filter: blur(58px);
+  opacity: 0.72;
+  background:
+    radial-gradient(circle, var(--auraSecondary) 0%, rgba(255,255,255,0.06) 42%, transparent 76%);
+}
+
+.homeCursorAuraCore{
+  width: clamp(64px, 7vw, 96px);
+  height: clamp(64px, 7vw, 96px);
+  border-radius: 999px;
+  filter: blur(12px);
+  opacity: 0.72;
+  background:
+    radial-gradient(circle, var(--auraCore) 0%, rgba(255,255,255,0.08) 48%, transparent 78%);
+}
+
+.homeCursorAuraTrail{
+  width: clamp(24px, 3vw, 34px);
+  height: clamp(24px, 3vw, 34px);
+  border-radius: 999px;
+  filter: blur(10px);
+  background:
+    radial-gradient(circle, var(--auraTrail) 0%, rgba(255,255,255,0.04) 56%, transparent 78%);
+  opacity: 0;
 }
 
 .homeLanding{
@@ -1294,10 +1387,7 @@ html[data-theme="blue"] .aboutPhotoOverlay{
   padding: 34px;
   border-radius: 30px;
   border: 1px solid var(--line);
-  background:
-    radial-gradient(circle at top left, rgba(79,209,197,0.18), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(59,130,246,0.16), transparent 26%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
   box-shadow: var(--shadow);
 }
 
@@ -1357,9 +1447,7 @@ html[data-theme="blue"] .aboutPhotoOverlay{
   overflow: hidden;
   border-radius: 30px;
   border: 1px solid rgba(255,255,255,0.14);
-  background:
-    radial-gradient(circle at top right, rgba(79,209,197,0.14), transparent 30%),
-    rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.04);
   box-shadow: 0 22px 60px rgba(0,0,0,0.20);
 }
 
@@ -1431,9 +1519,7 @@ html[data-theme="blue"] .aboutPhotoOverlay{
   min-height: 306px;
   border-radius: 26px;
   border: 1px solid rgba(255,255,255,0.12);
-  background:
-    radial-gradient(circle at top right, rgba(96,165,250,0.16), transparent 28%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
   box-shadow: 0 18px 42px rgba(0,0,0,0.18);
 }
 
@@ -1453,9 +1539,7 @@ html[data-theme="blue"] .aboutPhotoOverlay{
   padding: 28px;
   border-radius: 30px;
   border: 1px solid var(--line);
-  background:
-    radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 22%),
-    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
   box-shadow: var(--shadow);
 }
 
@@ -1495,9 +1579,7 @@ html[data-theme="blue"] .aboutPhotoOverlay{
   min-height: 340px;
   border-radius: 26px;
   border: 1px solid rgba(255,255,255,0.12);
-  background:
-    radial-gradient(circle at bottom left, rgba(79,209,197,0.14), transparent 30%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
   box-shadow: 0 18px 42px rgba(0,0,0,0.18);
 }
 
@@ -1506,6 +1588,48 @@ html[data-theme="blue"] .aboutPhotoOverlay{
   font-size: 22px;
   line-height: 1.45;
   color: var(--text);
+}
+
+html[data-theme="light"] .homeCursorAura{
+  --auraPrimary: rgba(176,111,8,0.34);
+  --auraSecondary: rgba(214,145,54,0.28);
+  --auraCore: rgba(255,242,214,0.78);
+  --auraTrail: rgba(186,122,28,0.24);
+}
+
+html[data-theme="light"] .homeCursorAuraLayerPrimary{
+  width: clamp(240px, 26vw, 360px);
+  height: clamp(240px, 26vw, 360px);
+}
+
+html[data-theme="light"] .homeCursorAuraLayerSecondary{
+  width: clamp(360px, 34vw, 520px);
+  height: clamp(360px, 34vw, 520px);
+  filter: blur(68px);
+}
+
+html[data-theme="light"] .homeCursorAuraCore{
+  width: clamp(84px, 8vw, 120px);
+  height: clamp(84px, 8vw, 120px);
+}
+
+html[data-theme="light"] .homeCursorAuraTrail{
+  width: clamp(30px, 3.8vw, 42px);
+  height: clamp(30px, 3.8vw, 42px);
+}
+
+html[data-theme="blue"] .homeCursorAura{
+  --auraPrimary: rgba(79,209,197,0.24);
+  --auraSecondary: rgba(96,165,250,0.18);
+  --auraCore: rgba(235,248,255,0.64);
+  --auraTrail: rgba(125,211,252,0.18);
+}
+
+html[data-theme="dark"] .homeCursorAura{
+  --auraPrimary: rgba(247,191,25,0.20);
+  --auraSecondary: rgba(255,168,120,0.16);
+  --auraCore: rgba(255,244,224,0.62);
+  --auraTrail: rgba(255,200,122,0.18);
 }
 
 /* ================================
@@ -1987,6 +2111,12 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   align-items: flex-start;
 }
 
+.bookingDatePanelHeader .detailTitle{
+  display: block;
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
 .bookingDateHighlight{
   min-width: 190px;
   display: grid;
@@ -2005,16 +2135,76 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
   letter-spacing: 0.12em;
 }
 
+.bookingDateNavigator{
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 70px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.bookingDateNavButton{
+  min-height: 108px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.05)), rgba(255,255,255,0.03)),
+    var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease, color .16s ease;
+}
+
+.bookingDateNavButton span{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  gap: 4px;
+}
+
+.bookingDateNavButton:first-child span::before{
+  content: "<";
+  font-size: 16px;
+}
+
+.bookingDateNavButton:last-child span::after{
+  content: ">";
+  font-size: 16px;
+}
+
+.bookingDateNavButton:hover,
+.bookingDateNavButton:focus-visible{
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 28%, rgba(255,255,255,0.08)), color-mix(in srgb, var(--accent) 14%, rgba(255,255,255,0.03))),
+    var(--card2);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 12px 22px color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-4px) scale(1.03);
+  outline: none;
+}
+
+.bookingDateNavButton:active{
+  transform: translateY(-1px) scale(0.98);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.bookingDateNavButton:disabled{
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
 .bookingDateScroller{
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(84px, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
+  overflow: hidden;
 }
 
 .bookingDateChip{
@@ -2031,7 +2221,6 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
     rgba(255,255,255,0.03);
   color: var(--text);
   cursor: pointer;
-  scroll-snap-align: start;
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
 }
 
@@ -2086,11 +2275,240 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
     rgba(255,255,255,0.03);
 }
 
+.bookingFieldHeader{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.bookingFieldHint{
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.bookingAppointmentForm{
+  gap: 16px;
+}
+
+.bookingServiceSelector{
+  gap: 16px;
+  padding: 16px;
+}
+
+.bookingServiceHeaderText{
+  display: grid;
+  gap: 5px;
+}
+
+.bookingServiceHeaderText .bookingFieldHint{
+  margin: 0;
+}
+
+.bookingServiceCount{
+  align-self: start;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.bookingServiceOptionGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.bookingServiceOption{
+  min-height: 86px;
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  text-align: left;
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.bookingServiceOption span,
+.bookingServiceOption strong{
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bookingServiceOption strong{
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.bookingServiceOption span{
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.bookingServiceOption:hover{
+  border-color: rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.055);
+}
+
+.bookingServiceOption.active{
+  border-color: rgba(79,209,197,0.52);
+  background: rgba(79,209,197,0.12);
+  box-shadow: 0 0 0 2px rgba(79,209,197,0.12);
+}
+
+.bookingSelectShell{
+  position: relative;
+}
+
+.bookingSelectShell::after{
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(255,255,255,0.82);
+  border-bottom: 2px solid rgba(255,255,255,0.82);
+  transform: translateY(-65%) rotate(45deg);
+  pointer-events: none;
+}
+
 .bookingInputSpecial{
   min-height: 50px;
   border-radius: 14px;
-  background: rgba(8,14,28,0.88);
+  background-color: rgba(8,14,28,0.88);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  padding-right: 46px;
+}
+
+.bookingSelectShell .bookingInputSpecial{
+  background-image: none;
+}
+
+.bookingSelectShell .bookingInputSpecial::-ms-expand{
+  display: none;
+}
+
+.bookingCalendar{
+  display: grid;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.summaryCalendar{
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+}
+
+.bookingCalendarHeader{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.bookingCalendarHeader strong{
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+}
+
+.bookingCalendarControls{
+  display: flex;
+  gap: 8px;
+}
+
+.bookingCalendarControls button{
+  min-height: 36px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.bookingCalendarControls button:disabled{
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.bookingCalendarWeekdays,
+.bookingCalendarGrid{
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.bookingCalendarWeekdays span{
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.bookingCalendarDay{
+  min-height: 66px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.025);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.bookingCalendarDay strong{
+  font-size: 15px;
+  line-height: 1;
+}
+
+.bookingCalendarDay span{
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bookingCalendarDay.available{
+  border-color: rgba(79,209,197,0.28);
+  background: rgba(79,209,197,0.08);
+}
+
+.bookingCalendarDay.active{
+  border-color: rgba(79,209,197,0.62);
+  background: rgba(79,209,197,0.16);
+  box-shadow: 0 0 0 2px rgba(79,209,197,0.16);
+}
+
+.bookingCalendarDay.blocked,
+.bookingCalendarDay:disabled{
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.bookingCalendarDay.muted{
+  opacity: 0.28;
 }
 
 .bookingMiniSummary{
@@ -2112,6 +2530,61 @@ html[data-theme="blue"] .schedulerActions .archiveButton{
 
 .bookingMiniSummaryCard strong{
   font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.bookingRatesBox{
+  grid-column: 1 / -1;
+}
+
+.bookingRateList{
+  display: grid;
+  gap: 8px;
+}
+
+.bookingRateItem{
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 1.2fr);
+  gap: 10px;
+  align-items: start;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+}
+
+.bookingRateItem span{
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.bookingRateItem strong{
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.bookingServiceChips{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.bookingServiceChips span{
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bookingServiceChips span.active{
+  border-color: rgba(79,209,197,0.42);
+  background: rgba(79,209,197,0.10);
+  color: var(--text);
 }
 
 .bookingConsentCard{
@@ -2142,6 +2615,121 @@ html[data-theme="light"] .bookingConsentCard{
     rgba(255,255,255,0.84);
   border-color: rgba(168,123,26,0.16);
   color: #241807;
+}
+
+html[data-theme="light"] .bookingServiceOption,
+html[data-theme="light"] .bookingDateNavButton,
+html[data-theme="light"] .bookingCalendarControls button,
+html[data-theme="light"] .bookingCalendarDay,
+html[data-theme="light"] .bookingServiceChips span,
+html[data-theme="light"] .bookingRateItem,
+html[data-theme="light"] .summaryCalendar{
+  background: rgba(255,255,255,0.78);
+  border-color: rgba(168,123,26,0.16);
+  color: #241807;
+}
+
+html[data-theme="light"] .bookingSelectShell::after{
+  border-right-color: #2b1d07;
+  border-bottom-color: #2b1d07;
+}
+
+html[data-theme="light"] .summaryCalendar{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,249,238,0.92)),
+    #fffaf0;
+  box-shadow: 0 18px 34px rgba(168,123,26,0.08);
+}
+
+html[data-theme="light"] .bookingCalendarHeader strong{
+  color: #2b1d07;
+}
+
+html[data-theme="light"] .bookingCalendarWeekdays span,
+html[data-theme="light"] .bookingCalendarDay span{
+  color: rgba(95,69,22,0.64);
+}
+
+html[data-theme="light"] .bookingCalendarControls button{
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(168,123,26,0.18);
+  color: #5f4516;
+}
+
+html[data-theme="light"] .bookingDateNavButton:hover,
+html[data-theme="light"] .bookingDateNavButton:focus-visible{
+  border-color: rgba(168,123,26,0.42);
+  background:
+    linear-gradient(180deg, rgba(255,239,198,0.92), rgba(255,247,229,0.86)),
+    rgba(255,255,255,0.82);
+  box-shadow:
+    0 0 0 3px rgba(213,155,0,0.14),
+    0 12px 22px rgba(168,123,26,0.16);
+}
+
+html[data-theme="light"] .bookingServiceOption.active,
+html[data-theme="light"] .bookingServiceChips span.active,
+html[data-theme="light"] .bookingCalendarDay.available,
+html[data-theme="light"] .bookingCalendarDay.active{
+  border-color: rgba(168,123,26,0.36);
+  background: rgba(255,239,198,0.68);
+  box-shadow: 0 0 0 2px rgba(213,155,0,0.10);
+}
+
+html[data-theme="light"] .bookingServiceCount{
+  background: rgba(255,255,255,0.74);
+  border-color: rgba(168,123,26,0.16);
+  color: #241807;
+}
+
+html[data-theme="light"] .bookingDateChip{
+  border-color: rgba(168,123,26,0.14);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,249,238,0.86)),
+    #fffaf0;
+  color: #241807;
+  box-shadow: 0 10px 18px rgba(168,123,26,0.06);
+}
+
+html[data-theme="light"] .bookingDateChipDay,
+html[data-theme="light"] .bookingDateChipMonth{
+  color: rgba(95,69,22,0.66);
+}
+
+html[data-theme="light"] .bookingDateChip.active{
+  border-color: rgba(213,155,0,0.54);
+  background:
+    linear-gradient(180deg, rgba(255,245,214,0.98), rgba(255,236,182,0.92)),
+    #fff2cc;
+  box-shadow:
+    0 16px 28px rgba(168,123,26,0.12),
+    0 0 0 2px rgba(213,155,0,0.14);
+}
+
+html[data-theme="light"] .bookingCalendarDay{
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(168,123,26,0.12);
+}
+
+html[data-theme="light"] .bookingCalendarDay.available{
+  background: rgba(255,247,224,0.96);
+  border-color: rgba(213,155,0,0.24);
+}
+
+html[data-theme="light"] .bookingCalendarDay.active{
+  background:
+    linear-gradient(180deg, rgba(255,244,208,0.98), rgba(255,233,173,0.92)),
+    #fff0c2;
+  border-color: rgba(213,155,0,0.46);
+  box-shadow:
+    0 12px 20px rgba(168,123,26,0.10),
+    0 0 0 2px rgba(213,155,0,0.16);
+}
+
+html[data-theme="light"] .bookingCalendarDay:hover:not(:disabled),
+html[data-theme="light"] .bookingCalendarControls button:hover:not(:disabled){
+  border-color: rgba(213,155,0,0.34);
+  box-shadow: 0 10px 18px rgba(168,123,26,0.10);
 }
 
 .heroEyebrow{
@@ -3486,6 +4074,49 @@ button.calendarCell{
   align-items: center;
 }
 
+.bookingSuccessModal{
+  width: min(560px, 100%);
+}
+
+.bookingSuccessBody{
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.bookingSuccessBody strong{
+  display: block;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.bookingSuccessBody p{
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.bookingSuccessDetails{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bookingSuccessDetails span{
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+html[data-theme="light"] .bookingSuccessDetails span{
+  background: rgba(255,255,255,0.86);
+  border-color: rgba(168,123,26,0.16);
+}
+
 html[data-theme="light"] .calendarLegendItem{
   background: rgba(255,255,255,0.88);
   border-color: rgba(168,123,26,0.16);
@@ -4439,14 +5070,34 @@ select.input{
   -webkit-appearance: none;
   -moz-appearance: none;
   padding-right: 40px;
+  --selectArrowColor: rgba(255,255,255,0.7);
   background-image:
-    linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.7) 50%),
-    linear-gradient(135deg, rgba(255,255,255,0.7) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--selectArrowColor) 50%),
+    linear-gradient(135deg, var(--selectArrowColor) 50%, transparent 50%);
   background-position:
     calc(100% - 18px) 50%,
     calc(100% - 12px) 50%;
   background-size: 6px 6px, 6px 6px;
   background-repeat: no-repeat;
+}
+
+html[data-theme="light"] select.input,
+html[data-theme="light"] .bookingInputSpecial{
+  background: rgba(255,255,255,0.92);
+  background-color: rgba(255,255,255,0.92);
+  color: #241807;
+  border-color: rgba(168,123,26,0.16);
+  --selectArrowColor: #2b1d07;
+}
+
+html[data-theme="light"] select.input option{
+  background: #fffaf0;
+  color: #241807;
+}
+
+html[data-theme="light"] select.input option:checked{
+  background: rgba(255,239,198,0.92);
+  color: #241807;
 }
 
 /* ================================
@@ -4762,10 +5413,31 @@ select.input{
   object-fit: cover;
 }
 
+.bookingServicePreviewMedia img.cycling{
+  animation: servicePreviewSwap .42s ease both;
+}
+
+@keyframes servicePreviewSwap{
+  from{
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to{
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .bookingServicePreviewContent{
   display: grid;
   align-content: center;
   gap: 6px;
+}
+
+.bookingPreviewCounter{
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .bookingServicePreviewContent strong{
@@ -4795,6 +5467,114 @@ select.input{
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.serviceFeaturePanel{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.serviceDetailHeader{
+  display: grid;
+  gap: 8px;
+}
+
+.serviceDetailHeader .title{
+  margin: 0;
+}
+
+.serviceDetailHeader .sub{
+  margin: 0;
+}
+
+.serviceTypeBadge{
+  width: fit-content;
+}
+
+.serviceFeaturePanel .detailNote{
+  grid-column: 1 / -1;
+}
+
+.servicePriceCard{
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 94px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+}
+
+.servicePriceCard .detailLabel{
+  display: block;
+}
+
+.servicePriceCard strong{
+  display: block;
+  min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.serviceInsightGrid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.serviceInsightCard,
+.servicePlanningBlock{
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+}
+
+.serviceInsightCard p,
+.servicePlanningBlock p{
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.servicePlanningPanel{
+  display: grid;
+  gap: 12px;
+}
+
+.servicePlanningBlock{
+  display: grid;
+  gap: 6px;
+}
+
+.servicePlanningBlock strong{
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.serviceOverviewList .historyRow strong{
+  font-size: 13px;
+}
+
+.serviceChecklist{
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.serviceChecklist li{
+  list-style: none;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+  line-height: 1.55;
+  color: var(--muted);
 }
 
 /* arrows */
@@ -4836,6 +5616,18 @@ html[data-theme="light"] .serviceCard.isActive{
   box-shadow:
     0 34px 88px rgba(120,89,24,0.16),
     0 0 0 3px rgba(213,155,0,0.12);
+}
+
+html[data-theme="light"] .servicePriceCard{
+  background: rgba(255,255,255,0.80);
+  border-color: rgba(168,123,26,0.16);
+}
+
+html[data-theme="light"] .serviceInsightCard,
+html[data-theme="light"] .servicePlanningBlock,
+html[data-theme="light"] .serviceChecklist li{
+  background: rgba(255,255,255,0.84);
+  border-color: rgba(168,123,26,0.16);
 }
 
 html[data-theme="light"] .serviceMedia{
@@ -4919,6 +5711,13 @@ html[data-theme="blue"] .bookingServicePreviewCard{
   border-color: rgba(96,165,250,0.18);
 }
 
+html[data-theme="blue"] .serviceInsightCard,
+html[data-theme="blue"] .servicePlanningBlock,
+html[data-theme="blue"] .serviceChecklist li{
+  border-color: rgba(96,165,250,0.16);
+  background: rgba(15,23,42,0.54);
+}
+
 html[data-theme="dark"] .carouselBtn{
   background: linear-gradient(180deg, rgba(39,28,16,0.96), rgba(25,18,11,0.92));
   border-color: rgba(247,191,25,0.18);
@@ -4929,6 +5728,13 @@ html[data-theme="dark"] .carouselBtn{
 html[data-theme="dark"] .carouselBtn:hover{
   border-color: rgba(247,191,25,0.32);
   background: linear-gradient(180deg, rgba(58,42,22,0.98), rgba(31,22,13,0.94));
+}
+
+html[data-theme="dark"] .serviceInsightCard,
+html[data-theme="dark"] .servicePlanningBlock,
+html[data-theme="dark"] .serviceChecklist li{
+  border-color: rgba(247,191,25,0.14);
+  background: rgba(31,22,13,0.54);
 }
 
 /* hint row */
@@ -5442,8 +6248,12 @@ html[data-theme="blue"] .confirmModalBody p{
 
   .bookingFormCard,
   .bookingDetailsCard{
-    padding: 14px;
+    padding: 18px;
     border-radius: 20px;
+  }
+
+  .bookingAppointmentForm{
+    gap: 20px;
   }
 
   .bracesPaymentCard{
@@ -5461,16 +6271,28 @@ html[data-theme="blue"] .confirmModalBody p{
   }
 
   .bookingDatePanel{
-    padding: 14px;
+    padding: 16px;
     border-radius: 20px;
-    gap: 12px;
+    gap: 16px;
+  }
+
+  .bookingDateNavigator{
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bookingDateNavigator .bookingDateScroller{
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .bookingDateNavButton{
+    min-height: 42px;
+    border-radius: 12px;
   }
 
   .bookingDateScroller{
-    grid-auto-columns: minmax(78px, 82px);
-    gap: 8px;
-    margin-inline: -2px;
-    padding-inline: 2px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .bookingDateChip{
@@ -5483,10 +6305,42 @@ html[data-theme="blue"] .confirmModalBody p{
     font-size: 22px;
   }
 
+  .bookingSuccessDetails{
+    grid-template-columns: 1fr;
+  }
+
+  .bookingRateItem{
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
   .bookingFieldCard,
   .bookingMiniSummaryCard{
-    padding: 12px;
+    padding: 16px;
     border-radius: 16px;
+  }
+
+  .bookingServiceSelector{
+    gap: 16px;
+  }
+
+  .bookingFieldHeader{
+    display: grid;
+    gap: 10px;
+  }
+
+  .bookingServiceCount{
+    width: max-content;
+  }
+
+  .bookingServiceOptionGrid{
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .bookingServiceOption{
+    min-height: 78px;
+    padding: 15px 16px;
   }
 
   .bookingInputSpecial{
@@ -5524,6 +6378,8 @@ html[data-theme="blue"] .confirmModalBody p{
   .bookingDatePanelHeader,
   .bookingFlowGrid,
   .bookingMiniSummary,
+  .serviceFeaturePanel,
+  .serviceInsightGrid,
   .analyticsGrid,
   .progressGrid,
   .progressMiniGrid{

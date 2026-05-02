@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
+import Mascot from "./components/Mascot";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 import Home from "./pages/Home";
@@ -16,6 +17,7 @@ import MyDentalRecord from "./pages/MyDentalRecord";
 import About from "./pages/About";
 
 import Login from "./pages/admin/Login";
+import Mfa from "./pages/admin/Mfa";
 import Dashboard from "./pages/admin/Dashboard";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
@@ -138,6 +140,7 @@ export default function App() {
             <Route path="/privacy-policy" element={<Navigate to="/about" replace />} />
 
             <Route path="/admin/login" element={isAdmin ? adminRedirect : <Login />} />
+            <Route path="/admin/mfa" element={<Mfa />} />
 
             <Route
               path="/admin"
@@ -252,6 +255,7 @@ export default function App() {
         </div>
 
         <Footer isAdmin={isAdmin} theme={theme} onThemeChange={setTheme} />
+        <Mascot />
       </FirstVisitHomeGate>
     </BrowserRouter>
   );

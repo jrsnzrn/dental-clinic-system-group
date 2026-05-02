@@ -19,6 +19,8 @@ import {
   computeInstallmentAmount,
   formatCurrency,
   getCycleCountLabel,
+  getBracesAccountForPatient,
+  getBracesPaymentsForPatient,
   getDiscountRate,
   getInstallmentCount,
   getInstallmentLabel,
@@ -119,11 +121,8 @@ export default function Braces() {
     return patients
       .filter((patient) => patient.status !== "Archived")
       .map((patient) => {
-        const rawAccount =
-          accounts.find((account) => account.patientId === patient.id) ||
-          accounts.find((account) => account.id === patient.id) ||
-          null;
-        const accountPayments = payments.filter((payment) => payment.patientId === patient.id);
+        const rawAccount = getBracesAccountForPatient(accounts, patient);
+        const accountPayments = getBracesPaymentsForPatient(payments, patient, rawAccount);
         const accountAdjustments = adjustments
           .filter((adjustment) => adjustment.patientId === patient.id)
           .sort((a, b) => {

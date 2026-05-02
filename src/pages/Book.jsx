@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -9,13 +8,14 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  Timestamp,
 } from "firebase/firestore";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth, db } from "../firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase";
+import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
-import { getActiveClosureForDate, getBookingServiceOptions, getClinicServiceImage, hasPotentialDuplicateBooking } from "../utils/clinic";
+import { getActiveClosureForDate, getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
 import { buildFullName, splitFullName } from "../utils/names";
 import {
   formatDateLabel,
@@ -40,6 +40,17 @@ function isSunday(dateStr) {
   return d.getDay() === 0;
 }
 
+function timeToMinutes(timeStr = "") {
+  const [hourText = "0", minuteText = "0"] = String(timeStr).split(":");
+  return Number(hourText) * 60 + Number(minuteText);
+}
+
+function minutesToTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
 function generateSlots() {
   const slots = [];
   for (let h = 9; h <= 17; h += 1) {
@@ -57,7 +68,7 @@ function getEmptyProfile(email = "") {
     fullName: "",
     age: "",
     phone: "",
-    patientType: "Regular Patient",
+    patientType: "New Patient",
     email,
   };
 }
@@ -77,6 +88,15 @@ function generateUpcomingDates(startDate, count = 12) {
   return dates;
 }
 
+function getMonthStart(dateStr) {
+  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+  return new Date(base.getFullYear(), base.getMonth(), 1);
+}
+
+function addMonths(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
 export default function Book() {
   const [user, setUser] = useState(null);
   const [patientProfile, setPatientProfile] = useState(null);
@@ -85,12 +105,12 @@ export default function Book() {
   const [loadingDentists, setLoadingDentists] = useState(true);
   const [editingProfile, setEditingProfile] = useState(false);
 
-  const [service, setService] = useState("Cleaning");
+  const [selectedServices, setSelectedServices] = useState(["Cleaning"]);
   const [clinicServices, setClinicServices] = useState([]);
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [selectedDentist, setSelectedDentist] = useState("");
+  const [selectedDentistId, setSelectedDentistId] = useState("");
+  const [servicePreviewIndex, setServicePreviewIndex] = useState(0);
   const [date, setDate] = useState(toLocalISODate(new Date()));
   const [time, setTime] = useState("09:00");
   const [notes, setNotes] = useState("");
@@ -99,16 +119,57 @@ export default function Book() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [recentlySubmitted, setRecentlySubmitted] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => getMonthStart(toLocalISODate(new Date())));
+  const [datePageStart, setDatePageStart] = useState(toLocalISODate(new Date()));
+  const [slotOptions, setSlotOptions] = useState([]);
+  const [blockedRanges, setBlockedRanges] = useState([]);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [bookingConfirmation, setBookingConfirmation] = useState(null);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
 
   const todayStr = toLocalISODate(new Date());
-  const allSlots = useMemo(() => generateSlots(), []);
-  const upcomingDates = useMemo(() => generateUpcomingDates(new Date(), 12), []);
+  const getBookingAvailability = useMemo(
+    () => httpsCallable(functions, "getBookingAvailability"),
+    []
+  );
+  const createBooking = useMemo(
+    () => httpsCallable(functions, "createBooking"),
+    []
+  );
+  const upcomingDates = useMemo(() => generateUpcomingDates(new Date(`${datePageStart}T00:00:00`), 8), [datePageStart]);
   const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
   const selectedClosure = useMemo(() => getActiveClosureForDate(clinicClosures, date), [clinicClosures, date]);
-  const selectedServiceRecord = useMemo(
-    () => activeServiceOptions.find((entry) => entry.name === service) || null,
-    [activeServiceOptions, service]
+  const selectedServiceRecords = useMemo(
+    () => selectedServices
+      .map((name) => activeServiceOptions.find((entry) => entry.name === name))
+      .filter(Boolean),
+    [activeServiceOptions, selectedServices]
   );
+  const selectedServiceRecord = selectedServiceRecords[0] || null;
+  const previewServiceRecord = selectedServiceRecords[servicePreviewIndex] || selectedServiceRecord;
+  const service = selectedServices.join(", ");
+  const serviceDurationMinutes = selectedServiceRecords.reduce(
+    (total, entry) => total + Number(entry.durationMinutes || 0),
+    0
+  );
+  const appointmentDurationMinutes = serviceDurationMinutes || selectedServiceRecord?.durationMinutes || 60;
+  const selectedTimeEnd = time ? minutesToTime(timeToMinutes(time) + appointmentDurationMinutes) : "";
+  const selectedTimeRange = time ? `${formatTimeLabel(time)} - ${formatTimeLabel(selectedTimeEnd)}` : "";
+
+  useEffect(() => {
+    if (selectedServiceRecords.length <= 1) {
+      setServicePreviewIndex(0);
+      return undefined;
+    }
+
+    const timer = setInterval(() => {
+      setServicePreviewIndex((current) => (current + 1) % selectedServiceRecords.length);
+    }, 2400);
+
+    return () => clearInterval(timer);
+  }, [selectedServiceRecords.length]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -122,6 +183,13 @@ export default function Book() {
         setEditingProfile(false);
         setRecentlySubmitted(false);
         setAgreedToPrivacyConsent(false);
+        setSlotOptions([]);
+        setBlockedRanges([]);
+        setDuplicateWarning(false);
+        setAvailabilityError("");
+        setBookingConfirmation(null);
+        setSuccessModalOpen(false);
+        setSelectedDentistId("");
         return;
       }
 
@@ -145,7 +213,7 @@ export default function Book() {
             }),
             age: data.age || "",
             phone: data.phone || "",
-            patientType: data.patientType || "Regular Patient",
+            patientType: data.patientType || "New Patient",
             email: data.email || u.email || "",
           };
           setPatientProfile(nextProfile);
@@ -188,22 +256,31 @@ export default function Book() {
       setClinicClosures(snap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
     });
 
-    const unsubBookings = onSnapshot(collection(db, "bookings"), (snap) => {
-      setBookings(snap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    });
-
     return () => {
       unsubServices();
       unsubClosures();
-      unsubBookings();
     };
   }, []);
 
   useEffect(() => {
-    if (activeServiceOptions.length && !activeServiceOptions.some((entry) => entry.name === service)) {
-      setService(activeServiceOptions[0].name);
-    }
-  }, [activeServiceOptions, service]);
+    if (!activeServiceOptions.length) return;
+
+    setSelectedServices((current) => {
+      const stillAvailable = current.filter((name) =>
+        activeServiceOptions.some((entry) => entry.name === name)
+      );
+      return stillAvailable.length ? stillAvailable : [activeServiceOptions[0].name];
+    });
+  }, [activeServiceOptions]);
+
+  function toggleService(serviceName) {
+    setSelectedServices((current) => {
+      if (current.includes(serviceName)) {
+        return current.length === 1 ? current : current.filter((entry) => entry !== serviceName);
+      }
+      return [...current, serviceName];
+    });
+  }
 
   const availableDentists = useMemo(() => {
     return dentists.filter(
@@ -214,50 +291,156 @@ export default function Book() {
   }, [clinicClosures, date, dentists]);
 
   const selectedDentistRecord = useMemo(() => {
-    return dentists.find((dentist) => dentist.name === selectedDentist) || null;
-  }, [dentists, selectedDentist]);
+    return dentists.find((dentist) => dentist.id === selectedDentistId) || null;
+  }, [dentists, selectedDentistId]);
+  const selectedDentist = selectedDentistRecord?.name || "";
 
   const selectedDaySchedule = getDentistDaySchedule(selectedDentistRecord, date);
   const selectedAvailability = getClinicAvailability(selectedDentistRecord, date, clinicClosures);
-  const duplicateWarning = useMemo(
-    () => hasPotentialDuplicateBooking(bookings, { uid: user?.uid, date, service }),
-    [bookings, date, service, user?.uid]
-  );
+  const calendarCells = useMemo(() => {
+    const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const startOffset = firstDay.getDay();
+    const start = new Date(firstDay);
+    start.setDate(firstDay.getDate() - startOffset);
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      const iso = toLocalISODate(day);
+      const isCurrentMonth = day.getMonth() === calendarMonth.getMonth();
+      const closure = getActiveClosureForDate(clinicClosures, iso);
+      const hasDentist = selectedDentistRecord
+        ? getClinicAvailability(selectedDentistRecord, iso, clinicClosures).available
+        : dentists.some(
+            (dentist) =>
+              dentist.archiveStatus !== "Archived" &&
+              getClinicAvailability(dentist, iso, clinicClosures).available
+          );
+
+      return {
+        iso,
+        dayNumber: day.getDate(),
+        isCurrentMonth,
+        isSelected: iso === date,
+        isPast: iso < todayStr,
+        isSunday: isSunday(iso),
+        closure,
+        isAvailable: isCurrentMonth && iso >= todayStr && !isSunday(iso) && !closure && hasDentist,
+      };
+    });
+  }, [calendarMonth, clinicClosures, date, dentists, selectedDentistRecord, todayStr]);
+  const calendarMonthLabel = calendarMonth.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  useEffect(() => {
+    setCalendarMonth(getMonthStart(date));
+  }, [date]);
 
   useEffect(() => {
     if (!availableDentists.length) {
-      setSelectedDentist("");
+      setSelectedDentistId("");
       return;
     }
 
-    const stillAvailable = availableDentists.some((dentist) => dentist.name === selectedDentist);
+    const stillAvailable = availableDentists.some((dentist) => dentist.id === selectedDentistId);
     if (!stillAvailable) {
-      setSelectedDentist(availableDentists[0].name);
+      setSelectedDentistId(availableDentists[0].id);
     }
-  }, [availableDentists, selectedDentist]);
+  }, [availableDentists, selectedDentistId]);
 
-  const availableSlots = useMemo(() => {
-    const baseSlots =
-      date !== todayStr
-        ? allSlots
-        : allSlots.filter((slot) => {
-            const now = new Date();
-            const cur = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-            return slot >= cur;
-          });
-
-    if (!selectedDentist || !selectedDaySchedule?.active) return baseSlots;
-
-    return baseSlots.filter(
-      (slot) => slot >= selectedDaySchedule.start && slot < selectedDaySchedule.end
-    );
-  }, [allSlots, date, selectedDaySchedule, selectedDentist, todayStr]);
+  const availableSlots = useMemo(
+    () => slotOptions.filter((slot) => !slot.disabled).map((slot) => slot.value),
+    [slotOptions]
+  );
 
   useEffect(() => {
     if (!availableSlots.includes(time)) {
       setTime(availableSlots[0] || "09:00");
     }
   }, [availableSlots, time]);
+
+  useEffect(() => {
+    if (!user || !selectedDentistRecord?.id || !selectedServices.length || !date || isSunday(date) || selectedClosure) {
+      setSlotOptions([]);
+      setBlockedRanges([]);
+      setDuplicateWarning(false);
+      setAvailabilityError("");
+      setLoadingAvailability(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadAvailability() {
+      setLoadingAvailability(true);
+      setAvailabilityError("");
+
+      try {
+        await user.getIdToken();
+        const response = await getBookingAvailability({
+          dentistId: selectedDentistRecord.id,
+          date,
+          selectedServices,
+        });
+        if (cancelled) return;
+
+        const data = response.data || {};
+        setSlotOptions(Array.isArray(data.slotOptions) ? data.slotOptions : []);
+        setBlockedRanges(Array.isArray(data.blockedRanges) ? data.blockedRanges : []);
+        setDuplicateWarning(Boolean(data.duplicateWarning));
+      } catch (availabilityLoadError) {
+        if (cancelled) return;
+        console.error(availabilityLoadError);
+        setSlotOptions([]);
+        setBlockedRanges([]);
+        setDuplicateWarning(false);
+        if (availabilityLoadError?.code === "functions/resource-exhausted") {
+          setAvailabilityError("You're checking availability too quickly. Please wait a moment.");
+        } else if (availabilityLoadError?.code === "functions/unauthenticated") {
+          setAvailabilityError("Your secure booking session was not accepted. Please refresh the page or sign in again.");
+        } else {
+          setAvailabilityError("Could not load live appointment availability right now. Please try again.");
+        }
+      } finally {
+        if (!cancelled) setLoadingAvailability(false);
+      }
+    }
+
+    loadAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
+
+  function chooseCalendarDate(cell) {
+    if (!cell.isAvailable || saving || !user) return;
+    setDatePageStart(cell.iso);
+    setDate(cell.iso);
+  }
+
+  function moveCalendarMonth(amount) {
+    const nextMonth = addMonths(calendarMonth, amount);
+    const currentMonth = getMonthStart(todayStr);
+    if (nextMonth < currentMonth) return;
+    setCalendarMonth(nextMonth);
+  }
+
+  function moveSuggestedDates(amount) {
+    const nextStart = new Date(`${datePageStart}T00:00:00`);
+    nextStart.setDate(nextStart.getDate() + amount);
+    const nextIso = toLocalISODate(nextStart);
+    setDatePageStart(nextIso < todayStr ? todayStr : nextIso);
+  }
+
+  function getCalendarCellLabel(cell) {
+    if (cell.closure) return cell.closure.label;
+    if (cell.isSunday) return "Closed";
+    if (cell.isPast) return "Past";
+    if (!cell.isCurrentMonth) return "";
+    return cell.isAvailable ? "Available" : "Unavailable";
+  }
 
   async function loginGoogle() {
     setError("");
@@ -297,8 +480,7 @@ export default function Book() {
     }
 
     const normalizedFullName = buildFullName(profileDraft);
-    const nextProfile = {
-      uid: user.uid,
+    const baseProfile = {
       email: user.email || profileDraft.email || "",
       firstName: profileDraft.firstName.trim(),
       middleName: profileDraft.middleName.trim(),
@@ -306,23 +488,29 @@ export default function Book() {
       fullName: normalizedFullName,
       age: String(profileDraft.age).trim(),
       phone: profileDraft.phone.trim(),
-      patientType: profileDraft.patientType,
       updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
     };
+    const nextProfile = patientProfile
+      ? baseProfile
+      : {
+          ...baseProfile,
+          uid: user.uid,
+          patientType: "New Patient",
+          createdAt: serverTimestamp(),
+        };
 
     try {
       await setDoc(doc(db, "patientProfiles", user.uid), nextProfile, { merge: true });
 
       const savedProfile = {
-        firstName: nextProfile.firstName,
-        middleName: nextProfile.middleName,
-        lastName: nextProfile.lastName,
-        fullName: nextProfile.fullName,
-        age: nextProfile.age,
-        phone: nextProfile.phone,
-        patientType: nextProfile.patientType,
-        email: nextProfile.email,
+        firstName: baseProfile.firstName,
+        middleName: baseProfile.middleName,
+        lastName: baseProfile.lastName,
+        fullName: baseProfile.fullName,
+        age: baseProfile.age,
+        phone: baseProfile.phone,
+        patientType: patientProfile?.patientType || "New Patient",
+        email: baseProfile.email,
       };
 
       setPatientProfile(savedProfile);
@@ -355,16 +543,18 @@ export default function Book() {
     if (date < todayStr) return setError("You cannot book before today.");
     if (isSunday(date)) return setError("Clinic is closed on Sundays. Please choose Monday to Saturday.");
     if (selectedClosure) return setError(`${selectedClosure.label} blocks booking on ${formatDateLabel(date)}. Please choose another day.`);
+    if (!selectedServices.length) return setError("Please choose at least one service.");
     if (!time) return setError("Please choose a time.");
     if (!agreedToPrivacyConsent) {
       return setError("Please confirm the confidentiality and clinic-use consent before submitting.");
     }
-    if (!selectedDentist) return setError("No dentist is available on that day. Please choose another date.");
+    if (!selectedDentistId) return setError("No dentist is available on that day. Please choose another date.");
     if (!selectedDentistRecord || !selectedAvailability.available) {
       return setError("That dentist is inactive on the selected day. Please choose another dentist or date.");
     }
 
     const appointmentDate = new Date(`${date}T${time}:00`);
+    const requestedEnd = timeToMinutes(time) + appointmentDurationMinutes;
     const hour = appointmentDate.getHours();
     const minute = appointmentDate.getMinutes();
     const isBeforeOpen = hour < 9;
@@ -377,71 +567,51 @@ export default function Book() {
       return setError("That time already passed. Choose a later time.");
     }
 
-    const hasConflict = bookings.some((existing) => {
-      return (
-        existing.archiveStatus !== "Archived" &&
-        existing.status !== "cancelled" &&
-        existing.selectedDentist === selectedDentist &&
-        existing.date === date &&
-        existing.time === time
-      );
+    if (!availableSlots.includes(time)) {
+      return setError("That appointment slot is no longer available. Please choose another time.");
+    }
+
+    setBookingConfirmation({
+      appointmentDate,
+      requestedEnd,
+      requestedTimeRange: selectedTimeRange,
+      hasDuplicateWarning: duplicateWarning,
     });
+  }
 
-    if (hasConflict) {
-      return setError("That appointment slot is already taken for the selected dentist. Please choose a different time.");
-    }
+  async function confirmBookingSubmission() {
+    if (!bookingConfirmation || !user || !patientProfile || !selectedDentistRecord) return;
 
-    if (duplicateWarning) {
-      const shouldContinue = window.confirm(
-        "You already have another booking for the same service on this day. Do you still want to continue?"
-      );
-      if (!shouldContinue) return;
-    }
-
-    const confirmed = window.confirm(
-      `Submit this booking?\n\nPatient: ${patientProfile.fullName}\nService: ${service}\nDentist: ${selectedDentist}\nDate: ${formatDateLabel(date)}\nTime: ${formatTimeLabel(time)}`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+    setError("");
+    setSuccess("");
     setSaving(true);
     try {
-      await addDoc(collection(db, "bookings"), {
-        uid: user.uid,
-        patientProfileId: user.uid,
-        email: patientProfile.email || user.email || "",
-        firstName: patientProfile.firstName || "",
-        middleName: patientProfile.middleName || "",
-        lastName: patientProfile.lastName || "",
-        fullName: patientProfile.fullName,
-        patientKey: patientProfile.fullName.toLowerCase(),
-        age: patientProfile.age,
-        phone: patientProfile.phone,
-        patientType: patientProfile.patientType,
-        selectedDentist,
+      await createBooking({
         dentistId: selectedDentistRecord?.id || "",
-        service,
         date,
         time,
+        selectedServices,
         notes: notes.trim(),
         privacyConsentAccepted: true,
-        privacyConsentText:
-          "I agree that my personal and medical information will be kept confidential and used for dental and clinic purposes only.",
-        status: "pending",
-        checkedInAt: null,
-        appointmentAt: Timestamp.fromDate(appointmentDate),
-        createdAt: serverTimestamp(),
       });
 
+      setBookingConfirmation(null);
       setNotes("");
       setAgreedToPrivacyConsent(false);
       setSuccess("Booking submitted successfully. Your request is now waiting for admin approval.");
+      setSuccessModalOpen(true);
       setRecentlySubmitted(true);
     } catch (bookingError) {
       console.error(bookingError);
-      setError("Booking failed. Please try again.");
+      if (bookingError?.code === "functions/already-exists") {
+        setError("That appointment slot was just taken. Please choose another time.");
+      } else if (bookingError?.code === "functions/resource-exhausted") {
+        setError("You're submitting too quickly. Please wait a moment.");
+      } else if (bookingError?.code === "functions/unauthenticated") {
+        setError("Please sign in again before submitting your booking.");
+      } else {
+        setError(bookingError?.message || "Booking failed. Please try again.");
+      }
     } finally {
       setSaving(false);
     }
@@ -460,6 +630,7 @@ export default function Book() {
   }, [recentlySubmitted]);
 
   return (
+    <>
     <div className="container bookingPage">
       <div className="hero bookingHero">
         <div className="bookingHeroGlow" />
@@ -510,7 +681,7 @@ export default function Book() {
           ) : null}
 
           {!user ? (
-            <button className="btn btnShine bookingPrimaryBtn" onClick={loginGoogle} type="button">
+            <button className="btn btnShine bookingPrimaryBtn" onClick={loginGoogle} type="button" data-mascot-target="booking-auth">
               Sign in with Google to Start
             </button>
           ) : null}
@@ -518,10 +689,11 @@ export default function Book() {
           {user && loadingProfile ? <SkeletonList count={1} /> : null}
 
           {user && !loadingProfile && (editingProfile || !patientProfile) ? (
-            <form className="form" onSubmit={saveProfile} style={{ marginTop: 12 }}>
+            <form className="form" onSubmit={saveProfile} style={{ marginTop: 12 }} data-mascot-target="book-profile">
               <input
                 className="input"
                 placeholder="First name"
+                data-mascot-target="book-name"
                 value={profileDraft.firstName}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, firstName: e.target.value }))}
                 disabled={saving || loadingProfile}
@@ -563,17 +735,13 @@ export default function Book() {
 
               <input className="input" value={user.email || profileDraft.email} disabled />
 
-              <select
-                className="input"
-                value={profileDraft.patientType}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, patientType: e.target.value }))}
-                disabled={saving || loadingProfile}
-              >
-                <option>Regular Patient</option>
-                <option>Ortho Patient</option>
-              </select>
+              <label className="bookingFieldCard">
+                <span className="detailLabel">Patient type</span>
+                <input className="input" value={profileDraft.patientType || "New Patient"} disabled />
+                <span className="bookingFieldHint">Assigned by clinic staff after your profile is reviewed.</span>
+              </label>
 
-              <button className="btn btnShine bookingPrimaryBtn" disabled={saving || loadingProfile}>
+              <button className="btn btnShine bookingPrimaryBtn" disabled={saving || loadingProfile} data-mascot-target="book-profile-save">
                 {loadingProfile ? "Loading..." : "Save Patient Profile"}
               </button>
             </form>
@@ -586,7 +754,7 @@ export default function Book() {
                   <span className="detailLabel">Signed-in patient</span>
                   <strong className="detailTitle">{patientProfile.fullName}</strong>
                   <p className="detailSubtitle">
-                    Age {patientProfile.age || "-"} • {patientProfile.patientType} • {patientProfile.phone} • {patientProfile.email}
+                    Age {patientProfile.age || "-"} • Clinic-assigned type: {patientProfile.patientType} • {patientProfile.phone} • {patientProfile.email}
                   </p>
                 </div>
                 <button
@@ -598,31 +766,46 @@ export default function Book() {
                 </button>
               </div>
 
-              <form className="form" onSubmit={submit} style={{ marginTop: 12 }}>
-                <select
-                  className="input"
-                  value={service}
-                  onChange={(e) => setService(e.target.value)}
-                  disabled={!user || saving}
-                >
-                  {activeServiceOptions.length ? (
-                    activeServiceOptions.map((option) => (
-                      <option key={option.name} value={option.name}>
-                        {option.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="Cleaning">Cleaning</option>
-                  )}
-                </select>
+              <form className="form bookingAppointmentForm" onSubmit={submit} style={{ marginTop: 12 }}>
+                <div className="bookingFieldCard bookingServiceSelector" data-mascot-target="book-service">
+                  <div className="bookingFieldHeader">
+                    <div className="bookingServiceHeaderText">
+                      <span className="detailLabel">Choose services</span>
+                      <p className="bookingFieldHint">Select one or more services for this appointment.</p>
+                    </div>
+                    <strong className="bookingServiceCount">
+                      {selectedServices.length} selected
+                    </strong>
+                  </div>
 
-                <div className="bookingDatePanel">
+                  <div className="bookingServiceOptionGrid">
+                    {activeServiceOptions.map((option) => {
+                      const active = selectedServices.includes(option.name);
+
+                      return (
+                        <button
+                          key={option.name}
+                          type="button"
+                          className={`bookingServiceOption ${active ? "active" : ""}`}
+                          onClick={() => toggleService(option.name)}
+                          disabled={!user || saving}
+                          aria-pressed={active}
+                        >
+                          <span>{option.name}</span>
+                          <strong>{option.durationMinutes || 60} min</strong>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="bookingDatePanel" data-mascot-target="book-date">
                   <div className="bookingDatePanelHeader">
                     <div>
                       <span className="detailLabel">Choose appointment day</span>
                       <strong className="detailTitle">{formatDateLabel(date)}</strong>
                       <p className="detailSubtitle">
-                        Tap one of the suggested clinic days below or use the calendar for another date.
+                        Use the arrows to browse suggested clinic days, or choose from the summary calendar.
                       </p>
                     </div>
                     <div className="bookingDateHighlight">
@@ -631,42 +814,52 @@ export default function Book() {
                     </div>
                   </div>
 
-                  <div className="bookingDateScroller">
-                    {upcomingDates.map((optionDate) => {
-                      const optionDay = new Date(`${optionDate}T00:00:00`);
-                      const isSelected = optionDate === date;
+                  <div className="bookingDateNavigator">
+                    <button
+                      type="button"
+                      className="bookingDateNavButton"
+                      onClick={() => moveSuggestedDates(-7)}
+                      disabled={!user || saving || datePageStart <= todayStr}
+                      aria-label="Previous suggested appointment days"
+                    >
+                      <span>Prev</span>
+                    </button>
 
-                      return (
-                        <button
-                          key={optionDate}
-                          type="button"
-                          className={`bookingDateChip ${isSelected ? "active" : ""}`}
-                          onClick={() => setDate(optionDate)}
-                          disabled={!user || saving}
-                        >
-                          <span className="bookingDateChipDay">
-                            {optionDay.toLocaleDateString("en-US", { weekday: "short" })}
-                          </span>
-                          <strong>{optionDay.toLocaleDateString("en-US", { day: "2-digit" })}</strong>
-                          <span className="bookingDateChipMonth">
-                            {optionDay.toLocaleDateString("en-US", { month: "short" })}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                    <div className="bookingDateScroller">
+                      {upcomingDates.map((optionDate) => {
+                        const optionDay = new Date(`${optionDate}T00:00:00`);
+                        const isSelected = optionDate === date;
 
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Pick another date</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="date"
-                      value={date}
-                      min={todayStr}
-                      onChange={(e) => setDate(e.target.value)}
+                        return (
+                          <button
+                            key={optionDate}
+                            type="button"
+                            className={`bookingDateChip ${isSelected ? "active" : ""}`}
+                            onClick={() => setDate(optionDate)}
+                            disabled={!user || saving}
+                          >
+                            <span className="bookingDateChipDay">
+                              {optionDay.toLocaleDateString("en-US", { weekday: "short" })}
+                            </span>
+                            <strong>{optionDay.toLocaleDateString("en-US", { day: "2-digit" })}</strong>
+                            <span className="bookingDateChipMonth">
+                              {optionDay.toLocaleDateString("en-US", { month: "short" })}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="bookingDateNavButton"
+                      onClick={() => moveSuggestedDates(7)}
                       disabled={!user || saving}
-                    />
-                  </label>
+                      aria-label="Next suggested appointment days"
+                    >
+                      <span>Next</span>
+                    </button>
+                  </div>
                 </div>
 
                 {date && isSunday(date) ? (
@@ -679,50 +872,62 @@ export default function Book() {
                   <div className="detailNote historyPanel reschedulePanel attention">
                     <span className="detailLabel">Duplicate booking warning</span>
                     <p>
-                      You already have another <strong>{service}</strong> booking on <strong>{formatDateLabel(date)}</strong>. The clinic may reject same-day duplicate requests.
+                      You already have another booking for one of the selected services on <strong>{formatDateLabel(date)}</strong>. The clinic may review duplicate requests more carefully.
                     </p>
                   </div>
                 ) : null}
+                {availabilityError ? <div className="error">{availabilityError}</div> : null}
 
                 <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard">
+                  <label className="bookingFieldCard" data-mascot-target="book-dentist">
                     <span className="detailLabel">Available dentist</span>
-                    <select
-                      className="input bookingInputSpecial"
-                      value={selectedDentist}
-                      onChange={(e) => setSelectedDentist(e.target.value)}
-                      disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
-                    >
-                      {availableDentists.length ? (
-                        availableDentists.map((dentist) => (
-                          <option key={dentist.id} value={dentist.name}>
-                            {dentist.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">No dentist available on this day</option>
-                      )}
-                    </select>
+                    <div className="bookingSelectShell">
+                      <select
+                        className="input bookingInputSpecial"
+                        value={selectedDentistId}
+                        onChange={(e) => setSelectedDentistId(e.target.value)}
+                        disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
+                      >
+                        {availableDentists.length ? (
+                          availableDentists.map((dentist) => (
+                            <option key={dentist.id} value={dentist.id}>
+                              {dentist.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No dentist available on this day</option>
+                        )}
+                      </select>
+                    </div>
                   </label>
 
-                  <label className="bookingFieldCard">
+                  <label className="bookingFieldCard" data-mascot-target="book-time">
                     <span className="detailLabel">Choose time slot</span>
-                    <select
-                      className="input bookingInputSpecial"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !selectedDentist}
-                    >
-                      {availableSlots.length ? (
-                        availableSlots.map((slot) => (
-                          <option key={slot} value={slot}>
-                            {formatTimeLabel(slot)}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">No available times today</option>
-                      )}
-                    </select>
+                    <div className="bookingSelectShell">
+                      <select
+                        className="input bookingInputSpecial"
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                        disabled={!user || saving || loadingAvailability || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
+                      >
+                        {slotOptions.length ? (
+                          slotOptions.map((slot) => (
+                            <option key={slot.value} value={slot.value} disabled={slot.disabled}>
+                              {slot.disabled
+                                ? `${slot.label} (${slot.disabledReason})`
+                                : slot.label}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No available times today</option>
+                        )}
+                      </select>
+                    </div>
+                    <span className="bookingFieldHint">
+                      {loadingAvailability
+                        ? "Loading live slot availability..."
+                        : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"} for a ${appointmentDurationMinutes}-minute appointment`}
+                    </span>
                   </label>
                 </div>
 
@@ -734,7 +939,7 @@ export default function Book() {
                   />
                 ) : null}
 
-                {!loadingDentists && selectedDentist && !availableSlots.length && !isSunday(date) ? (
+                {!loadingDentists && selectedDentistId && !availableSlots.length && !isSunday(date) ? (
                   <EmptyState
                     compact
                     title="No available time slots"
@@ -742,14 +947,29 @@ export default function Book() {
                   />
                 ) : null}
 
+                {blockedRanges.length ? (
+                  <div className="detailNote historyPanel">
+                    <span className="detailLabel">Taken times for {selectedDentist || "this dentist"}</span>
+                    <div className="inlineActionRow" style={{ marginTop: 10 }}>
+                      {blockedRanges.map((range, index) => (
+                        <span key={`${range.start}-${range.end}-${index}`} className="statusPill active">
+                          {formatTimeLabel(range.start)} - {formatTimeLabel(range.end)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="bookingMiniSummary">
                   <div className="bookingMiniSummaryCard">
-                    <span className="detailLabel">Selected day</span>
-                    <strong>{formatDateLabel(date)}</strong>
+                    <span className="detailLabel">Services</span>
+                    <strong>
+                      {selectedServices.length} service{selectedServices.length === 1 ? "" : "s"}
+                    </strong>
                   </div>
                   <div className="bookingMiniSummaryCard">
                     <span className="detailLabel">Time slot</span>
-                    <strong>{time ? formatTimeLabel(time) : "Choose time"}</strong>
+                    <strong>{selectedTimeRange || "Choose time"}</strong>
                   </div>
                   <div className="bookingMiniSummaryCard">
                     <span className="detailLabel">Dentist</span>
@@ -766,7 +986,7 @@ export default function Book() {
                   disabled={!user || saving}
                 />
 
-                <label className="bookingConsentCard">
+                <label className="bookingConsentCard" data-mascot-target="book-consent">
                   <input
                     type="checkbox"
                     checked={agreedToPrivacyConsent}
@@ -780,7 +1000,8 @@ export default function Book() {
 
                 <button
                   className="btn btnShine bookingPrimaryBtn"
-                  disabled={!user || saving || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentist || !agreedToPrivacyConsent}
+                  data-mascot-target="book-submit"
+                  disabled={!user || saving || loadingAvailability || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
                 >
                   {saving ? "Submitting..." : recentlySubmitted ? "Booking Submitted" : "Submit Booking"}
                 </button>
@@ -791,13 +1012,29 @@ export default function Book() {
           {error ? <div className="error">{error}</div> : null}
         </div>
 
-        <div className="card bookingDetailsCard">
+        <div className="card bookingDetailsCard" data-mascot-target="booking-summary">
           <div className="cardHeader">
             <div>
               <h3 className="title">Appointment Summary</h3>
               <p className="sub">Review the key appointment details before you submit.</p>
             </div>
           </div>
+
+          <button
+            type="button"
+            className="mascotCurseCollectible mascotCurseCollectible-wand"
+            aria-label="Return the hidden wand"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("topdent:curse-item-found", {
+                  detail: { item: "wand", source: "book" },
+                })
+              );
+            }}
+          >
+            <span className="mascotCurseCollectibleStick" />
+            <span className="mascotCurseCollectibleStar" />
+          </button>
 
           {loadingProfile ? (
             <SkeletonList count={1} />
@@ -806,16 +1043,31 @@ export default function Book() {
             <div className="bookingServicePreviewCard">
               <div className="bookingServicePreviewMedia">
                 <img
-                  src={getClinicServiceImage(selectedServiceRecord || { name: service })}
-                  alt={service}
+                  src={getClinicServiceImage(previewServiceRecord || { name: selectedServices[0] || service })}
+                  alt={previewServiceRecord?.name || service}
                 />
               </div>
               <div className="bookingServicePreviewContent">
-                <span className="detailLabel">Selected service</span>
-                <strong>{service}</strong>
+                <span className="detailLabel">Selected services</span>
+                <strong>{previewServiceRecord?.name || "Choose service"}</strong>
                 <p>
-                  {selectedServiceRecord?.description || "This service is currently available for booking through the clinic scheduler."}
+                  {previewServiceRecord?.description || "These services are currently available for booking through the clinic scheduler."}
                 </p>
+                {selectedServiceRecords.length > 1 ? (
+                  <span className="bookingPreviewCounter">
+                    Showing {servicePreviewIndex + 1} of {selectedServiceRecords.length} selected services
+                  </span>
+                ) : null}
+                <div className="bookingServiceChips">
+                  {selectedServices.map((serviceName) => (
+                    <span
+                      key={serviceName}
+                      className={previewServiceRecord?.name === serviceName ? "active" : ""}
+                    >
+                      {serviceName}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -833,8 +1085,27 @@ export default function Book() {
                 <strong>{patientProfile?.age || "Complete sign-up first"}</strong>
               </div>
               <div className="detailBox luxeBox">
-                <span className="detailLabel">Service</span>
-                <strong>{service}</strong>
+                <span className="detailLabel">Services</span>
+                <strong>{selectedServices.length} selected</strong>
+              </div>
+              <div className="detailBox luxeBox bookingRatesBox">
+                <span className="detailLabel">Starting rates</span>
+                <div className="bookingRateList">
+                  {selectedServiceRecords.length ? (
+                    selectedServiceRecords.map((entry) => (
+                      <div key={entry.name} className="bookingRateItem">
+                        <span>{entry.name}</span>
+                        <strong>{entry.startingRate || "Ask clinic"}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <strong>Ask clinic</strong>
+                  )}
+                </div>
+              </div>
+              <div className="detailBox luxeBox">
+                <span className="detailLabel">Estimated duration</span>
+                <strong>{appointmentDurationMinutes} minutes</strong>
               </div>
               <div className="detailBox luxeBox">
                 <span className="detailLabel">Preferred dentist</span>
@@ -846,11 +1117,56 @@ export default function Book() {
               </div>
               <div className="detailBox luxeBox">
                 <span className="detailLabel">Appointment time</span>
-                <strong>{formatTimeLabel(time)}</strong>
+                <strong>{selectedTimeRange || "Choose time"}</strong>
               </div>
               <div className="detailBox luxeBox">
                 <span className="detailLabel">Dentist status</span>
-                <strong>{selectedDentist && selectedDaySchedule?.active ? "Active" : "Inactive"}</strong>
+                <strong>{selectedDentistId && selectedDaySchedule?.active ? "Active" : "Inactive"}</strong>
+              </div>
+            </div>
+
+            <div className="bookingCalendar summaryCalendar" data-mascot-target="booking-calendar">
+              <div className="bookingCalendarHeader">
+                <div>
+                  <span className="detailLabel">
+                    {selectedDentist ? `${selectedDentist} availability` : "Dentist availability"}
+                  </span>
+                  <strong>{calendarMonthLabel}</strong>
+                </div>
+                <div className="bookingCalendarControls">
+                  <button
+                    type="button"
+                    onClick={() => moveCalendarMonth(-1)}
+                    disabled={getMonthStart(todayStr).getTime() === calendarMonth.getTime()}
+                  >
+                    Prev
+                  </button>
+                  <button type="button" onClick={() => moveCalendarMonth(1)}>
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              <div className="bookingCalendarWeekdays">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+                  <span key={dayName}>{dayName}</span>
+                ))}
+              </div>
+
+              <div className="bookingCalendarGrid">
+                {calendarCells.map((cell) => (
+                  <button
+                    key={cell.iso}
+                    type="button"
+                    className={`bookingCalendarDay ${cell.isSelected ? "active" : ""} ${!cell.isCurrentMonth ? "muted" : ""} ${cell.isAvailable ? "available" : "blocked"}`}
+                    onClick={() => chooseCalendarDate(cell)}
+                    disabled={!user || saving || !cell.isAvailable}
+                    title={getCalendarCellLabel(cell)}
+                  >
+                    <strong>{cell.dayNumber}</strong>
+                    <span>{getCalendarCellLabel(cell)}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </>
@@ -858,5 +1174,56 @@ export default function Book() {
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      open={Boolean(bookingConfirmation)}
+      title="Submit booking request?"
+      message={
+        bookingConfirmation
+          ? `Patient: ${patientProfile?.fullName || "Patient"} | Services: ${service} | Dentist: ${selectedDentist || "Selected dentist"} | Date: ${formatDateLabel(date)} | Time: ${bookingConfirmation.requestedTimeRange}.${bookingConfirmation.hasDuplicateWarning ? " You already have another booking for one of these services on this day, so the clinic may review this request more carefully." : ""}`
+          : ""
+      }
+      confirmLabel={saving ? "Submitting..." : "Submit Booking"}
+      cancelLabel="Review Details"
+      onClose={() => {
+        if (!saving) setBookingConfirmation(null);
+      }}
+      onConfirm={saving ? undefined : confirmBookingSubmission}
+    />
+    {successModalOpen ? (
+      <div className="modalOverlay" onClick={() => setSuccessModalOpen(false)}>
+        <div className="modalCard bookingSuccessModal" onClick={(e) => e.stopPropagation()}>
+          <div className="modalHeader">
+            <div className="modalTitleGroup">
+              <span className="modalToneLabel">Booking sent</span>
+              <h3>Appointment request submitted</h3>
+            </div>
+            <button
+              className="modalClose"
+              type="button"
+              onClick={() => setSuccessModalOpen(false)}
+              aria-label="Close booking success dialog"
+            >
+              x
+            </button>
+          </div>
+          <div className="bookingSuccessBody">
+            <div>
+              <strong>Your request is waiting for admin approval.</strong>
+              <p>The clinic can now review the appointment details and update its status from the admin dashboard.</p>
+            </div>
+            <div className="bookingSuccessDetails">
+              <span>{formatDateLabel(date)}</span>
+              <span>{selectedTimeRange || "Selected time"}</span>
+              <span>{selectedDentist || "Selected dentist"}</span>
+              <span>{service || "Selected services"}</span>
+            </div>
+            <button className="btn btnShine" type="button" onClick={() => setSuccessModalOpen(false)}>
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

@@ -3,6 +3,14 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function normalizeText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizePhone(value) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
 export const PLAN_FREQUENCIES = [
   { value: "Monthly", label: "Monthly" },
   { value: "Biweekly", label: "Every 2 Weeks" },
@@ -140,15 +148,25 @@ export function buildBracesAccount(account = {}, payments = [], now = new Date()
       const bTime = String(b.paymentDate || b.createdAt?.seconds || "");
       return aTime < bTime ? 1 : -1;
     });
-
-  const amountPaid = normalizedPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const remainingBalance = Math.max(0, totalCost - amountPaid);
+  const storedAmountPaid = toNumber(account.amountPaid);
+  const hasLedgerPayments = normalizedPayments.length > 0;
+  const amountPaid = hasLedgerPayments
+    ? normalizedPayments.reduce((sum, payment) => sum + payment.amount, 0)
+    : storedAmountPaid;
+  const remainingBalance = hasLedgerPayments
+    ? Math.max(0, totalCost - amountPaid)
+    : Math.max(0, toNumber(account.remainingBalance) || Math.max(0, totalCost - amountPaid));
   const cyclesElapsed = getElapsedPaymentCycles(account.startDate, planFrequency, now);
-  const expectedPaidByNow = Math.min(
+  const computedExpectedPaidByNow = Math.min(
     totalCost,
     downPaymentExpected + cyclesElapsed * installmentAmount
   );
-  const overdueAmount = Math.max(0, expectedPaidByNow - amountPaid);
+  const expectedPaidByNow = hasLedgerPayments
+    ? computedExpectedPaidByNow
+    : Math.max(toNumber(account.expectedPaidByNow), computedExpectedPaidByNow);
+  const overdueAmount = hasLedgerPayments
+    ? Math.max(0, expectedPaidByNow - amountPaid)
+    : Math.max(0, toNumber(account.overdueAmount) || Math.max(0, expectedPaidByNow - amountPaid));
   const coveredInstallmentValue = Math.max(0, amountPaid - downPaymentExpected);
   const coveredCycles =
     installmentAmount > 0 ? Math.max(0, Math.floor(coveredInstallmentValue / installmentAmount)) : 0;
@@ -173,8 +191,15 @@ export function buildBracesAccount(account = {}, payments = [], now = new Date()
   } else {
     paymentState = "Overdue";
   }
+  if (!hasLedgerPayments && account.paymentState) {
+    paymentState = account.paymentState;
+  }
 
-  const progressPercent = totalCost > 0 ? Math.min(100, Math.round((amountPaid / totalCost) * 100)) : 0;
+  const progressPercent = hasLedgerPayments
+    ? totalCost > 0
+      ? Math.min(100, Math.round((amountPaid / totalCost) * 100))
+      : 0
+    : toNumber(account.progressPercent) || (totalCost > 0 ? Math.min(100, Math.round((amountPaid / totalCost) * 100)) : 0);
 
   return {
     ...account,
@@ -198,8 +223,68 @@ export function buildBracesAccount(account = {}, payments = [], now = new Date()
     overdueAmount,
     paymentState,
     progressPercent,
-    lastPayment: normalizedPayments[0] || null,
+    lastPayment: normalizedPayments[0] || (account.lastPaymentAt ? { paymentDate: account.lastPaymentAt } : null),
     isOverdue: paymentState === "Overdue",
     nextDueDate,
   };
+}
+
+export function doesBracesAccountMatchPatient(account = {}, patient = {}) {
+  if (!account || !patient) return false;
+
+  const accountId = normalizeText(account.id || account.patientId);
+  const patientId = normalizeText(patient.id);
+  if (accountId && patientId && accountId === patientId) {
+    return true;
+  }
+
+  const accountUid = normalizeText(account.uid);
+  const patientUid = normalizeText(patient.uid);
+  if (accountUid && patientUid && accountUid === patientUid) {
+    return true;
+  }
+
+  const accountEmail = normalizeText(account.patientEmail || account.email);
+  const patientEmail = normalizeText(patient.email);
+  if (accountEmail && patientEmail && accountEmail === patientEmail) {
+    return true;
+  }
+
+  const accountPhone = normalizePhone(account.patientPhone || account.phone);
+  const patientPhone = normalizePhone(patient.phone);
+  if (accountPhone && patientPhone && accountPhone === patientPhone) {
+    return true;
+  }
+
+  const accountName = normalizeText(account.patientName || account.name);
+  const patientName = normalizeText(patient.name);
+  return Boolean(accountName && patientName && accountName === patientName);
+}
+
+export function getBracesAccountForPatient(accounts = [], patient = {}) {
+  return accounts.find((account) => doesBracesAccountMatchPatient(account, patient)) || null;
+}
+
+export function getBracesPaymentsForPatient(payments = [], patient = {}, account = null) {
+  return payments.filter((payment) => {
+    const paymentPatientId = normalizeText(payment.patientId);
+    const patientId = normalizeText(patient.id);
+    if (paymentPatientId && patientId && paymentPatientId === patientId) {
+      return true;
+    }
+
+    const paymentUid = normalizeText(payment.uid);
+    const patientUid = normalizeText(patient.uid);
+    if (paymentUid && patientUid && paymentUid === patientUid) {
+      return true;
+    }
+
+    const accountId = normalizeText(account?.id || account?.patientId);
+    const paymentAccountId = normalizeText(payment.accountId);
+    if (accountId && paymentAccountId && accountId === paymentAccountId) {
+      return true;
+    }
+
+    return false;
+  });
 }

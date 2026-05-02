@@ -1,8 +1,11 @@
 import clinicPhoto from "../assets/about-clinic.jpg";
+import CursorAura from "../components/CursorAura";
 
 export default function About() {
   return (
     <div className="container bookingPage">
+      <CursorAura />
+
       <div className="hero bookingHero">
         <div className="bookingHeroGlow" />
         <div className="bookingHeroGrid">

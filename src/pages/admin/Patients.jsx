@@ -9,12 +9,19 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { auth, db } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { getAuditActionLabel, logAdminAction } from "../../utils/audit";
-import { buildBracesAccount, formatCurrency } from "../../utils/braces";
+import {
+  buildBracesAccount,
+  formatCurrency,
+  getBracesAccountForPatient,
+  getBracesPaymentsForPatient,
+} from "../../utils/braces";
 import { buildFullName, splitFullName } from "../../utils/names";
 import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, isInactivePatient, normalizeName } from "../../utils/appointments";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
@@ -37,7 +44,7 @@ function getEmptyDraft() {
     age: "",
     phone: "",
     email: "",
-    patientType: "Regular Patient",
+    patientType: "New Patient",
     status: "Active",
   };
 }
@@ -297,7 +304,7 @@ export default function Patients() {
       age: selectedPatient.age || "",
       phone: selectedPatient.phone || "",
       email: selectedPatient.email || "",
-      patientType: selectedPatient.patientType || "Regular Patient",
+      patientType: selectedPatient.patientType || "New Patient",
       status: selectedPatient.status || "Active",
     });
     setTreatmentDraft(emptyTreatmentDraft());
@@ -341,6 +348,23 @@ export default function Patients() {
       patientType: draft.patientType,
       status: draft.status,
     });
+
+    if (selectedPatient?.uid) {
+      await setDoc(
+        doc(db, "patientProfiles", selectedPatient.uid),
+        {
+          firstName: draft.firstName.trim(),
+          middleName: draft.middleName.trim(),
+          lastName: draft.lastName.trim(),
+          fullName: fullName,
+          age: String(draft.age).trim(),
+          phone: draft.phone.trim(),
+          email: draft.email.trim(),
+          patientType: draft.patientType,
+        },
+        { merge: true }
+      );
+    }
 
     await logAdminAction({
       action: "update_patient_profile",
@@ -575,18 +599,20 @@ export default function Patients() {
 
     let bracesSummary = null;
     if (patient.id) {
-      const bracesAccountSnap = await getDoc(doc(db, "bracesAccounts", patient.id));
-      if (bracesAccountSnap.exists()) {
-        const paymentsSnap = await getDocs(collection(db, "bracesPayments"));
-        const matchingPayments = paymentsSnap.docs
-          .map((entry) => ({ id: entry.id, ...entry.data() }))
-          .filter(
-            (entry) =>
-              entry.patientId === patient.id ||
-              (patient.uid && entry.uid && entry.uid === patient.uid)
-          );
+      const [bracesAccountsSnap, paymentsSnap] = await Promise.all([
+        getDocs(collection(db, "bracesAccounts")),
+        getDocs(collection(db, "bracesPayments")),
+      ]);
+      const bracesAccounts = bracesAccountsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      const matchedAccount = getBracesAccountForPatient(bracesAccounts, patient);
 
-        bracesSummary = buildBracesAccount(bracesAccountSnap.data(), matchingPayments);
+      if (matchedAccount) {
+        const matchingPayments = getBracesPaymentsForPatient(
+          paymentsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() })),
+          patient,
+          matchedAccount
+        );
+        bracesSummary = buildBracesAccount(matchedAccount, matchingPayments);
       }
     }
 
@@ -597,7 +623,7 @@ export default function Patients() {
             <td>${payment.paymentDate ? formatDateLabel(payment.paymentDate) : "No date"}</td>
             <td>${formatCurrency(payment.amount)}</td>
             <td>${payment.method || "Cash"}</td>
-            <td>${payment.note || "No note"}</td>
+            <td>${payment.note || payment.notes || "No note"}</td>
           </tr>
         `
       )
@@ -694,7 +720,7 @@ export default function Patients() {
             <div class="card"><div class="label">Age</div><strong>${patient.age || "-"}</strong></div>
             <div class="card"><div class="label">Phone</div><strong>${patient.phone || "-"}</strong></div>
             <div class="card"><div class="label">Email</div><strong>${patient.email || "-"}</strong></div>
-            <div class="card"><div class="label">Patient type</div><strong>${patient.patientType || "Regular Patient"}</strong></div>
+            <div class="card"><div class="label">Patient type</div><strong>${patient.patientType || "New Patient"}</strong></div>
             <div class="card"><div class="label">Record status</div><strong>${patient.status || "Active"}</strong></div>
             <div class="card"><div class="label">Preferred dentist</div><strong>${patient.preferredDentist || latestVisit?.selectedDentist || "No dentist yet"}</strong></div>
             <div class="card"><div class="label">Latest service</div><strong>${patient.latestService || latestVisit?.service || "No service yet"}</strong></div>
@@ -1160,6 +1186,7 @@ export default function Patients() {
                   <input className="input" placeholder="Phone" value={draft.phone} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, phone: e.target.value }))} />
                   <input className="input" placeholder="Email" value={draft.email} readOnly={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))} />
                   <select className="input" value={draft.patientType} disabled={!canEditPatientProfile} onChange={(e) => setDraft((current) => ({ ...current, patientType: e.target.value }))}>
+                    <option>New Patient</option>
                     <option>Regular Patient</option>
                     <option>Ortho Patient</option>
                   </select>
@@ -1418,7 +1445,7 @@ export default function Patients() {
                       <div>
                         <strong className="detailTitle">{patient.name}</strong>
                         <p className="detailSubtitle">
-                          Age {patient.age || "-"} • {patient.patientType || "Regular Patient"} • {patient.phone || "No phone"}
+                          Age {patient.age || "-"} • {patient.patientType || "New Patient"} • {patient.phone || "No phone"}
                         </p>
                       </div>
                       <div className="statusStack">
@@ -1531,3 +1558,4 @@ export default function Patients() {
     </div>
   );
 }
+

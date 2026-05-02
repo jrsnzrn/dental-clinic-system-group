@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
+const GET_STAFF_ACCOUNTS = httpsCallable(functions, "getStaffAccounts");
 const SET_STAFF_DISABLED = httpsCallable(functions, "setStaffAccountDisabled");
+const ARCHIVE_STAFF_ACCOUNT = httpsCallable(functions, "archiveStaffAccount");
+const SET_STAFF_MFA_REQUIRED = httpsCallable(functions, "setStaffMfaRequired");
 
 function emptyDraft() {
   return {
@@ -23,37 +26,65 @@ export default function Accounts() {
   const [listError, setListError] = useState("");
   const [success, setSuccess] = useState("");
   const [created, setCreated] = useState(null);
+  const [adminAccounts, setAdminAccounts] = useState([]);
   const [staffAccounts, setStaffAccounts] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [updatingAccountId, setUpdatingAccountId] = useState("");
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, "admins"),
-      (snapshot) => {
-        setListError("");
-        setStaffAccounts(
-          snapshot.docs
-            .map((entry) => ({ id: entry.id, ...entry.data() }))
-            .filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST)
-            .filter((entry) => entry.archiveStatus !== "Archived")
-            .sort((a, b) => {
-              const aTime = a.createdAt?.seconds || 0;
-              const bTime = b.createdAt?.seconds || 0;
-              return bTime - aTime;
-            })
-        );
-        setLoadingStaff(false);
-      },
-      (err) => {
-        setListError(err?.message || "Could not load staff accounts.");
-        setStaffAccounts([]);
-        setLoadingStaff(false);
-        console.error(err);
-      }
-    );
+  function normalizeStaffAccount(entry) {
+    return {
+      ...entry,
+      createdAt: entry.createdAt?.toDate ? entry.createdAt.toDate().toISOString() : entry.createdAt || null,
+      mfaVerifiedUntil: entry.mfaVerifiedUntil?.toDate
+        ? entry.mfaVerifiedUntil.toDate().toISOString()
+        : entry.mfaVerifiedUntil || null,
+      mfaLastVerifiedAt: entry.mfaLastVerifiedAt?.toDate
+        ? entry.mfaLastVerifiedAt.toDate().toISOString()
+        : entry.mfaLastVerifiedAt || null,
+    };
+  }
 
-    return () => unsubscribe();
+  async function loadStaffAccountsFromFirestore() {
+    const snapshot = await getDocs(query(collection(db, "admins"), orderBy("createdAt", "desc")));
+    return snapshot.docs.map((entry) => normalizeStaffAccount({ id: entry.id, ...entry.data() }));
+  }
+
+  async function loadStaffAccounts() {
+    try {
+      setLoadingStaff(true);
+      setListError("");
+      let accounts = [];
+
+      try {
+        const result = await GET_STAFF_ACCOUNTS();
+        accounts = Array.isArray(result.data) ? result.data : [];
+      } catch (callableError) {
+        console.error("getStaffAccounts callable failed, using Firestore read fallback:", callableError);
+        accounts = await loadStaffAccountsFromFirestore();
+      }
+
+      setStaffAccounts(
+        accounts
+          .filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST)
+          .filter((entry) => entry.archiveStatus !== "Archived")
+      );
+      setAdminAccounts(
+        accounts
+          .filter((entry) => entry.role === ROLES.ADMIN)
+          .filter((entry) => entry.archiveStatus !== "Archived")
+      );
+    } catch (err) {
+      setListError(err?.message || "Could not load staff accounts.");
+      setStaffAccounts([]);
+      setAdminAccounts([]);
+      console.error(err);
+    } finally {
+      setLoadingStaff(false);
+    }
+  }
+
+  useEffect(() => {
+    loadStaffAccounts();
   }, []);
 
   async function handleSubmit(event) {
@@ -79,6 +110,7 @@ export default function Accounts() {
       setCreated(result.data || null);
       setSuccess(`${ROLE_LABELS[draft.role]} account created successfully.`);
       setDraft(emptyDraft());
+      await loadStaffAccounts();
     } catch (err) {
       setFormError(err?.message || "Could not create the staff account.");
       console.error(err);
@@ -101,6 +133,7 @@ export default function Accounts() {
           account.disabled ? "enabled" : "disabled"
         } successfully.`
       );
+      await loadStaffAccounts();
     } catch (err) {
       setListError(err?.message || "Could not update the staff account status.");
       console.error(err);
@@ -119,12 +152,37 @@ export default function Accounts() {
       setListError("");
       setSuccess("");
       setUpdatingAccountId(account.id);
-      await updateDoc(doc(db, "admins", account.id), {
-        archiveStatus: "Archived",
-      });
+      await ARCHIVE_STAFF_ACCOUNT({ uid: account.id });
       setSuccess(`${account.email || account.name || "Staff account"} archived successfully.`);
+      await loadStaffAccounts();
     } catch (err) {
       setListError(err?.message || "Could not archive the staff account.");
+      console.error(err);
+    } finally {
+      setUpdatingAccountId("");
+    }
+  }
+
+  async function toggleStaffMfa(account) {
+    const isAdministrator = account.role === ROLES.ADMIN;
+    const nextMfaEnabled = isAdministrator ? true : account.mfaEnabled !== true;
+
+    try {
+      setListError("");
+      setSuccess("");
+      setUpdatingAccountId(account.id);
+      await SET_STAFF_MFA_REQUIRED({
+        uid: account.id,
+        mfaEnabled: nextMfaEnabled,
+      });
+      setSuccess(
+        `${account.email || account.name || "Staff account"} MFA ${
+          nextMfaEnabled ? "turned on" : "turned off"
+        } successfully.`
+      );
+      await loadStaffAccounts();
+    } catch (err) {
+      setListError(err?.message || "Could not update staff MFA.");
       console.error(err);
     } finally {
       setUpdatingAccountId("");
@@ -204,6 +262,48 @@ export default function Accounts() {
       <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
         <div className="cardHeader">
           <div>
+            <h3 className="title">Administrator MFA</h3>
+            <p className="sub">Require email verification for administrator accounts after password login.</p>
+          </div>
+          <span className="badge">{loadingStaff ? "Loading..." : `${adminAccounts.length} admin`}</span>
+        </div>
+
+        <ul className="list detailedList">
+          {!loadingStaff && adminAccounts.map((account) => (
+            <li key={account.id} className="item detailedItem bookingShowcase">
+              <div className="detailContent">
+                <div className="detailTopRow">
+                  <div>
+                    <strong className="detailTitle">{account.name || account.email || "Administrator"}</strong>
+                    <p className="detailSubtitle">{account.email || "No email saved"}</p>
+                  </div>
+                  <span className={`statusPill ${account.mfaEnabled ? "approved" : "active"}`}>
+                    {account.mfaEnabled ? "MFA on" : "MFA repair needed"}
+                  </span>
+                </div>
+              </div>
+              <div className="actionColumn">
+                {account.mfaEnabled ? (
+                  <span className="badge">Admin MFA is mandatory</span>
+                ) : (
+                  <button
+                    className="btn secondary btnSoft"
+                    type="button"
+                    onClick={() => toggleStaffMfa(account)}
+                    disabled={updatingAccountId === account.id}
+                  >
+                    {updatingAccountId === account.id ? "Updating..." : "Repair Admin MFA"}
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
+        <div className="cardHeader">
+          <div>
             <h3 className="title">Staff Access Control</h3>
             <p className="sub">Enable or disable dentist and receptionist accounts without showing administrator records here.</p>
           </div>
@@ -249,6 +349,9 @@ export default function Accounts() {
                   <span className={`statusPill ${account.disabled ? "cancelled" : "approved"}`}>
                     {account.disabled ? "disabled" : "active"}
                   </span>
+                  <span className={`statusPill ${account.mfaEnabled ? "approved" : "active"}`}>
+                    {account.mfaEnabled ? "MFA on" : "MFA off"}
+                  </span>
                 </div>
                 <div className="detailGrid accountGrid" style={{ marginTop: 12 }}>
                   <div className="detailBox">
@@ -270,6 +373,18 @@ export default function Accounts() {
                 </div>
               </div>
               <div className="actionColumn">
+                <button
+                  className="btn secondary btnSoft"
+                  type="button"
+                  onClick={() => toggleStaffMfa(account)}
+                  disabled={updatingAccountId === account.id}
+                >
+                  {updatingAccountId === account.id
+                    ? "Updating..."
+                    : account.mfaEnabled
+                      ? "Turn MFA Off"
+                      : "Require MFA"}
+                </button>
                 <button
                   className={`btn ${account.disabled ? "patientEditBtn" : "actionPending"}`}
                   type="button"

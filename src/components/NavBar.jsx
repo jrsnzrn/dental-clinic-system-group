@@ -138,7 +138,7 @@ export default function NavBar({
             <div className="adminSidebarFooter">
               {adminRole ? <span className="badge roleBadge adminSidebarRole">{ROLE_LABELS[adminRole]}</span> : null}
               {user ? (
-                <button className="btn secondary adminSidebarLogout" onClick={logout} type="button">
+                <button className="btn secondary adminSidebarLogout" onClick={logout} type="button" data-mascot-target="nav-logout">
                   Logout
                 </button>
               ) : null}
@@ -170,9 +170,9 @@ export default function NavBar({
           <div className={`navMenuShell ${menuOpen ? "open" : ""}`}>
             <div className={`navLinks navLinksPrimary ${menuOpen ? "open" : ""}`}>
               <NavLink to="/" className={navClass} onClick={() => setMenuOpen(false)}>Home</NavLink>
-              <NavLink to="/services" className={navClass} onClick={() => setMenuOpen(false)}>Services</NavLink>
-              <NavLink to="/contact" className={navClass} onClick={() => setMenuOpen(false)}>Contact</NavLink>
-              <NavLink to="/book" className={navClass} onClick={() => setMenuOpen(false)}>Book</NavLink>
+              <NavLink to="/services" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-services">Services</NavLink>
+              <NavLink to="/contact" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-contact">Contact</NavLink>
+              <NavLink to="/book" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-book">Book</NavLink>
               <NavLink to="/about" className={navClass} onClick={() => setMenuOpen(false)}>About Us</NavLink>
               {user && <NavLink to="/my-appointments" className={navClass} onClick={() => setMenuOpen(false)}>My Appointments</NavLink>}
               {user && <NavLink to="/my-record" className={navClass} onClick={() => setMenuOpen(false)}>My Record</NavLink>}
@@ -181,7 +181,7 @@ export default function NavBar({
 
           {user && (
             <div className="navLinks navLinksUtility navUtilityStandalone">
-              <button className="navItem" onClick={logout} type="button">
+              <button className="navItem" onClick={logout} type="button" data-mascot-target="nav-logout">
                 Logout
               </button>
             </div>

@@ -1,3 +1,5 @@
+import CursorAura from "../components/CursorAura";
+
 export default function Contact() {
   const [clinicName, streetAddress, cityAddress] = [
     "TopDent Dental Clinic",
@@ -13,13 +15,15 @@ export default function Contact() {
 
   return (
     <div className="container">
+      <CursorAura />
+
       <div className="hero">
         <h1>Contact</h1>
         <p>Reach the clinic fast with the direct details on the left and a live satellite map on the right.</p>
       </div>
 
       <div className="contactGrid">
-        <div className="contactCard">
+        <div className="contactCard" data-mascot-target="contact">
           <div className="cardHeader">
             <div>
               <h3 className="title">Clinic Details</h3>
@@ -54,7 +58,7 @@ export default function Contact() {
           </div>
         </div>
 
-        <div className="contactCard contactMapCard">
+        <div className="contactCard contactMapCard" data-mascot-target="contact">
           <div className="cardHeader">
             <div>
               <h3 className="title">Satellite Map</h3>
@@ -63,7 +67,25 @@ export default function Contact() {
             <span className="badge">Live View</span>
           </div>
 
-          <div className="contactMapFrame">
+          <div className="contactMapFrame" data-mascot-target="map">
+            <button
+              type="button"
+              className="mascotCurseCollectible mascotCurseCollectible-crown"
+              aria-label="Return the hidden crown"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("topdent:curse-item-found", {
+                    detail: { item: "crown", source: "contact" },
+                  })
+                );
+              }}
+            >
+              <span className="mascotCurseCollectibleCrown">
+                <span />
+                <span />
+                <span />
+              </span>
+            </button>
             <iframe
               className="mapFrame"
               src={satelliteMapUrl}

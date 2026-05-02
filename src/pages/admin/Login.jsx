@@ -3,7 +3,7 @@ import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { useNavigate } from "react-router-dom";
-import { getAdminProfile, getDefaultAdminPath, ROLE_LABELS, ROLES } from "../../utils/rbac";
+import { getAdminProfile, getDefaultAdminPath, hasFreshStaffMfa, requiresStaffMfa, ROLE_LABELS, ROLES } from "../../utils/rbac";
 
 const ROLE_OPTIONS = [
   {
@@ -29,6 +29,41 @@ const ROLE_OPTIONS = [
   },
 ];
 
+function getLoginErrorMessage(error, selectedRole) {
+  if (error?.message === "account-disabled") {
+    return "This staff account is disabled. Please contact the administrator.";
+  }
+
+  if (error?.message === "role-mismatch") {
+    return `This account is not registered for ${ROLE_LABELS[selectedRole].toLowerCase()} access.`;
+  }
+
+  if (error?.message === "not-admin") {
+    return "This account does not exist in the admin access list.";
+  }
+
+  switch (error?.code) {
+    case "auth/invalid-email":
+      return "That email address is not valid.";
+    case "auth/user-disabled":
+      return "This Firebase Authentication account is disabled.";
+    case "auth/network-request-failed":
+      return "Network error. Please check your connection and try again.";
+    case "auth/too-many-requests":
+      return "Too many failed attempts. Please wait a bit before trying again.";
+    case "auth/operation-not-allowed":
+      return "Email/password sign-in is not enabled in Firebase Authentication.";
+    case "auth/user-not-found":
+      return "No Firebase staff login exists for that email/password account.";
+    case "auth/wrong-password":
+      return "Incorrect password for this Firebase staff account.";
+    case "auth/invalid-credential":
+      return "Invalid login credentials. If this email uses Google sign-in only, it cannot log in through the password form.";
+    default:
+      return "Login failed. Please try again.";
+  }
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +73,32 @@ export default function Login() {
   const [shake, setShake] = useState(false);
 
   const navigate = useNavigate();
+
+  async function completeStaffLogin(credential) {
+    const adminSnap = await getDoc(doc(db, "admins", credential.user.uid));
+
+    if (!adminSnap.exists()) {
+      await signOut(auth);
+      throw new Error("not-admin");
+    }
+
+    const profile = getAdminProfile(adminSnap.data());
+    if (profile.disabled) {
+      await signOut(auth);
+      throw new Error("account-disabled");
+    }
+    if (profile.role !== selectedRole) {
+      await signOut(auth);
+      throw new Error("role-mismatch");
+    }
+
+    if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile)) {
+      navigate(`/admin/mfa?next=${encodeURIComponent(getDefaultAdminPath(profile.role))}`);
+      return;
+    }
+
+    navigate(getDefaultAdminPath(profile.role));
+  }
 
   async function onLogin(e) {
     e.preventDefault();
@@ -53,36 +114,9 @@ export default function Login() {
     try {
       setLoading(true);
       const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const adminSnap = await getDoc(doc(db, "admins", credential.user.uid));
-
-      if (!adminSnap.exists()) {
-        await signOut(auth);
-        throw new Error("not-admin");
-      }
-
-      const profile = getAdminProfile(adminSnap.data());
-      if (profile.disabled) {
-        await signOut(auth);
-        throw new Error("account-disabled");
-      }
-      if (profile.role !== selectedRole) {
-        await signOut(auth);
-        throw new Error("role-mismatch");
-      }
-
-      navigate(getDefaultAdminPath(profile.role));
+      await completeStaffLogin(credential);
     } catch (e) {
-      if (e.message === "account-disabled") {
-        setErr("This staff account is disabled. Please contact the administrator.");
-      } else
-      if (e.message === "role-mismatch") {
-        setErr(`This account is not registered for ${ROLE_LABELS[selectedRole].toLowerCase()} access.`);
-      } else if (e.message === "not-admin") {
-        setErr("This account does not exist in the admin access list.");
-      } else {
-        setErr("Login failed. Check your email/password.");
-      }
-
+      setErr(getLoginErrorMessage(e, selectedRole));
       setShake(true);
       setTimeout(() => setShake(false), 400);
       console.error(e);
@@ -158,7 +192,6 @@ export default function Login() {
           {err ? <div className="error">{err}</div> : null}
 
           <div className="helperRow">
-            <span>Match the selected role with the `role` field inside `admins/{'{uid}'}` in Firestore.</span>
             <span
               className="linkish"
               onClick={() => navigate("/")}

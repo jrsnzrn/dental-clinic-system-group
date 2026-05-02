@@ -39,38 +39,111 @@ service cloud.firestore {
       return isAdmin() || isReceptionist() || isDentist();
     }
 
+    function patientProfileCreateKeysAreSafe(uid) {
+      return request.resource.data.keys().hasOnly([
+        "uid",
+        "email",
+        "firstName",
+        "middleName",
+        "lastName",
+        "fullName",
+        "age",
+        "phone",
+        "patientType",
+        "createdAt",
+        "updatedAt"
+      ]) &&
+      request.resource.data.uid == uid &&
+      request.resource.data.patientType == "New Patient";
+    }
+
+    function patientProfileSelfUpdateKeysAreSafe() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        "email",
+        "firstName",
+        "middleName",
+        "lastName",
+        "fullName",
+        "age",
+        "phone",
+        "updatedAt"
+      ]);
+    }
+
+    function patientOwnBookingUpdateIsValid() {
+      return request.auth.uid == resource.data.uid &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "notes",
+          "rescheduleRequest",
+          "cancellationRequest"
+        ]) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.patientProfileId == resource.data.patientProfileId &&
+        request.resource.data.patientType == resource.data.patientType &&
+        request.resource.data.selectedDentist == resource.data.selectedDentist &&
+        request.resource.data.dentistId == resource.data.dentistId &&
+        request.resource.data.date == resource.data.date &&
+        request.resource.data.time == resource.data.time &&
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.checkedInAt == resource.data.checkedInAt &&
+        request.resource.data.privacyConsentAccepted == resource.data.privacyConsentAccepted &&
+        request.resource.data.privacyConsentText == resource.data.privacyConsentText;
+    }
+
     match /admins/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     match /patientProfiles/{uid} {
-      allow read, write: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAnyStaffRole());
+
+      allow create: if
+        (isSignedIn() && request.auth.uid == uid && patientProfileCreateKeysAreSafe(uid)) ||
+        isAdminOrReceptionist();
+
+      allow update: if
+        (isSignedIn() && request.auth.uid == uid && patientProfileSelfUpdateKeysAreSafe()) ||
+        isAdminOrReceptionist();
+
+      allow delete: if false;
     }
 
     match /patients/{id} {
       allow read: if isAnyStaffRole();
-      allow create, update: if isAnyStaffRole();
-      allow delete: if isAdmin() || isReceptionist();
+      allow create, update, delete: if isAdminOrReceptionist();
     }
 
     match /bookings/{id} {
-      allow create: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.appointmentAt >= request.time;
+      allow create: if false;
 
-      allow read: if isAdminOrReceptionist() ||
+      allow read: if
+        isAnyStaffRole() ||
         (isSignedIn() && resource.data.uid == request.auth.uid);
 
-      allow update: if isAdminOrReceptionist() ||
-        (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow update: if
+        isSignedIn() && patientOwnBookingUpdateIsValid();
 
-      allow delete: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /bookingSlotLocks/{id} {
+      allow read, write: if false;
     }
 
     match /dentists/{id} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if true;
+      allow create, update, delete: if isAdminOrReceptionist();
+    }
+
+    match /clinicServices/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdminOrReceptionist();
+    }
+
+    match /clinicClosures/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdminOrReceptionist();
     }
 
     match /dentalCharts/{uid} {
@@ -85,8 +158,42 @@ service cloud.firestore {
 
     match /auditLogs/{id} {
       allow read: if isAnyStaffRole();
-      allow create: if isAnyStaffRole();
+      allow create: if false;
       allow update, delete: if false;
+    }
+
+    match /staffMfaChallenges/{id} {
+      allow read, write: if false;
+    }
+
+    match /bracesAccounts/{id} {
+      allow read: if isSignedIn() && (
+        isAnyStaffRole() ||
+        resource.data.uid == request.auth.uid
+      );
+
+      allow create, update: if isAdminOrReceptionist();
+      allow delete: if isAdmin();
+    }
+
+    match /bracesPayments/{id} {
+      allow read: if isSignedIn() && (
+        isAnyStaffRole() ||
+        resource.data.uid == request.auth.uid
+      );
+
+      allow create, update: if isAdminOrReceptionist();
+      allow delete: if isAdmin();
+    }
+
+    match /bracesAdjustments/{id} {
+      allow read: if isSignedIn() && (
+        isAnyStaffRole() ||
+        resource.data.uid == request.auth.uid
+      );
+
+      allow create, update: if isAdminOrReceptionist();
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {

@@ -10,6 +10,24 @@ function pad(n) {
   return String(n).padStart(2, "0");
 }
 
+function timeToMinutes(timeStr = "") {
+  const [hourText = "0", minuteText = "0"] = String(timeStr).split(":");
+  return Number(hourText) * 60 + Number(minuteText);
+}
+
+function minutesToTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
+function getBookingTimeRange(booking) {
+  if (!booking?.time) return "Not set";
+  const endTime = booking.estimatedEndTime
+    || minutesToTime(timeToMinutes(booking.time) + Number(booking.estimatedDurationMinutes || 60));
+  return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
+}
+
 function buildSlots() {
   const slots = [];
   for (let h = 9; h <= 17; h += 1) {
@@ -30,9 +48,10 @@ function getNextBookableDates(count = 10) {
   return result;
 }
 
-function AppointmentCard({ booking, onStartReschedule }) {
+function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
   const isCompleted = Boolean(booking.checkedInAt);
-  const canReschedule =
+  const appointmentTimeRange = getBookingTimeRange(booking);
+  const canRequestChanges =
     !isCompleted &&
     booking.status !== "cancelled" &&
     booking.archiveStatus !== "Archived";
@@ -44,7 +63,7 @@ function AppointmentCard({ booking, onStartReschedule }) {
           <div>
             <strong className="detailTitle">{booking.service || "Consultation"}</strong>
             <p className="detailSubtitle">
-              {booking.selectedDentist || "Clinic dentist"} • {formatDateLabel(booking.date)} • {formatTimeLabel(booking.time)}
+              {booking.selectedDentist || "Clinic dentist"} • {formatDateLabel(booking.date)} • {appointmentTimeRange}
             </p>
           </div>
           <div className="statusStack">
@@ -55,6 +74,10 @@ function AppointmentCard({ booking, onStartReschedule }) {
         </div>
 
         <div className="detailGrid">
+          <div className="detailBox luxeBox">
+            <span className="detailLabel">Time slot</span>
+            <strong>{appointmentTimeRange}</strong>
+          </div>
           <div className="detailBox luxeBox">
             <span className="detailLabel">Booked at</span>
             <strong>{formatTimestamp(booking.createdAt)}</strong>
@@ -82,12 +105,25 @@ function AppointmentCard({ booking, onStartReschedule }) {
             </p>
           </div>
         ) : null}
+
+        {booking.cancellationRequest ? (
+          <div className="detailNote historyPanel attention" style={{ marginTop: 14 }}>
+            <span className="detailLabel">Cancellation request</span>
+            <p>
+              Status: <strong>{booking.cancellationRequest.status || "pending"}</strong>
+            </p>
+            <p>{booking.cancellationRequest.reason || "No reason provided."}</p>
+          </div>
+        ) : null}
       </div>
 
-      {canReschedule ? (
+      {canRequestChanges ? (
         <div className="actionColumn actionColumnFriendly">
           <button className="btn btnShine patientActionBtn" onClick={() => onStartReschedule(booking)}>
             Request Reschedule
+          </button>
+          <button className="btn secondary patientActionBtn" type="button" onClick={() => onStartCancellation(booking)}>
+            Request Cancellation
           </button>
         </div>
       ) : null}
@@ -111,6 +147,7 @@ export default function MyAppointments() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [editingBookingId, setEditingBookingId] = useState("");
+  const [requestMode, setRequestMode] = useState("reschedule");
   const [rescheduleDraft, setRescheduleDraft] = useState({
     requestedDate: "",
     requestedTime: "09:00",
@@ -220,6 +257,7 @@ export default function MyAppointments() {
   }, [bookings, clinicClosures, dentists, editingBookingId, slotOptions]);
 
   function startReschedule(booking) {
+    setRequestMode("reschedule");
     setEditingBookingId(booking.id);
     setRescheduleDraft({
       requestedDate: booking.date || "",
@@ -230,9 +268,49 @@ export default function MyAppointments() {
     setSuccess("");
   }
 
-  async function submitRescheduleRequest(bookingId) {
+  function startCancellation(booking) {
+    setRequestMode("cancel");
+    setEditingBookingId(booking.id);
+    setRescheduleDraft({
+      requestedDate: booking.date || "",
+      requestedTime: booking.time || "09:00",
+      reason: booking.cancellationRequest?.reason || "",
+    });
     setError("");
     setSuccess("");
+  }
+
+  async function submitAppointmentRequest(bookingId) {
+    setError("");
+    setSuccess("");
+
+    if (!rescheduleDraft.reason.trim()) {
+      setError(
+        requestMode === "cancel"
+          ? "Please give a reason for the cancellation request."
+          : "Please give a reason for the reschedule request."
+      );
+      return;
+    }
+
+    if (requestMode === "cancel") {
+      try {
+        await updateDoc(doc(db, "bookings", bookingId), {
+          cancellationRequest: {
+            reason: rescheduleDraft.reason.trim(),
+            status: "pending",
+            requestedAt: serverTimestamp(),
+          },
+        });
+
+        setEditingBookingId("");
+        setSuccess("Your cancellation request was sent successfully. The clinic can now review it.");
+      } catch (requestError) {
+        console.error(requestError);
+        setError("Could not send the cancellation request. Please try again.");
+      }
+      return;
+    }
 
     if (!rescheduleDraft.requestedDate) {
       setError("Please choose a new date for the reschedule request.");
@@ -273,7 +351,7 @@ export default function MyAppointments() {
             <div>
               <span className="heroEyebrow">Appointments</span>
               <h1>My Appointments</h1>
-              <p>Sign in first to view your appointment statuses and request a reschedule.</p>
+              <p>Sign in first to view your appointment statuses and request a reschedule or cancellation.</p>
             </div>
           </div>
         </div>
@@ -289,7 +367,7 @@ export default function MyAppointments() {
           <div>
             <span className="heroEyebrow">Appointments Hub</span>
             <h1>My Appointments</h1>
-            <p>Track every pending, approved, completed, and cancelled appointment in one place, then request a reschedule without making a duplicate booking.</p>
+            <p>Track every pending, approved, completed, and cancelled appointment in one place, then request a reschedule or cancellation without making a duplicate booking.</p>
           </div>
           <div className="bookingHeroSummary">
             <div className="bookingSummaryCard">
@@ -304,7 +382,7 @@ export default function MyAppointments() {
               <span className="detailLabel">Next appointment</span>
               <strong>
                 {nextAppointment
-                  ? `${formatDateLabel(nextAppointment.date)} • ${formatTimeLabel(nextAppointment.time)}`
+                  ? `${formatDateLabel(nextAppointment.date)} • ${getBookingTimeRange(nextAppointment)}`
                   : "No upcoming visit"}
               </strong>
             </div>
@@ -325,52 +403,59 @@ export default function MyAppointments() {
         <div className="card adminEditorCard" style={{ marginTop: 18 }}>
           <div className="cardHeader">
             <div>
-              <h3 className="title">Request a New Schedule</h3>
-              <p className="sub">Send one clear reschedule request to the clinic instead of creating another booking.</p>
+              <h3 className="title">{requestMode === "cancel" ? "Request a Cancellation" : "Request a New Schedule"}</h3>
+              <p className="sub">
+                {requestMode === "cancel"
+                  ? "Send one clear cancellation request to the clinic so they can review and confirm it."
+                  : "Send one clear reschedule request to the clinic instead of creating another booking."}
+              </p>
             </div>
             <button className="searchClearBtn" type="button" onClick={() => setEditingBookingId("")}>
               Close
             </button>
           </div>
 
-          <div className="bookingFlowGrid">
-            <label className="bookingFieldCard">
-              <span className="detailLabel">Requested date</span>
-              <input
-                className="input bookingInputSpecial"
-                type="date"
-                value={rescheduleDraft.requestedDate}
-                onChange={(e) =>
-                  setRescheduleDraft((current) => ({ ...current, requestedDate: e.target.value }))
-                }
-              />
-            </label>
+          {requestMode === "reschedule" ? (
+            <div className="bookingFlowGrid">
+              <label className="bookingFieldCard" data-mascot-target="appointment-request-date">
+                <span className="detailLabel">Requested date</span>
+                <input
+                  className="input bookingInputSpecial"
+                  type="date"
+                  value={rescheduleDraft.requestedDate}
+                  onChange={(e) =>
+                    setRescheduleDraft((current) => ({ ...current, requestedDate: e.target.value }))
+                  }
+                />
+              </label>
 
-            <label className="bookingFieldCard">
-              <span className="detailLabel">Requested time</span>
-              <input
-                className="input bookingInputSpecial"
-                type="time"
-                value={rescheduleDraft.requestedTime}
-                onChange={(e) =>
-                  setRescheduleDraft((current) => ({ ...current, requestedTime: e.target.value }))
-                }
-              />
-            </label>
-          </div>
+              <label className="bookingFieldCard" data-mascot-target="appointment-request-time">
+                <span className="detailLabel">Requested time</span>
+                <input
+                  className="input bookingInputSpecial"
+                  type="time"
+                  value={rescheduleDraft.requestedTime}
+                  onChange={(e) =>
+                    setRescheduleDraft((current) => ({ ...current, requestedTime: e.target.value }))
+                  }
+                />
+              </label>
+            </div>
+          ) : null}
 
           <textarea
             className="input"
             rows={4}
-            placeholder="Reason for reschedule (optional)"
+            placeholder={requestMode === "cancel" ? "Reason for cancellation (required)" : "Reason for reschedule (required)"}
             value={rescheduleDraft.reason}
             onChange={(e) =>
               setRescheduleDraft((current) => ({ ...current, reason: e.target.value }))
             }
+            data-mascot-target="appointment-request-reason"
             style={{ marginTop: 14 }}
           />
 
-          {rescheduleSuggestions.length ? (
+          {requestMode === "reschedule" && rescheduleSuggestions.length ? (
             <div className="detailNote historyPanel" style={{ marginTop: 14 }}>
               <span className="detailLabel">Suggested reschedule slots</span>
               <div className="inlineActionRow">
@@ -398,9 +483,9 @@ export default function MyAppointments() {
             className="btn btnShine bookingPrimaryBtn"
             type="button"
             style={{ marginTop: 14 }}
-            onClick={() => submitRescheduleRequest(editingBookingId)}
+            onClick={() => submitAppointmentRequest(editingBookingId)}
           >
-            Send Reschedule Request
+            {requestMode === "cancel" ? "Send Cancellation Request" : "Send Reschedule Request"}
           </button>
         </div>
       ) : null}
@@ -426,7 +511,12 @@ export default function MyAppointments() {
             ) : list.length ? (
               <ul className="list detailedList">
                 {list.map((booking) => (
-                  <AppointmentCard key={booking.id} booking={booking} onStartReschedule={startReschedule} />
+                  <AppointmentCard
+                    key={booking.id}
+                    booking={booking}
+                    onStartReschedule={startReschedule}
+                    onStartCancellation={startCancellation}
+                  />
                 ))}
               </ul>
             ) : (

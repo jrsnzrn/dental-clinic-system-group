@@ -1,12 +1,13 @@
-import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../firebase";
-import { getAdminProfile } from "./rbac";
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "../firebase";
 
 function sanitizeDetails(details = {}) {
   return Object.fromEntries(
     Object.entries(details).filter(([, value]) => value !== undefined)
   );
 }
+
+const RECORD_ADMIN_AUDIT_LOG = httpsCallable(functions, "recordAdminAuditLog");
 
 export async function logAdminAction({
   action,
@@ -18,32 +19,13 @@ export async function logAdminAction({
   const currentUser = auth.currentUser;
   if (!currentUser || !action || !targetType) return;
 
-  let actorName = currentUser.displayName || currentUser.email || "Staff";
-  let actorRole = "";
-
   try {
-    const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
-    if (adminSnap.exists()) {
-      const profile = getAdminProfile(adminSnap.data());
-      actorName = profile.name || actorName;
-      actorRole = profile.role || "";
-    }
-  } catch (error) {
-    console.error("Audit actor lookup failed:", error);
-  }
-
-  try {
-    await addDoc(collection(db, "auditLogs"), {
-      actorUid: currentUser.uid,
-      actorName,
-      actorEmail: currentUser.email || "",
-      actorRole,
+    await RECORD_ADMIN_AUDIT_LOG({
       action,
       targetType,
       targetId,
       targetLabel,
       details: sanitizeDetails(details),
-      createdAt: serverTimestamp(),
     });
   } catch (error) {
     console.error("Audit log write failed:", error);
@@ -57,6 +39,8 @@ const ACTION_LABELS = {
   mark_booking_check_in: "Marked patient as checked in",
   approve_reschedule_request: "Approved reschedule request",
   decline_reschedule_request: "Declined reschedule request",
+  request_staff_mfa_code: "Requested staff MFA code",
+  set_staff_mfa_required: "Updated staff MFA requirement",
   update_patient_profile: "Updated patient profile",
   save_dental_chart: "Saved dental chart notes",
   restore_patient: "Restored patient record",
@@ -65,6 +49,8 @@ const ACTION_LABELS = {
   restore_dentist: "Restored dentist record",
   delete_archived_record: "Deleted archived record",
   create_staff_account: "Created staff account",
+  archive_staff_account: "Archived staff account",
+  restore_staff_account: "Restored staff account",
 };
 
 export function getAuditActionLabel(action = "") {

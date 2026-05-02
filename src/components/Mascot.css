@@ -1,0 +1,2353 @@
+.mascotLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 42;
+}
+
+body.mascotTourLocked {
+  overflow: hidden;
+}
+
+body.mascotChaosMode {
+  overflow: hidden;
+  cursor: not-allowed;
+}
+
+body.mascotChaosMode img {
+  filter: grayscale(1) brightness(0.68) contrast(1.18);
+  animation: mascotMediaGlitch 2.8s steps(2, end) infinite;
+}
+
+body.mascotDemonicTheme {
+  background:
+    radial-gradient(circle at top, rgba(122, 0, 0, 0.18), transparent 34%),
+    linear-gradient(180deg, #140304 0%, #090102 52%, #030000 100%);
+  color: #f4d8d8;
+}
+
+html body.mascotDemonicTheme,
+html[data-theme="light"] body.mascotDemonicTheme,
+html[data-theme="dark"] body.mascotDemonicTheme,
+html[data-theme="blue"] body.mascotDemonicTheme {
+  background:
+    radial-gradient(900px 520px at 14% 8%, rgba(158, 16, 16, 0.22), transparent 60%),
+    radial-gradient(880px 520px at 86% 14%, rgba(70, 0, 0, 0.18), transparent 58%),
+    linear-gradient(180deg, #170304 0%, #0b0102 48%, #030000 100%) !important;
+}
+
+html body.mascotDemonicTheme #root,
+html body.mascotDemonicTheme .appMain,
+html body.mascotDemonicTheme .container,
+html body.mascotDemonicTheme .container.homePage,
+html body.mascotDemonicTheme .homePage {
+  background-color: #080102 !important;
+  background-image:
+    radial-gradient(900px 520px at 14% 8%, rgba(158, 16, 16, 0.22), transparent 60%),
+    radial-gradient(880px 520px at 86% 14%, rgba(70, 0, 0, 0.18), transparent 58%),
+    linear-gradient(180deg, #170304 0%, #0b0102 48%, #030000 100%) !important;
+}
+
+body.mascotDemonicTheme::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(255, 76, 76, 0.08), transparent 24%),
+    linear-gradient(120deg, transparent 0 18%, rgba(120, 0, 0, 0.08) 18.4% 18.9%, transparent 19.4% 100%);
+  mix-blend-mode: screen;
+  z-index: 1;
+}
+
+body.mascotDemonicTheme img {
+  filter: grayscale(0.78) contrast(1.08) brightness(0.82);
+}
+
+body.mascotDemonicTheme .homeCursorAura,
+body.mascotDemonicTheme .homeCursorAuraLayer,
+body.mascotDemonicTheme .homeCursorAuraCore,
+body.mascotDemonicTheme .homeCursorAuraTrail {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+.mascotDemonicScene {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 41;
+}
+
+.mascotDemonicVignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, transparent 32%, rgba(0, 0, 0, 0.34) 100%),
+    linear-gradient(180deg, rgba(40, 0, 0, 0.08), transparent 24%, transparent 76%, rgba(30, 0, 0, 0.12));
+}
+
+.mascotBloodRain {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.mascotBloodDrop {
+  position: absolute;
+  top: -18%;
+  width: 10px;
+  height: 150px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 96, 96, 0.92), rgba(156, 0, 0, 0.92) 42%, rgba(64, 0, 0, 0));
+  filter: blur(0.6px);
+  opacity: 0.74;
+  animation: mascotBloodFall linear infinite;
+}
+
+.mascotBloodDrop::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 20px;
+  height: 20px;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 60% 40%;
+  background: radial-gradient(circle, rgba(175, 0, 0, 0.92), rgba(84, 0, 0, 0.74));
+  filter: blur(1px);
+}
+
+.mascotBloodDrop.drop-1 { left: 6%; animation-duration: 8.2s; animation-delay: -1.2s; opacity: 0.62; }
+.mascotBloodDrop.drop-2 { left: 14%; animation-duration: 7.1s; animation-delay: -3.1s; width: 8px; }
+.mascotBloodDrop.drop-3 { left: 24%; animation-duration: 9.2s; animation-delay: -5s; width: 12px; }
+.mascotBloodDrop.drop-4 { left: 37%; animation-duration: 6.8s; animation-delay: -2.2s; }
+.mascotBloodDrop.drop-5 { left: 49%; animation-duration: 8.8s; animation-delay: -4.4s; width: 9px; }
+.mascotBloodDrop.drop-6 { left: 58%; animation-duration: 7.4s; animation-delay: -0.8s; }
+.mascotBloodDrop.drop-7 { left: 67%; animation-duration: 9.6s; animation-delay: -6.2s; width: 11px; }
+.mascotBloodDrop.drop-8 { left: 76%; animation-duration: 7.8s; animation-delay: -2.9s; }
+.mascotBloodDrop.drop-9 { left: 86%; animation-duration: 8.4s; animation-delay: -5.8s; width: 7px; }
+.mascotBloodDrop.drop-10 { left: 94%; animation-duration: 6.9s; animation-delay: -1.5s; width: 10px; }
+
+body.mascotDemonicTheme .nav,
+body.mascotDemonicTheme .navInner,
+body.mascotDemonicTheme .navMenuShell,
+body.mascotDemonicTheme .siteFooter,
+body.mascotDemonicTheme .siteFooterInner,
+body.mascotDemonicTheme .hero,
+body.mascotDemonicTheme .bookingHero,
+body.mascotDemonicTheme .bookingHeroSummary,
+body.mascotDemonicTheme .homeLanding,
+body.mascotDemonicTheme .homeGalleryIntro,
+body.mascotDemonicTheme .homeMosaicGrid,
+body.mascotDemonicTheme .homeShowcaseSecondary,
+body.mascotDemonicTheme .homeStatRibbon,
+body.mascotDemonicTheme .homeLandingCopy,
+body.mascotDemonicTheme .homeLandingVisual,
+body.mascotDemonicTheme .homeShowcasePrimary,
+body.mascotDemonicTheme .homeShowcaseSmall,
+body.mascotDemonicTheme .homeAtmosphereCard,
+body.mascotDemonicTheme .homeGalleryBand,
+body.mascotDemonicTheme .homeMosaicCard,
+body.mascotDemonicTheme .homeMosaicQuote,
+body.mascotDemonicTheme .homeRibbonCard,
+body.mascotDemonicTheme .homeShowcaseBadge,
+body.mascotDemonicTheme .homeMosaicOverlay,
+body.mascotDemonicTheme .serviceMedia,
+body.mascotDemonicTheme .serviceBody,
+body.mascotDemonicTheme .servicePriceTag,
+body.mascotDemonicTheme .serviceFeaturePanel,
+body.mascotDemonicTheme .servicePriceCard,
+body.mascotDemonicTheme .servicePlanningPanel,
+body.mascotDemonicTheme .heroCard,
+body.mascotDemonicTheme .serviceCard,
+body.mascotDemonicTheme .serviceInfoPanel,
+body.mascotDemonicTheme .contactCard,
+body.mascotDemonicTheme .contactMapCard,
+body.mascotDemonicTheme .bookingShell,
+body.mascotDemonicTheme .bookingPanel,
+body.mascotDemonicTheme .bookingSummary,
+body.mascotDemonicTheme .calendarPanel,
+body.mascotDemonicTheme [class*="Card"],
+body.mascotDemonicTheme [class*="Panel"],
+body.mascotDemonicTheme [class*="Summary"] {
+  background-color: rgba(22, 4, 7, 0.9) !important;
+  border-color: rgba(182, 42, 42, 0.26) !important;
+  box-shadow: 0 12px 32px rgba(20, 0, 0, 0.24) !important;
+}
+
+body.mascotDemonicTheme .navItem,
+body.mascotDemonicTheme .logo-text,
+body.mascotDemonicTheme .badge,
+body.mascotDemonicTheme .footerText,
+body.mascotDemonicTheme .footerLabel,
+body.mascotDemonicTheme .footerLink,
+body.mascotDemonicTheme .footerCopy,
+body.mascotDemonicTheme .heroEyebrow,
+body.mascotDemonicTheme .title,
+body.mascotDemonicTheme .sub,
+body.mascotDemonicTheme .serviceName,
+body.mascotDemonicTheme .serviceDesc,
+body.mascotDemonicTheme .servicePriceTag,
+body.mascotDemonicTheme h1,
+body.mascotDemonicTheme h2,
+body.mascotDemonicTheme h3,
+body.mascotDemonicTheme h4,
+body.mascotDemonicTheme strong,
+body.mascotDemonicTheme label,
+body.mascotDemonicTheme p,
+body.mascotDemonicTheme span,
+body.mascotDemonicTheme li,
+body.mascotDemonicTheme small {
+  color: #f2d5d5 !important;
+}
+
+body.mascotDemonicTheme .navItem.active,
+body.mascotDemonicTheme .navItem:hover,
+body.mascotDemonicTheme button:not(.mascotMenuBtn):not(.mascotTourBtn):not(.assistantPropButton),
+body.mascotDemonicTheme a[class*="button"],
+body.mascotDemonicTheme .btn {
+  background: linear-gradient(135deg, rgba(108, 16, 16, 0.94), rgba(162, 34, 34, 0.94)) !important;
+  border-color: rgba(224, 86, 86, 0.3) !important;
+  color: #fff2f2 !important;
+}
+
+body.mascotDemonicTheme input,
+body.mascotDemonicTheme textarea,
+body.mascotDemonicTheme select {
+  background: rgba(14, 4, 6, 0.92) !important;
+  border-color: rgba(182, 42, 42, 0.34) !important;
+  color: #fde9e9 !important;
+}
+
+body.mascotDemonicTheme .homePage,
+body.mascotDemonicTheme .container.homePage,
+body.mascotDemonicTheme .container {
+  background: transparent !important;
+}
+
+body.mascotDemonicTheme .nav {
+  background:
+    linear-gradient(180deg, rgba(24, 4, 7, 0.98), rgba(14, 2, 4, 0.94)) !important;
+  border-bottom: 1px solid rgba(186, 36, 36, 0.18) !important;
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.28),
+    inset 0 -1px 0 rgba(255, 96, 96, 0.08) !important;
+}
+
+body.mascotDemonicTheme .navInner,
+body.mascotDemonicTheme .navMenuShell {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.mascotDemonicTheme .navItem {
+  background: rgba(255, 244, 244, 0.82) !important;
+  border-color: rgba(255, 210, 210, 0.12) !important;
+  color: rgba(115, 26, 26, 0.84) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.36) !important;
+}
+
+body.mascotDemonicTheme .navItem:hover,
+body.mascotDemonicTheme .navItem.active {
+  background: linear-gradient(180deg, rgba(144, 20, 20, 0.96), rgba(104, 10, 10, 0.94)) !important;
+  border-color: rgba(255, 116, 116, 0.22) !important;
+  color: #fff1f1 !important;
+  box-shadow:
+    0 10px 24px rgba(90, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 170, 170, 0.08) !important;
+}
+
+body.mascotDemonicTheme .siteFooter {
+  background:
+    linear-gradient(180deg, rgba(16, 3, 5, 0.98), rgba(6, 1, 2, 1)) !important;
+  border-top: 1px solid rgba(186, 36, 36, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 84, 84, 0.06) !important;
+}
+
+body.mascotDemonicTheme .siteFooterInner {
+  background: transparent !important;
+}
+
+body.mascotDemonicTheme .badge {
+  background: rgba(255, 240, 240, 0.18) !important;
+  border-color: rgba(255, 190, 190, 0.16) !important;
+  color: #f9dfdf !important;
+}
+
+body.mascotDemonicTheme .homeLanding,
+body.mascotDemonicTheme .homeLandingVisual,
+body.mascotDemonicTheme .homeShowcaseSecondary,
+body.mascotDemonicTheme .homeMosaicGrid,
+body.mascotDemonicTheme .homeGalleryIntro,
+body.mascotDemonicTheme .homeStatRibbon,
+body.mascotDemonicTheme .homeHeroActions {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.mascotDemonicTheme .homeLandingCopy,
+body.mascotDemonicTheme .homeRibbonCard,
+body.mascotDemonicTheme .homeShowcasePrimary,
+body.mascotDemonicTheme .homeShowcaseSmall,
+body.mascotDemonicTheme .homeAtmosphereCard,
+body.mascotDemonicTheme .homeGalleryBand,
+body.mascotDemonicTheme .homeMosaicCard,
+body.mascotDemonicTheme .homeMosaicQuote,
+body.mascotDemonicTheme .hero,
+body.mascotDemonicTheme .bookingHero,
+body.mascotDemonicTheme .bookingHeroSummary,
+body.mascotDemonicTheme .bookingSummaryCard,
+body.mascotDemonicTheme .bookingFieldCard,
+body.mascotDemonicTheme .bookingMiniSummaryCard,
+body.mascotDemonicTheme .bookingDatePanel,
+body.mascotDemonicTheme .bookingDetailsCard,
+body.mascotDemonicTheme .bookingFormCard,
+body.mascotDemonicTheme .bookingServicePreviewCard,
+body.mascotDemonicTheme .bookingConsentCard,
+body.mascotDemonicTheme .contactCard,
+body.mascotDemonicTheme .contactMapFrame,
+body.mascotDemonicTheme .detailBox,
+body.mascotDemonicTheme .editorPreview,
+body.mascotDemonicTheme .emptyState,
+body.mascotDemonicTheme .historyPanel,
+body.mascotDemonicTheme .detailNote {
+  background:
+    linear-gradient(180deg, rgba(20, 4, 7, 0.96), rgba(8, 1, 3, 0.92)),
+    rgba(18, 3, 5, 0.92) !important;
+  border-color: rgba(182, 42, 42, 0.28) !important;
+  box-shadow:
+    0 18px 40px rgba(12, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 92, 92, 0.04) !important;
+}
+
+body.mascotDemonicTheme .homeShowcaseBadge,
+body.mascotDemonicTheme .homeMosaicOverlay,
+body.mascotDemonicTheme .bookingFieldHint,
+body.mascotDemonicTheme .bookingPreviewCounter,
+body.mascotDemonicTheme .iconRow,
+body.mascotDemonicTheme .serviceChecklist li,
+body.mascotDemonicTheme .serviceInsightCard,
+body.mascotDemonicTheme .servicePlanningBlock {
+  background:
+    linear-gradient(180deg, rgba(28, 8, 11, 0.94), rgba(12, 2, 4, 0.88)) !important;
+  border-color: rgba(182, 42, 42, 0.22) !important;
+  color: #ffe2e2 !important;
+}
+
+body.mascotDemonicTheme .homeLandingCopy h1,
+body.mascotDemonicTheme .homeLandingCopy p,
+body.mascotDemonicTheme .homeGalleryIntro h2,
+body.mascotDemonicTheme .homeMosaicQuote p,
+body.mascotDemonicTheme .hero h1,
+body.mascotDemonicTheme .hero p,
+body.mascotDemonicTheme .bookingHero h1,
+body.mascotDemonicTheme .bookingHero p,
+body.mascotDemonicTheme .contactCard .sub,
+body.mascotDemonicTheme .bookingDetailsCard .sub {
+  color: #f7dada !important;
+}
+
+body.mascotDemonicTheme .homeShowcasePrimary,
+body.mascotDemonicTheme .homeShowcaseSmall,
+body.mascotDemonicTheme .homeMosaicCard,
+body.mascotDemonicTheme .bookingSummaryCard,
+body.mascotDemonicTheme .bookingFieldCard,
+body.mascotDemonicTheme .bookingMiniSummaryCard,
+body.mascotDemonicTheme .bookingDatePanel,
+body.mascotDemonicTheme .contactCard,
+body.mascotDemonicTheme .contactMapFrame {
+  filter: none !important;
+}
+
+body.mascotDemonicTheme .carouselWrap,
+body.mascotDemonicTheme .carouselViewport,
+body.mascotDemonicTheme .carouselTrack {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.mascotDemonicTheme .serviceCard {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(136, 18, 24, 0.14), transparent 44%),
+    linear-gradient(180deg, rgba(24, 4, 8, 0.98), rgba(9, 1, 3, 0.94)) !important;
+  border-color: rgba(184, 44, 44, 0.4) !important;
+  box-shadow:
+    0 26px 54px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 78, 78, 0.06) !important;
+}
+
+body.mascotDemonicTheme .serviceCard.isInactive {
+  opacity: 0.36 !important;
+  filter: blur(0.2px) saturate(0.7) !important;
+}
+
+body.mascotDemonicTheme .serviceCard.isActive {
+  border-color: rgba(255, 82, 82, 0.72) !important;
+  box-shadow:
+    0 36px 90px rgba(0, 0, 0, 0.58),
+    0 0 0 3px rgba(188, 36, 36, 0.22),
+    inset 0 1px 0 rgba(255, 108, 108, 0.08) !important;
+}
+
+body.mascotDemonicTheme .serviceMedia {
+  background:
+    radial-gradient(circle at 50% 34%, rgba(126, 16, 16, 0.28), transparent 52%),
+    linear-gradient(180deg, rgba(26, 6, 10, 0.98), rgba(10, 2, 4, 0.96)) !important;
+}
+
+body.mascotDemonicTheme .serviceBody {
+  background:
+    linear-gradient(180deg, rgba(18, 4, 7, 0.96), rgba(7, 1, 3, 0.96)) !important;
+}
+
+body.mascotDemonicTheme .servicePriceTag {
+  background:
+    linear-gradient(180deg, rgba(82, 12, 12, 0.94), rgba(48, 6, 6, 0.96)) !important;
+  border: 1px solid rgba(174, 42, 42, 0.28) !important;
+  color: #fff1f1 !important;
+}
+
+body.mascotDemonicTheme .servicePriceCard,
+body.mascotDemonicTheme .serviceFeaturePanel,
+body.mascotDemonicTheme .servicePlanningPanel,
+body.mascotDemonicTheme .serviceInsightCard,
+body.mascotDemonicTheme .servicePlanningBlock,
+body.mascotDemonicTheme .serviceChecklist li,
+body.mascotDemonicTheme .serviceTypeBadge {
+  background:
+    linear-gradient(180deg, rgba(24, 6, 10, 0.96), rgba(10, 2, 4, 0.94)) !important;
+  border-color: rgba(174, 42, 42, 0.24) !important;
+  color: #ffe5e5 !important;
+}
+
+body.mascotDemonicTheme .serviceMedia img.serviceMediaScary,
+body.mascotDemonicTheme .serviceCard img.serviceMediaScary {
+  width: 126px !important;
+  height: 126px !important;
+  border-radius: 0 !important;
+  object-fit: contain !important;
+  filter:
+    drop-shadow(0 12px 28px rgba(109, 0, 0, 0.48))
+    drop-shadow(0 0 10px rgba(196, 24, 24, 0.24)) !important;
+  transform: scale(1.06) !important;
+  mix-blend-mode: normal !important;
+  animation: iconFloatDemon 2.1s ease-in-out infinite;
+  z-index: 3;
+  position: relative;
+}
+
+body.mascotDemonicTheme .homeLandingCopy,
+body.mascotDemonicTheme .homeRibbonCard,
+body.mascotDemonicTheme .homeGalleryBand,
+body.mascotDemonicTheme .homeAtmosphereCard,
+body.mascotDemonicTheme .homeMosaicQuote,
+body.mascotDemonicTheme .homeShowcasePrimary,
+body.mascotDemonicTheme .homeShowcaseSmall,
+body.mascotDemonicTheme .homeMosaicCard,
+body.mascotDemonicTheme .homeShowcaseBadge,
+body.mascotDemonicTheme .homeMosaicOverlay {
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 92, 92, 0.04) !important;
+}
+
+body.mascotDemonicTheme .homeLandingCopy::before,
+body.mascotDemonicTheme .homeGalleryBand::before,
+body.mascotDemonicTheme .homeAtmosphereCard::before,
+body.mascotDemonicTheme .homeMosaicQuote::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 72, 72, 0.03), rgba(0, 0, 0, 0));
+}
+
+body.mascotDemonicTheme .homeShowcasePrimary,
+body.mascotDemonicTheme .homeShowcaseSmall,
+body.mascotDemonicTheme .homeMosaicCard,
+body.mascotDemonicTheme .serviceCard,
+body.mascotDemonicTheme .contactMapCard,
+body.mascotDemonicTheme .bookingServicePreviewMedia,
+body.mascotDemonicTheme .serviceAdminPreviewFrame {
+  position: relative;
+  overflow: hidden;
+}
+
+body.mascotDemonicTheme .homeShowcasePrimary::before,
+body.mascotDemonicTheme .homeShowcaseSmall::before,
+body.mascotDemonicTheme .homeMosaicCard::before,
+body.mascotDemonicTheme .serviceCard::before,
+body.mascotDemonicTheme .contactMapCard::before,
+body.mascotDemonicTheme .bookingServicePreviewMedia::before,
+body.mascotDemonicTheme .serviceAdminPreviewFrame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(28, 0, 0, 0.12), rgba(0, 0, 0, 0.24)),
+    radial-gradient(circle at 30% 30%, rgba(122, 0, 0, 0.12), transparent 40%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+body.mascotDemonicTheme .homeShowcasePrimary::after,
+body.mascotDemonicTheme .homeShowcaseSmall::after,
+body.mascotDemonicTheme .homeMosaicCard::after,
+body.mascotDemonicTheme .serviceCard::after,
+body.mascotDemonicTheme .contactMapCard::after,
+body.mascotDemonicTheme .bookingServicePreviewMedia::after,
+body.mascotDemonicTheme .serviceAdminPreviewFrame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(112deg, transparent 0 18%, rgba(255, 60, 60, 0.18) 18.4% 18.8%, transparent 19.2% 28%, rgba(110, 0, 0, 0.3) 28.4% 29.2%, transparent 29.6% 100%),
+    linear-gradient(118deg, transparent 0 42%, rgba(255, 84, 84, 0.16) 42.4% 42.8%, transparent 43.2% 54%, rgba(110, 0, 0, 0.28) 54.3% 55%, transparent 55.4% 100%),
+    linear-gradient(124deg, transparent 0 68%, rgba(255, 72, 72, 0.16) 68.4% 68.8%, transparent 69.2% 78%, rgba(100, 0, 0, 0.24) 78.3% 79%, transparent 79.4% 100%);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+  pointer-events: none;
+  z-index: 2;
+  animation: mascotPhotoScratch 2.8s steps(2, end) infinite;
+}
+
+body.mascotDemonicTheme .homeShowcasePrimary img,
+body.mascotDemonicTheme .homeShowcaseSmall img,
+body.mascotDemonicTheme .homeMosaicCard img,
+body.mascotDemonicTheme .serviceCard img:not(.serviceMediaScary),
+body.mascotDemonicTheme .contactMapCard img,
+body.mascotDemonicTheme .bookingServicePreviewMedia img,
+body.mascotDemonicTheme .serviceAdminPreviewFrame img {
+  filter: grayscale(1) sepia(0.18) brightness(0.58) contrast(1.16) saturate(0.66) !important;
+  transform: scale(1.02);
+}
+
+.mascotTourOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 10, 18, 0.42);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: 43;
+}
+
+.mascotChaosOverlay {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(96, 0, 0, 0.14), transparent 38%),
+    rgba(8, 0, 0, 0.64);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+  z-index: 43;
+}
+
+.mascotChaosScratches {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(112deg, transparent 0 22%, rgba(180, 0, 0, 0.12) 22.5% 23.2%, transparent 23.7% 38%, rgba(255, 86, 86, 0.08) 38.4% 39.1%, transparent 39.6% 100%),
+    linear-gradient(98deg, transparent 0 52%, rgba(185, 12, 12, 0.14) 52.3% 53%, transparent 53.4% 69%, rgba(255, 100, 100, 0.06) 69.5% 70.2%, transparent 70.6% 100%),
+    linear-gradient(124deg, transparent 0 74%, rgba(160, 0, 0, 0.16) 74.2% 75%, transparent 75.5% 88%, rgba(255, 92, 92, 0.06) 88.3% 89%, transparent 89.4% 100%);
+  mix-blend-mode: screen;
+  opacity: 0.78;
+  animation: mascotChaosPulse 2.4s ease-in-out infinite;
+}
+
+.mascotLayer,
+.mascotBubble,
+.mascotMenuBtn,
+.assistantGlow,
+.assistantBody,
+.assistantWing,
+.assistantSparkles span,
+.assistantShadow,
+.assistantEye,
+.assistantMouth,
+.assistantCheek {
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease,
+    filter 220ms ease,
+    opacity 220ms ease;
+}
+
+.mascotTargetDim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 22, 0.06);
+  pointer-events: none;
+}
+
+.mascotTargetRing {
+  position: fixed;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 210, 122, 0.92);
+  box-shadow:
+    0 0 0 6px rgba(255, 210, 122, 0.12),
+    0 0 24px rgba(255, 210, 122, 0.30);
+  animation: mascotTargetPulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 46;
+}
+
+.mascotTargetLabel {
+  position: fixed;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(10, 18, 34, 0.94);
+  color: rgba(243, 248, 255, 0.96);
+  font-size: 11px;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+  animation: mascotTargetLabelFloat 1.8s ease-in-out infinite;
+  z-index: 45;
+}
+
+.mascotTargetLabel.below-target {
+  animation-name: mascotTargetLabelFloatDown;
+}
+
+.mascotDock {
+  position: absolute;
+  right: 22px;
+  bottom: 18px;
+  width: 220px;
+  min-height: 252px;
+  pointer-events: none;
+  transition: left 320ms ease, top 320ms ease, right 320ms ease, bottom 320ms ease;
+  z-index: 47;
+}
+
+.mascotDock.is-cursed {
+  transition:
+    left 1800ms cubic-bezier(0.22, 0.8, 0.2, 1),
+    top 1800ms cubic-bezier(0.22, 0.8, 0.2, 1),
+    right 1800ms cubic-bezier(0.22, 0.8, 0.2, 1),
+    bottom 1800ms cubic-bezier(0.22, 0.8, 0.2, 1);
+}
+
+.mascotDock.is-closed {
+  width: 92px;
+  min-height: 92px;
+}
+
+.mascotBubble {
+  position: absolute;
+  right: 14px;
+  bottom: 188px;
+  width: 180px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(10, 18, 34, 0.94);
+  color: rgba(243, 248, 255, 0.96);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.2);
+  transform: translateY(8px) scale(.96);
+  transform-origin: bottom right;
+  opacity: 0;
+  transition: transform 160ms ease, opacity 160ms ease;
+  pointer-events: none;
+}
+
+.mascotBubble.with-menu {
+  right: 6px;
+  bottom: 172px;
+  width: 160px;
+  z-index: 6;
+  transform-origin: bottom right;
+}
+
+.mascotBubble.with-menu.with-tall-menu {
+  bottom: 172px;
+}
+
+.mascotBubble.tour-open {
+  bottom: 212px;
+}
+
+.mascotDock.is-touring .mascotBubble {
+  right: 98px;
+  bottom: 164px;
+  width: 214px;
+  z-index: 5;
+  transform-origin: bottom center;
+}
+
+.mascotBubble.bubble-below {
+  top: 156px;
+  bottom: auto;
+  transform-origin: top right;
+}
+
+.mascotBubble.with-menu.bubble-below {
+  top: auto;
+  right: 6px;
+  bottom: 172px;
+  transform-origin: bottom right;
+}
+
+.mascotBubble.with-menu.with-tall-menu.bubble-below {
+  bottom: 172px;
+}
+
+.mascotDock.is-touring .mascotBubble.bubble-below {
+  top: 138px;
+  right: 98px;
+  bottom: auto;
+  transform-origin: top center;
+}
+
+.mascotBubble::after {
+  content: "";
+  position: absolute;
+  right: 30px;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 18, 34, 0.94);
+  transform: rotate(45deg);
+}
+
+.mascotBubble.with-menu::after {
+  right: 26px;
+}
+
+.mascotBubble.bubble-below::after {
+  top: -7px;
+  bottom: auto;
+  border-right: 0;
+  border-bottom: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.mascotBubble.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.mascotMenu {
+  position: absolute;
+  right: 118px;
+  bottom: 54px;
+  display: grid;
+  gap: 8px;
+  width: 168px;
+  pointer-events: auto;
+  z-index: 4;
+}
+
+.mascotCurseHintCard {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  width: 168px;
+  border-radius: 12px;
+  border: 1px solid rgba(186, 36, 36, 0.22);
+  background: linear-gradient(180deg, rgba(24, 6, 8, 0.94), rgba(12, 2, 4, 0.9));
+  box-shadow: 0 14px 28px rgba(22, 0, 0, 0.2);
+  color: #fde3e3;
+  pointer-events: auto;
+}
+
+.mascotCurseHintCard strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mascotCurseHintCard span,
+.mascotCurseHintCard small {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(252, 224, 224, 0.84);
+}
+
+.mascotTourPicker {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(8, 14, 26, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mascotMenuBtn {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 18, 34, 0.88);
+  color: rgba(243, 248, 255, 0.96);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.mascotMenuBtn.primary {
+  border-color: rgba(79, 209, 197, 0.24);
+  background: linear-gradient(135deg, rgba(24, 137, 128, 0.94), rgba(46, 175, 163, 0.94));
+  color: #f4fffd;
+}
+
+.mascotMenuBtn.primary:hover {
+  border-color: rgba(126, 242, 233, 0.34);
+  background: linear-gradient(135deg, rgba(28, 153, 143, 0.98), rgba(59, 192, 180, 0.98));
+}
+
+.mascotMenuBtn.subtle {
+  background: rgba(10, 18, 34, 0.7);
+}
+
+.mascotMenuBtn:hover {
+  border-color: rgba(79, 209, 197, 0.28);
+  background: rgba(15, 24, 42, 0.96);
+  transform: translateY(-1px);
+}
+
+.mascotCurseCollectible {
+  position: absolute;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+body.mascotDemonicTheme .mascotCurseCollectible {
+  display: inline-flex;
+}
+
+.mascotCurseCollectible-wand {
+  right: 24px;
+  top: 96px;
+  width: 28px;
+  height: 72px;
+  animation: mascotCollectibleFloatWand 2.6s ease-in-out infinite;
+}
+
+.mascotCurseCollectible-crown {
+  right: 26px;
+  top: 18px;
+  width: 42px;
+  height: 32px;
+  animation: mascotCollectibleFloatCrown 2.8s ease-in-out infinite;
+}
+
+body.mascotCurseFoundWand .mascotCurseCollectible-wand,
+body.mascotCurseFoundCrown .mascotCurseCollectible-crown {
+  display: none !important;
+}
+
+.mascotCurseCollectibleStick {
+  position: absolute;
+  left: 13px;
+  top: 16px;
+  width: 4px;
+  height: 46px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(113, 64, 18, 0.98), rgba(72, 36, 10, 0.98));
+  box-shadow: 0 0 14px rgba(255, 64, 64, 0.26);
+}
+
+.mascotCurseCollectibleStar {
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  clip-path: polygon(50% 0%, 62% 35%, 100% 35%, 70% 58%, 82% 100%, 50% 74%, 18% 100%, 30% 58%, 0% 35%, 38% 35%);
+  background: linear-gradient(180deg, rgba(255, 216, 108, 0.98), rgba(206, 28, 28, 0.98));
+  box-shadow:
+    0 0 12px rgba(255, 68, 68, 0.42),
+    0 0 22px rgba(255, 176, 92, 0.24);
+}
+
+.mascotCurseCollectibleCrown {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.mascotCurseCollectibleCrown::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 30px;
+  height: 8px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(216, 42, 42, 0.98), rgba(104, 8, 8, 0.98));
+  box-shadow: 0 0 14px rgba(255, 62, 62, 0.32);
+}
+
+.mascotCurseCollectibleCrown span {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 14px solid rgba(246, 214, 96, 0.98);
+  filter: drop-shadow(0 0 8px rgba(255, 62, 62, 0.34));
+}
+
+.mascotCurseCollectibleCrown span:nth-child(2) {
+  border-left-width: 7px;
+  border-right-width: 7px;
+  border-bottom-width: 17px;
+}
+
+.mascotTourRail {
+  position: absolute;
+  right: 8px;
+  bottom: -52px;
+  width: 212px;
+  pointer-events: auto;
+  z-index: 4;
+}
+
+.mascotDock.is-touring .mascotTourRail {
+  right: 78px;
+  bottom: -76px;
+  width: 220px;
+  z-index: 5;
+}
+
+.mascotTourStepLabel {
+  margin-bottom: 8px;
+  color: rgba(244, 248, 255, 0.94);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mascotTourStepCount {
+  margin-top: 8px;
+  color: rgba(224, 232, 244, 0.82);
+  font-size: 11px;
+}
+
+.mascotTourProgress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.mascotTourProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(74, 219, 206, 0.92), rgba(115, 231, 221, 0.96));
+  transition: width 220ms ease;
+}
+
+.mascotTourControls {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.mascotTourBtn {
+  min-width: 56px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(10, 18, 34, 0.92);
+  color: rgba(243, 248, 255, 0.96);
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+
+.mascotTourBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(79, 209, 197, 0.28);
+  background: rgba(18, 29, 50, 0.96);
+}
+
+.mascotTourBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.mascotTourBtn.subtle {
+  background: rgba(10, 18, 34, 0.64);
+}
+
+.mascotToggle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 112px;
+  height: 158px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.mascotToggle:focus-visible {
+  outline: 2px solid rgba(255, 214, 120, 0.66);
+  outline-offset: 4px;
+  border-radius: 18px;
+}
+
+.mascotTourTarget {
+  position: relative;
+  z-index: 44 !important;
+  pointer-events: auto !important;
+}
+
+body.mascotTourLocked .navItem:not(.mascotTourTarget),
+body.mascotTourLocked [data-mascot-target^="nav-"]:not(.mascotTourTarget) {
+  pointer-events: none !important;
+}
+
+.mascotDock.is-closed .mascotToggle {
+  width: 86px;
+  height: 86px;
+}
+
+.toothFairyAssistant {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 158px;
+  height: 178px;
+  transform-origin: bottom right;
+  animation: assistantFloat 4.4s ease-in-out infinite;
+  transition: transform 180ms ease, filter 180ms ease;
+  filter: drop-shadow(0 16px 24px rgba(112, 84, 24, 0.08));
+}
+
+.toothFairyAssistant.menu-open {
+  transform: translateY(-2px);
+}
+
+.mascotDock.is-closed .toothFairyAssistant {
+  width: 84px;
+  height: 84px;
+}
+
+.assistantShadow {
+  position: absolute;
+  right: 18px;
+  bottom: 4px;
+  width: 98px;
+  height: 20px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(110, 84, 38, 0.18), rgba(110, 84, 38, 0.04) 70%, transparent 100%);
+  filter: blur(12px);
+  opacity: 0.8;
+}
+
+.assistantWings {
+  position: absolute;
+  right: 24px;
+  top: 30px;
+  width: 112px;
+  height: 74px;
+}
+
+.assistantWing {
+  position: absolute;
+  top: 2px;
+  width: 46px;
+  height: 68px;
+  border-radius: 46px 44px 26px 44px;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255,255,255,0.88), transparent 42%),
+    linear-gradient(180deg, rgba(237, 247, 255, 0.88), rgba(183, 220, 247, 0.34));
+  border: 2px solid rgba(161, 203, 232, 0.44);
+  opacity: 0.98;
+  box-shadow:
+    inset 0 -8px 14px rgba(255,255,255,0.22),
+    0 4px 10px rgba(143, 189, 224, 0.16);
+  backdrop-filter: blur(1px);
+}
+
+.assistantWing.left {
+  left: 2px;
+  transform: rotate(-28deg);
+}
+
+.assistantWing.right {
+  right: 2px;
+  transform: scaleX(-1) rotate(-28deg);
+}
+
+.assistantGlow {
+  position: absolute;
+  right: 34px;
+  top: 24px;
+  width: 110px;
+  height: 124px;
+  border-radius: 999px;
+  filter: blur(22px);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255, 240, 210, 0.72), rgba(255, 219, 151, 0.18) 42%, transparent 78%);
+  opacity: 0.85;
+}
+
+.assistantBody {
+  position: absolute;
+  right: 28px;
+  top: 22px;
+  width: 98px;
+  height: 122px;
+  z-index: 2;
+  border-radius: 48px 48px 36px 36px;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,0.96), transparent 24%),
+    radial-gradient(circle at 70% 72%, rgba(244, 236, 255, 0.38), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,0.99), rgba(255,249,243,0.98) 52%, rgba(246,240,250,0.96));
+  border: 2px solid rgba(61, 57, 78, 0.86);
+  box-shadow:
+    inset 0 -10px 18px rgba(244, 226, 205, 0.34),
+    inset 8px 0 12px rgba(218, 233, 255, 0.18),
+    inset -8px 0 12px rgba(255, 231, 240, 0.14),
+    0 12px 24px rgba(112, 84, 24, 0.08);
+}
+
+.assistantPropButton {
+  position: absolute;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.assistantPropButton:disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+.assistantPropButton:active {
+  cursor: grabbing;
+}
+
+.assistantPropButton-crown {
+  left: 50%;
+  top: -16px;
+  width: 44px;
+  height: 30px;
+  transform: translateX(-50%);
+}
+
+.assistantPropButton-wand {
+  left: -16px;
+  top: 4px;
+  width: 30px;
+  height: 58px;
+}
+
+.assistantHorns {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  width: 64px;
+  height: 28px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1;
+}
+
+.assistantHorn {
+  position: absolute;
+  bottom: 0;
+  width: 16px;
+  height: 24px;
+  background: linear-gradient(180deg, rgba(98, 18, 18, 0.98), rgba(40, 5, 8, 0.98));
+  border: 1px solid rgba(255, 145, 145, 0.18);
+  box-shadow:
+    0 4px 10px rgba(75, 10, 18, 0.26),
+    inset 0 2px 4px rgba(255, 146, 146, 0.18);
+}
+
+.assistantHorn.left {
+  left: 8px;
+  border-radius: 80% 22% 58% 18%;
+  transform: rotate(-28deg) scaleY(0.2);
+  transform-origin: bottom center;
+}
+
+.assistantHorn.right {
+  right: 8px;
+  border-radius: 22% 80% 18% 58%;
+  transform: rotate(28deg) scaleY(0.2);
+  transform-origin: bottom center;
+}
+
+.assistantBody::before,
+.assistantBody::after {
+  content: "";
+  position: absolute;
+  bottom: -12px;
+  width: 22px;
+  height: 38px;
+  z-index: -1;
+  background: inherit;
+  border: inherit;
+  border-top: 0;
+  border-radius: 0 0 16px 16px;
+  box-shadow:
+    inset 0 -5px 8px rgba(232, 225, 245, 0.16),
+    0 3px 5px rgba(120, 97, 56, 0.06);
+}
+
+.assistantBody::before {
+  left: 18px;
+  transform: rotate(5deg);
+}
+
+.assistantBody::after {
+  right: 18px;
+  transform: rotate(-5deg);
+}
+
+.assistantCrown {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.assistantCrown::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 30px;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 206, 95, 0.98), rgba(235, 166, 36, 0.96));
+  transform: translateX(-50%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.56),
+    0 2px 0 rgba(134, 91, 17, 0.18);
+}
+
+.assistantCrown span {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 14px solid rgba(248, 188, 52, 0.98);
+  filter: drop-shadow(0 2px 0 rgba(126, 82, 15, 0.14));
+}
+
+.assistantCrown span:nth-child(2) {
+  border-left-width: 7px;
+  border-right-width: 7px;
+  border-bottom-width: 17px;
+}
+
+.assistantFace {
+  position: absolute;
+  left: 50%;
+  top: 32px;
+  width: 58px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.assistantEyes {
+  display: flex;
+  gap: 16px;
+}
+
+.assistantEye {
+  position: relative;
+  width: 13px;
+  height: 16px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 36% 30%, rgba(120, 83, 36, 0.82), transparent 28%),
+    linear-gradient(180deg, rgba(74, 52, 32, 0.98), rgba(52, 36, 22, 0.98));
+  animation: assistantBlink 5.6s infinite;
+  transform-origin: center 75%;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.1);
+}
+
+.assistantEye::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 0 4px rgba(255,255,255,0.44);
+}
+
+.assistantCheeks {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  width: 68px;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: space-between;
+}
+
+.assistantCheek {
+  width: 14px;
+  height: 9px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 186, 205, 0.72), rgba(255, 163, 191, 0.34));
+  filter: blur(0.2px);
+}
+
+.assistantMouth {
+  width: 20px;
+  height: 11px;
+  border-bottom: 3px solid rgba(196, 94, 120, 0.92);
+  border-radius: 0 0 999px 999px;
+  transition: transform 140ms ease, height 140ms ease, border-color 140ms ease;
+}
+
+.assistantArms {
+  position: absolute;
+  right: 14px;
+  top: 74px;
+  width: 126px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.assistantWand {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 56px;
+  transform: rotate(-26deg);
+  transform-origin: 12px 40px;
+  transition: transform 180ms ease, filter 180ms ease;
+  filter: drop-shadow(0 4px 8px rgba(255, 196, 84, 0.18));
+}
+
+.assistantWandStick {
+  position: absolute;
+  left: 10px;
+  top: 12px;
+  width: 4px;
+  height: 38px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(90, 73, 37, 0.95), rgba(122, 92, 36, 0.9));
+}
+
+.assistantWandStar {
+  position: absolute;
+  left: 1px;
+  top: -1px;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(180deg, rgba(255, 224, 118, 1), rgba(247, 179, 39, 0.98));
+  clip-path: polygon(50% 0%, 62% 35%, 100% 35%, 70% 58%, 82% 100%, 50% 74%, 18% 100%, 30% 58%, 0% 35%, 38% 35%);
+  box-shadow:
+    0 0 12px rgba(246, 197, 84, 0.58),
+    0 0 24px rgba(255, 220, 132, 0.34);
+}
+
+.assistantArm {
+  position: relative;
+  width: 18px;
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(246,232,220,0.98));
+  border: 1px solid rgba(209, 192, 175, 0.64);
+  transform-origin: top center;
+  transition: transform 180ms ease;
+}
+
+.assistantArm.left { transform: rotate(20deg); }
+.assistantArm.right { transform: rotate(-38deg); }
+
+.toothFairyAssistant.scary .assistantGlow {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 154, 154, 0.44), rgba(195, 49, 49, 0.2) 42%, transparent 78%);
+  filter: blur(24px);
+}
+
+.toothFairyAssistant.scary .assistantHorns {
+  opacity: 1;
+}
+
+.toothFairyAssistant.scary .assistantHorn.left {
+  animation: assistantHornGrowLeft 320ms cubic-bezier(.2,.9,.25,1) forwards;
+}
+
+.toothFairyAssistant.scary .assistantHorn.right {
+  animation: assistantHornGrowRight 320ms cubic-bezier(.2,.9,.25,1) forwards;
+}
+
+.toothFairyAssistant.scary .assistantBody {
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,0.92), transparent 24%),
+    radial-gradient(circle at 70% 72%, rgba(255, 188, 200, 0.24), transparent 28%),
+    linear-gradient(180deg, rgba(255,250,250,0.98), rgba(244,232,236,0.96) 52%, rgba(232,220,228,0.96));
+  border-color: rgba(110, 48, 52, 0.84);
+  box-shadow:
+    inset 0 -10px 18px rgba(198, 120, 136, 0.18),
+    0 12px 24px rgba(120, 36, 45, 0.14);
+}
+
+.toothFairyAssistant.scary .assistantEye {
+  background:
+    radial-gradient(circle at 36% 30%, rgba(255, 193, 193, 0.88), transparent 28%),
+    linear-gradient(180deg, rgba(111, 24, 24, 0.98), rgba(64, 10, 10, 0.98));
+  box-shadow:
+    0 0 10px rgba(255, 112, 112, 0.32),
+    inset 0 -1px 0 rgba(255,255,255,0.08);
+  animation:
+    assistantBlink 5.6s infinite,
+    assistantEyeTwitch 1.2s steps(2, end) infinite;
+}
+
+.toothFairyAssistant.scary .assistantEye::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -4px;
+  width: 18px;
+  height: 7px;
+  border-top: 2px solid rgba(109, 24, 24, 0.82);
+  border-radius: 999px;
+}
+
+.toothFairyAssistant.scary .assistantCheek {
+  background: radial-gradient(circle, rgba(255, 134, 162, 0.54), rgba(255, 122, 140, 0.22));
+}
+
+.toothFairyAssistant.scary .assistantMouth {
+  position: relative;
+  width: 22px;
+  height: 12px;
+  border-bottom-color: rgba(167, 48, 48, 0.96);
+  transform: scaleY(-1) translateY(1px);
+}
+
+.toothFairyAssistant.scary .assistantMouth::before,
+.toothFairyAssistant.scary .assistantMouth::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 8px solid rgba(255, 250, 252, 0.98);
+  filter: drop-shadow(0 1px 0 rgba(121, 21, 27, 0.26));
+}
+
+.toothFairyAssistant.scary .assistantMouth::before {
+  left: 3px;
+}
+
+.toothFairyAssistant.scary .assistantMouth::after {
+  right: 3px;
+}
+
+.toothFairyAssistant.scary .assistantSparkles span {
+  background: rgba(255, 186, 138, 0.88);
+  box-shadow: 0 0 12px rgba(255, 124, 108, 0.34);
+}
+
+.toothFairyAssistant.demon-mode {
+  filter:
+    drop-shadow(0 0 12px rgba(255, 42, 42, 0.22))
+    drop-shadow(0 12px 20px rgba(35, 0, 0, 0.34));
+}
+
+.toothFairyAssistant.demon-mode .assistantGlow {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255, 40, 40, 0.28), rgba(120, 0, 0, 0.2) 36%, transparent 72%);
+  filter: blur(26px);
+}
+
+.toothFairyAssistant.demon-mode .assistantWing {
+  background: linear-gradient(180deg, rgba(58, 12, 12, 0.78), rgba(18, 2, 5, 0.56));
+  border-color: rgba(180, 40, 40, 0.3);
+  box-shadow:
+    inset 0 -8px 14px rgba(255, 80, 80, 0.06),
+    0 4px 10px rgba(40, 0, 0, 0.24);
+}
+
+.toothFairyAssistant.demon-mode .assistantBody {
+  background:
+    radial-gradient(circle at 28% 20%, rgba(94, 94, 94, 0.24), transparent 20%),
+    radial-gradient(circle at 70% 72%, rgba(120, 0, 0, 0.22), transparent 30%),
+    linear-gradient(180deg, rgba(38, 38, 42, 0.98), rgba(8, 8, 10, 0.99) 58%, rgba(0, 0, 0, 1));
+  border-color: rgba(188, 34, 34, 0.74);
+  box-shadow:
+    inset 0 -10px 16px rgba(255, 66, 66, 0.08),
+    inset 8px 0 12px rgba(129, 0, 0, 0.08),
+    0 12px 24px rgba(0, 0, 0, 0.28);
+}
+
+.toothFairyAssistant.demon-mode .assistantBody::before,
+.toothFairyAssistant.demon-mode .assistantBody::after {
+  background: linear-gradient(180deg, rgba(34, 34, 38, 0.98), rgba(0, 0, 0, 1));
+  border-color: rgba(186, 36, 36, 0.44);
+  box-shadow:
+    inset 0 -3px 8px rgba(255, 48, 48, 0.08),
+    0 3px 6px rgba(0, 0, 0, 0.22);
+}
+
+.toothFairyAssistant.demon-mode .assistantHorn {
+  background: linear-gradient(180deg, rgba(255, 48, 48, 0.98), rgba(74, 0, 0, 0.98));
+  border-color: rgba(255, 180, 180, 0.18);
+  box-shadow:
+    0 4px 10px rgba(103, 0, 0, 0.4),
+    0 0 16px rgba(255, 42, 42, 0.22),
+    inset 0 2px 4px rgba(255, 166, 166, 0.18);
+}
+
+.toothFairyAssistant.demon-mode .assistantEye {
+  background: linear-gradient(180deg, rgba(24, 0, 0, 0.98), rgba(0, 0, 0, 0.98));
+  box-shadow:
+    0 0 10px rgba(255, 40, 40, 0.22),
+    inset 0 -1px 0 rgba(255,255,255,0.04);
+}
+
+.toothFairyAssistant.demon-mode .assistantEye::after {
+  background: rgba(255, 62, 62, 0.98);
+  box-shadow:
+    0 0 7px rgba(255, 62, 62, 0.82),
+    0 0 18px rgba(255, 62, 62, 0.36);
+}
+
+.toothFairyAssistant.demon-mode .assistantEye:first-child {
+  animation:
+    assistantBlink 5.6s infinite,
+    assistantEyeTwitchWild 0.42s steps(2, end) infinite;
+}
+
+.toothFairyAssistant.demon-mode .assistantEye:last-child {
+  animation:
+    assistantBlink 5.6s infinite,
+    assistantDemonStare 2.2s ease-in-out infinite;
+}
+
+.toothFairyAssistant.demon-mode .assistantEye::before {
+  border-top-color: rgba(188, 38, 38, 0.88);
+}
+
+.toothFairyAssistant.demon-mode .assistantCheek {
+  background: radial-gradient(circle, rgba(108, 18, 18, 0.46), rgba(255, 68, 68, 0.1));
+}
+
+.toothFairyAssistant.demon-mode .assistantMouth {
+  width: 24px;
+  height: 12px;
+  border-bottom-color: rgba(255, 72, 72, 0.96);
+}
+
+.toothFairyAssistant.demon-mode .assistantMouth::before,
+.toothFairyAssistant.demon-mode .assistantMouth::after {
+  border-top-color: rgba(255, 248, 248, 0.98);
+}
+
+.toothFairyAssistant.demon-mode .assistantFace::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  width: 10px;
+  height: 18px;
+  transform: translateX(-10%);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 84, 84, 0.94), rgba(172, 0, 0, 0.94) 68%, transparent 69%),
+    linear-gradient(180deg, rgba(172, 0, 0, 0.94), rgba(108, 0, 0, 0.9));
+  clip-path: polygon(30% 0%, 74% 0%, 86% 18%, 74% 56%, 62% 100%, 34% 84%, 22% 52%, 12% 18%);
+  filter: drop-shadow(0 3px 4px rgba(70, 0, 0, 0.32));
+}
+
+.toothFairyAssistant.demon-mode .assistantArm {
+  background: linear-gradient(180deg, rgba(46, 46, 52, 0.98), rgba(6, 6, 8, 0.98));
+  border-color: rgba(186, 36, 36, 0.42);
+}
+
+.toothFairyAssistant.demon-mode .assistantArm::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 16px;
+  height: 10px;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(90deg,
+      transparent 0 6%,
+      rgba(255, 244, 244, 0.98) 6% 18%,
+      transparent 18% 30%,
+      rgba(255, 244, 244, 0.98) 30% 42%,
+      transparent 42% 54%,
+      rgba(255, 244, 244, 0.98) 54% 66%,
+      transparent 66% 100%);
+  clip-path: polygon(0 100%, 10% 30%, 18% 100%, 34% 22%, 42% 100%, 58% 18%, 66% 100%, 100% 100%);
+  filter: drop-shadow(0 1px 0 rgba(119, 0, 0, 0.26));
+}
+
+.toothFairyAssistant.demon-mode .assistantSparkles span {
+  background: rgba(255, 74, 74, 0.9);
+  box-shadow: 0 0 14px rgba(255, 52, 52, 0.44);
+}
+
+.assistantSparkles {
+  position: absolute;
+  right: 10px;
+  top: 18px;
+  width: 126px;
+  height: 118px;
+  pointer-events: none;
+}
+
+.assistantSparkles span {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 232, 184, 0.88);
+  box-shadow: 0 0 10px rgba(255, 214, 120, 0.42);
+  animation: sparklePulse 3.2s ease-in-out infinite;
+}
+
+.assistantSparkles span:nth-child(1) { top: 12px; left: 18px; }
+.assistantSparkles span:nth-child(2) { top: 24px; right: 20px; animation-delay: .4s; }
+.assistantSparkles span:nth-child(3) { bottom: 28px; left: 20px; animation-delay: .9s; }
+
+.theme-light .assistantBody {
+  background: linear-gradient(180deg, rgba(255,255,255,0.99), rgba(255,246,236,0.98));
+  border-color: rgba(209, 192, 175, 0.76);
+  box-shadow:
+    inset 0 -10px 18px rgba(255, 224, 199, 0.32),
+    inset 9px 0 12px rgba(198, 222, 255, 0.14),
+    0 12px 22px rgba(190, 142, 55, 0.08);
+}
+
+.theme-light .assistantGlow {
+  width: 112px;
+  height: 126px;
+  right: 29px;
+  top: 20px;
+  filter: blur(22px);
+  background: radial-gradient(circle, rgba(229, 181, 89, 0.24), rgba(255, 235, 193, 0.2) 36%, transparent 74%);
+}
+
+.theme-light .assistantWing {
+  background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,222,206,0.45));
+}
+
+.theme-light .assistantSparkles span {
+  background: rgba(255, 225, 170, 0.92);
+  box-shadow: 0 0 12px rgba(221, 171, 79, 0.4);
+}
+
+.theme-light .assistantCrown::after {
+  background: rgba(242, 181, 53, 0.96);
+}
+
+.theme-light .assistantCrown span {
+  border-bottom-color: rgba(242, 181, 53, 0.96);
+}
+
+.theme-light .assistantWandStick {
+  background: linear-gradient(180deg, rgba(130, 93, 31, 0.95), rgba(168, 121, 39, 0.92));
+}
+
+.theme-light .assistantWandStar {
+  background: rgba(243, 193, 76, 0.98);
+  box-shadow: 0 0 10px rgba(246, 197, 84, 0.48);
+}
+
+.theme-dark .assistantBody {
+  background: linear-gradient(180deg, rgba(238, 246, 255, 0.98), rgba(221, 232, 251, 0.94));
+  border-color: rgba(149, 182, 227, 0.82);
+  box-shadow:
+    inset 0 -10px 20px rgba(130, 171, 228, 0.28),
+    inset 8px 0 12px rgba(222, 239, 255, 0.12),
+    0 0 0 1px rgba(195, 224, 255, 0.24),
+    0 18px 42px rgba(84, 131, 207, 0.22);
+}
+
+.theme-dark .assistantGlow {
+  width: 116px;
+  height: 128px;
+  right: 22px;
+  top: 16px;
+  filter: blur(24px);
+  background: radial-gradient(circle, rgba(200, 235, 255, 0.34), rgba(122, 188, 255, 0.24) 38%, rgba(87, 146, 230, 0.14) 56%, transparent 76%);
+}
+
+.theme-dark .assistantWing {
+  background: linear-gradient(180deg, rgba(234,244,255,0.72), rgba(154,191,255,0.28));
+  border-color: rgba(193, 221, 255, 0.28);
+}
+
+.theme-dark .assistantCrown span {
+  border-bottom-color: rgba(181, 226, 255, 0.96);
+}
+
+.theme-dark .assistantCrown::after {
+  background: rgba(143, 214, 255, 0.96);
+}
+
+.theme-dark .assistantSparkles span {
+  background: rgba(224, 244, 255, 0.94);
+  box-shadow: 0 0 16px rgba(153, 212, 255, 0.46);
+}
+
+.theme-dark .assistantEye {
+  background: rgba(47, 77, 122, 0.94);
+}
+
+.theme-dark .assistantWandStick {
+  background: linear-gradient(180deg, rgba(146, 207, 255, 0.94), rgba(92, 161, 232, 0.92));
+}
+
+.theme-dark .assistantWandStar {
+  background: rgba(214, 242, 255, 0.98);
+  box-shadow: 0 0 14px rgba(153, 212, 255, 0.6);
+}
+
+.theme-blue .assistantBody {
+  background: linear-gradient(180deg, rgba(245, 252, 255, 0.99), rgba(225, 245, 252, 0.97));
+  border-color: rgba(134, 196, 230, 0.82);
+  box-shadow:
+    inset 0 -8px 18px rgba(170, 233, 255, 0.34),
+    inset 8px 0 12px rgba(235, 249, 255, 0.16),
+    0 16px 30px rgba(93, 192, 233, 0.16);
+}
+
+.theme-blue .assistantGlow {
+  width: 112px;
+  height: 122px;
+  right: 24px;
+  top: 18px;
+  filter: blur(22px);
+  background: radial-gradient(circle, rgba(109, 220, 255, 0.32), rgba(78, 194, 255, 0.22) 38%, transparent 74%);
+}
+
+.theme-blue .assistantWing {
+  background: linear-gradient(180deg, rgba(244,252,255,0.84), rgba(180,231,255,0.36));
+  border-color: rgba(164, 220, 244, 0.3);
+}
+
+.theme-blue .assistantCrown span {
+  border-bottom-color: rgba(96, 194, 255, 0.94);
+}
+
+.theme-blue .assistantCrown::after {
+  background: rgba(96, 194, 255, 0.94);
+}
+
+.theme-blue .assistantSparkles span {
+  background: rgba(164, 228, 255, 0.94);
+  box-shadow: 0 0 14px rgba(108, 215, 255, 0.42);
+}
+
+.theme-blue .assistantWandStick {
+  background: linear-gradient(180deg, rgba(94, 181, 233, 0.95), rgba(61, 144, 204, 0.92));
+}
+
+.theme-blue .assistantWandStar {
+  background: rgba(118, 222, 255, 0.98);
+  box-shadow: 0 0 14px rgba(108, 215, 255, 0.56);
+}
+
+.mood-happy .assistantMouth,
+.mood-excited .assistantMouth {
+  height: 13px;
+  transform: scale(1.08);
+}
+
+.mood-sad .assistantMouth {
+  height: 8px;
+  transform: scaleY(-1) translateY(2px);
+}
+
+.mood-angry .assistantMouth {
+  height: 8px;
+  border-bottom-color: rgba(196, 76, 60, 0.92);
+  transform: scaleY(-1) translateY(1px) scaleX(0.92);
+}
+
+.mood-sad .assistantEye {
+  height: 12px;
+}
+
+.mood-angry .assistantEye {
+  height: 11px;
+  background: rgba(116, 42, 30, 0.96);
+}
+
+.mood-angry .assistantCheek {
+  background: rgba(255, 144, 118, 0.58);
+}
+
+.mood-angry .assistantArm.left { transform: rotate(36deg); }
+.mood-angry .assistantArm.right { transform: rotate(-36deg); }
+
+.mood-excited .assistantEye {
+  height: 12px;
+}
+
+.mood-excited .assistantArm.left { transform: rotate(42deg); }
+.mood-excited .assistantArm.right { transform: rotate(-42deg); }
+
+.pose-wave .assistantArm.right {
+  transform: rotate(-66deg);
+}
+
+.pose-wave .assistantWand {
+  transform: rotate(-40deg);
+}
+
+.pose-celebrate .toothFairyAssistant {
+  animation: assistantJump 760ms cubic-bezier(.18,.78,.26,1);
+}
+
+.pose-celebrate .assistantSparkles span {
+  animation-duration: 1.2s;
+}
+
+.pose-jump .toothFairyAssistant {
+  animation: assistantJump 720ms cubic-bezier(.18,.78,.26,1);
+}
+
+.pose-point-book .toothFairyAssistant,
+.pose-jump-book .toothFairyAssistant,
+.pose-point-contact .toothFairyAssistant {
+  transform: translateX(-8px);
+}
+
+.pose-point-book .assistantArm.left,
+.pose-jump-book .assistantArm.left,
+.pose-point-contact .assistantArm.left {
+  transform: rotate(58deg);
+}
+
+.pose-point-book .assistantArm.right,
+.pose-jump-book .assistantArm.right,
+.pose-point-contact .assistantArm.right {
+  transform: rotate(-10deg);
+}
+
+.pose-point-book .assistantWand,
+.pose-jump-book .assistantWand,
+.pose-point-contact .assistantWand {
+  transform: rotate(-18deg);
+}
+
+.pose-jump-book .toothFairyAssistant {
+  animation: assistantJump 760ms cubic-bezier(.18,.78,.26,1);
+}
+
+.pose-peek .toothFairyAssistant {
+  transform: translateX(6px);
+}
+
+.pose-peek .assistantArm.left { transform: rotate(48deg); }
+.pose-peek .assistantWand { transform: rotate(-24deg); }
+
+.mascotDock.is-touring .toothFairyAssistant {
+  animation-duration: 3.2s;
+}
+
+.mascotDock.is-touring .mascotToggle {
+  width: 104px;
+  height: 148px;
+}
+
+.mascotDock.is-touring .assistantShadow {
+  opacity: 0.2;
+}
+
+.mascotDock.is-touring .mascotMenu {
+  display: none;
+}
+
+.mascotDock.is-touring .assistantSparkles span {
+  animation-duration: 1.8s;
+}
+
+.mascotDock.is-closed .assistantWings,
+.mascotDock.is-closed .assistantArms,
+.mascotDock.is-closed .assistantWand,
+.mascotDock.is-closed .assistantSparkles {
+  display: none;
+}
+
+.mascotDock.is-closed .assistantBody {
+  right: 8px;
+  top: 10px;
+  width: 62px;
+  height: 72px;
+}
+
+.mascotDock.is-closed .assistantBody::before,
+.mascotDock.is-closed .assistantBody::after {
+  width: 18px;
+  height: 24px;
+  bottom: -6px;
+}
+
+.mascotDock.is-closed .assistantGlow {
+  right: 4px;
+  top: 10px;
+  width: 72px;
+  height: 72px;
+}
+
+.mascotDock.is-closed .assistantShadow {
+  right: 10px;
+  width: 60px;
+}
+
+.mascotDock.is-closed .assistantCrown {
+  top: -8px;
+}
+
+.mascotDock.is-closed .assistantFace {
+  top: 20px;
+  width: 42px;
+  gap: 6px;
+}
+
+.mascotDock.is-closed .assistantEyes {
+  gap: 12px;
+}
+
+.mascotDock.is-closed .assistantEye {
+  width: 8px;
+  height: 10px;
+}
+
+.mascotDock.is-closed .assistantCheeks {
+  top: 38px;
+  width: 48px;
+}
+
+.mascotDock.is-closed .assistantCheek {
+  width: 9px;
+  height: 5px;
+}
+
+.mascotDock.is-closed .assistantMouth {
+  width: 14px;
+  height: 8px;
+}
+
+html[data-theme="light"] .mascotBubble {
+  border-color: rgba(168, 123, 26, 0.18);
+  background: rgba(255, 249, 239, 0.96);
+  color: #4c3310;
+}
+
+html[data-theme="light"] .mascotTargetDim {
+  background: rgba(92, 67, 18, 0.04);
+}
+
+html[data-theme="light"] .mascotTourOverlay {
+  background: rgba(82, 57, 17, 0.18);
+}
+
+html[data-theme="light"] .mascotTargetRing {
+  border-color: rgba(176, 111, 8, 0.92);
+  box-shadow:
+    0 0 0 6px rgba(176, 111, 8, 0.10),
+    0 0 24px rgba(176, 111, 8, 0.22);
+}
+
+html[data-theme="light"] .mascotTargetLabel {
+  background: rgba(255, 249, 239, 0.98);
+  color: #4c3310;
+}
+
+html[data-theme="dark"] .mascotTargetDim {
+  background: rgba(12, 18, 34, 0.18);
+}
+
+html[data-theme="dark"] .mascotTargetRing {
+  border-color: rgba(144, 214, 255, 0.94);
+  box-shadow:
+    0 0 0 6px rgba(110, 188, 255, 0.14),
+    0 0 28px rgba(132, 208, 255, 0.3);
+}
+
+html[data-theme="dark"] .mascotTargetLabel {
+  background: rgba(13, 22, 39, 0.98);
+  color: rgba(226, 244, 255, 0.96);
+}
+
+html[data-theme="blue"] .mascotTargetDim {
+  background: rgba(8, 43, 59, 0.1);
+}
+
+html[data-theme="blue"] .mascotTargetRing {
+  border-color: rgba(91, 211, 255, 0.94);
+  box-shadow:
+    0 0 0 6px rgba(86, 193, 237, 0.14),
+    0 0 28px rgba(72, 196, 241, 0.28);
+}
+
+html[data-theme="blue"] .mascotTargetLabel {
+  background: rgba(234, 250, 255, 0.98);
+  color: #0f5469;
+}
+
+html[data-theme="light"] .mascotMenuBtn {
+  border-color: rgba(168, 123, 26, 0.18);
+  background: rgba(255, 249, 239, 0.96);
+  color: #4c3310;
+}
+
+html[data-theme="light"] .mascotTourPicker {
+  background: rgba(255, 247, 234, 0.94);
+  border-color: rgba(168, 123, 26, 0.14);
+}
+
+html[data-theme="light"] .mascotBubble::after {
+  border-color: rgba(168, 123, 26, 0.18);
+  background: rgba(255, 249, 239, 0.96);
+}
+
+html[data-theme="light"] .mascotBubble.bubble-below::after {
+  border-top-color: rgba(168, 123, 26, 0.18);
+  border-left-color: rgba(168, 123, 26, 0.18);
+}
+
+html[data-theme="light"] .mascotMenuBtn:hover {
+  border-color: rgba(168, 123, 26, 0.28);
+  background: rgba(255, 245, 229, 0.98);
+}
+
+html[data-theme="light"] .mascotMenuBtn.primary {
+  border-color: rgba(169, 122, 40, 0.22);
+  background: linear-gradient(135deg, rgba(210, 173, 93, 0.96), rgba(226, 188, 102, 0.96));
+  color: #52380d;
+}
+
+html[data-theme="light"] .mascotMenuBtn.primary:hover {
+  border-color: rgba(175, 124, 33, 0.3);
+  background: linear-gradient(135deg, rgba(220, 182, 97, 0.98), rgba(236, 198, 112, 0.98));
+}
+
+html[data-theme="light"] .mascotTourBtn {
+  border-color: rgba(168, 123, 26, 0.18);
+  background: rgba(255, 249, 239, 0.98);
+  color: #4c3310;
+}
+
+html[data-theme="light"] .mascotTourBtn:hover:not(:disabled) {
+  border-color: rgba(168, 123, 26, 0.28);
+  background: rgba(255, 245, 229, 0.98);
+}
+
+html[data-theme="light"] .mascotTourBtn.subtle {
+  background: rgba(255, 249, 239, 0.76);
+}
+
+html[data-theme="light"] .mascotTourStepLabel {
+  color: #4c3310;
+}
+
+html[data-theme="light"] .mascotTourStepCount {
+  color: rgba(88, 60, 18, 0.78);
+}
+
+html[data-theme="light"] .mascotTourProgress {
+  background: rgba(176, 111, 8, 0.12);
+}
+
+html[data-theme="light"] .mascotTourProgress span {
+  background: linear-gradient(90deg, rgba(209, 165, 74, 0.96), rgba(236, 198, 112, 0.96));
+}
+
+@keyframes assistantFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes mascotChaosPulse {
+  0%, 100% { opacity: 0.76; }
+  50% { opacity: 0.92; }
+}
+
+@keyframes mascotBloodFall {
+  0% { transform: translateY(-18vh) scaleY(0.9); opacity: 0; }
+  12% { opacity: 0.76; }
+  100% { transform: translateY(118vh) scaleY(1.08); opacity: 0.18; }
+}
+
+@keyframes mascotCollectibleFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(3deg); }
+}
+
+@keyframes mascotCollectibleFloatWand {
+  0%, 100% { transform: translateY(0) rotate(18deg); }
+  50% { transform: translateY(-6px) rotate(21deg); }
+}
+
+@keyframes mascotCollectibleFloatCrown {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
+}
+
+@keyframes assistantHornGrowLeft {
+  0% { transform: rotate(-28deg) scaleY(0.2); }
+  72% { transform: rotate(-34deg) scaleY(1.12); }
+  100% { transform: rotate(-30deg) scaleY(1); }
+}
+
+@keyframes assistantHornGrowRight {
+  0% { transform: rotate(28deg) scaleY(0.2); }
+  72% { transform: rotate(34deg) scaleY(1.12); }
+  100% { transform: rotate(30deg) scaleY(1); }
+}
+
+@keyframes assistantEyeTwitch {
+  0%, 68%, 100% { transform: translateX(0) scaleY(1); }
+  18% { transform: translateX(-1px) scaleY(0.96); }
+  22% { transform: translateX(1px) scaleY(1); }
+  26% { transform: translateX(0) scaleY(0.94); }
+}
+
+@keyframes assistantEyeTwitchWild {
+  0%, 100% { transform: translateX(0) translateY(0) scaleY(1); }
+  15% { transform: translateX(-2px) translateY(-1px) scaleY(0.86); }
+  22% { transform: translateX(2px) translateY(1px) scaleY(1.04); }
+  35% { transform: translateX(-1px) translateY(0) scaleY(0.9); }
+  48% { transform: translateX(1px) translateY(-1px) scaleY(1.02); }
+  62% { transform: translateX(-2px) translateY(1px) scaleY(0.94); }
+}
+
+@keyframes assistantDemonStare {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes mascotMediaGlitch {
+  0%, 100% { transform: translateX(0); }
+  16% { transform: translateX(-1px); }
+  18% { transform: translateX(1px); }
+  52% { transform: translateX(0); }
+  54% { transform: translateX(1px); }
+  56% { transform: translateX(-1px); }
+}
+
+@keyframes mascotPhotoScratch {
+  0%, 100% { opacity: 0.28; transform: translateX(0); }
+  18% { opacity: 0.72; transform: translateX(-2px); }
+  22% { opacity: 0.58; transform: translateX(1px); }
+  26% { opacity: 0.74; transform: translateX(-1px); }
+  60% { opacity: 0.32; transform: translateX(0); }
+}
+
+@keyframes mascotTargetPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.012); opacity: .92; }
+}
+
+@keyframes mascotTargetLabelFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes mascotTargetLabelFloatDown {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+@keyframes assistantBlink {
+  0%, 44%, 48%, 100% { transform: scaleY(1); }
+  46% { transform: scaleY(0.12); }
+}
+
+@keyframes assistantJump {
+  0% { transform: translateY(0); }
+  28% { transform: translateY(-24px) scale(1.02); }
+  62% { transform: translateY(4px) scale(.99); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes sparklePulse {
+  0%, 100% { transform: scale(.72); opacity: .42; }
+  50% { transform: scale(1.18); opacity: .94; }
+}
+
+@media (max-width: 760px) {
+  .mascotDock {
+    right: 14px;
+    bottom: 14px;
+    width: 192px;
+    min-height: 232px;
+  }
+
+  .mascotBubble {
+    right: 8px;
+    bottom: 182px;
+    width: 162px;
+    font-size: 11px;
+  }
+
+  .mascotBubble.with-menu {
+    bottom: 214px;
+  }
+
+  .mascotBubble.tour-open {
+    bottom: 204px;
+  }
+
+  .mascotBubble.bubble-below {
+    top: 158px;
+  }
+
+  .mascotDock.is-touring .mascotBubble {
+    right: 78px;
+    bottom: 160px;
+    width: 184px;
+  }
+
+  .mascotDock.is-touring .mascotBubble.bubble-below {
+    top: 138px;
+    right: 78px;
+  }
+
+  .mascotMenu {
+    right: 94px;
+    bottom: 46px;
+    width: 146px;
+  }
+
+  .mascotTourRail {
+    right: 8px;
+    bottom: -46px;
+    width: 180px;
+  }
+
+  .mascotDock.is-touring .mascotTourRail {
+    right: 60px;
+    bottom: -72px;
+    width: 186px;
+  }
+
+  .mascotTourControls {
+    gap: 6px;
+  }
+
+  .mascotTourBtn {
+    min-width: 48px;
+    padding: 0 10px;
+  }
+
+  .mascotToggle {
+    width: 104px;
+    height: 150px;
+  }
+
+  .toothFairyAssistant {
+    width: 144px;
+    height: 166px;
+  }
+
+  .assistantGlow {
+    right: 28px;
+    top: 22px;
+    width: 100px;
+    height: 114px;
+  }
+
+  .assistantWings {
+    right: 28px;
+    top: 32px;
+    width: 96px;
+    height: 66px;
+  }
+
+  .assistantBody {
+    right: 28px;
+    top: 24px;
+    width: 92px;
+    height: 114px;
+  }
+
+  .assistantArms {
+    right: 18px;
+    top: 50px;
+    width: 118px;
+  }
+
+  .assistantShadow {
+    right: 22px;
+    width: 88px;
+  }
+
+  .assistantFace {
+    top: 36px;
+    width: 56px;
+  }
+
+  .assistantWand {
+    left: -14px;
+    top: 6px;
+    transform: rotate(-20deg) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toothFairyAssistant,
+  .assistantEye,
+  .assistantSparkles span {
+    animation: none !important;
+  }
+
+  .mascotBubble,
+  .mascotMenuBtn,
+  .assistantGlow,
+  .assistantBody,
+  .assistantWing,
+  .assistantSparkles span,
+  .assistantShadow,
+  .assistantEye,
+  .assistantMouth,
+  .assistantCheek,
+  .assistantWand,
+  .assistantArm {
+    transition: none !important;
+  }
+}
