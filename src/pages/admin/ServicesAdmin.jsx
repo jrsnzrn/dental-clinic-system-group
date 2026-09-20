@@ -210,7 +210,14 @@ export default function ServicesAdmin() {
                         <div className="detailBox luxeBox serviceImageDetailBox">
                           <span className="detailLabel">Service image</span>
                           <div className="serviceAdminPreviewFrame">
-                            <img src={getClinicServiceImage(normalized)} alt={normalized.name} className="serviceAdminPreviewImage" />
+                            <img
+                              src={getClinicServiceImage(normalized)}
+                              alt={normalized.name}
+                              className="serviceAdminPreviewImage"
+                              onError={(event) => {
+                                event.currentTarget.src = getClinicServiceImage({ name: normalized.name, image: "" });
+                              }}
+                            />
                           </div>
                         </div>
                         <div className="detailBox luxeBox">

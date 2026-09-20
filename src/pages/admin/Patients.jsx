@@ -55,8 +55,10 @@ function emptyTreatmentDraft() {
     targetDate: "",
     status: "Planned",
     instructions: "",
+    patientSummary: "",
     beforeImageUrl: "",
     afterImageUrl: "",
+    patientVisible: false,
   };
 }
 
@@ -103,6 +105,29 @@ function emptyCareDraft() {
     followUpDate: "",
     prescription: "",
   };
+}
+
+function getPatientVisibleTreatmentPlans(plans = []) {
+  return plans
+    .filter((plan) => plan.patientVisible === true)
+    .map((plan) => ({
+      title: plan.title || "",
+      targetDate: plan.targetDate || "",
+      status: plan.status || "Planned",
+      instructions: plan.patientSummary || plan.instructions || "",
+      beforeImageUrl: plan.beforeImageUrl || "",
+      afterImageUrl: plan.afterImageUrl || "",
+      createdAt: plan.createdAt || "",
+    }));
+}
+
+function getPatientCareRecommendations(recommendations = []) {
+  return recommendations.map((care) => ({
+    recommendation: care.recommendation || "",
+    followUpDate: care.followUpDate || "",
+    prescription: care.prescription || "",
+    createdAt: care.createdAt || "",
+  }));
 }
 
 function getPatientHistory(bookings, patient, options = {}) {
@@ -278,6 +303,7 @@ export default function Patients() {
 
   useEffect(() => {
     setPatientWorkspaceOpen(false);
+    setActivePatientView(PATIENT_VIEWS.DETAILS);
   }, [selectedPatientId]);
 
   useEffect(() => {
@@ -292,7 +318,6 @@ export default function Patients() {
       return;
     }
 
-    setActivePatientView(PATIENT_VIEWS.DETAILS);
     setSelectedTeeth(["11"]);
     setHoveredTooth("");
     setDraft({
@@ -418,6 +443,7 @@ export default function Patients() {
         ...treatmentDraft,
         title: treatmentDraft.title.trim(),
         instructions: treatmentDraft.instructions.trim(),
+        patientSummary: treatmentDraft.patientSummary.trim(),
         createdAt: new Date().toISOString(),
       },
     ];
@@ -425,6 +451,7 @@ export default function Patients() {
     await updateDoc(doc(db, "patients", selectedPatient.id), {
       treatmentPlans: nextPlans,
     });
+    await publishPatientRecord(nextPlans, selectedPatient.careRecommendations || []);
 
     await logAdminAction({
       action: "add_treatment_plan",
@@ -435,6 +462,116 @@ export default function Patients() {
     });
 
     setTreatmentDraft(emptyTreatmentDraft());
+    await load();
+  }
+
+  async function publishPatientRecord(treatmentPlans, careRecommendations) {
+    if (!selectedPatient?.uid) return;
+
+    await setDoc(
+      doc(db, "dentalCharts", selectedPatient.uid),
+      {
+        uid: selectedPatient.uid,
+        patientName: selectedPatient.name || "",
+        patientEmail: selectedPatient.email || "",
+        patientTreatmentPlans: getPatientVisibleTreatmentPlans(treatmentPlans),
+        patientCareRecommendations: getPatientCareRecommendations(careRecommendations),
+      },
+      { merge: true }
+    );
+  }
+
+  async function syncPatientPortalRecord() {
+    if (!selectedPatient) return;
+
+    await publishPatientRecord(selectedPatient.treatmentPlans || [], selectedPatient.careRecommendations || []);
+
+    await logAdminAction({
+      action: "sync_patient_portal_record",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: {
+        visibleTreatmentPlans: getPatientVisibleTreatmentPlans(selectedPatient.treatmentPlans || []).length,
+        careRecommendations: (selectedPatient.careRecommendations || []).length,
+      },
+    });
+
+    await load();
+  }
+
+  async function setTreatmentPlanPatientVisible(indexToUpdate, patientVisible) {
+    if (!selectedPatient) return;
+    const nextPlans = (selectedPatient.treatmentPlans || []).map((plan, index) =>
+      index === indexToUpdate
+        ? {
+            ...plan,
+            patientVisible,
+          }
+        : plan
+    );
+
+    await updateDoc(doc(db, "patients", selectedPatient.id), {
+      treatmentPlans: nextPlans,
+    });
+    await publishPatientRecord(nextPlans, selectedPatient.careRecommendations || []);
+
+    await logAdminAction({
+      action: patientVisible ? "share_treatment_plan_with_patient" : "hide_treatment_plan_from_patient",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: { updatedIndex: indexToUpdate },
+    });
+
+    await load();
+  }
+
+  async function removeTreatmentPlan(indexToRemove) {
+    if (!selectedPatient) return;
+    const nextPlans = (selectedPatient.treatmentPlans || []).filter((_, index) => index !== indexToRemove);
+
+    await updateDoc(doc(db, "patients", selectedPatient.id), {
+      treatmentPlans: nextPlans,
+    });
+    await publishPatientRecord(nextPlans, selectedPatient.careRecommendations || []);
+
+    await logAdminAction({
+      action: "remove_treatment_plan",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: { removedIndex: indexToRemove },
+    });
+
+    await load();
+  }
+
+  async function clearTreatmentPlanImages(indexToUpdate) {
+    if (!selectedPatient) return;
+    const nextPlans = (selectedPatient.treatmentPlans || []).map((plan, index) =>
+      index === indexToUpdate
+        ? {
+            ...plan,
+            beforeImageUrl: "",
+            afterImageUrl: "",
+          }
+        : plan
+    );
+
+    await updateDoc(doc(db, "patients", selectedPatient.id), {
+      treatmentPlans: nextPlans,
+    });
+    await publishPatientRecord(nextPlans, selectedPatient.careRecommendations || []);
+
+    await logAdminAction({
+      action: "clear_treatment_plan_images",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: { updatedIndex: indexToUpdate },
+    });
+
     await load();
   }
 
@@ -462,6 +599,7 @@ export default function Patients() {
     await updateDoc(doc(db, "patients", selectedPatient.id), {
       careRecommendations: nextRecommendations,
     });
+    await publishPatientRecord(selectedPatient.treatmentPlans || [], nextRecommendations);
 
     await logAdminAction({
       action: "add_care_recommendation",
@@ -472,6 +610,26 @@ export default function Patients() {
     });
 
     setCareDraft(emptyCareDraft());
+    await load();
+  }
+
+  async function removeCareRecommendation(indexToRemove) {
+    if (!selectedPatient) return;
+    const nextRecommendations = (selectedPatient.careRecommendations || []).filter((_, index) => index !== indexToRemove);
+
+    await updateDoc(doc(db, "patients", selectedPatient.id), {
+      careRecommendations: nextRecommendations,
+    });
+    await publishPatientRecord(selectedPatient.treatmentPlans || [], nextRecommendations);
+
+    await logAdminAction({
+      action: "remove_care_recommendation",
+      targetType: "patient",
+      targetId: selectedPatient.id,
+      targetLabel: selectedPatient.name || "Patient",
+      details: { removedIndex: indexToRemove },
+    });
+
     await load();
   }
 
@@ -1206,7 +1364,14 @@ export default function Patients() {
                     <h3 className="title">Clinical Plan and Follow-Up</h3>
                     <p className="sub">Organize the next treatment steps and home-care instructions in a clearer, easier-to-scan patient summary.</p>
                   </div>
-                  <span className="badge">{(selectedPatient.treatmentPlans || []).length + (selectedPatient.careRecommendations || []).length} saved items</span>
+                  <div className="clinicalHeaderActions">
+                    {canEditDentalChart ? (
+                      <button className="btn secondary" type="button" onClick={syncPatientPortalRecord}>
+                        Sync patient portal
+                      </button>
+                    ) : null}
+                    <span className="badge">{(selectedPatient.treatmentPlans || []).length + (selectedPatient.careRecommendations || []).length} saved items</span>
+                  </div>
                 </div>
 
                 {canEditDentalChart ? (
@@ -1222,7 +1387,16 @@ export default function Patients() {
                         <option>Completed</option>
                       </select>
                     </div>
-                    <textarea className="input" rows={3} placeholder="Clinical notes, session goals, or procedure instructions" value={treatmentDraft.instructions} onChange={(e) => setTreatmentDraft((current) => ({ ...current, instructions: e.target.value }))} />
+                    <textarea className="input" rows={3} placeholder="Internal clinical notes, session goals, or procedure instructions" value={treatmentDraft.instructions} onChange={(e) => setTreatmentDraft((current) => ({ ...current, instructions: e.target.value }))} />
+                    <textarea className="input" rows={3} placeholder="Patient-friendly version: simple steps, visit flow, reminders, or aftercare context" value={treatmentDraft.patientSummary} onChange={(e) => setTreatmentDraft((current) => ({ ...current, patientSummary: e.target.value }))} />
+                    <label className="patientShareControl">
+                      <input
+                        type="checkbox"
+                        checked={treatmentDraft.patientVisible}
+                        onChange={(e) => setTreatmentDraft((current) => ({ ...current, patientVisible: e.target.checked }))}
+                      />
+                      <span>Show the patient-friendly version in the patient portal</span>
+                    </label>
                     <div className="bookingFlowGrid">
                       <label className="uploadField">
                         <span className="detailLabel">Upload before photo</span>
@@ -1257,6 +1431,11 @@ export default function Patients() {
                             <img src={treatmentDraft.afterImageUrl} alt="After treatment preview" />
                           </div>
                         ) : null}
+                        <div className="clinicalPlanActions">
+                          <button className="btn secondary" type="button" onClick={() => setTreatmentDraft((current) => ({ ...current, beforeImageUrl: "", afterImageUrl: "" }))}>
+                            Clear selected photos
+                          </button>
+                        </div>
                       </div>
                     ) : null}
                     <button className="btn btnShine" type="button" onClick={addTreatmentPlan}>Save Procedure Plan</button>
@@ -1297,8 +1476,15 @@ export default function Patients() {
                             </div>
                             <div className="roadmapMeta">
                               <span>{plan.targetDate || "No target date yet"}</span>
+                              <span>{plan.patientVisible ? "Visible to patient" : "Staff only"}</span>
                             </div>
                             <p>{plan.instructions || "No clinical instructions added yet."}</p>
+                            {plan.patientSummary ? (
+                              <div className="detailNote roadmapPatientSummary">
+                                <span className="detailLabel">Patient-friendly version</span>
+                                <p>{plan.patientSummary}</p>
+                              </div>
+                            ) : null}
                             {(plan.beforeImageUrl || plan.afterImageUrl) ? (
                               <div className="treatmentPhotoPreviewGrid compact">
                                 {plan.beforeImageUrl ? (
@@ -1313,6 +1499,58 @@ export default function Patients() {
                                     <img src={plan.afterImageUrl} alt={`${plan.title} after`} />
                                   </div>
                                 ) : null}
+                              </div>
+                            ) : null}
+                            {canEditDentalChart ? (
+                              <div className="clinicalPlanActions">
+                                <button
+                                  className="btn secondary"
+                                  type="button"
+                                  onClick={() =>
+                                    openConfirm({
+                                      title: plan.patientVisible ? "Hide from patient?" : "Show to patient?",
+                                      message: plan.patientVisible
+                                        ? "This treatment step will be removed from the patient's My Dental Record page."
+                                        : "This will publish the patient-friendly version of this treatment step to the patient's My Dental Record page.",
+                                      confirmLabel: plan.patientVisible ? "Hide from Patient" : "Show to Patient",
+                                      action: () => setTreatmentPlanPatientVisible(index, !plan.patientVisible),
+                                    })
+                                  }
+                                >
+                                  {plan.patientVisible ? "Hide from patient" : "Show to patient"}
+                                </button>
+                                {(plan.beforeImageUrl || plan.afterImageUrl) ? (
+                                  <button
+                                    className="btn secondary"
+                                    type="button"
+                                    onClick={() =>
+                                      openConfirm({
+                                        title: "Remove treatment photos?",
+                                        message: "The before and after photos will be removed from this plan and from the patient portal copy if this plan is shared.",
+                                        confirmLabel: "Remove Photos",
+                                        tone: "danger",
+                                        action: () => clearTreatmentPlanImages(index),
+                                      })
+                                    }
+                                  >
+                                    Remove photos
+                                  </button>
+                                ) : null}
+                                <button
+                                  className="btn danger"
+                                  type="button"
+                                  onClick={() =>
+                                    openConfirm({
+                                      title: "Delete this plan?",
+                                      message: "This procedure roadmap item will be deleted from the staff record and removed from the patient portal copy if it was shared.",
+                                      confirmLabel: "Delete Plan",
+                                      tone: "danger",
+                                      action: () => removeTreatmentPlan(index),
+                                    })
+                                  }
+                                >
+                                  Delete plan
+                                </button>
                               </div>
                             ) : null}
                           </div>
@@ -1345,6 +1583,25 @@ export default function Patients() {
                               <span className="statusPill active">{entry.followUpDate || "No follow-up date"}</span>
                             </div>
                             <p>{entry.prescription || "No prescription or extra instruction added yet."}</p>
+                            {canEditDentalChart ? (
+                              <div className="clinicalPlanActions">
+                                <button
+                                  className="btn danger"
+                                  type="button"
+                                  onClick={() =>
+                                    openConfirm({
+                                      title: "Delete this guidance?",
+                                      message: "This follow-up guidance will be removed from the staff record and from the patient's My Dental Record page.",
+                                      confirmLabel: "Delete Guidance",
+                                      tone: "danger",
+                                      action: () => removeCareRecommendation(index),
+                                    })
+                                  }
+                                >
+                                  Delete guidance
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         ))}
                       </div>

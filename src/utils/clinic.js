@@ -1,12 +1,27 @@
 import { normalizeText } from "./appointments";
+import bracesImg from "../assets/services/braces.png";
+import cleaningImg from "../assets/services/cleaning.png";
+import extractionImg from "../assets/services/extraction.png";
+import fillingsImg from "../assets/services/fillings.png";
+import rootCanalImg from "../assets/services/rootcanal.png";
+import whiteningImg from "../assets/services/whitening.png";
+
+export const CLINIC_SERVICE_IMAGES = {
+  braces: bracesImg,
+  cleaning: cleaningImg,
+  extraction: extractionImg,
+  fillings: fillingsImg,
+  rootCanal: rootCanalImg,
+  whitening: whiteningImg,
+};
 
 export const DEFAULT_CLINIC_SERVICES = [
-  { name: "Cleaning", description: "Gentle scaling and polishing.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, image: "/services/cleaning.png" },
-  { name: "Fillings", description: "Tooth-colored restoration service.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, image: "/services/fillings.png" },
-  { name: "Extraction", description: "Safe and comfortable tooth removal.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, image: "/services/extraction.png" },
-  { name: "Braces Consultation", description: "Orthodontic evaluation and care planning.", durationMinutes: 45, startingRate: "Consultation pricing available at clinic", active: true, image: "/services/braces.png" },
-  { name: "Root Canal", description: "Tooth-saving endodontic treatment.", durationMinutes: 90, startingRate: "PHP 8,000 per canal", active: true, image: "/services/rootcanal.png" },
-  { name: "Whitening", description: "Brightening treatment for your smile.", durationMinutes: 60, startingRate: "PHP 8,000", active: true, image: "/services/whitening.png" },
+  { name: "Cleaning", description: "Gentle scaling and polishing.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, image: CLINIC_SERVICE_IMAGES.cleaning },
+  { name: "Fillings", description: "Tooth-colored restoration service.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, image: CLINIC_SERVICE_IMAGES.fillings },
+  { name: "Extraction", description: "Safe and comfortable tooth removal.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, image: CLINIC_SERVICE_IMAGES.extraction },
+  { name: "Braces Consultation", description: "Orthodontic evaluation and care planning.", durationMinutes: 45, startingRate: "Consultation pricing available at clinic", active: true, image: CLINIC_SERVICE_IMAGES.braces },
+  { name: "Root Canal", description: "Tooth-saving endodontic treatment.", durationMinutes: 90, startingRate: "PHP 8,000 per canal", active: true, image: CLINIC_SERVICE_IMAGES.rootCanal },
+  { name: "Whitening", description: "Brightening treatment for your smile.", durationMinutes: 60, startingRate: "PHP 8,000", active: true, image: CLINIC_SERVICE_IMAGES.whitening },
 ];
 
 export function normalizeService(service = {}) {
@@ -50,12 +65,12 @@ export function getClinicServiceImage(service = {}) {
   if (normalized.image) return normalized.image;
 
   const serviceName = normalized.name.toLowerCase();
-  if (serviceName.includes("clean")) return "/services/cleaning.png";
-  if (serviceName.includes("extract") || serviceName.includes("surgery")) return "/services/extraction.png";
-  if (serviceName.includes("brace")) return "/services/braces.png";
-  if (serviceName.includes("root") || serviceName.includes("x-ray") || serviceName.includes("xray")) return "/services/rootcanal.png";
-  if (serviceName.includes("white")) return "/services/whitening.png";
-  return "/services/fillings.png";
+  if (serviceName.includes("clean") || serviceName.includes("denture")) return CLINIC_SERVICE_IMAGES.cleaning;
+  if (serviceName.includes("extract") || serviceName.includes("surgery")) return CLINIC_SERVICE_IMAGES.extraction;
+  if (serviceName.includes("brace")) return CLINIC_SERVICE_IMAGES.braces;
+  if (serviceName.includes("root") || serviceName.includes("x-ray") || serviceName.includes("xray")) return CLINIC_SERVICE_IMAGES.rootCanal;
+  if (serviceName.includes("white")) return CLINIC_SERVICE_IMAGES.whitening;
+  return CLINIC_SERVICE_IMAGES.fillings;
 }
 
 export function normalizeClosure(closure = {}) {

@@ -2,19 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import CursorAura from "../components/CursorAura";
 import { db } from "../firebase";
-import { getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
+import { CLINIC_SERVICE_IMAGES, getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
 import scaryServiceTooth from "../assets/scary-service-tooth.png";
 
-const cleaningImg = "/services/cleaning.png";
-const restorationImg = "/services/fillings.png";
-const extractionImg = "/services/extraction.png";
-const bracesImg = "/services/braces.png";
-const rootImg = "/services/rootcanal.png";
-const whiteningImg = "/services/whitening.png";
-const oralsurgeryImg = "/services/extraction.png";
-const crownsImg = "/services/fillings.png";
-const denturesImg = "/services/cleaning.png";
-const xrayImg = "/services/rootcanal.png";
+const cleaningImg = CLINIC_SERVICE_IMAGES.cleaning;
+const restorationImg = CLINIC_SERVICE_IMAGES.fillings;
+const extractionImg = CLINIC_SERVICE_IMAGES.extraction;
+const bracesImg = CLINIC_SERVICE_IMAGES.braces;
+const rootImg = CLINIC_SERVICE_IMAGES.rootCanal;
+const whiteningImg = CLINIC_SERVICE_IMAGES.whitening;
+const oralsurgeryImg = CLINIC_SERVICE_IMAGES.extraction;
+const crownsImg = CLINIC_SERVICE_IMAGES.fillings;
+const denturesImg = CLINIC_SERVICE_IMAGES.cleaning;
+const xrayImg = CLINIC_SERVICE_IMAGES.rootCanal;
 
 function normalizeServiceKey(value = "") {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -387,26 +387,29 @@ export default function Services() {
   }, []);
 
   const items = useMemo(() => {
-    const services = getBookingServiceOptions(managedServices);
-    if (!services.length) {
-      return defaultItems.map((service) =>
+    const mergedServices = new Map(
+      defaultItems.map((service) => [
+        normalizeServiceKey(service.name),
         buildServiceContent({
           ...service,
           category: "General",
           duration: service.duration || "Varies by case",
-        })
-      );
-    }
-    return services.map((service) =>
-      buildServiceContent({
+        }),
+      ])
+    );
+
+    getBookingServiceOptions(managedServices).forEach((service) => {
+      mergedServices.set(normalizeServiceKey(service.name), buildServiceContent({
         name: service.name,
         desc: service.description || "Clinic-managed service available for booking.",
         price: service.startingRate || "Ask the clinic for pricing",
         duration: `${service.durationMinutes} minutes`,
         img: getClinicServiceImage(service),
         category: service.category || "General",
-      })
-    );
+      }));
+    });
+
+    return Array.from(mergedServices.values());
   }, [defaultItems, managedServices]);
 
   const fallbackItems = useMemo(
@@ -526,6 +529,9 @@ export default function Services() {
                     alt={isDemonicTheme ? `${service.name} in demon mode` : service.name}
                     loading="eager"
                     className={isDemonicTheme ? "serviceMediaScary" : ""}
+                    onError={(event) => {
+                      event.currentTarget.src = getClinicServiceImage({ name: service.name, image: "" });
+                    }}
                   />
                 </div>
 

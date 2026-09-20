@@ -9,6 +9,8 @@ import { formatDateLabel, formatTimeLabel } from "../utils/schedule";
 export default function MyDentalRecord() {
   const [user, setUser] = useState(null);
   const [chart, setChart] = useState(createEmptyDentalChart());
+  const [patientTreatmentPlans, setPatientTreatmentPlans] = useState([]);
+  const [patientCareRecommendations, setPatientCareRecommendations] = useState([]);
   const [bracesAccount, setBracesAccount] = useState(null);
   const [bracesPayments, setBracesPayments] = useState([]);
   const [bracesAdjustments, setBracesAdjustments] = useState([]);
@@ -22,6 +24,8 @@ export default function MyDentalRecord() {
 
       if (!nextUser) {
         setChart(createEmptyDentalChart());
+        setPatientTreatmentPlans([]);
+        setPatientCareRecommendations([]);
         setBracesAccount(null);
         setBracesPayments([]);
         setBracesAdjustments([]);
@@ -39,13 +43,18 @@ export default function MyDentalRecord() {
         ]);
 
         if (chartSnap.exists()) {
+          const chartData = chartSnap.data();
           setChart({
             uid: nextUser.uid,
-            generalNotes: chartSnap.data().generalNotes || "",
-            teeth: chartSnap.data().teeth || {},
+            generalNotes: chartData.generalNotes || "",
+            teeth: chartData.teeth || {},
           });
+          setPatientTreatmentPlans(chartData.patientTreatmentPlans || []);
+          setPatientCareRecommendations(chartData.patientCareRecommendations || []);
         } else {
           setChart(createEmptyDentalChart(nextUser.uid));
+          setPatientTreatmentPlans([]);
+          setPatientCareRecommendations([]);
         }
 
         const rawAccount = bracesAccountSnap.docs[0]
@@ -271,6 +280,51 @@ export default function MyDentalRecord() {
           <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
             <span className="detailLabel">General dentist notes</span>
             <p>{chart.generalNotes || "No general notes saved yet."}</p>
+          </div>
+
+          <div className="detailNote historyPanel patientPortalCarePanel" style={{ marginTop: 12 }}>
+            <span className="detailLabel">Follow-up and care instructions</span>
+            {patientCareRecommendations.length ? (
+              <div className="patientPortalList">
+                {patientCareRecommendations.map((entry, index) => (
+                  <div key={`${entry.recommendation}-${index}`} className="patientPortalListItem">
+                    <div className="patientPortalListTop">
+                      <strong>{entry.recommendation || "Care instruction"}</strong>
+                      <span>{entry.followUpDate ? formatDateLabel(entry.followUpDate) : "No follow-up date"}</span>
+                    </div>
+                    <p>{entry.prescription || "No prescription or special instruction added."}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No follow-up instructions have been shared yet.</p>
+            )}
+          </div>
+
+          <div className="detailNote historyPanel patientPortalCarePanel" style={{ marginTop: 12 }}>
+            <span className="detailLabel">Treatment steps</span>
+            {patientTreatmentPlans.length ? (
+              <div className="patientPortalList">
+                {patientTreatmentPlans.map((plan, index) => (
+                  <div key={`${plan.title}-${index}`} className="patientPortalListItem">
+                    <div className="patientPortalListTop">
+                      <strong>{plan.title || "Treatment step"}</strong>
+                      <span>{plan.status || "Planned"}</span>
+                    </div>
+                    <p>{plan.targetDate ? `Target date: ${formatDateLabel(plan.targetDate)}` : "No target date set."}</p>
+                    <p>{plan.instructions || "No patient-facing explanation added."}</p>
+                    {(plan.beforeImageUrl || plan.afterImageUrl) ? (
+                      <div className="patientPortalPhotoGrid">
+                        {plan.beforeImageUrl ? <img src={plan.beforeImageUrl} alt={`${plan.title || "Treatment"} before`} /> : null}
+                        {plan.afterImageUrl ? <img src={plan.afterImageUrl} alt={`${plan.title || "Treatment"} after`} /> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No treatment steps have been shared to your portal yet.</p>
+            )}
           </div>
 
           <div className="detailNote historyPanel bracesPatientPanel" style={{ marginTop: 12 }}>

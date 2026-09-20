@@ -1045,6 +1045,12 @@ export default function Book() {
                 <img
                   src={getClinicServiceImage(previewServiceRecord || { name: selectedServices[0] || service })}
                   alt={previewServiceRecord?.name || service}
+                  onError={(event) => {
+                    event.currentTarget.src = getClinicServiceImage({
+                      name: previewServiceRecord?.name || selectedServices[0] || service,
+                      image: "",
+                    });
+                  }}
                 />
               </div>
               <div className="bookingServicePreviewContent">
