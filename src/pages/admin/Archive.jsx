@@ -27,21 +27,25 @@ const DELETE_ARCHIVED_STAFF_ACCOUNT = httpsCallable(functions, "deleteArchivedSt
 
 const ARCHIVE_FILTERS = {
   patients: {
+    tab: "Patients",
     title: "Archived Patients",
     subtitle: "Former patient records stored away from the active patient list.",
     emptyText: "No archived patients matched your search.",
   },
   dentists: {
+    tab: "Dentists",
     title: "Archived Dentists",
     subtitle: "Dentists removed from the active scheduler and booking selection.",
     emptyText: "No archived dentists matched your search.",
   },
   accounts: {
+    tab: "Staff",
     title: "Archived Staff Accounts",
     subtitle: "Disabled receptionist and dentist accounts moved away from the active staff list.",
     emptyText: "No archived staff accounts matched your search.",
   },
   bookings: {
+    tab: "Bookings",
     title: "Archived Bookings",
     subtitle: "Old or inactive booking records separated from the live booking board.",
     emptyText: "No archived bookings matched your search.",
@@ -57,18 +61,41 @@ function isArchivedValue(value) {
   return normalized === "archived" || normalized === "archive";
 }
 
-function ArchiveSection({ title, subtitle, count, children, emptyText }) {
+function initialsOf(text) {
+  const parts = String(text || "?").trim().split(/[\s@._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] || "?") + (parts.length > 1 ? parts[1][0] : "")).toUpperCase();
+}
+
+function ArchiveRow({ title, subtitle, meta = [], onRestore, onDelete }) {
   return (
-    <div className="card adminRecordsCard bookingSectionCard">
-      <div className="cardHeader">
-        <div>
-          <h3 className="title">{title}</h3>
-          <p className="sub">{subtitle}</p>
+    <li className="archiveCard">
+      <div className="archiveCardTop">
+        <span className="archiveAvatar" aria-hidden="true">{initialsOf(title)}</span>
+        <div className="archiveText">
+          <strong className="archiveTitle">{title}</strong>
+          <span className="archiveSub">{subtitle}</span>
         </div>
-        <span className="badge">{count} records</span>
+        <span className="archiveChip">Archived</span>
+        <div className="archiveActions">
+          <button className="btn secondary" type="button" onClick={onRestore}>
+            Restore
+          </button>
+          <button className="btn danger" type="button" onClick={onDelete}>
+            Delete
+          </button>
+        </div>
       </div>
-      {count ? <ul className="list detailedList">{children}</ul> : <EmptyState title={title} message={emptyText} compact />}
-    </div>
+      {meta.length ? (
+        <dl className="archiveMeta">
+          {meta.map((item) => (
+            <div key={item.label}>
+              <dt>{item.label}</dt>
+              <dd>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </li>
   );
 }
 
@@ -257,286 +284,114 @@ export default function Archive() {
     await action();
   }
 
-  const archiveBody =
-    section === "patients" ? (
-      <ArchiveSection
-        title={ARCHIVE_FILTERS.patients.title}
-        subtitle={ARCHIVE_FILTERS.patients.subtitle}
-        count={archivedPatients.length}
-        emptyText={ARCHIVE_FILTERS.patients.emptyText}
-      >
-        {archivedPatients.map((patient) => (
-          <li key={patient.id} className="item detailedItem patientShowcase">
-            <div className="detailContent">
-              <div className="detailTopRow">
-                <div>
-                  <strong className="detailTitle">{patient.name}</strong>
-                  <p className="detailSubtitle">
-                    Age {patient.age || "-"} • {patient.patientType || "Regular Patient"} • {patient.phone || "No phone"} • {patient.email || "No email"}
-                  </p>
-                </div>
-                <span className="statusPill cancelled">Archived</span>
-              </div>
-            </div>
-            <div className="actionColumn">
-              <button className="btn secondary" onClick={() => restorePatient(patient.id)}>
-                Restore
-              </button>
-              <button
-                className="btn danger"
-                onClick={() =>
-                  openConfirm({
-                    title: "Delete archived patient permanently?",
-                    message: "This archived patient record will be deleted completely and cannot be recovered.",
-                    confirmLabel: "Delete Permanently",
-                    tone: "danger",
-                    action: () => removeRecord("patients", patient.id),
-                  })
-                }
-              >
-                Delete Permanently
-              </button>
-            </div>
-          </li>
-        ))}
-      </ArchiveSection>
-    ) : section === "dentists" ? (
-      <ArchiveSection
-        title={ARCHIVE_FILTERS.dentists.title}
-        subtitle={ARCHIVE_FILTERS.dentists.subtitle}
-        count={archivedDentists.length}
-        emptyText={ARCHIVE_FILTERS.dentists.emptyText}
-      >
-        {archivedDentists.map((dentist) => (
-          <li key={dentist.id} className="item detailedItem bookingShowcase">
-            <div className="detailContent">
-              <div className="detailTopRow">
-                <div>
-                  <strong className="detailTitle">{dentist.name}</strong>
-                  <p className="detailSubtitle">
-                    {dentist.specialization || "No specialization"} • {dentist.email || "No email"}
-                  </p>
-                </div>
-                <span className="statusPill cancelled">Archived</span>
-              </div>
-              <div className="detailNote">
-                <span className="detailLabel">Weekly schedule</span>
-                <p>{formatScheduleSummary(dentist.schedule || {})}</p>
-              </div>
-            </div>
-            <div className="actionColumn">
-              <button className="btn secondary" onClick={() => restoreDentist(dentist.id)}>
-                Restore
-              </button>
-              <button
-                className="btn danger"
-                onClick={() =>
-                  openConfirm({
-                    title: "Delete archived dentist permanently?",
-                    message: "This archived dentist record will be deleted completely and cannot be recovered.",
-                    confirmLabel: "Delete Permanently",
-                    tone: "danger",
-                    action: () => removeRecord("dentists", dentist.id),
-                  })
-                }
-              >
-                Delete Permanently
-              </button>
-            </div>
-          </li>
-        ))}
-      </ArchiveSection>
-    ) : section === "accounts" ? (
-      <ArchiveSection
-        title={ARCHIVE_FILTERS.accounts.title}
-        subtitle={ARCHIVE_FILTERS.accounts.subtitle}
-        count={archivedAccounts.length}
-        emptyText={ARCHIVE_FILTERS.accounts.emptyText}
-      >
-        {archivedAccounts.map((account) => (
-          <li key={account.id} className="item detailedItem bookingShowcase">
-            <div className="detailContent">
-              <div className="detailTopRow">
-                <div>
-                  <strong className="detailTitle">{account.name || "No staff name saved"}</strong>
-                  <p className="detailSubtitle">
-                    {account.role || "No role"} • {account.email || "No email"}
-                  </p>
-                </div>
-                <span className="statusPill cancelled">Archived</span>
-              </div>
-            </div>
-            <div className="actionColumn">
-              <button className="btn secondary" onClick={() => restoreAccount(account.id)}>
-                Restore
-              </button>
-              <button
-                className="btn danger"
-                onClick={() =>
-                  openConfirm({
-                    title: "Delete archived staff record permanently?",
-                    message: "This archived staff access record will be deleted from Firestore completely and cannot be recovered.",
-                    confirmLabel: "Delete Permanently",
-                    tone: "danger",
-                    action: () => removeRecord("admins", account.id),
-                  })
-                }
-              >
-                Delete Permanently
-              </button>
-            </div>
-          </li>
-        ))}
-      </ArchiveSection>
-    ) : (
-      <ArchiveSection
-        title={ARCHIVE_FILTERS.bookings.title}
-        subtitle={ARCHIVE_FILTERS.bookings.subtitle}
-        count={archivedBookings.length}
-        emptyText={ARCHIVE_FILTERS.bookings.emptyText}
-      >
-        {archivedBookings.map((booking) => (
-          <li key={booking.id} className="item detailedItem bookingShowcase">
-            <div className="detailContent">
-              <div className="detailTopRow">
-                <div>
-                  <strong className="detailTitle">{booking.fullName || "No name"}</strong>
-                  <p className="detailSubtitle">
-                    Age {booking.age || "-"} • {booking.selectedDentist || "No dentist"} • {booking.service || "No service"}
-                  </p>
-                </div>
-                <span className="statusPill cancelled">Archived</span>
-              </div>
+  const askDelete = (noun, collectionName, id) => () =>
+    openConfirm({
+      title: `Delete archived ${noun} permanently?`,
+      message:
+        collectionName === "admins"
+          ? "This archived staff access record will be deleted from Firestore completely and cannot be recovered."
+          : `This archived ${noun} record will be deleted completely and cannot be recovered.`,
+      confirmLabel: "Delete Permanently",
+      tone: "danger",
+      action: () => removeRecord(collectionName, id),
+    });
 
-              <div className="detailGrid">
-                <div className="detailBox luxeBox">
-                  <span className="detailLabel">Appointment day</span>
-                  <strong>{formatDateLabel(booking.date)}</strong>
-                </div>
-                <div className="detailBox luxeBox">
-                  <span className="detailLabel">Appointment time</span>
-                  <strong>{formatTimeLabel(booking.time)}</strong>
-                </div>
-                <div className="detailBox luxeBox">
-                  <span className="detailLabel">Booked at</span>
-                  <strong>{formatTimestamp(booking.createdAt)}</strong>
-                </div>
-              </div>
-            </div>
-            <div className="actionColumn">
-              <button className="btn secondary" onClick={() => restoreBooking(booking.id)}>
-                Restore
-              </button>
-              <button
-                className="btn danger"
-                onClick={() =>
-                  openConfirm({
-                    title: "Delete archived booking permanently?",
-                    message: "This archived booking will be deleted completely and cannot be recovered.",
-                    confirmLabel: "Delete Permanently",
-                    tone: "danger",
-                    action: () => removeRecord("bookings", booking.id),
-                  })
-                }
-              >
-                Delete Permanently
-              </button>
-            </div>
-          </li>
-        ))}
-      </ArchiveSection>
-    );
+  const rows = {
+    patients: archivedPatients.map((patient) => ({
+      id: patient.id,
+      title: patient.name || "No name",
+      subtitle: `Age ${patient.age || "-"} • ${patient.patientType || "Regular Patient"} • ${patient.phone || "No phone"} • ${patient.email || "No email"}`,
+      onRestore: () => restorePatient(patient.id),
+      onDelete: askDelete("patient", "patients", patient.id),
+    })),
+    dentists: archivedDentists.map((dentist) => ({
+      id: dentist.id,
+      title: dentist.name || "No name",
+      subtitle: `${dentist.specialization || "No specialization"} • ${dentist.email || "No email"}`,
+      meta: [{ label: "Weekly schedule", value: formatScheduleSummary(dentist.schedule || {}) }],
+      onRestore: () => restoreDentist(dentist.id),
+      onDelete: askDelete("dentist", "dentists", dentist.id),
+    })),
+    accounts: archivedAccounts.map((account) => ({
+      id: account.id,
+      title: account.name || "No staff name saved",
+      subtitle: `${account.role || "No role"} • ${account.email || "No email"}`,
+      onRestore: () => restoreAccount(account.id),
+      onDelete: askDelete("staff", "admins", account.id),
+    })),
+    bookings: archivedBookings.map((booking) => ({
+      id: booking.id,
+      title: booking.fullName || "No name",
+      subtitle: `Age ${booking.age || "-"} • ${booking.selectedDentist || "No dentist"} • ${booking.service || "No service"}`,
+      meta: [
+        { label: "Appointment day", value: formatDateLabel(booking.date) },
+        { label: "Appointment time", value: formatTimeLabel(booking.time) },
+        { label: "Booked at", value: formatTimestamp(booking.createdAt) },
+      ],
+      onRestore: () => restoreBooking(booking.id),
+      onDelete: askDelete("booking", "bookings", booking.id),
+    })),
+  };
+
+  const current = ARCHIVE_FILTERS[section];
+  const currentRows = rows[section];
 
   return (
-    <div className="container adminSurface">
-      <div className="hero adminHero">
-        <div className="adminHeroGlow" />
-        <div className="adminHeroContent">
-          <span className="heroEyebrow">Archive Center</span>
-          <h1>Archived Records</h1>
-          <p>The archive is now split into separate pages so archived patients and archived bookings are easier to navigate and read.</p>
+    <div className="container adminSurface archivePage">
+      <div className="archiveBar">
+        <nav className="archiveTabs" aria-label="Archive sections">
+          {Object.entries(ARCHIVE_FILTERS).map(([key, value]) => (
+            <NavLink
+              key={key}
+              to={`/admin/archive/${key}`}
+              className={({ isActive }) => `archiveTab${isActive ? " active" : ""}`}
+            >
+              {value.tab}
+              <span>{archiveCounts[key]}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="archiveSearch">
+          <svg className="archiveSearchIcon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+            <path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <input
+            className="input"
+            type="text"
+            placeholder="Search archived records by name"
+            aria-label="Search archived records"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search ? (
+            <button className="archiveSearchClear" type="button" aria-label="Clear search" onClick={() => setSearch("")}>
+              ✕
+            </button>
+          ) : null}
         </div>
       </div>
 
-      <div className="card adminEditorCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Archive Search</h3>
-            <p className="sub">Filter the archive by name, then switch between archived patients and archived bookings using the second navigation below.</p>
-          </div>
-        </div>
+      {error ? <div className="error">{error}</div> : null}
 
-        <div className="statsGrid compact archiveSummaryGrid">
-          <div className="archiveSummaryCard active">
-            <span className="statLabel">Archived patients</span>
-            <strong className="statValue">{archiveCounts.patients}</strong>
-          </div>
-          <div className="archiveSummaryCard active">
-            <span className="statLabel">Archived dentists</span>
-            <strong className="statValue">{archiveCounts.dentists}</strong>
-          </div>
-          <div className="archiveSummaryCard active">
-            <span className="statLabel">Archived staff</span>
-            <strong className="statValue">{archiveCounts.accounts}</strong>
-          </div>
-          <div className="archiveSummaryCard active">
-            <span className="statLabel">Archived bookings</span>
-            <strong className="statValue">{archiveCounts.bookings}</strong>
-          </div>
-        </div>
+      <section className="archiveSection">
+        <p className="archiveIntro">{current.subtitle}</p>
 
-        <div className="adminSubnav">
-          <NavLink to="/admin/archive/patients" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
-            Archived Patients
-          </NavLink>
-          <NavLink to="/admin/archive/dentists" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
-            Archived Dentists
-          </NavLink>
-          <NavLink to="/admin/archive/accounts" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
-            Archived Staff
-          </NavLink>
-          <NavLink to="/admin/archive/bookings" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
-            Archived Bookings
-          </NavLink>
-        </div>
-
-        <div className="patientSearchSpotlight">
-          <div className="patientSearchHeader">
-            <div>
-              <span className="patientSearchEyebrow">Archived Record Search</span>
-              <p className="patientSearchHint">
-                Search archived patients, dentists, or bookings by name to find records faster.
-              </p>
-            </div>
-            <span className="patientSearchCount">
-              {search ? "Filtered archive" : "Ready to search"}
-            </span>
-          </div>
-
-          <div className="patientSearchRow">
-            <input
-              className="input searchInput patientSearchInput"
-              placeholder="Search archived patient or record name"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-            {search ? (
-              <button
-                type="button"
-                className="searchClearBtn"
-                onClick={() => setSearch("")}
-              >
-                Clear
-              </button>
-            ) : null}
-          </div>
-        </div>
         {loading ? <SkeletonList count={2} /> : null}
-        {error ? <div className="error">{error}</div> : null}
-      </div>
 
-      {!loading ? archiveBody : null}
+        {!loading && currentRows.length === 0 ? (
+          <EmptyState title={current.title} message={current.emptyText} compact />
+        ) : null}
+
+        {!loading && currentRows.length > 0 ? (
+          <ul className="archiveGrid">
+            {currentRows.map(({ id, ...row }) => (
+              <ArchiveRow key={id} {...row} />
+            ))}
+          </ul>
+        ) : null}
+      </section>
 
       <ConfirmDialog
         open={Boolean(confirmState)}

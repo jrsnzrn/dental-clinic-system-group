@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, useParams } from "react-router-dom";
 import {
+  Timestamp,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
@@ -66,115 +70,287 @@ function getBookingTimeRange(booking) {
   return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
 }
 
-function BookingCard({
+function getBookingDateTimeLabel(booking) {
+  if (!booking?.date) return "Not set";
+  return `${formatDateLabel(booking.date)} - ${formatTimeLabel(booking.time)}`;
+}
+
+function BookingRow({ booking, onOpen }) {
+  const reschedule = booking.rescheduleRequest;
+
+  return (
+    <tr
+      className="bookingRow clickable"
+      tabIndex={0}
+      onClick={() => onOpen(booking.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(booking.id);
+        }
+      }}
+    >
+      <td className="bookingNameCell">{booking.fullName || "No name"}</td>
+      <td>{booking.service || "Not set"}</td>
+      <td>{booking.phone || "No phone"}</td>
+      <td className="bookingAddressCell">{booking.address || "Not provided"}</td>
+      <td>{booking.email || "No email"}</td>
+      <td>{getBookingDateTimeLabel(booking)}</td>
+      <td>
+        <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
+        {reschedule?.status === "pending" ? <span className="statusPill attention">reschedule</span> : null}
+      </td>
+    </tr>
+  );
+}
+
+function BookingDetailDrawer({
+  open,
   booking,
+  onClose,
   onApprove,
-  onPending,
   onCheckIn,
   onCancel,
   onArchive,
   onApproveReschedule,
   onDeclineReschedule,
+  onReschedule,
 }) {
-  const reschedule = booking.rescheduleRequest;
-  const appointmentTimeRange = getBookingTimeRange(booking);
+  const reschedule = booking?.rescheduleRequest;
+  const status = booking?.status || "pending";
 
   return (
-    <li className="item detailedItem bookingShowcase">
-      <div className="detailContent">
-        <div className="detailTopRow">
-          <div>
-            <strong className="detailTitle">{booking.fullName || "No name"}</strong>
-            <p className="detailSubtitle">
-              Age {booking.age || "-"} • {booking.patientType || "Regular Patient"} • {booking.phone || "No phone"} • {booking.email || "No email"}
-            </p>
-          </div>
-          <div className="statusStack">
-            <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
-            <span className={`statusPill ${booking.checkedInAt ? "approved" : "active"}`}>
-              {booking.checkedInAt ? "checked in" : "visit pending"}
-            </span>
-          </div>
-        </div>
+    <>
+      <div className={`patientDrawerOverlay ${open ? "open" : ""}`} onClick={onClose} />
+      <div className={`patientDrawer ${open ? "open" : ""}`} role="dialog" aria-modal="true">
+        {booking ? (
+          <div className="patientDrawerInner">
+            <div className="patientDrawerHeader">
+              <div>
+                <span className="heroEyebrow">Booking details</span>
+                <h3>{booking.fullName || "No name"}</h3>
+                <div className="patientRecordPeek">
+                  <span>{booking.service || "No service"}</span>
+                  <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
+                </div>
+              </div>
+              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
+                ×
+              </button>
+            </div>
 
-        <div className="detailGrid">
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Preferred dentist</span>
-            <strong>{booking.selectedDentist || "Not selected"}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Service</span>
-            <strong>{booking.service || "Not set"}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Appointment day</span>
-            <strong>{formatDateLabel(booking.date)}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Appointment time</span>
-            <strong>{appointmentTimeRange}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Booked at</span>
-            <strong>{formatTimestamp(booking.createdAt)}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Checked in at</span>
-            <strong>{formatTimestamp(booking.checkedInAt)}</strong>
-          </div>
-        </div>
+            <div className="patientDrawerBody">
+              <dl className="detailList">
+                <div className="detailRow">
+                  <dt>Appointment</dt>
+                  <dd>{getBookingDateTimeLabel(booking)}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Time</dt>
+                  <dd>{getBookingTimeRange(booking)}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Dentist</dt>
+                  <dd>{booking.selectedDentist || "Not selected"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Patient</dt>
+                  <dd>{booking.age || "-"} • {booking.patientType || "Regular Patient"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Phone</dt>
+                  <dd>{booking.phone || "No phone"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Email</dt>
+                  <dd>{booking.email || "No email"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Address</dt>
+                  <dd>{booking.address || "Not provided"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Booked at</dt>
+                  <dd>{formatTimestamp(booking.createdAt)}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Checked in</dt>
+                  <dd>{formatTimestamp(booking.checkedInAt)}</dd>
+                </div>
+              </dl>
 
-        {booking.notes ? (
-          <div className="detailNote noteRibbon">
-            <span className="detailLabel">Patient notes</span>
-            <p>{booking.notes}</p>
+              {booking.notes ? (
+                <div className="drawerNote">
+                  <span className="drawerNoteLabel">Patient notes</span>
+                  <p>{booking.notes}</p>
+                </div>
+              ) : null}
+
+              {reschedule ? (
+                <div className={`drawerReschedule ${reschedule.status === "pending" ? "attention" : ""}`}>
+                  <span className="drawerNoteLabel">Reschedule request</span>
+                  <p>
+                    Requested for <strong>{formatDateLabel(reschedule.requestedDate)}</strong> at{" "}
+                    <strong>{formatTimeLabel(reschedule.requestedTime)}</strong>
+                  </p>
+                  <p>
+                    Status: <strong>{reschedule.status || "pending"}</strong>
+                    {reschedule.reason ? ` • ${reschedule.reason}` : ""}
+                  </p>
+
+                  {reschedule.status === "pending" ? (
+                    <div className="inlineActionRow">
+                      <button className="btn btnShine" type="button" onClick={onApproveReschedule}>
+                        Approve Reschedule
+                      </button>
+                      <button className="btn secondary btnSoft" type="button" onClick={onDeclineReschedule}>
+                        Decline Request
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="actionColumn actionColumnFriendly">
+          
+              {status === "pending" ? (
+                <>
+                  <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove}>
+                    Approve
+                  </button>
+                  <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
+                    Cancel Booking
+                  </button>
+                </>
+              ) : null}
+
+              {status === "approved" ? (
+                <>
+                  <button className="btn btnShine patientActionBtn" type="button" onClick={onCheckIn}>
+                    {booking.checkedInAt ? "Clear Check-in" : "Mark Check-in"}
+                  </button>
+                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
+                    Reschedule
+                  </button>
+                </>
+              ) : null}
+
+              {status === "cancelled" ? (
+                <>
+                  <button className="btn btnShine patientActionBtn" type="button" onClick={onReschedule}>
+                    Reschedule
+                  </button>
+                  <button className="btn archiveButton patientActionBtn" type="button" onClick={onArchive}>
+                    Move to Archive
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
         ) : null}
+      </div>
+    </>
+  );
+}
 
-        {reschedule ? (
-          <div className={`detailNote historyPanel reschedulePanel ${reschedule.status === "pending" ? "attention" : ""}`}>
-            <span className="detailLabel">Reschedule request</span>
-            <p>
-              Requested for <strong>{formatDateLabel(reschedule.requestedDate)}</strong> at{" "}
-              <strong>{formatTimeLabel(reschedule.requestedTime)}</strong>
-            </p>
-            <p>
-              Status: <strong>{reschedule.status || "pending"}</strong>
-              {reschedule.reason ? ` • ${reschedule.reason}` : ""}
-            </p>
+function RescheduleModal({ open, booking, onClose, onSave }) {
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
 
-            {reschedule.status === "pending" ? (
-              <div className="inlineActionRow">
-                <button className="btn btnShine" type="button" onClick={onApproveReschedule}>
-                  Approve Reschedule
-                </button>
-                <button className="btn secondary btnSoft" type="button" onClick={onDeclineReschedule}>
-                  Decline Request
-                </button>
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const isCancelled = booking?.status === "cancelled";
+
+  // Prefill each time the popup opens
+  useEffect(() => {
+    if (!open || !booking) return;
+    setNewDate(booking.date && booking.date >= todayStr ? booking.date : "");
+    setNewTime(booking.time || "");
+    setFormError("");
+    setSaving(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, booking?.id]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  async function submit() {
+    if (!newDate || !newTime) {
+      setFormError("Choose both a date and a time.");
+      return;
+    }
+    if (newDate < todayStr) {
+      setFormError("The new date can't be in the past.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      await onSave(booking, newDate, newTime);
+    } catch (error) {
+      console.error(error);
+      setFormError(error?.message || "The booking could not be rescheduled.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className={`patientDrawerOverlay rescheduleOverlay ${open ? "open" : ""}`} onClick={onClose} />
+      <div className={`patientDrawer rescheduleModal ${open ? "open" : ""}`} role="dialog" aria-modal="true">
+        {booking ? (
+          <div className="patientDrawerInner">
+            <div className="patientDrawerHeader">
+              <div>
+                <span className="heroEyebrow">{isCancelled ? "Reschedule & restore" : "Reschedule"}</span>
+                <h3>{booking.fullName || "No name"}</h3>
+                <div className="patientRecordPeek">
+                  <span>Current: {getBookingDateTimeLabel(booking)}</span>
+                </div>
+              </div>
+              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            <div className="rescheduleFields">
+              <label>
+                New date
+                <input type="date" min={todayStr} value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+              </label>
+              <label>
+                New time
+                <input type="time" step="900" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+              </label>
+            </div>
+
+            {isCancelled ? <p className="rescheduleHint">Saving will also restore this booking as approved.</p> : null}
+
+            {formError ? (
+              <div className="formError" role="alert">
+                {formError}
               </div>
             ) : null}
+
+            <div className="actionColumn actionColumnFriendly">
+              <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving}>
+                {saving ? "Saving..." : "Save new schedule"}
+              </button>
+              <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
-
-      <div className="actionColumn">
-        <button className="btn btnShine actionApprove" onClick={onApprove}>
-          Approve
-        </button>
-        <button className="btn secondary btnSoft actionPending" onClick={onPending}>
-          Set Pending
-        </button>
-        <button className="btn secondary btnSoft actionCheckin" onClick={onCheckIn}>
-          {booking.checkedInAt ? "Clear Check-in" : "Mark Check-in"}
-        </button>
-        <button className="btn danger actionCancel" onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn archiveButton actionArchive" onClick={onArchive}>
-          Move to Archive
-        </button>
-      </div>
-    </li>
+    </>
   );
 }
 
@@ -184,6 +360,10 @@ export default function Bookings() {
   const [confirmState, setConfirmState] = useState(null);
   const [selectedCalendarCell, setSelectedCalendarCell] = useState(null);
   const [actionError, setActionError] = useState("");
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [rescheduleId, setRescheduleId] = useState(null);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const { status = "pending" } = useParams();
 
   useEffect(() => {
@@ -218,6 +398,74 @@ export default function Bookings() {
 
   const bookingStats = useMemo(() => buildBookingAnalytics(activeBookings), [activeBookings]);
   const calendarCells = useMemo(() => buildCalendarCells(bookings, 21), [bookings]);
+
+  // Live version of the selected booking, so the popup updates after an action
+  const selectedBooking = useMemo(
+    () => bookings.find((b) => b.id === selectedBookingId) || null,
+    [bookings, selectedBookingId]
+  );
+
+  function openBooking(id) {
+    setSelectedBookingId(id);
+    setDrawerOpen(true);
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false); // keep the id so the popup fades out smoothly
+  }
+
+  const rescheduleBooking = useMemo(
+    () => bookings.find((b) => b.id === rescheduleId) || null,
+    [bookings, rescheduleId]
+  );
+
+  function openReschedule(id) {
+    setDrawerOpen(false);
+    setRescheduleId(id);
+    setRescheduleOpen(true);
+  }
+  function closeReschedule() {
+    setRescheduleOpen(false);
+  }
+
+  async function saveReschedule(booking, date, time) {
+    const duration = Number(booking.estimatedDurationMinutes || 60);
+    const start = timeToMinutes(time);
+    const end = start + duration;
+
+    const conflict = bookings.find((b) => {
+      if (b.id === booking.id || b.date !== date || b.archiveStatus === "Archived") return false;
+      if (!["pending", "approved"].includes(b.status || "pending")) return false;
+      if (booking.selectedDentist && b.selectedDentist !== booking.selectedDentist) return false;
+      const bStart = timeToMinutes(b.time);
+      const bEnd = bStart + Number(b.estimatedDurationMinutes || 60);
+      return start < bEnd && bStart < end;
+    });
+    if (conflict) {
+      throw new Error(`That time overlaps ${conflict.fullName || "another booking"} (${getBookingTimeRange(conflict)}).`);
+    }
+
+    await updateDoc(doc(db, "bookings", booking.id), {
+      date,
+      time,
+      estimatedEndTime: minutesToTime(end),
+      appointmentAt: Timestamp.fromDate(new Date(`${date}T${time}:00`)),
+      status: booking.status === "cancelled" ? "approved" : booking.status || "pending",
+      checkedInAt: null,
+      rescheduledAt: serverTimestamp(),
+    });
+    closeReschedule();
+  }
+
+  // Close popup with Escape (must stay above the early return below)
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
 
   if (!BOOKING_FILTERS[status]) {
     return <Navigate to="/admin/bookings/pending" replace />;
@@ -269,15 +517,6 @@ export default function Bookings() {
 
   return (
     <div className="container adminSurface">
-      <div className="hero adminHero bookingsHero">
-        <div className="adminHeroGlow" />
-        <div className="adminHeroContent">
-          <span className="heroEyebrow">Appointment Command Center</span>
-          <h1>Bookings</h1>
-          <p>The booking board now includes clearer patient details, reschedule requests, and quick analytics so the team can scan the day faster.</p>
-        </div>
-      </div>
-
       <div className="statsGrid adminStats">
         <div className="statCard accentTeal">
           <span className="statLabel">Active bookings</span>
@@ -391,46 +630,26 @@ export default function Bookings() {
         ) : loadingBookings ? (
           <SkeletonList count={3} cardClassName="bookingShowcase" />
         ) : activeItems.length ? (
-          <ul className="list detailedList">
-            {activeItems.map((booking) => (
-              <BookingCard
-                key={booking.id}
-                booking={booking}
-                onApprove={() => runBookingAction(() => setStatus(booking.id, "approved"))}
-                onPending={() => runBookingAction(() => setStatus(booking.id, "pending"))}
-                onCheckIn={() =>
-                  openConfirm({
-                    title: booking.checkedInAt ? "Clear check-in?" : "Mark patient as checked in?",
-                    message: booking.checkedInAt
-                      ? "This will remove the current check-in timestamp from the booking."
-                      : "This will mark the patient as checked in for this appointment.",
-                    confirmLabel: booking.checkedInAt ? "Clear Check-in" : "Mark Check-in",
-                    action: () => toggleCheckIn(booking),
-                  })
-                }
-                onCancel={() =>
-                  openConfirm({
-                    title: "Cancel this booking?",
-                    message: "This booking will move to the cancelled section and no longer appear as active.",
-                    confirmLabel: "Cancel Booking",
-                    tone: "danger",
-                    action: () => setStatus(booking.id, "cancelled"),
-                  })
-                }
-                onArchive={() =>
-                  openConfirm({
-                    title: "Move this booking to archive?",
-                    message: "Archived bookings are removed from the active booking board but can still be restored later.",
-                    confirmLabel: "Move to Archive",
-                    tone: "archive",
-                    action: () => toggleArchive(booking.id),
-                  })
-                }
-                onApproveReschedule={() => runBookingAction(() => approveReschedule(booking))}
-                onDeclineReschedule={() => runBookingAction(() => declineReschedule(booking))}
-              />
-            ))}
-          </ul>
+          <div className="bookingsTableWrap">
+            <table className="bookingsTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Service</th>
+                  <th>Contact Number</th>
+                  <th>Address</th>
+                  <th>Email</th>
+                  <th>Date &amp; Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeItems.map((booking) => (
+                  <BookingRow key={booking.id} booking={booking} onOpen={openBooking} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <EmptyState
             title={activeConfig.title}
@@ -438,6 +657,70 @@ export default function Bookings() {
           />
         )}
       </div>
+
+      <BookingDetailDrawer
+        open={drawerOpen}
+        booking={selectedBooking}
+        onClose={closeDrawer}
+        onApprove={() =>
+          selectedBooking &&
+          runBookingAction(async () => {
+            await setStatus(selectedBooking.id, "approved");
+            closeDrawer();
+          })
+        }
+        onReschedule={() => selectedBooking && openReschedule(selectedBooking.id)}
+        onApproveReschedule={() =>
+          selectedBooking && runBookingAction(() => approveReschedule(selectedBooking))
+        }
+        onDeclineReschedule={() =>
+          selectedBooking && runBookingAction(() => declineReschedule(selectedBooking))
+        }
+        onCheckIn={() => {
+          const b = selectedBooking;
+          if (!b) return;
+          closeDrawer();
+          openConfirm({
+            title: b.checkedInAt ? "Clear check-in?" : "Mark patient as checked in?",
+            message: b.checkedInAt
+              ? "This will remove the current check-in timestamp from the booking."
+              : "This will mark the patient as checked in for this appointment.",
+            confirmLabel: b.checkedInAt ? "Clear Check-in" : "Mark Check-in",
+            action: () => toggleCheckIn(b),
+          });
+        }}
+        onCancel={() => {
+          const b = selectedBooking;
+          if (!b) return;
+          closeDrawer();
+          openConfirm({
+            title: "Cancel this booking?",
+            message: "This booking will move to the cancelled section and no longer appear as active.",
+            confirmLabel: "Cancel Booking",
+            tone: "danger",
+            action: () => setStatus(b.id, "cancelled"),
+          });
+        }}
+        onArchive={() => {
+          const b = selectedBooking;
+          if (!b) return;
+          closeDrawer();
+          openConfirm({
+            title: "Move this booking to archive?",
+            message: "Archived bookings are removed from the active booking board but can still be restored later.",
+            confirmLabel: "Move to Archive",
+            tone: "archive",
+            action: () => toggleArchive(b.id),
+          });
+        }}
+      />
+
+      <RescheduleModal
+        open={rescheduleOpen}
+        booking={rescheduleBooking}
+        onClose={closeReschedule}
+        onSave={saveReschedule}
+      />
 
       <ConfirmDialog
         open={Boolean(confirmState)}

@@ -60,6 +60,13 @@ function getEmptyAdjustmentDraft() {
   };
 }
 
+function getPaymentPillClass(account) {
+  if (!account) return "pending";
+  if (account.isOverdue || account.paymentState === "Overdue") return "cancelled";
+  if (account.paymentState === "Fully Paid") return "approved";
+  return "active";
+}
+
 export default function Braces() {
   const [patients, setPatients] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -176,16 +183,6 @@ export default function Braces() {
   );
 
   useEffect(() => {
-    if (!selectedPatientId && patientCards.length) {
-      setSelectedPatientId(patientCards[0].id);
-    }
-  }, [patientCards, selectedPatientId]);
-
-  useEffect(() => {
-    setBracesWorkspaceOpen(false);
-  }, [selectedPatientId]);
-
-  useEffect(() => {
     if (!selectedPatient) {
       setAccountDraft(getEmptyAccountDraft());
       setPaymentDraft(getEmptyPaymentDraft());
@@ -216,6 +213,21 @@ export default function Braces() {
         "",
     });
   }, [selectedPatient]);
+
+  // Close the workspace overlay with Escape and lock page scroll while it is open
+  useEffect(() => {
+    if (!bracesWorkspaceOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape" && !confirmState) setBracesWorkspaceOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [bracesWorkspaceOpen, confirmState]);
 
   const bracesStats = useMemo(() => {
     const liveAccounts = patientCards.filter((patient) => patient.bracesAccount);
@@ -420,17 +432,17 @@ export default function Braces() {
     await action();
   }
 
+  function openWorkspace(patientId) {
+    setSelectedPatientId(patientId);
+    setBracesWorkspaceOpen(true);
+  }
+
+  function closeWorkspace() {
+    setBracesWorkspaceOpen(false);
+  }
+
   return (
     <div className="container adminSurface">
-      <div className="hero adminHero bracesHero">
-        <div className="adminHeroGlow" />
-        <div className="adminHeroContent">
-          <span className="heroEyebrow">Installment Tracking</span>
-          <h1>Braces Payments</h1>
-          <p>Track orthodontic installment plans without online payments, keep every payment logged manually, and monitor overdue balances in one place.</p>
-        </div>
-      </div>
-
       <div className="statsGrid adminStats">
         <div className="statCard accentTeal">
           <span className="statLabel">Active accounts</span>
@@ -450,583 +462,526 @@ export default function Braces() {
         </div>
       </div>
 
-      <div className={`adminPanelGrid ${bracesWorkspaceOpen ? "workspaceMode" : ""}`}>
-        <div className="card adminEditorCard bracesEditorCard">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Braces Account Setup</h3>
-              <p className="sub">Select a patient, create the installment plan, and log every payment manually from this workspace.</p>
-            </div>
-            <span className="badge">{selectedPatient ? "Patient selected" : "No patient selected"}</span>
+      <section className="panel">
+        <div className="panelHead">
+          <div>
+            <h2 className="panelTitle">Braces Payments</h2>
+            <p className="panelSub">Select a patient to open their braces workspace.</p>
           </div>
+          <span className="countLabel">{filteredPatients.length} records</span>
+        </div>
 
-          {selectedPatient ? (
-            <>
-              {!bracesWorkspaceOpen ? (
-                <div className="workspaceLaunchCard bracesWorkspaceLaunch">
-                  <div className="bracesPatientHeader">
-                    <div>
-                      <span className="detailLabel">Selected braces patient</span>
-                      <strong className="detailTitle">{selectedPatient.name}</strong>
-                      <p className="detailSubtitle">
-                        {selectedPatient.patientType || "Regular Patient"} • {selectedPatient.phone || "No phone"} • {selectedPatient.email || "No email"}
-                      </p>
-                    </div>
-                    <span className={`statusPill ${selectedPatient.bracesAccount?.paymentState === "Overdue" ? "cancelled" : selectedPatient.bracesAccount?.paymentState === "Fully Paid" ? "approved" : "active"}`}>
-                      {selectedPatient.bracesAccount?.paymentState || "No braces plan yet"}
-                    </span>
-                  </div>
+        <div className="patientToolbar">
+          <div className="topSearchBar">
+            <svg
+              className="topSearchIcon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              className="input topSearchInput"
+              placeholder="Search patient name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search ? (
+              <button type="button" className="searchClearBtn" onClick={() => setSearch("")}>
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
 
-                  <div className="detailGrid bracesSummaryGrid">
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Plan status</span>
-                      <strong>{selectedPatient.bracesAccount?.planState || "Not started"}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Amount paid</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount?.amountPaid || 0)}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Balance left</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount?.remainingBalance || 0)}</strong>
-                    </div>
-                  </div>
+        {loading ? (
+          <SkeletonList count={4} cardClassName="patientShowcase" />
+        ) : filteredPatients.length ? (
+          <div className="patientTableWrap">
+            <table className="patientTable">
+              <thead>
+                <tr>
+                  <th>Full name</th>
+                  <th>Amount paid</th>
+                  <th>Balance</th>
+                  <th>Payment status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPatients.map((patient) => {
+                  const bracesAccount = patient.bracesAccount;
 
-                  <div className="workspaceLaunchActions">
-                    <button
-                      type="button"
-                      className="btn btnShine patientActionBtn patientEditBtn"
-                      onClick={() => setBracesWorkspaceOpen(true)}
+                  return (
+                    <tr
+                      key={patient.id}
+                      className="patientRow"
+                      tabIndex={0}
+                      onClick={() => openWorkspace(patient.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openWorkspace(patient.id);
+                        }
+                      }}
                     >
-                      Open Braces Workspace
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-              <div className="workspaceTopBar">
-                <button
-                  type="button"
-                  className="btn secondary workspaceBackBtn"
-                  onClick={() => setBracesWorkspaceOpen(false)}
-                >
-                  Back to Patient List
-                </button>
-                <span className="badge">Workspace Open</span>
-              </div>
+                      <td data-label="Full name">
+                        <span className="patientName">{patient.name}</span>
+                      </td>
+                      <td data-label="Amount paid">
+                        {bracesAccount ? formatCurrency(bracesAccount.amountPaid) : "-"}
+                      </td>
+                      <td data-label="Balance">
+                        {bracesAccount ? formatCurrency(bracesAccount.remainingBalance) : "-"}
+                      </td>
+                      <td data-label="Payment status">
+                        <span className={`statusPill ${getPaymentPillClass(bracesAccount)}`}>
+                          {bracesAccount?.paymentState || "No plan"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState
+            title="No matching patients"
+            message="Try another name or clear the search to view all active patient records."
+          />
+        )}
+      </section>
 
-              <div className="bracesPatientHeader">
+      {bracesWorkspaceOpen && selectedPatient ? (
+        <>
+          <div className="patientDrawerOverlay open" onClick={closeWorkspace} />
+          <div className="patientDrawer bracesWorkspaceModal open" role="dialog" aria-modal="true" aria-label="Braces workspace">
+            <div className="patientDrawerInner">
+              <div className="patientDrawerHeader">
                 <div>
-                  <span className="detailLabel">Current braces patient</span>
-                  <strong className="detailTitle">{selectedPatient.name}</strong>
+                  <span className="detailLabel">Braces workspace</span>
+                  <h3>{selectedPatient.name}</h3>
                   <p className="detailSubtitle">
                     {selectedPatient.patientType || "Regular Patient"} • {selectedPatient.phone || "No phone"} • {selectedPatient.email || "No email"}
                   </p>
+                  <div className="workspaceStatusRow">
+                    <span className={`statusPill ${getPaymentPillClass(selectedPatient.bracesAccount)}`}>
+                      {selectedPatient.bracesAccount?.paymentState || "No braces plan yet"}
+                    </span>
+                  </div>
                 </div>
-                <span className={`statusPill ${selectedPatient.bracesAccount?.paymentState === "Overdue" ? "cancelled" : selectedPatient.bracesAccount?.paymentState === "Fully Paid" ? "approved" : "active"}`}>
-                  {selectedPatient.bracesAccount?.paymentState || "No braces plan yet"}
-                </span>
+                <button type="button" className="patientDrawerCloseBtn" onClick={closeWorkspace} aria-label="Close">
+                  ×
+                </button>
               </div>
 
-              <form className="form" onSubmit={saveAccount}>
-                <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Total treatment cost</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="number"
-                      min="0"
-                      placeholder="e.g. 45000"
-                      value={accountDraft.totalCost}
-                      onChange={(e) => setAccountDraft((current) => ({ ...current, totalCost: e.target.value }))}
-                    />
-                  </label>
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Expected down payment</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="number"
-                      min="0"
-                      placeholder="e.g. 5000"
-                      value={accountDraft.downPaymentExpected}
-                      onChange={(e) => setAccountDraft((current) => ({ ...current, downPaymentExpected: e.target.value }))}
-                    />
-                  </label>
-                </div>
-
-                <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Payment schedule</span>
-                    <select
-                      className="input bookingInputSpecial"
-                      value={accountDraft.planFrequency}
-                      onChange={(e) => setAccountDraft((current) => ({ ...current, planFrequency: e.target.value }))}
-                    >
-                      {PLAN_FREQUENCIES.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">{getInstallmentLabel(accountDraft.planFrequency)}</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="text"
-                      readOnly
-                      value={
-                        Number(accountDraft.planCycles || 0) > 0
-                          ? formatCurrency(computedInstallmentAmount)
-                          : "Set the total cost, down payment, and plan duration first"
-                      }
-                    />
-                  </label>
-                </div>
-
-                <div className="detailGrid bracesSummaryGrid" style={{ marginTop: 0 }}>
-                  <div className="detailBox luxeBox">
-                    <span className="detailLabel">Discount applied</span>
-                    <strong>{(computedDiscountRate * 100).toFixed(computedDiscountRate ? 1 : 0)}%</strong>
+              <div className="patientDrawerBody">
+                <form className="form" onSubmit={saveAccount}>
+                  <div className="bookingFlowGrid">
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Total treatment cost</span>
+                      <input
+                        className="input bookingInputSpecial"
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 45000"
+                        value={accountDraft.totalCost}
+                        onChange={(e) => setAccountDraft((current) => ({ ...current, totalCost: e.target.value }))}
+                      />
+                    </label>
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Expected down payment</span>
+                      <input
+                        className="input bookingInputSpecial"
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 5000"
+                        value={accountDraft.downPaymentExpected}
+                        onChange={(e) => setAccountDraft((current) => ({ ...current, downPaymentExpected: e.target.value }))}
+                      />
+                    </label>
                   </div>
-                  <div className="detailBox luxeBox">
-                    <span className="detailLabel">Installment count</span>
-                    <strong>{computedInstallmentCount}</strong>
+
+                  <div className="bookingFlowGrid">
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Payment schedule</span>
+                      <select
+                        className="input bookingInputSpecial"
+                        value={accountDraft.planFrequency}
+                        onChange={(e) => setAccountDraft((current) => ({ ...current, planFrequency: e.target.value }))}
+                      >
+                        {PLAN_FREQUENCIES.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">{getInstallmentLabel(accountDraft.planFrequency)}</span>
+                      <input
+                        className="input bookingInputSpecial"
+                        type="text"
+                        readOnly
+                        value={
+                          Number(accountDraft.planCycles || 0) > 0
+                            ? formatCurrency(computedInstallmentAmount)
+                            : "Set the total cost, down payment, and plan duration first"
+                        }
+                      />
+                    </label>
                   </div>
-                </div>
 
-                <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">{getCycleCountLabel(accountDraft.planFrequency)}</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="number"
-                      min="0"
-                      placeholder="e.g. 24"
-                      value={accountDraft.planCycles}
-                      onChange={(e) => setAccountDraft((current) => ({ ...current, planCycles: e.target.value }))}
-                    />
-                  </label>
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Plan start date</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="date"
-                      value={accountDraft.startDate}
-                      onChange={(e) => setAccountDraft((current) => ({ ...current, startDate: e.target.value }))}
-                    />
-                  </label>
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Plan state</span>
-                    <select
-                      className="input bookingInputSpecial"
-                      value={accountDraft.planState}
-                      onChange={(e) => setAccountDraft((current) => ({ ...current, planState: e.target.value }))}
-                    >
-                      <option>Active</option>
-                      <option>Paused</option>
-                      <option>Completed</option>
-                    </select>
-                  </label>
-                </div>
-
-                <textarea
-                  className="input"
-                  rows={4}
-                  placeholder="Plan notes, agreement reminders, or special braces payment instructions"
-                  value={accountDraft.notes}
-                  onChange={(e) => setAccountDraft((current) => ({ ...current, notes: e.target.value }))}
-                />
-
-                <button className="btn btnShine bookingPrimaryBtn" disabled={savingAccount}>
-                  {savingAccount ? "Saving braces plan..." : selectedPatient.bracesAccount ? "Update Braces Plan" : "Create Braces Plan"}
-                </button>
-              </form>
-
-              {selectedPatient.bracesAccount ? (
-                <>
                   <div className="detailGrid bracesSummaryGrid">
                     <div className="detailBox luxeBox">
-                      <span className="detailLabel">Amount paid</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount.amountPaid)}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Remaining balance</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount.remainingBalance)}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Expected by now</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount.expectedPaidByNow)}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Progress</span>
-                      <strong>{selectedPatient.bracesAccount.progressPercent}% paid</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Payment schedule</span>
-                      <strong>{selectedPatient.bracesAccount.planFrequency}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">{getInstallmentLabel(selectedPatient.bracesAccount.planFrequency)}</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount.installmentAmount || selectedPatient.bracesAccount.monthlyAmount)}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
                       <span className="detailLabel">Discount applied</span>
-                      <strong>{((selectedPatient.bracesAccount.discountRate || 0) * 100).toFixed(selectedPatient.bracesAccount.discountRate ? 1 : 0)}%</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Overdue amount</span>
-                      <strong>{formatCurrency(selectedPatient.bracesAccount.overdueAmount || 0)}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Next expected payment</span>
-                      <strong>{selectedPatient.bracesAccount.nextDueDate ? formatDateLabel(selectedPatient.bracesAccount.nextDueDate) : "No due date"}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Plan length</span>
-                      <strong>{selectedPatient.bracesAccount.planCycles || 0} month(s)</strong>
+                      <strong>{(computedDiscountRate * 100).toFixed(computedDiscountRate ? 1 : 0)}%</strong>
                     </div>
                     <div className="detailBox luxeBox">
                       <span className="detailLabel">Installment count</span>
-                      <strong>{selectedPatient.bracesAccount.installmentCount || 0}</strong>
+                      <strong>{computedInstallmentCount}</strong>
                     </div>
                   </div>
 
-                  <div className="card bracesPaymentCard">
-                    <div className="cardHeader">
-                      <div>
-                        <h3 className="title">Log Payment</h3>
-                        <p className="sub">Enter cash, transfer, or e-wallet payments manually so the account balance updates right away and the overdue tracker stays accurate.</p>
-                      </div>
-                      <span className="badge">{selectedPatient.bracesPayments.length} payments</span>
-                    </div>
-
-                    <div className="bookingFlowGrid">
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Amount received</span>
-                        <input
-                          className="input bookingInputSpecial"
-                          type="number"
-                          min="0"
-                          placeholder="e.g. 1500"
-                          value={paymentDraft.amount}
-                          onChange={(e) => setPaymentDraft((current) => ({ ...current, amount: e.target.value }))}
-                        />
-                      </label>
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Payment date</span>
-                        <input
-                          className="input bookingInputSpecial"
-                          type="date"
-                          value={paymentDraft.paymentDate}
-                          onChange={(e) => setPaymentDraft((current) => ({ ...current, paymentDate: e.target.value }))}
-                        />
-                      </label>
-                    </div>
-
-                    <div className="bookingFlowGrid">
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Payment method</span>
-                        <select
-                          className="input bookingInputSpecial"
-                          value={paymentDraft.method}
-                          onChange={(e) => setPaymentDraft((current) => ({ ...current, method: e.target.value }))}
-                        >
-                          <option>Cash</option>
-                          <option>Bank Transfer</option>
-                          <option>E-wallet</option>
-                        </select>
-                      </label>
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Payment note</span>
-                        <input
-                          className="input bookingInputSpecial"
-                          placeholder="Receipt, reference, or front-desk note"
-                          value={paymentDraft.notes}
-                          onChange={(e) => setPaymentDraft((current) => ({ ...current, notes: e.target.value }))}
-                        />
-                      </label>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="btn btnShine bookingPrimaryBtn"
-                      onClick={() =>
-                        openConfirm({
-                          title: "Log this braces payment?",
-                          message: "This payment will be added to the patient ledger and the remaining balance will update immediately.",
-                          confirmLabel: "Log Payment",
-                          action: () => logPayment(),
-                        })
-                      }
-                      disabled={savingPayment}
-                    >
-                      {savingPayment ? "Saving payment..." : "Add Payment to Ledger"}
-                    </button>
-                  </div>
-
-                  <div className="card bracesPaymentCard">
-                    <div className="cardHeader">
-                      <div>
-                        <h3 className="title">Adjustment Scheduler</h3>
-                        <p className="sub">Schedule braces adjustment visits here so the clinic can track follow-up meetings and send reminder-ready dates from the same braces workspace.</p>
-                      </div>
-                      <span className="badge">{selectedPatient.bracesAdjustments.length} adjustments</span>
-                    </div>
-
-                    <div className="bookingFlowGrid">
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Adjustment date</span>
-                        <input
-                          className="input bookingInputSpecial"
-                          type="date"
-                          value={adjustmentDraft.adjustmentDate}
-                          onChange={(e) => setAdjustmentDraft((current) => ({ ...current, adjustmentDate: e.target.value }))}
-                        />
-                      </label>
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Adjustment time</span>
-                        <input
-                          className="input bookingInputSpecial"
-                          type="time"
-                          value={adjustmentDraft.adjustmentTime}
-                          onChange={(e) => setAdjustmentDraft((current) => ({ ...current, adjustmentTime: e.target.value }))}
-                        />
-                      </label>
-                    </div>
-
-                    <div className="bookingFlowGrid">
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Dentist handling adjustment</span>
-                        <input
-                          className="input bookingInputSpecial"
-                          placeholder="e.g. Jarred"
-                          value={adjustmentDraft.dentist}
-                          onChange={(e) => setAdjustmentDraft((current) => ({ ...current, dentist: e.target.value }))}
-                        />
-                      </label>
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Adjustment status</span>
-                        <select
-                          className="input bookingInputSpecial"
-                          value={adjustmentDraft.status}
-                          onChange={(e) => setAdjustmentDraft((current) => ({ ...current, status: e.target.value }))}
-                        >
-                          <option>Scheduled</option>
-                          <option>Completed</option>
-                          <option>Cancelled</option>
-                        </select>
-                      </label>
-                    </div>
-
+                  <div className="bookingFlowGrid">
                     <label className="bookingFieldCard">
-                      <span className="detailLabel">Adjustment note</span>
+                      <span className="detailLabel">{getCycleCountLabel(accountDraft.planFrequency)}</span>
                       <input
                         className="input bookingInputSpecial"
-                        placeholder="Monthly adjustment, wire change, or follow-up note"
-                        value={adjustmentDraft.notes}
-                        onChange={(e) => setAdjustmentDraft((current) => ({ ...current, notes: e.target.value }))}
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 24"
+                        value={accountDraft.planCycles}
+                        onChange={(e) => setAccountDraft((current) => ({ ...current, planCycles: e.target.value }))}
                       />
                     </label>
-
-                    <button
-                      type="button"
-                      className="btn btnShine bookingPrimaryBtn"
-                      onClick={() =>
-                        openConfirm({
-                          title: "Save this braces adjustment schedule?",
-                          message: "This adjustment visit will be linked to the braces account so upcoming reminder emails can use the same schedule.",
-                          confirmLabel: "Save Adjustment",
-                          action: () => logAdjustment(),
-                        })
-                      }
-                      disabled={savingAdjustment}
-                    >
-                      {savingAdjustment ? "Saving adjustment..." : "Add Adjustment Schedule"}
-                    </button>
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Plan start date</span>
+                      <input
+                        className="input bookingInputSpecial"
+                        type="date"
+                        value={accountDraft.startDate}
+                        onChange={(e) => setAccountDraft((current) => ({ ...current, startDate: e.target.value }))}
+                      />
+                    </label>
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Plan state</span>
+                      <select
+                        className="input bookingInputSpecial"
+                        value={accountDraft.planState}
+                        onChange={(e) => setAccountDraft((current) => ({ ...current, planState: e.target.value }))}
+                      >
+                        <option>Active</option>
+                        <option>Paused</option>
+                        <option>Completed</option>
+                      </select>
+                    </label>
                   </div>
 
-                  <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-                    <div className="cardHeader">
-                      <div>
-                        <h3 className="title">Payment History</h3>
-                        <p className="sub">Every logged braces payment stays in the ledger so the clinic can review the full installment trail anytime.</p>
+                  <textarea
+                    className="input"
+                    rows={4}
+                    placeholder="Plan notes, agreement reminders, or special braces payment instructions"
+                    value={accountDraft.notes}
+                    onChange={(e) => setAccountDraft((current) => ({ ...current, notes: e.target.value }))}
+                  />
+
+                  <button className="btn btnShine bookingPrimaryBtn" disabled={savingAccount}>
+                    {savingAccount ? "Saving braces plan..." : selectedPatient.bracesAccount ? "Update Braces Plan" : "Create Braces Plan"}
+                  </button>
+                </form>
+
+                {selectedPatient.bracesAccount ? (
+                  <>
+                    <div className="detailGrid bracesSummaryGrid">
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Amount paid</span>
+                        <strong>{formatCurrency(selectedPatient.bracesAccount.amountPaid)}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Remaining balance</span>
+                        <strong>{formatCurrency(selectedPatient.bracesAccount.remainingBalance)}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Expected by now</span>
+                        <strong>{formatCurrency(selectedPatient.bracesAccount.expectedPaidByNow)}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Progress</span>
+                        <strong>{selectedPatient.bracesAccount.progressPercent}% paid</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Payment schedule</span>
+                        <strong>{selectedPatient.bracesAccount.planFrequency}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">{getInstallmentLabel(selectedPatient.bracesAccount.planFrequency)}</span>
+                        <strong>{formatCurrency(selectedPatient.bracesAccount.installmentAmount || selectedPatient.bracesAccount.monthlyAmount)}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Discount applied</span>
+                        <strong>{((selectedPatient.bracesAccount.discountRate || 0) * 100).toFixed(selectedPatient.bracesAccount.discountRate ? 1 : 0)}%</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Overdue amount</span>
+                        <strong>{formatCurrency(selectedPatient.bracesAccount.overdueAmount || 0)}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Next expected payment</span>
+                        <strong>{selectedPatient.bracesAccount.nextDueDate ? formatDateLabel(selectedPatient.bracesAccount.nextDueDate) : "No due date"}</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Plan length</span>
+                        <strong>{selectedPatient.bracesAccount.planCycles || 0} month(s)</strong>
+                      </div>
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Installment count</span>
+                        <strong>{selectedPatient.bracesAccount.installmentCount || 0}</strong>
                       </div>
                     </div>
 
-                    {selectedPatient.bracesPayments.length ? (
-                      <div className="historyList">
-                        {selectedPatient.bracesPayments.map((payment) => (
-                          <div key={payment.id || `${payment.paymentDate}-${payment.amount}`} className="historyRow bracesHistoryRow">
-                            <div>
-                              <strong>{formatCurrency(payment.amount)}</strong>
-                              <p>{payment.method || "Manual payment"}{payment.notes ? ` • ${payment.notes}` : ""}</p>
-                            </div>
-                            <div className="historyMeta">
-                              <span>{formatDateLabel(payment.paymentDate)}</span>
-                              <span className="statusPill active">{payment.method || "Cash"}</span>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="card bracesPaymentCard">
+                      <div className="cardHeader">
+                        <div>
+                          <h3 className="title">Log Payment</h3>
+                          <p className="sub">Enter cash, transfer, or e-wallet payments manually so the account balance updates right away and the overdue tracker stays accurate.</p>
+                        </div>
+                        <span className="badge">{selectedPatient.bracesPayments.length} payments</span>
                       </div>
-                    ) : (
-                      <EmptyState
-                        compact
-                        title="No payments logged yet"
-                        message="Once the clinic records a braces installment, it will appear here with the payment date and method."
-                      />
-                    )}
-                  </div>
 
-                  <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-                    <div className="cardHeader">
-                      <div>
-                        <h3 className="title">Adjustment History</h3>
-                        <p className="sub">Every braces checkup, wire adjustment, or follow-up meeting can stay in one connected schedule history.</p>
+                      <div className="bookingFlowGrid">
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Amount received</span>
+                          <input
+                            className="input bookingInputSpecial"
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 1500"
+                            value={paymentDraft.amount}
+                            onChange={(e) => setPaymentDraft((current) => ({ ...current, amount: e.target.value }))}
+                          />
+                        </label>
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Payment date</span>
+                          <input
+                            className="input bookingInputSpecial"
+                            type="date"
+                            value={paymentDraft.paymentDate}
+                            onChange={(e) => setPaymentDraft((current) => ({ ...current, paymentDate: e.target.value }))}
+                          />
+                        </label>
                       </div>
+
+                      <div className="bookingFlowGrid">
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Payment method</span>
+                          <select
+                            className="input bookingInputSpecial"
+                            value={paymentDraft.method}
+                            onChange={(e) => setPaymentDraft((current) => ({ ...current, method: e.target.value }))}
+                          >
+                            <option>Cash</option>
+                            <option>Bank Transfer</option>
+                            <option>E-wallet</option>
+                          </select>
+                        </label>
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Payment note</span>
+                          <input
+                            className="input bookingInputSpecial"
+                            placeholder="Receipt, reference, or front-desk note"
+                            value={paymentDraft.notes}
+                            onChange={(e) => setPaymentDraft((current) => ({ ...current, notes: e.target.value }))}
+                          />
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn btnShine bookingPrimaryBtn"
+                        onClick={() =>
+                          openConfirm({
+                            title: "Log this braces payment?",
+                            message: "This payment will be added to the patient ledger and the remaining balance will update immediately.",
+                            confirmLabel: "Log Payment",
+                            action: () => logPayment(),
+                          })
+                        }
+                        disabled={savingPayment}
+                      >
+                        {savingPayment ? "Saving payment..." : "Add Payment to Ledger"}
+                      </button>
                     </div>
 
-                    {selectedPatient.bracesAdjustments.length ? (
-                      <div className="historyList">
-                        {selectedPatient.bracesAdjustments.map((adjustment) => (
-                          <div key={adjustment.id || `${adjustment.adjustmentDate}-${adjustment.adjustmentTime}`} className="historyRow bracesHistoryRow">
-                            <div>
-                              <strong>{adjustment.notes || "Braces adjustment visit"}</strong>
-                              <p>
-                                {adjustment.dentist || "No dentist"}
-                                {adjustment.adjustmentTime ? ` • ${formatTimeLabel(adjustment.adjustmentTime)}` : ""}
-                              </p>
-                            </div>
-                            <div className="historyMeta">
-                              <span>{formatDateLabel(adjustment.adjustmentDate)}</span>
-                              <span className={`statusPill ${String(adjustment.status || "").toLowerCase() === "cancelled" ? "cancelled" : String(adjustment.status || "").toLowerCase() === "completed" ? "approved" : "active"}`}>
-                                {adjustment.status || "Scheduled"}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="card bracesPaymentCard">
+                      <div className="cardHeader">
+                        <div>
+                          <h3 className="title">Adjustment Scheduler</h3>
+                          <p className="sub">Schedule braces adjustment visits here so the clinic can track follow-up meetings and send reminder-ready dates from the same braces workspace.</p>
+                        </div>
+                        <span className="badge">{selectedPatient.bracesAdjustments.length} adjustments</span>
                       </div>
-                    ) : (
-                      <EmptyState
-                        compact
-                        title="No adjustments scheduled yet"
-                        message="Add a braces adjustment here so upcoming visits and reminder emails stay connected to the braces plan."
-                      />
-                    )}
+
+                      <div className="bookingFlowGrid">
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Adjustment date</span>
+                          <input
+                            className="input bookingInputSpecial"
+                            type="date"
+                            value={adjustmentDraft.adjustmentDate}
+                            onChange={(e) => setAdjustmentDraft((current) => ({ ...current, adjustmentDate: e.target.value }))}
+                          />
+                        </label>
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Adjustment time</span>
+                          <input
+                            className="input bookingInputSpecial"
+                            type="time"
+                            value={adjustmentDraft.adjustmentTime}
+                            onChange={(e) => setAdjustmentDraft((current) => ({ ...current, adjustmentTime: e.target.value }))}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="bookingFlowGrid">
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Dentist handling adjustment</span>
+                          <input
+                            className="input bookingInputSpecial"
+                            placeholder="e.g. Jarred"
+                            value={adjustmentDraft.dentist}
+                            onChange={(e) => setAdjustmentDraft((current) => ({ ...current, dentist: e.target.value }))}
+                          />
+                        </label>
+                        <label className="bookingFieldCard">
+                          <span className="detailLabel">Adjustment status</span>
+                          <select
+                            className="input bookingInputSpecial"
+                            value={adjustmentDraft.status}
+                            onChange={(e) => setAdjustmentDraft((current) => ({ ...current, status: e.target.value }))}
+                          >
+                            <option>Scheduled</option>
+                            <option>Completed</option>
+                            <option>Cancelled</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Adjustment note</span>
+                        <input
+                          className="input bookingInputSpecial"
+                          placeholder="Monthly adjustment, wire change, or follow-up note"
+                          value={adjustmentDraft.notes}
+                          onChange={(e) => setAdjustmentDraft((current) => ({ ...current, notes: e.target.value }))}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        className="btn btnShine bookingPrimaryBtn"
+                        onClick={() =>
+                          openConfirm({
+                            title: "Save this braces adjustment schedule?",
+                            message: "This adjustment visit will be linked to the braces account so upcoming reminder emails can use the same schedule.",
+                            confirmLabel: "Save Adjustment",
+                            action: () => logAdjustment(),
+                          })
+                        }
+                        disabled={savingAdjustment}
+                      >
+                        {savingAdjustment ? "Saving adjustment..." : "Add Adjustment Schedule"}
+                      </button>
+                    </div>
+
+                    <div className="card adminRecordsCard">
+                      <div className="cardHeader">
+                        <div>
+                          <h3 className="title">Payment History</h3>
+                          <p className="sub">Every logged braces payment stays in the ledger so the clinic can review the full installment trail anytime.</p>
+                        </div>
+                      </div>
+
+                      {selectedPatient.bracesPayments.length ? (
+                        <div className="historyList">
+                          {selectedPatient.bracesPayments.map((payment) => (
+                            <div key={payment.id || `${payment.paymentDate}-${payment.amount}`} className="historyRow bracesHistoryRow">
+                              <div>
+                                <strong>{formatCurrency(payment.amount)}</strong>
+                                <p>{payment.method || "Manual payment"}{payment.notes ? ` • ${payment.notes}` : ""}</p>
+                              </div>
+                              <div className="historyMeta">
+                                <span>{formatDateLabel(payment.paymentDate)}</span>
+                                <span className="statusPill active">{payment.method || "Cash"}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState
+                          compact
+                          title="No payments logged yet"
+                          message="Once the clinic records a braces installment, it will appear here with the payment date and method."
+                        />
+                      )}
+                    </div>
+
+                    <div className="card adminRecordsCard">
+                      <div className="cardHeader">
+                        <div>
+                          <h3 className="title">Adjustment History</h3>
+                          <p className="sub">Every braces checkup, wire adjustment, or follow-up meeting can stay in one connected schedule history.</p>
+                        </div>
+                      </div>
+
+                      {selectedPatient.bracesAdjustments.length ? (
+                        <div className="historyList">
+                          {selectedPatient.bracesAdjustments.map((adjustment) => (
+                            <div key={adjustment.id || `${adjustment.adjustmentDate}-${adjustment.adjustmentTime}`} className="historyRow bracesHistoryRow">
+                              <div>
+                                <strong>{adjustment.notes || "Braces adjustment visit"}</strong>
+                                <p>
+                                  {adjustment.dentist || "No dentist"}
+                                  {adjustment.adjustmentTime ? ` • ${formatTimeLabel(adjustment.adjustmentTime)}` : ""}
+                                </p>
+                              </div>
+                              <div className="historyMeta">
+                                <span>{formatDateLabel(adjustment.adjustmentDate)}</span>
+                                <span className={`statusPill ${String(adjustment.status || "").toLowerCase() === "cancelled" ? "cancelled" : String(adjustment.status || "").toLowerCase() === "completed" ? "approved" : "active"}`}>
+                                  {adjustment.status || "Scheduled"}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState
+                          compact
+                          title="No adjustments scheduled yet"
+                          message="Add a braces adjustment here so upcoming visits and reminder emails stay connected to the braces plan."
+                        />
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="emptyEditorState clinicalInfoEmpty">
+                    <strong>No braces account yet</strong>
+                    <p>Create the installment plan first, then you can start logging down payments, scheduled braces payments, and adjustment visits here.</p>
                   </div>
-                </>
-              ) : (
-                <div className="emptyEditorState clinicalInfoEmpty" style={{ marginTop: 18 }}>
-                  <strong>No braces account yet</strong>
-                  <p>Create the installment plan first, then you can start logging down payments, scheduled braces payments, and adjustment visits here.</p>
-                </div>
-              )}
-                </>
-              )}
-            </>
-          ) : (
-            <EmptyState
-              title="No patient selected"
-              message="Choose a patient from the right panel to set up their braces installment plan and payment ledger."
-            />
-          )}
-        </div>
-
-        {!bracesWorkspaceOpen ? (
-        <div className="card adminRecordsCard">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Patient Search</h3>
-              <p className="sub">Find a patient first, then open their braces payment workspace.</p>
-            </div>
-            <span className="badge">{filteredPatients.length} patients</span>
-          </div>
-
-          <div className="patientSearchSpotlight">
-            <div className="patientSearchHeader">
-              <div>
-                <span className="patientSearchEyebrow">Braces patient search</span>
-                <p className="patientSearchHint">Search by patient name to jump to the braces account you want to manage.</p>
+                )}
               </div>
-              <span className="patientSearchCount">
-                {search ? `${filteredPatients.length} match${filteredPatients.length === 1 ? "" : "es"}` : "Ready to search"}
-              </span>
-            </div>
-
-            <div className="patientSearchRow">
-              <input
-                className="input searchInput patientSearchInput"
-                placeholder="Enter patient name"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {search ? (
-                <button type="button" className="searchClearBtn" onClick={() => setSearch("")}>
-                  Clear
-                </button>
-              ) : null}
             </div>
           </div>
-
-          {loading ? (
-            <SkeletonList count={4} cardClassName="patientShowcase" />
-          ) : filteredPatients.length ? (
-            <ul className="list detailedList">
-              {filteredPatients.map((patient) => {
-                const isSelected = patient.id === selectedPatientId;
-                const bracesAccount = patient.bracesAccount;
-
-                return (
-                  <li key={patient.id} className={`item detailedItem patientShowcase bracesPatientCard ${isSelected ? "selectedRecord expanded" : "collapsed"}`}>
-                    <button type="button" className="recordTapArea" onClick={() => { setSelectedPatientId(patient.id); setBracesWorkspaceOpen(false); }}>
-                      <div className="detailContent">
-                        <div className="detailTopRow">
-                          <div>
-                            <strong className="detailTitle">{patient.name}</strong>
-                            <p className="detailSubtitle">
-                              {patient.patientType || "Regular Patient"} • {patient.phone || "No phone"} • {patient.email || "No email"}
-                            </p>
-                          </div>
-                          <div className="statusStack">
-                            <span className={`statusPill ${bracesAccount ? (bracesAccount.isOverdue ? "cancelled" : bracesAccount.paymentState === "Fully Paid" ? "approved" : "active") : "pending"}`}>
-                              {bracesAccount?.paymentState || "No plan"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="detailGrid">
-                          <div className="detailBox luxeBox">
-                            <span className="detailLabel">Plan status</span>
-                            <strong>{bracesAccount?.planState || "Not started"}</strong>
-                          </div>
-                          <div className="detailBox luxeBox">
-                            <span className="detailLabel">Amount paid</span>
-                            <strong>{formatCurrency(bracesAccount?.amountPaid || 0)}</strong>
-                          </div>
-                          <div className="detailBox luxeBox">
-                            <span className="detailLabel">Balance left</span>
-                            <strong>{formatCurrency(bracesAccount?.remainingBalance || 0)}</strong>
-                          </div>
-                          <div className="detailBox luxeBox">
-                            <span className="detailLabel">Next adjustment</span>
-                            <strong>{patient.nextAdjustment?.adjustmentDate ? formatDateLabel(patient.nextAdjustment.adjustmentDate) : "Not scheduled"}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <EmptyState
-              title="No matching patients"
-              message="Try another name or clear the search to view all active patient records."
-            />
-          )}
-        </div>
-        ) : null}
-      </div>
+        </>
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(confirmState)}

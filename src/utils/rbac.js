@@ -58,9 +58,10 @@ export const ADMIN_NAV_BY_ROLE = {
   [ROLES.ADMIN]: [
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Bookings" },
-    { to: "/admin/braces", label: "Braces" },
+    { to: "/admin/braces", label: "Payments" },
     { to: "/admin/dentists", label: "Dentists" },
     { to: "/admin/services", label: "Services" },
+     { to: "/admin/promos", label: "Promos" },
     { to: "/admin/accounts", label: "Accounts" },
     { to: "/admin/logs", label: "Logs" },
     { to: "/admin/archive", label: "Archive" },

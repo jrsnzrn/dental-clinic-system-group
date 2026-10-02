@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
@@ -11,43 +11,163 @@ const ARCHIVE_STAFF_ACCOUNT = httpsCallable(functions, "archiveStaffAccount");
 const SET_STAFF_MFA_REQUIRED = httpsCallable(functions, "setStaffMfaRequired");
 
 function emptyDraft() {
+  return { name: "", email: "", password: "", role: ROLES.RECEPTIONIST };
+}
+
+function toIso(value) {
+  return value?.toDate ? value.toDate().toISOString() : value || null;
+}
+
+function normalizeStaffAccount(entry) {
   return {
-    name: "",
-    email: "",
-    password: "",
-    role: ROLES.RECEPTIONIST,
+    ...entry,
+    createdAt: toIso(entry.createdAt),
+    mfaVerifiedUntil: toIso(entry.mfaVerifiedUntil),
+    mfaLastVerifiedAt: toIso(entry.mfaLastVerifiedAt),
   };
 }
 
+async function loadStaffAccountsFromFirestore() {
+  const snapshot = await getDocs(query(collection(db, "admins"), orderBy("createdAt", "desc")));
+  return snapshot.docs.map((entry) => normalizeStaffAccount({ id: entry.id, ...entry.data() }));
+}
+
+const ROLE_ORDER = { [ROLES.ADMIN]: 0, [ROLES.DENTIST]: 1, [ROLES.RECEPTIONIST]: 2 };
+
+const SORT_OPTIONS = [
+  { value: "role", label: "Role" },
+  { value: "name", label: "Name (A–Z)" },
+  { value: "newest", label: "Latest created" },
+  { value: "oldest", label: "Earliest created" },
+];
+
+const nameOf = (account) => (account.name || account.email || "").toLowerCase();
+
+function createdTime(account) {
+  const value = account.createdAt;
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Date.parse(value) || 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  const seconds = value.seconds ?? value._seconds;
+  return typeof seconds === "number" ? seconds * 1000 : 0;
+}
+
+function sortAccounts(accounts, sortBy) {
+  const byName = (a, b) => nameOf(a).localeCompare(nameOf(b));
+  const roleRank = (a) => ROLE_ORDER[a.role] ?? 99;
+  const list = [...accounts];
+
+  if (sortBy === "name") return list.sort(byName);
+  if (sortBy === "newest") return list.sort((a, b) => createdTime(b) - createdTime(a) || byName(a, b));
+  if (sortBy === "oldest") {
+    const time = (a) => createdTime(a) || Number.MAX_SAFE_INTEGER;
+    return list.sort((a, b) => time(a) - time(b) || byName(a, b));
+  }
+  return list.sort((a, b) => roleRank(a) - roleRank(b) || byName(a, b));
+}
+
+function initials(account) {
+  const source = (account.name || account.email || "?").trim();
+  const parts = source.split(/[\s@._-]+/).filter(Boolean);
+  const letters = (parts[0]?.[0] || "?") + (parts.length > 1 ? parts[1][0] : "");
+  return letters.toUpperCase();
+}
+
+function AccountRow({ account, busy, menuOpen, setMenuId, onToggleMfa, onToggleStatus, onArchive }) {
+  const isAdmin = account.role === ROLES.ADMIN;
+  const roleLabel = ROLE_LABELS[account.role] || account.role || "No role saved";
+  const displayName = account.name || account.email || (isAdmin ? "Administrator" : "No staff name saved");
+  const run = (action) => () => {
+    setMenuId("");
+    action(account);
+  };
+  const mfaLabel = isAdmin
+    ? account.mfaEnabled ? "MFA required" : "MFA repair needed"
+    : account.mfaEnabled ? "MFA on" : "MFA off";
+
+  return (
+    <li className={`acctRow${account.disabled && !isAdmin ? " isDisabled" : ""}`} title={`Account ID: ${account.id}`}>
+      <span className="acctAvatar" aria-hidden="true">
+        {initials(account)}
+      </span>
+
+      <div className="acctWho">
+        <strong>{displayName}</strong>
+        <span>{account.email || "No email saved"}</span>
+      </div>
+
+      <div className="acctPills">
+        <span className="acctRole">{roleLabel}</span>
+        <span className={`acctMeta${account.mfaEnabled ? "" : isAdmin ? " isWarn" : ""}`}>{mfaLabel}</span>
+        {!isAdmin && account.disabled ? <span className="acctMeta isWarn">Disabled</span> : null}
+      </div>
+
+      <div className="acctMenuWrap">
+        {isAdmin ? (
+          !account.mfaEnabled ? (
+            <button className="btn secondary btnSoft" type="button" onClick={() => onToggleMfa(account)} disabled={busy}>
+              {busy ? "Updating..." : "Repair MFA"}
+            </button>
+          ) : null
+        ) : (
+          <>
+            <button
+              className="acctIconBtn"
+              type="button"
+              aria-label={`Actions for ${displayName}`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuId(menuOpen ? "" : account.id)}
+              disabled={busy}
+            >
+              {busy ? "…" : "⋯"}
+            </button>
+
+            {menuOpen ? (
+              <div className="acctMenu" role="menu">
+                <button className="acctMenuItem" type="button" role="menuitem" onClick={run(onToggleMfa)}>
+                  {account.mfaEnabled ? "Turn MFA off" : "Require MFA"}
+                </button>
+                <button className="acctMenuItem" type="button" role="menuitem" onClick={run(onToggleStatus)}>
+                  {account.disabled ? "Enable account" : "Disable account"}
+                </button>
+                <button
+                  className="acctMenuItem isDanger"
+                  type="button"
+                  role="menuitem"
+                  onClick={run(onArchive)}
+                  disabled={!account.disabled}
+                  title={account.disabled ? "" : "Disable the account first"}
+                >
+                  Archive account
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
+
 export default function Accounts() {
   const [draft, setDraft] = useState(emptyDraft());
+  const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [listError, setListError] = useState("");
   const [success, setSuccess] = useState("");
-  const [created, setCreated] = useState(null);
   const [adminAccounts, setAdminAccounts] = useState([]);
   const [staffAccounts, setStaffAccounts] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [updatingAccountId, setUpdatingAccountId] = useState("");
+  const [menuId, setMenuId] = useState("");
+  const [sortBy, setSortBy] = useState("role");
+  const [search, setSearch] = useState("");
 
-  function normalizeStaffAccount(entry) {
-    return {
-      ...entry,
-      createdAt: entry.createdAt?.toDate ? entry.createdAt.toDate().toISOString() : entry.createdAt || null,
-      mfaVerifiedUntil: entry.mfaVerifiedUntil?.toDate
-        ? entry.mfaVerifiedUntil.toDate().toISOString()
-        : entry.mfaVerifiedUntil || null,
-      mfaLastVerifiedAt: entry.mfaLastVerifiedAt?.toDate
-        ? entry.mfaLastVerifiedAt.toDate().toISOString()
-        : entry.mfaLastVerifiedAt || null,
-    };
-  }
-
-  async function loadStaffAccountsFromFirestore() {
-    const snapshot = await getDocs(query(collection(db, "admins"), orderBy("createdAt", "desc")));
-    return snapshot.docs.map((entry) => normalizeStaffAccount({ id: entry.id, ...entry.data() }));
-  }
+  const labelOf = (account) => account.email || account.name || "Staff account";
 
   async function loadStaffAccounts() {
     try {
@@ -63,16 +183,9 @@ export default function Accounts() {
         accounts = await loadStaffAccountsFromFirestore();
       }
 
-      setStaffAccounts(
-        accounts
-          .filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST)
-          .filter((entry) => entry.archiveStatus !== "Archived")
-      );
-      setAdminAccounts(
-        accounts
-          .filter((entry) => entry.role === ROLES.ADMIN)
-          .filter((entry) => entry.archiveStatus !== "Archived")
-      );
+      const active = accounts.filter((entry) => entry.archiveStatus !== "Archived");
+      setStaffAccounts(active.filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST));
+      setAdminAccounts(active.filter((entry) => entry.role === ROLES.ADMIN));
     } catch (err) {
       setListError(err?.message || "Could not load staff accounts.");
       setStaffAccounts([]);
@@ -87,11 +200,62 @@ export default function Accounts() {
     loadStaffAccounts();
   }, []);
 
+  // success message fades out on its own
+  useEffect(() => {
+    if (!success) return undefined;
+    const timer = setTimeout(() => setSuccess(""), 5000);
+    return () => clearTimeout(timer);
+  }, [success]);
+
+  // close the row menu on outside click, and the menu / dialog on Escape
+  useEffect(() => {
+    function onPointerDown(event) {
+      if (!event.target.closest?.(".acctMenuWrap")) setMenuId("");
+    }
+    function onKeyDown(event) {
+      if (event.key === "Escape") {
+        setMenuId("");
+        setShowForm(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  function openForm() {
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setFormError("");
+  }
+
+  async function runAccountAction(account, action, successMessage, errorMessage) {
+    try {
+      setListError("");
+      setSuccess("");
+      setUpdatingAccountId(account.id);
+      await action();
+      setSuccess(successMessage);
+      await loadStaffAccounts();
+    } catch (err) {
+      setListError(err?.message || errorMessage);
+      console.error(err);
+    } finally {
+      setUpdatingAccountId("");
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setFormError("");
     setSuccess("");
-    setCreated(null);
 
     if (!draft.name.trim() || !draft.email.trim() || !draft.password.trim()) {
       setFormError("Complete the staff name, email, password, and role first.");
@@ -107,9 +271,12 @@ export default function Accounts() {
         role: draft.role,
       });
 
-      setCreated(result.data || null);
-      setSuccess(`${ROLE_LABELS[draft.role]} account created successfully.`);
+      const created = result.data || {};
+      setSuccess(
+        `${ROLE_LABELS[draft.role]} account created for ${created.name || draft.name.trim()} (${created.email || draft.email.trim()}).`
+      );
       setDraft(emptyDraft());
+      setShowForm(false);
       await loadStaffAccounts();
     } catch (err) {
       setFormError(err?.message || "Could not create the staff account.");
@@ -119,297 +286,231 @@ export default function Accounts() {
     }
   }
 
-  async function toggleStaffStatus(account) {
-    try {
-      setListError("");
-      setSuccess("");
-      setUpdatingAccountId(account.id);
-      await SET_STAFF_DISABLED({
-        uid: account.id,
-        disabled: !account.disabled,
-      });
-      setSuccess(
-        `${account.email || account.name || "Staff account"} ${
-          account.disabled ? "enabled" : "disabled"
-        } successfully.`
-      );
-      await loadStaffAccounts();
-    } catch (err) {
-      setListError(err?.message || "Could not update the staff account status.");
-      console.error(err);
-    } finally {
-      setUpdatingAccountId("");
-    }
+  function toggleStaffStatus(account) {
+    return runAccountAction(
+      account,
+      () => SET_STAFF_DISABLED({ uid: account.id, disabled: !account.disabled }),
+      `${labelOf(account)} ${account.disabled ? "enabled" : "disabled"} successfully.`,
+      "Could not update the staff account status."
+    );
   }
 
-  async function archiveStaffAccount(account) {
+  function archiveStaffAccount(account) {
     if (!account.disabled) {
       setListError("Disable the staff account first before archiving it.");
-      return;
+      return undefined;
     }
-
-    try {
-      setListError("");
-      setSuccess("");
-      setUpdatingAccountId(account.id);
-      await ARCHIVE_STAFF_ACCOUNT({ uid: account.id });
-      setSuccess(`${account.email || account.name || "Staff account"} archived successfully.`);
-      await loadStaffAccounts();
-    } catch (err) {
-      setListError(err?.message || "Could not archive the staff account.");
-      console.error(err);
-    } finally {
-      setUpdatingAccountId("");
-    }
+    return runAccountAction(
+      account,
+      () => ARCHIVE_STAFF_ACCOUNT({ uid: account.id }),
+      `${labelOf(account)} archived successfully.`,
+      "Could not archive the staff account."
+    );
   }
 
-  async function toggleStaffMfa(account) {
-    const isAdministrator = account.role === ROLES.ADMIN;
-    const nextMfaEnabled = isAdministrator ? true : account.mfaEnabled !== true;
+  function toggleStaffMfa(account) {
+    const nextMfaEnabled = account.role === ROLES.ADMIN ? true : account.mfaEnabled !== true;
+    return runAccountAction(
+      account,
+      () => SET_STAFF_MFA_REQUIRED({ uid: account.id, mfaEnabled: nextMfaEnabled }),
+      `${labelOf(account)} MFA ${nextMfaEnabled ? "turned on" : "turned off"} successfully.`,
+      "Could not update staff MFA."
+    );
+  }
 
-    try {
-      setListError("");
-      setSuccess("");
-      setUpdatingAccountId(account.id);
-      await SET_STAFF_MFA_REQUIRED({
-        uid: account.id,
-        mfaEnabled: nextMfaEnabled,
-      });
-      setSuccess(
-        `${account.email || account.name || "Staff account"} MFA ${
-          nextMfaEnabled ? "turned on" : "turned off"
-        } successfully.`
+  const allAccounts = useMemo(
+    () => sortAccounts([...adminAccounts, ...staffAccounts], sortBy),
+    [adminAccounts, staffAccounts, sortBy]
+  );
+
+  const searchTerm = search.trim().toLowerCase();
+  const visibleAccounts = useMemo(() => {
+    return allAccounts.filter((account) => {
+      if (!searchTerm) return true;
+      return [account.name, account.email, ROLE_LABELS[account.role] || account.role].some((value) =>
+        String(value || "").toLowerCase().includes(searchTerm)
       );
-      await loadStaffAccounts();
-    } catch (err) {
-      setListError(err?.message || "Could not update staff MFA.");
-      console.error(err);
-    } finally {
-      setUpdatingAccountId("");
-    }
-  }
+    });
+  }, [allAccounts, searchTerm]);
+
+  const plural = (n) => `${n} ${n === 1 ? "account" : "accounts"}`;
 
   return (
-    <div className="container adminSurface">
-      <div className="hero adminHero">
-        <div className="adminHeroGlow" />
-        <div className="adminHeroContent">
-          <span className="heroEyebrow">Security Control</span>
-          <h1>Staff Accounts</h1>
-          <p>Create dentist and receptionist logins, then manage whether those staff accounts can access the system.</p>
+    <div className="container adminSurface acctPage">
+      {success ? (
+        <div className="successBanner acctBanner acctToast" role="status">
+          <span>{success}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setSuccess("")}>✕</button>
+        </div>
+      ) : null}
+
+      <div className="acctBar">
+        <div className="acctBarLeft">
+          <div className="acctSearch">
+            <svg className="acctSearchIcon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <input
+              className="input"
+              type="text"
+              placeholder="Search name, email, or role"
+              aria-label="Search accounts"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search ? (
+              <button className="acctSearchClear" type="button" aria-label="Clear search" onClick={() => setSearch("")}>
+                ✕
+              </button>
+            ) : null}
+          </div>
+          <span className="acctCount">
+            {loadingStaff
+              ? "Loading..."
+              : searchTerm
+                ? `${visibleAccounts.length} of ${plural(allAccounts.length)}`
+                : plural(allAccounts.length)}
+          </span>
+        </div>
+
+        <div className="acctBarActions">
+          <label className="acctSort">
+            <span>Sort by</span>
+            <select className="input" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="btn btnShine" type="button" onClick={openForm}>
+            + Add staff
+          </button>
         </div>
       </div>
 
-      <div className="card adminEditorCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Create Staff Account</h3>
-            <p className="sub">This form creates the Firebase Authentication login and the matching `admins/{'{uid}'}` role record through a protected backend function.</p>
-          </div>
-          <span className="badge">Admin Only</span>
-        </div>
+      <section className="card acctCard">
+        {listError ? <div className="error acctBanner">{listError}</div> : null}
 
-        <form className="form" onSubmit={handleSubmit}>
-          <input
-            className="input"
-            placeholder="Full name"
-            value={draft.name}
-            onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
-          />
+        {loadingStaff ? <p className="acctEmpty">Loading staff accounts...</p> : null}
 
-          <input
-            className="input"
-            type="email"
-            placeholder="staff@topdent.com"
-            value={draft.email}
-            onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))}
-          />
-
-          <input
-            className="input"
-            type="password"
-            placeholder="Temporary password"
-            value={draft.password}
-            onChange={(e) => setDraft((current) => ({ ...current, password: e.target.value }))}
-          />
-
-          <select
-            className="input"
-            value={draft.role}
-            onChange={(e) => setDraft((current) => ({ ...current, role: e.target.value }))}
-          >
-            <option value={ROLES.RECEPTIONIST}>{ROLE_LABELS[ROLES.RECEPTIONIST]}</option>
-            <option value={ROLES.DENTIST}>{ROLE_LABELS[ROLES.DENTIST]}</option>
-          </select>
-
-          <button className="btn btnShine" type="submit" disabled={submitting}>
-            {submitting ? "Creating Account..." : "Create Staff Account"}
-          </button>
-        </form>
-
-        {formError ? <div className="error" style={{ marginTop: 12 }}>{formError}</div> : null}
-        {success ? <div className="successBanner" style={{ marginTop: 12 }}>{success}</div> : null}
-
-        {created ? (
-          <div className="detailNote historyPanel selectedToothPanel" style={{ marginTop: 14 }}>
-            <span className="detailLabel">Latest created account</span>
-            <p><strong>{created.name}</strong> {" - "} {created.email}</p>
-            <p>Role: {ROLE_LABELS[created.role] || created.role}</p>
+        {!loadingStaff && !listError && allAccounts.length === 0 ? (
+          <div className="acctEmpty">
+            <strong>No accounts yet</strong>
+            <span>Dentist and receptionist accounts you add will appear here.</span>
+            <button className="btn btnShine" type="button" onClick={openForm}>
+              Add staff
+            </button>
           </div>
         ) : null}
-      </div>
 
-      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Administrator MFA</h3>
-            <p className="sub">Require email verification for administrator accounts after password login.</p>
+        {!loadingStaff && allAccounts.length > 0 && visibleAccounts.length === 0 ? (
+          <div className="acctEmpty">
+            <strong>No matches</strong>
+            <span>
+              {searchTerm ? `Nothing matches “${search.trim()}”. ` : ""}Try a different name, email, or role.
+            </span>
+            <button className="btn secondary" type="button" onClick={() => setSearch("")}>
+              Clear search
+            </button>
           </div>
-          <span className="badge">{loadingStaff ? "Loading..." : `${adminAccounts.length} admin`}</span>
+        ) : null}
+
+        {!loadingStaff && visibleAccounts.length > 0 ? (
+          <ul className="acctList">
+            {visibleAccounts.map((account) => (
+              <AccountRow
+                key={account.id}
+                account={account}
+                busy={updatingAccountId === account.id}
+                menuOpen={menuId === account.id}
+                setMenuId={setMenuId}
+                onToggleMfa={toggleStaffMfa}
+                onToggleStatus={toggleStaffStatus}
+                onArchive={archiveStaffAccount}
+              />
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      {showForm ? (
+        <div
+          className="acctOverlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeForm();
+          }}
+        >
+          <form className="acctDialog" onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-labelledby="acctDialogTitle">
+            <div className="acctDialogHead">
+              <h3 id="acctDialogTitle">Add staff account</h3>
+              <button className="acctIconBtn" type="button" aria-label="Close" onClick={closeForm}>
+                ✕
+              </button>
+            </div>
+            <p className="acctHint">Creates the login and its role record through a protected backend function.</p>
+
+            <div className="acctFields">
+              <label className="acctField">
+                <span>Full name</span>
+                <input
+                  className="input"
+                  placeholder="Maria Santos"
+                  value={draft.name}
+                  onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
+                  autoFocus
+                />
+              </label>
+              <label className="acctField">
+                <span>Email</span>
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="staff@topdent.com"
+                  value={draft.email}
+                  onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))}
+                />
+              </label>
+              <label className="acctField">
+                <span>Temporary password</span>
+                <input
+                  className="input"
+                  type="password"
+                  placeholder="Temporary password"
+                  autoComplete="new-password"
+                  value={draft.password}
+                  onChange={(e) => setDraft((current) => ({ ...current, password: e.target.value }))}
+                />
+              </label>
+              <label className="acctField">
+                <span>Role</span>
+                <select
+                  className="input"
+                  value={draft.role}
+                  onChange={(e) => setDraft((current) => ({ ...current, role: e.target.value }))}
+                >
+                  <option value={ROLES.ADMIN}>{ROLE_LABELS[ROLES.ADMIN]}</option>
+                  <option value={ROLES.RECEPTIONIST}>{ROLE_LABELS[ROLES.RECEPTIONIST]}</option>
+                  <option value={ROLES.DENTIST}>{ROLE_LABELS[ROLES.DENTIST]}</option>
+                </select>
+              </label>
+            </div>
+
+            {formError ? <div className="error acctBanner">{formError}</div> : null}
+
+            <div className="acctDialogActions">
+              <button className="btn secondary" type="button" onClick={closeForm}>
+                Cancel
+              </button>
+              <button className="btn btnShine" type="submit" disabled={submitting}>
+                {submitting ? "Creating..." : "Create account"}
+              </button>
+            </div>
+          </form>
         </div>
-
-        <ul className="list detailedList">
-          {!loadingStaff && adminAccounts.map((account) => (
-            <li key={account.id} className="item detailedItem bookingShowcase">
-              <div className="detailContent">
-                <div className="detailTopRow">
-                  <div>
-                    <strong className="detailTitle">{account.name || account.email || "Administrator"}</strong>
-                    <p className="detailSubtitle">{account.email || "No email saved"}</p>
-                  </div>
-                  <span className={`statusPill ${account.mfaEnabled ? "approved" : "active"}`}>
-                    {account.mfaEnabled ? "MFA on" : "MFA repair needed"}
-                  </span>
-                </div>
-              </div>
-              <div className="actionColumn">
-                {account.mfaEnabled ? (
-                  <span className="badge">Admin MFA is mandatory</span>
-                ) : (
-                  <button
-                    className="btn secondary btnSoft"
-                    type="button"
-                    onClick={() => toggleStaffMfa(account)}
-                    disabled={updatingAccountId === account.id}
-                  >
-                    {updatingAccountId === account.id ? "Updating..." : "Repair Admin MFA"}
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Staff Access Control</h3>
-            <p className="sub">Enable or disable dentist and receptionist accounts without showing administrator records here.</p>
-          </div>
-          <span className="badge">{loadingStaff ? "Loading..." : `${staffAccounts.length} staff`}</span>
-        </div>
-
-        <ul className="list detailedList">
-          {listError ? (
-            <li className="item detailedItem bookingShowcase">
-              <div className="detailContent">
-                <strong className="detailTitle">Could not load staff accounts</strong>
-                <p className="detailSubtitle">{listError}</p>
-              </div>
-            </li>
-          ) : null}
-
-          {loadingStaff ? (
-            <li className="item detailedItem bookingShowcase">
-              <div className="detailContent">
-                <strong className="detailTitle">Loading staff accounts...</strong>
-                <p className="detailSubtitle">Fetching every saved staff account from Firestore.</p>
-              </div>
-            </li>
-          ) : null}
-
-          {!loadingStaff && !listError && staffAccounts.length === 0 ? (
-            <li className="item detailedItem bookingShowcase">
-              <div className="detailContent">
-                <strong className="detailTitle">No staff accounts found</strong>
-                <p className="detailSubtitle">Dentist and receptionist accounts created from this page will appear here for access control.</p>
-              </div>
-            </li>
-          ) : null}
-
-          {!loadingStaff && !listError ? staffAccounts.map((account) => (
-            <li key={account.id} className="item detailedItem bookingShowcase">
-              <div className="detailContent">
-                <div className="detailTopRow">
-                  <div>
-                    <strong className="detailTitle">{account.name || "No staff name saved"}</strong>
-                    <p className="detailSubtitle">{ROLE_LABELS[account.role] || account.role || "No role saved"}</p>
-                  </div>
-                  <span className={`statusPill ${account.disabled ? "cancelled" : "approved"}`}>
-                    {account.disabled ? "disabled" : "active"}
-                  </span>
-                  <span className={`statusPill ${account.mfaEnabled ? "approved" : "active"}`}>
-                    {account.mfaEnabled ? "MFA on" : "MFA off"}
-                  </span>
-                </div>
-                <div className="detailGrid accountGrid" style={{ marginTop: 12 }}>
-                  <div className="detailBox">
-                    <span className="detailLabel">Staff Name</span>
-                    <strong>{account.name || "No staff name saved"}</strong>
-                  </div>
-                  <div className="detailBox">
-                    <span className="detailLabel">Email</span>
-                    <strong>{account.email || "No email saved"}</strong>
-                  </div>
-                  <div className="detailBox">
-                    <span className="detailLabel">Role</span>
-                    <strong>{ROLE_LABELS[account.role] || account.role || "No role saved"}</strong>
-                  </div>
-                  <div className="detailBox detailBoxWide">
-                    <span className="detailLabel">Account ID</span>
-                    <strong className="accountIdValue">{account.id}</strong>
-                  </div>
-                </div>
-              </div>
-              <div className="actionColumn">
-                <button
-                  className="btn secondary btnSoft"
-                  type="button"
-                  onClick={() => toggleStaffMfa(account)}
-                  disabled={updatingAccountId === account.id}
-                >
-                  {updatingAccountId === account.id
-                    ? "Updating..."
-                    : account.mfaEnabled
-                      ? "Turn MFA Off"
-                      : "Require MFA"}
-                </button>
-                <button
-                  className={`btn ${account.disabled ? "patientEditBtn" : "actionPending"}`}
-                  type="button"
-                  onClick={() => toggleStaffStatus(account)}
-                  disabled={updatingAccountId === account.id}
-                >
-                  {updatingAccountId === account.id
-                    ? "Updating..."
-                    : account.disabled
-                      ? "Enable Account"
-                      : "Disable Account"}
-                </button>
-                <button
-                  className="btn secondary"
-                  type="button"
-                  onClick={() => archiveStaffAccount(account)}
-                  disabled={updatingAccountId === account.id || !account.disabled}
-                >
-                  {updatingAccountId === account.id ? "Updating..." : "Archive Account"}
-                </button>
-              </div>
-            </li>
-          )) : null}
-        </ul>
-      </div>
+      ) : null}
     </div>
   );
 }

@@ -5,23 +5,53 @@ import { db } from "../firebase";
 import { CLINIC_SERVICE_IMAGES, getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
 import scaryServiceTooth from "../assets/scary-service-tooth.png";
 
-const cleaningImg = CLINIC_SERVICE_IMAGES.cleaning;
-const restorationImg = CLINIC_SERVICE_IMAGES.fillings;
-const extractionImg = CLINIC_SERVICE_IMAGES.extraction;
-const bracesImg = CLINIC_SERVICE_IMAGES.braces;
-const rootImg = CLINIC_SERVICE_IMAGES.rootCanal;
-const whiteningImg = CLINIC_SERVICE_IMAGES.whitening;
-const oralsurgeryImg = CLINIC_SERVICE_IMAGES.extraction;
-const crownsImg = CLINIC_SERVICE_IMAGES.fillings;
-const denturesImg = CLINIC_SERVICE_IMAGES.cleaning;
-const xrayImg = CLINIC_SERVICE_IMAGES.rootCanal;
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
 
 function normalizeServiceKey(value = "") {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+const key = normalizeServiceKey;
+
+/* ------------------------------------------------------------------ */
+/* Images                                                              */
+/* ------------------------------------------------------------------ */
+
+const IMG = {
+  cleaning: CLINIC_SERVICE_IMAGES.cleaning,
+  restoration: CLINIC_SERVICE_IMAGES.fillings,
+  extraction: CLINIC_SERVICE_IMAGES.extraction,
+  braces: CLINIC_SERVICE_IMAGES.braces,
+  rootCanal: CLINIC_SERVICE_IMAGES.rootCanal,
+  whitening: CLINIC_SERVICE_IMAGES.whitening,
+  oralSurgery: CLINIC_SERVICE_IMAGES.extraction,
+  crowns: CLINIC_SERVICE_IMAGES.fillings,
+  dentures: CLINIC_SERVICE_IMAGES.cleaning,
+  xray: CLINIC_SERVICE_IMAGES.rootCanal,
+};
+
+/* ------------------------------------------------------------------ */
+/* Descriptive copy per service (badge, highlights, overview)          */
+/* ------------------------------------------------------------------ */
+
+const WHITENING_COPY = {
+  badge: "Smile brightening",
+  highlights: [
+    { label: "Best for", value: "Patients aiming to lift surface staining and brighten the overall shade of the smile." },
+    { label: "Visit flow", value: "Shade check, whitening cycle preparation, guided treatment, and aftercare reminders." },
+    { label: "Planning note", value: "Results vary depending on the current tooth shade and the source of discoloration." },
+  ],
+  overview: [
+    { title: "Before your visit", text: "Avoid starting whitening if your teeth are already highly sensitive without asking the clinic first." },
+    { title: "What the team checks", text: "The dentist looks at current shade, sensitivity risk, and whether whitening suits your teeth." },
+    { title: "Aftercare", text: "A short white-diet window may be advised while the teeth are still more open to staining." },
+  ],
+};
+
 const SERVICE_COPY = {
-  [normalizeServiceKey("Cleaning")]: {
+  [key("Cleaning")]: {
     badge: "Routine care",
     highlights: [
       { label: "Best for", value: "Regular maintenance, stain removal, and keeping gums in better shape." },
@@ -34,7 +64,7 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "You may be asked to avoid strongly colored food or drinks for a short time after polishing." },
     ],
   },
-  [normalizeServiceKey("Fillings")]: {
+  [key("Fillings")]: {
     badge: "Tooth repair",
     highlights: [
       { label: "Best for", value: "Small to moderate cavities, chipped surfaces, or worn areas that need restoration." },
@@ -47,7 +77,7 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "Mild sensitivity can happen for a few days while the tooth settles after treatment." },
     ],
   },
-  [normalizeServiceKey("Restoration")]: {
+  [key("Restoration")]: {
     badge: "Tooth repair",
     highlights: [
       { label: "Best for", value: "Damaged or decayed teeth that still have enough structure to be restored." },
@@ -60,7 +90,7 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "Avoid very hard food on the treated side until the bite feels normal again." },
     ],
   },
-  [normalizeServiceKey("Extraction")]: {
+  [key("Extraction")]: {
     badge: "Tooth removal",
     highlights: [
       { label: "Best for", value: "Teeth that are badly damaged, loose, problematic, or no longer ideal to keep." },
@@ -73,8 +103,8 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "Expect a focused recovery plan around rest, soft food, and protecting the extraction site." },
     ],
   },
-  [normalizeServiceKey("Braces Consultation")]: {
-    badge: "Orthodontic consult",
+  [key("Braces Consultation")]: {
+    badge: "Orthodontic",
     highlights: [
       { label: "Best for", value: "Patients who want to check alignment, bite concerns, spacing, or crowding." },
       { label: "Visit flow", value: "Smile and bite evaluation, treatment discussion, and recommended next steps." },
@@ -86,12 +116,12 @@ const SERVICE_COPY = {
       { title: "After the consult", text: "You may receive a treatment outline, imaging recommendation, or payment guidance for the next step." },
     ],
   },
-  [normalizeServiceKey("Braces")]: {
+  [key("Braces")]: {
     badge: "Orthodontic care",
     highlights: [
       { label: "Best for", value: "Long-term alignment, bite correction, and guided movement of teeth over time." },
       { label: "Visit flow", value: "Case review, appliance planning, and a phased treatment setup based on your bite." },
-      { label: "Planning note", value: "The down payment is only the starting point; the full plan depends on treatment length." },
+      { label: "Planning note", value: "Our down payment starts at PHP 5,000, depending on the type of braces you choose. This is only the starting point; the full plan depends on treatment length." },
     ],
     overview: [
       { title: "Before your visit", text: "Come ready to talk about your smile goals, bite issues, and timeline expectations." },
@@ -99,7 +129,7 @@ const SERVICE_COPY = {
       { title: "After the visit", text: "Expect a step-by-step plan covering appliance setup, follow-ups, and ongoing adjustments." },
     ],
   },
-  [normalizeServiceKey("Root Canal")]: {
+  [key("Root Canal")]: {
     badge: "Tooth-saving care",
     highlights: [
       { label: "Best for", value: "Teeth with deep decay, infection, or prolonged pain where saving the tooth is still possible." },
@@ -112,33 +142,9 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "The tooth may need additional restoration after treatment to keep it strong for biting." },
     ],
   },
-  [normalizeServiceKey("Whitening")]: {
-    badge: "Smile brightening",
-    highlights: [
-      { label: "Best for", value: "Patients aiming to lift surface staining and brighten the overall shade of the smile." },
-      { label: "Visit flow", value: "Shade check, whitening cycle preparation, guided treatment, and aftercare reminders." },
-      { label: "Planning note", value: "Results vary depending on the current tooth shade and the source of discoloration." },
-    ],
-    overview: [
-      { title: "Before your visit", text: "Avoid starting whitening if your teeth are already highly sensitive without asking the clinic first." },
-      { title: "What the team checks", text: "The dentist looks at current shade, sensitivity risk, and whether whitening suits your teeth." },
-      { title: "Aftercare", text: "A short white-diet window may be advised while the teeth are still more open to staining." },
-    ],
-  },
-  [normalizeServiceKey("Teeth Whitening")]: {
-    badge: "Smile brightening",
-    highlights: [
-      { label: "Best for", value: "Patients aiming to lift surface staining and brighten the overall shade of the smile." },
-      { label: "Visit flow", value: "Shade check, whitening cycle preparation, guided treatment, and aftercare reminders." },
-      { label: "Planning note", value: "Results vary depending on the current tooth shade and the source of discoloration." },
-    ],
-    overview: [
-      { title: "Before your visit", text: "Avoid starting whitening if your teeth are already highly sensitive without asking the clinic first." },
-      { title: "What the team checks", text: "The dentist looks at current shade, sensitivity risk, and whether whitening suits your teeth." },
-      { title: "Aftercare", text: "A short white-diet window may be advised while the teeth are still more open to staining." },
-    ],
-  },
-  [normalizeServiceKey("Oral Surgery")]: {
+  [key("Whitening")]: WHITENING_COPY,
+  [key("Teeth Whitening")]: WHITENING_COPY,
+  [key("Oral Surgery")]: {
     badge: "Advanced procedure",
     highlights: [
       { label: "Best for", value: "Cases that need more involved surgical planning than a routine dental procedure." },
@@ -151,7 +157,7 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "Recovery instructions are more detailed here, especially around swelling, food, and follow-up checks." },
     ],
   },
-  [normalizeServiceKey("Veneers")]: {
+  [key("Veneers")]: {
     badge: "Cosmetic planning",
     highlights: [
       { label: "Best for", value: "Smile design cases where color, shape, or surface appearance need cosmetic improvement." },
@@ -164,7 +170,7 @@ const SERVICE_COPY = {
       { title: "After the consult", text: "You may move into shade planning, material discussion, or a staged cosmetic treatment plan." },
     ],
   },
-  [normalizeServiceKey("Crowns")]: {
+  [key("Crowns")]: {
     badge: "Tooth coverage",
     highlights: [
       { label: "Best for", value: "Weak, broken, or heavily restored teeth that need added strength and coverage." },
@@ -177,7 +183,7 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "Long-term success depends on bite fit, oral hygiene, and protecting the restored tooth." },
     ],
   },
-  [normalizeServiceKey("Dentures")]: {
+  [key("Dentures")]: {
     badge: "Tooth replacement",
     highlights: [
       { label: "Best for", value: "Patients replacing missing teeth to improve support for chewing, speech, and facial balance." },
@@ -190,7 +196,7 @@ const SERVICE_COPY = {
       { title: "After the visit", text: "Expect guidance around fit steps, adjustment visits, and adapting to chewing with the appliance." },
     ],
   },
-  [normalizeServiceKey("Dental X-ray")]: {
+  [key("Dental X-ray")]: {
     badge: "Diagnostic imaging",
     highlights: [
       { label: "Best for", value: "Cases that need clearer internal imaging before planning treatment safely." },
@@ -205,12 +211,40 @@ const SERVICE_COPY = {
   },
 };
 
+const SERVICE_TYPES = {
+  [key("Braces")]: ["Metal", "Ceramic", "Sapphire", "Self-ligating"],
+};
+
+/* ------------------------------------------------------------------ */
+/* Built-in services (shown when the clinic hasn't overridden them)    */
+/* ------------------------------------------------------------------ */
+
+const DEFAULT_SERVICES = [
+  { name: "Cleaning", desc: "Professional cleaning for healthier gums and a fresher smile.", price: "PHP 800 starting", img: IMG.cleaning },
+  { name: "Restoration", desc: "Tooth-colored restoration for damaged or decayed teeth.", price: "PHP 800 starting", img: IMG.restoration },
+  { name: "Extraction", desc: "Safe and comfortable tooth removal when needed.", price: "PHP 800 starting", img: IMG.extraction },
+  { name: "Teeth Whitening", desc: "Whitening treatment designed to brighten your smile in one session.", price: "PHP 8,000", img: IMG.whitening },
+  { name: "Oral Surgery", desc: "Minor oral surgical procedures with proper planning and care.", price: "PHP 5,000 starting", img: IMG.oralSurgery },
+  { name: "Veneers", desc: "Cosmetic veneer treatment for smile improvement and tooth enhancement.", price: "Depends on procedure and product", img: IMG.restoration },
+  { name: "Crowns", desc: "Dental crowns to restore strength, shape, and appearance of teeth.", price: "PHP 7,000 starting", img: IMG.crowns },
+  { name: "Dentures", desc: "Custom removable replacement for missing teeth.", price: "PHP 5,000 starting", img: IMG.dentures },
+  { name: "Root Canal", desc: "Treatment for infected canals to help save the tooth.", price: "PHP 8,000 per canal", img: IMG.rootCanal },
+  { name: "Braces", desc: "Orthodontic treatment for bite alignment and smile correction.", price: "PHP 5,000 down payment", img: IMG.braces },
+  { name: "Dental X-ray", desc: "Diagnostic imaging for treatment planning and case evaluation.", price: "Panoramic: PHP 1,000 • Periapical: PHP 500", img: IMG.xray },
+];
+
+/* ------------------------------------------------------------------ */
+/* Building the final list                                             */
+/* ------------------------------------------------------------------ */
+
 function buildServiceContent(service) {
-  const content = SERVICE_COPY[normalizeServiceKey(service.name)] || null;
+  const content = SERVICE_COPY[key(service.name)] || null;
+  const types = SERVICE_TYPES[key(service.name)] || service.types || [];
 
   if (content) {
     return {
       ...service,
+      types,
       badge: content.badge,
       highlights: content.highlights,
       overview: content.overview,
@@ -219,6 +253,7 @@ function buildServiceContent(service) {
 
   return {
     ...service,
+    types,
     badge: service.category || "Clinic service",
     highlights: [
       { label: "Best for", value: service.desc || "Clinic-managed treatment available for booking." },
@@ -233,411 +268,229 @@ function buildServiceContent(service) {
   };
 }
 
-export default function Services() {
-  const [isDemonicTheme, setIsDemonicTheme] = useState(() =>
-    typeof document !== "undefined" && document.body.classList.contains("mascotDemonicTheme")
-  );
-  const defaultItems = useMemo(
-    () => [
-      {
-        name: "Cleaning",
-        desc: "Professional cleaning for healthier gums and a fresher smile.",
-        price: "PHP 800 starting",
-        img: cleaningImg,
-        notes: [
-          "Gentle scaling and polishing",
-          "Good for routine oral maintenance",
-          "Starting price may vary depending on case",
-        ],
-      },
-      {
-        name: "Restoration",
-        desc: "Tooth-colored restoration for damaged or decayed teeth.",
-        price: "PHP 800 starting",
-        img: restorationImg,
-        notes: [
-          "Restores shape and function",
-          "Tooth-colored material",
-          "Starting price depends on the tooth condition",
-        ],
-      },
-      {
-        name: "Extraction",
-        desc: "Safe and comfortable tooth removal when needed.",
-        price: "PHP 800 starting",
-        img: extractionImg,
-        notes: [
-          "Case assessment before procedure",
-          "Simple extraction starting rate",
-          "Complex cases may have different pricing",
-        ],
-      },
-      {
-        name: "Teeth Whitening",
-        desc: "Whitening treatment designed to brighten your smile in one session.",
-        price: "PHP 8,000",
-        img: whiteningImg,
-        notes: [
-          "Includes 4 cycles in 1 session",
-          "Ideal for cosmetic smile enhancement",
-          "Best result depends on tooth condition",
-        ],
-      },
-      {
-        name: "Oral Surgery",
-        desc: "Minor oral surgical procedures with proper planning and care.",
-        price: "PHP 5,000 starting",
-        img: oralsurgeryImg,
-        notes: [
-          "For more advanced dental cases",
-          "Price depends on surgical complexity",
-          "Clinic assessment required first",
-        ],
-      },
-      {
-        name: "Veneers",
-        desc: "Cosmetic veneer treatment for smile improvement and tooth enhancement.",
-        price: "Depends on procedure and product",
-        img: restorationImg,
-        notes: [
-          "Customized per patient case",
-          "Depends on veneer type and materials used",
-          "Best discussed through consultation",
-        ],
-      },
-      {
-        name: "Crowns",
-        desc: "Dental crowns to restore strength, shape, and appearance of teeth.",
-        price: "PHP 7,000 starting",
-        img: crownsImg,
-        notes: [
-          "Used for damaged or weakened teeth",
-          "Starting price varies by material and case",
-          "Restores both function and appearance",
-        ],
-      },
-      {
-        name: "Dentures",
-        desc: "Custom removable replacement for missing teeth.",
-        price: "PHP 5,000 starting",
-        img: denturesImg,
-        notes: [
-          "Designed per patient need",
-          "Can support comfort and chewing ability",
-          "Final rate depends on denture type",
-        ],
-      },
-      {
-        name: "Root Canal",
-        desc: "Treatment for infected canals to help save the tooth.",
-        price: "PHP 8,000 per canal",
-        img: rootImg,
-        notes: [
-          "Per canal pricing",
-          "Includes unli-shot X-ray",
-          "Best for saving infected teeth when possible",
-        ],
-      },
-      {
-        name: "Braces",
-        desc: "Orthodontic treatment for bite alignment and smile correction.",
-        price: "PHP 5,000 down payment",
-        img: bracesImg,
-        notes: [
-          "Down payment starts at PHP 5,000",
-          "Case evaluation required before treatment",
-          "Payment terms may vary depending on plan",
-        ],
-      },
-      {
-        name: "Dental X-ray",
-        desc: "Diagnostic imaging for treatment planning and case evaluation.",
-        price: "Panoramic: PHP 1,000 • Periapical: PHP 500",
-        img: xrayImg,
-        notes: [
-          "Panoramic X-ray: PHP 1,000",
-          "Periapical X-ray: PHP 500",
-          "Used for diagnosis and treatment planning",
-        ],
-      },
-    ],
-    []
-  );
-  const [managedServices, setManagedServices] = useState([]);
+const DEFAULT_ITEMS = DEFAULT_SERVICES.map((service) =>
+  buildServiceContent({ ...service, category: "General", duration: "Varies by case" })
+);
 
-  useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, "clinicServices"), orderBy("name", "asc")), (snapshot) => {
-      setManagedServices(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    });
-    return () => unsub();
-  }, []);
+/** Built-in services, with any clinic-managed services (Firestore) layered on top by name. */
+function mergeServices(managedServices) {
+  const merged = new Map(DEFAULT_ITEMS.map((item) => [key(item.name), item]));
 
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-
-    const body = document.body;
-    const observer = new MutationObserver(() => {
-      setIsDemonicTheme(body.classList.contains("mascotDemonicTheme"));
-    });
-
-    observer.observe(body, { attributes: true, attributeFilter: ["class"] });
-    setIsDemonicTheme(body.classList.contains("mascotDemonicTheme"));
-
-    return () => observer.disconnect();
-  }, []);
-
-  const items = useMemo(() => {
-    const mergedServices = new Map(
-      defaultItems.map((service) => [
-        normalizeServiceKey(service.name),
-        buildServiceContent({
-          ...service,
-          category: "General",
-          duration: service.duration || "Varies by case",
-        }),
-      ])
-    );
-
-    getBookingServiceOptions(managedServices).forEach((service) => {
-      mergedServices.set(normalizeServiceKey(service.name), buildServiceContent({
+  getBookingServiceOptions(managedServices).forEach((service) => {
+    merged.set(
+      key(service.name),
+      buildServiceContent({
         name: service.name,
         desc: service.description || "Clinic-managed service available for booking.",
         price: service.startingRate || "Ask the clinic for pricing",
         duration: `${service.durationMinutes} minutes`,
         img: getClinicServiceImage(service),
         category: service.category || "General",
-      }));
-    });
-
-    return Array.from(mergedServices.values());
-  }, [defaultItems, managedServices]);
-
-  const fallbackItems = useMemo(
-    () => defaultItems.map((service) => buildServiceContent({ ...service, category: "General", duration: service.duration || "Varies by case" })),
-    [defaultItems]
-  );
-
-  const [index, setIndex] = useState(0);
-  const [cardWidth, setCardWidth] = useState(() =>
-    window.matchMedia("(max-width: 640px)").matches ? 250 : 300
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    const update = () => setCardWidth(mq.matches ? 250 : 300);
-
-    update();
-
-    if (mq.addEventListener) mq.addEventListener("change", update);
-    else mq.addListener(update);
-
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener("change", update);
-      else mq.removeListener(update);
-    };
-  }, []);
-
-  const serviceItems = items.length ? items : fallbackItems;
-
-  const prev = () => setIndex((i) => (i - 1 + serviceItems.length) % serviceItems.length);
-  const next = () => setIndex((i) => (i + 1) % serviceItems.length);
-
-  const gap = 18;
-  const offset = (cardWidth + gap) * index;
-  const selected = serviceItems[index];
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(
-      new CustomEvent("topdent:selected-service-change", {
-        detail: {
-          index,
-          name: selected?.name || "",
-        },
       })
     );
-  }, [index, selected?.name]);
+  });
+
+  return Array.from(merged.values());
+}
+
+/* ------------------------------------------------------------------ */
+/* Hooks                                                               */
+/* ------------------------------------------------------------------ */
+
+const DEMONIC_CLASS = "mascotDemonicTheme";
+
+function useDemonicTheme() {
+  const [isDemonic, setIsDemonic] = useState(
+    () => typeof document !== "undefined" && document.body.classList.contains(DEMONIC_CLASS)
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+
+    const body = document.body;
+    const sync = () => setIsDemonic(body.classList.contains(DEMONIC_CLASS));
+
+    const observer = new MutationObserver(sync);
+    observer.observe(body, { attributes: true, attributeFilter: ["class"] });
+    sync();
+
+    return () => observer.disconnect();
+  }, []);
+
+  return isDemonic;
+}
+
+function useManagedServices() {
+  const [services, setServices] = useState([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "clinicServices"), orderBy("name", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setServices(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  return services;
+}
+
+/* ------------------------------------------------------------------ */
+/* Image stage (arrows, counter, dots)                                 */
+/* ------------------------------------------------------------------ */
+
+function ServiceStage({ items, index, isDemonic, onPrev, onNext, onSelect }) {
+  const selected = items[index];
+  const total = items.length;
+  const pad = (n) => String(n).padStart(2, "0");
 
   return (
-    <div className="container bookingPage">
+    <div className="svpStageCol">
+      <div className="svpStage" data-mascot-target="selected-service-card">
+        <img
+          key={selected.name}
+          className={`svpStageImg${isDemonic ? " isScary" : ""}`}
+          src={isDemonic ? scaryServiceTooth : selected.img}
+          alt={isDemonic ? `${selected.name} in demon mode` : selected.name}
+          loading="eager"
+          onError={(event) => {
+            event.currentTarget.src = getClinicServiceImage({ name: selected.name, image: "" });
+          }}
+        />
+
+        <div className="svpNav">
+          <button type="button" className="svpArrow" onClick={onPrev} aria-label="Previous" data-mascot-target="services-nav">
+            ‹
+          </button>
+          <button type="button" className="svpArrow" onClick={onNext} aria-label="Next" data-mascot-target="services-nav">
+            ›
+          </button>
+        </div>
+
+        <span className="svpCount" aria-hidden="true">
+          {pad(index + 1)} / {pad(total)}
+        </span>
+      </div>
+
+      <div className="svpDots">
+        {items.map((service, i) => (
+          <button
+            key={service.name}
+            type="button"
+            className={`svpDot${i === index ? " isActive" : ""}`}
+            aria-label={`Show ${service.name}`}
+            aria-current={i === index ? "true" : undefined}
+            onClick={() => onSelect(i)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Details (name, facts, types, notes, actions)                        */
+/* ------------------------------------------------------------------ */
+
+function InfoRows({ rows }) {
+  return (
+    <dl className="svpRows">
+      {rows.map((row) => (
+        <div key={row.label}>
+          <dt>{row.label}</dt>
+          <dd>{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ServiceDetails({ service }) {
+  const rows = [
+    ...service.highlights,
+    ...service.overview.map((item) => ({ label: item.title, value: item.text })),
+  ];
+
+  return (
+    <div className="svpDetail" data-mascot-target="selected-service-details" aria-live="polite">
+      <div className="svpDetailInner" key={service.name}>
+        <span className="svpKind">{service.badge || service.category || "Clinic service"}</span>
+
+        <h2 className="svpName">{service.name}</h2>
+        <p className="svpLead">{service.desc}</p>
+
+        <dl className="svpFacts" data-mascot-target="service-pricing">
+          <div>
+            <dt>Starting rate</dt>
+            <dd>{service.price}</dd>
+          </div>
+          <div>
+            <dt>Duration</dt>
+            <dd>{service.duration || "Varies by case"}</dd>
+          </div>
+        </dl>
+
+        {service.types?.length > 0 && (
+          <p className="svpTypes">
+            <span className="svpTypesLabel">Types</span>
+            {service.types.join(" · ")}
+          </p>
+        )}
+
+        <InfoRows rows={rows} />
+
+        <div className="svpActions">
+          <a className="btn btnShine bookingPrimaryBtn" href="/book" data-mascot-target="book">
+            Book this service
+          </a>
+          <a className="svpLink" href="/contact">
+            Ask a question
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
+export default function Services() {
+  const isDemonic = useDemonicTheme();
+  const managedServices = useManagedServices();
+  const items = useMemo(() => mergeServices(managedServices), [managedServices]);
+
+  const [index, setIndex] = useState(0);
+  const total = items.length;
+  const safeIndex = Math.min(index, total - 1);
+  const selected = items[safeIndex];
+
+  const prev = () => setIndex((i) => (i - 1 + total) % total);
+  const next = () => setIndex((i) => (i + 1) % total);
+
+  // lets the mascot know which service is on screen
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("topdent:selected-service-change", {
+        detail: { index: safeIndex, name: selected?.name || "" },
+      })
+    );
+  }, [safeIndex, selected?.name]);
+
+  return (
+    <div className="container bookingPage svpPage">
       <CursorAura />
 
-      <div className="hero bookingHero">
-        <div className="bookingHeroGlow" />
-        <div className="bookingHeroGrid">
-          <div>
-            <span className="heroEyebrow">Dental Services</span>
-            <h1>Clinic Services</h1>
-            <p>
-              Browse our available dental treatments, starting rates, and service information before booking your appointment.
-            </p>
-          </div>
-
-          <div className="bookingHeroSummary">
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Dentist hours</span>
-              <strong>9:00 AM - 6:00 PM</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Front desk hours</span>
-              <strong>8:00 AM - 6:00 PM</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Pricing note</span>
-              <strong>Some services have starting rates and final fees may depend on the case</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="carouselWrap">
-        <button className="carouselBtn left" onClick={prev} aria-label="Previous" data-mascot-target="services-nav">
-          ‹
-        </button>
-
-        <button className="carouselBtn right" onClick={next} aria-label="Next" data-mascot-target="services-nav">
-          ›
-        </button>
-
-        <div className="carouselViewport">
-          <div
-            className="carouselTrack"
-            style={{
-              transform: `translateX(calc(50% - ${cardWidth / 2}px - ${offset}px))`,
-            }}
-          >
-            {serviceItems.map((service, i) => (
-              <div
-                key={service.name}
-                className={`serviceCard ${i === index ? "isActive" : "isInactive"}`}
-                data-mascot-target={i === index ? "selected-service-card" : undefined}
-                role="button"
-                tabIndex={0}
-                aria-pressed={i === index}
-                aria-label={`Select ${service.name}`}
-                onClick={() => setIndex(i)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setIndex(i);
-                  }
-                }}
-              >
-                <div className="serviceMedia">
-                  <img
-                    src={isDemonicTheme ? scaryServiceTooth : service.img}
-                    alt={isDemonicTheme ? `${service.name} in demon mode` : service.name}
-                    loading="eager"
-                    className={isDemonicTheme ? "serviceMediaScary" : ""}
-                    onError={(event) => {
-                      event.currentTarget.src = getClinicServiceImage({ name: service.name, image: "" });
-                    }}
-                  />
-                </div>
-
-                <div className="serviceBody">
-                  <h3 className="serviceName">{service.name}</h3>
-                  <p className="serviceDesc">{service.desc}</p>
-                  <div className="servicePriceTag">{service.price}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid" style={{ marginTop: 18 }}>
-        <div className="card bookingFormCard" data-mascot-target="selected-service-details">
-          <div className="cardHeader">
-            <div className="serviceDetailHeader">
-              <span className="badge serviceTypeBadge">{selected.badge || selected.category || "Clinic service"}</span>
-              <h3 className="title">{selected.name}</h3>
-              <p className="sub">{selected.desc}</p>
-            </div>
-            <span className="badge">Price guide</span>
-          </div>
-
-          <div className="serviceFeaturePanel" data-mascot-target="service-pricing">
-            <div className="servicePriceCard">
-              <span className="detailLabel">Starting rate</span>
-              <strong>{selected.price}</strong>
-            </div>
-
-            <div className="servicePriceCard">
-              <span className="detailLabel">Estimated duration</span>
-              <strong>{selected.duration || "Varies by case"}</strong>
-            </div>
-
-            <div className="detailNote historyPanel">
-              <span className="detailLabel">Visit summary</span>
-              <p>{selected.desc}</p>
-            </div>
-          </div>
-
-          <div className="serviceInsightGrid">
-            {selected.highlights.map((item) => (
-              <div key={item.label} className="serviceInsightCard">
-                <span className="detailLabel">{item.label}</span>
-                <p>{item.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="historyList serviceOverviewList" style={{ marginTop: 14 }}>
-            {selected.overview.map((item) => (
-              <div key={item.title} className="historyRow">
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-            <a className="btn btnShine bookingPrimaryBtn" href="/book" data-mascot-target="book">
-              Book this service
-            </a>
-            <a className="btn secondary btnSoft bookingSecondaryBtn" href="/contact">
-              Ask a question
-            </a>
-          </div>
-        </div>
-
-        <div className="card bookingDetailsCard" data-mascot-target="service-planning">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Appointment Planning</h3>
-              <p className="sub">Quick booking notes for this service and the clinic schedule.</p>
-            </div>
-          </div>
-
-          <div className="servicePlanningPanel">
-            <div className="servicePlanningBlock">
-              <span className="detailLabel">Clinic hours</span>
-              <strong>Front desk: 8:00 AM - 6:00 PM</strong>
-              <p>Dentist chair time runs from 9:00 AM to 6:00 PM, Monday to Saturday.</p>
-            </div>
-
-            <div className="servicePlanningBlock">
-              <span className="detailLabel">Pricing note</span>
-              <strong>{selected.price}</strong>
-              <p>Starting rates help with planning, but the final fee can still shift after the dentist checks the case.</p>
-            </div>
-
-            <div className="servicePlanningBlock">
-              <span className="detailLabel">Booking note</span>
-              <strong>{selected.duration || "Varies by case"}</strong>
-              <p>Appointment length affects available time slots, especially when you combine several services in one visit.</p>
-            </div>
-          </div>
-
-          <ul className="serviceChecklist">
-            <li>Choose a dentist first so the available time slots match that provider&apos;s schedule.</li>
-            <li>For case-based services, the clinic may confirm or adjust the exact treatment after evaluation.</li>
-            <li>Need more than one treatment in one visit? The booking page can total the expected chair time for you.</li>
-          </ul>
-        </div>
+      <div className="svpLayout">
+        <ServiceStage
+          items={items}
+          index={safeIndex}
+          isDemonic={isDemonic}
+          onPrev={prev}
+          onNext={next}
+          onSelect={setIndex}
+        />
+        <ServiceDetails service={selected} />
       </div>
     </div>
   );

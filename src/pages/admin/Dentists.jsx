@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   collection,
   addDoc,
@@ -15,7 +16,7 @@ import {
   DAY_ORDER,
   createDefaultSchedule,
   formatExceptionSummary,
-  formatScheduleSummary,
+  formatTimeLabel,
   getDentistScheduleStatus,
   normalizeScheduleExceptions,
   normalizeSchedule,
@@ -105,6 +106,18 @@ export default function Dentists() {
 
     loadBookings();
   }, []);
+
+  // Close the dentist modal with the Escape key
+  useEffect(() => {
+    if (!expandedDentistId) return;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setExpandedDentistId("");
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [expandedDentistId]);
 
   async function addDentist(e) {
     e.preventDefault();
@@ -330,11 +343,25 @@ export default function Dentists() {
     });
   }
 
+  // The dentist currently open in the modal (if any)
+  const openDentist = visibleDentists.find((entry) => entry.id === expandedDentistId) || null;
+  const openDetailDraft = openDentist
+    ? detailDrafts[openDentist.id] || {
+        email: openDentist.email || "",
+        specialization: openDentist.specialization || "",
+        linkedStaffUid: openDentist.linkedStaffUid || "",
+      }
+    : null;
+  const openSchedule = openDentist
+    ? normalizeSchedule(draftSchedules[openDentist.id] || openDentist.schedule)
+    : null;
+  const openExceptions = openDentist ? normalizeScheduleExceptions(openDentist.scheduleExceptions) : [];
+
   return (
-    <div className="container">
+    <div className="container adminSurface">
       <div className="hero">
         <h1>Dentists Management</h1>
-        <p>Tap a dentist card to adjust weekly availability. A dentist is marked active only on days enabled in the schedule, and users cannot book them on inactive days.</p>
+        <p>Click a dentist to adjust weekly availability. A dentist is marked active only on days enabled in the schedule, and users cannot book them on inactive days.</p>
       </div>
 
       <div className="grid" style={{ marginTop: 18 }}>
@@ -381,7 +408,7 @@ export default function Dentists() {
           <div className="cardHeader">
             <div>
               <h3 className="title">Schedule Overview</h3>
-              <p className="sub">Current-day activity comes directly from the weekly scheduler below.</p>
+              <p className="sub">Current-day activity comes directly from the weekly scheduler.</p>
             </div>
           </div>
 
@@ -398,242 +425,305 @@ export default function Dentists() {
         </div>
       </div>
 
-      <ul className="list" style={{ marginTop: 20 }}>
-        {visibleDentists.map((dentist) => {
-          const isOpen = expandedDentistId === dentist.id;
-          const detailDraft = detailDrafts[dentist.id] || {
-            email: dentist.email || "",
-            specialization: dentist.specialization || "",
-            linkedStaffUid: dentist.linkedStaffUid || "",
-          };
-          const schedule = normalizeSchedule(draftSchedules[dentist.id] || dentist.schedule);
-          const scheduleExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions);
-          const isActiveToday = schedule[todayKey]?.active;
+      <div className="card adminRecordsCard" style={{ marginTop: 24 }}>
+        <div className="cardHeader">
+          <div>
+            <h3 className="title">Dentist Records</h3>
+            <p className="sub">Click a dentist to review details, adjust the weekly schedule, and manage exceptions.</p>
+          </div>
+          <span className="badge">{visibleDentists.length} records</span>
+        </div>
 
-          return (
-            <li
-              key={dentist.id}
-              className={`item dentistCard ${isOpen ? "expanded" : ""}`}
-              onClick={() => setExpandedDentistId(isOpen ? "" : dentist.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setExpandedDentistId(isOpen ? "" : dentist.id);
-                }
-              }}
-            >
-              <div className="detailContent" style={{ width: "100%" }}>
-                <div className="detailTopRow">
+        {visibleDentists.length ? (
+          <div className="dentistTableWrap">
+            <table className="patientTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Specialization</th>
+                  <th>Email</th>
+                  <th>Linked Login</th>
+                  <th>Bookings</th>
+                  <th className="patientTableStatusHead"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleDentists.map((dentist) => {
+                  const isOpen = expandedDentistId === dentist.id;
+                  const rowSchedule = normalizeSchedule(draftSchedules[dentist.id] || dentist.schedule);
+                  const isActiveToday = rowSchedule[todayKey]?.active;
+
+                  return (
+                    <tr
+                      key={dentist.id}
+                      className={`patientTableRow ${isOpen ? "selectedRecord" : ""}`}
+                      onClick={() => setExpandedDentistId(isOpen ? "" : dentist.id)}
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setExpandedDentistId(isOpen ? "" : dentist.id);
+                        }
+                      }}
+                    >
+                      <td className="patientTableNameCell">{dentist.name}</td>
+                      <td>{dentist.specialization || "-"}</td>
+                      <td>{dentist.email || "No email"}</td>
+                      <td>{dentist.linkedStaffName || dentist.linkedStaffEmail || "Not linked"}</td>
+                      <td>{getBookingCount(dentist.name)}</td>
+                      <td className="patientTableStatusCell">
+                        <span className={`statusPill ${isActiveToday ? "approved" : "cancelled"}`}>
+                          {isActiveToday ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="emptyEditorState" style={{ marginTop: 16 }}>
+            <strong>No dentists yet</strong>
+            <p>Add a dentist above and they will appear in this list.</p>
+          </div>
+        )}
+      </div>
+
+      {openDentist
+        ? createPortal(
+            <>
+              <div
+                className="dentistModalOverlay"
+                onClick={() => setExpandedDentistId("")}
+              />
+              <div
+                className="schedulerPanel dentistModal"
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="patientDrawerHeader">
                   <div>
-                    <strong className="detailTitle">{dentist.name}</strong>
+                    <strong className="detailTitle">{openDentist.name}</strong>
                     <p className="detailSubtitle">
-                      {dentist.specialization || "No specialization"} • {dentist.email || "No email"}
+                      {openDentist.specialization || "No specialization"} • {openDentist.email || "No email"}
                     </p>
                     <p className="detailSubtitle">
-                      {dentist.linkedStaffName || dentist.linkedStaffEmail || "No linked dentist login yet"}
+                      {openDentist.linkedStaffName || openDentist.linkedStaffEmail || "No linked dentist login yet"}
                     </p>
                   </div>
-                  <div className="statusStack">
-                    <span className={`statusPill ${isActiveToday ? "approved" : "cancelled"}`}>
-                      {isActiveToday ? "Active" : "Inactive"}
-                    </span>
-                    <span className="badge">{getBookingCount(dentist.name)} bookings</span>
-                  </div>
+                  <button
+                    type="button"
+                    className="patientDrawerCloseBtn"
+                    onClick={() => setExpandedDentistId("")}
+                    aria-label="Close dentist panel"
+                  >
+                    ×
+                  </button>
                 </div>
 
                 <div className="detailNote">
                   <span className="detailLabel">Weekly schedule</span>
-                  <p>{formatScheduleSummary(schedule)}</p>
+                  <div className="weekSummary">
+                    {DAY_ORDER.map((day) => {
+                      const slot = openSchedule[day.key];
+                      return (
+                        <div
+                          key={day.key}
+                          className={`weekDay ${slot.active ? "on" : "off"} ${day.key === todayKey ? "today" : ""}`}
+                        >
+                          <span className="weekDayName">{day.label.slice(0, 3)}</span>
+                          {slot.active ? (
+                            <>
+                              <span className="weekDayTime">{formatTimeLabel(slot.start)}</span>
+                              <span className="weekDayTime">{formatTimeLabel(slot.end)}</span>
+                            </>
+                          ) : (
+                            <span className="weekDayOff">Off</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="detailNote">
                   <span className="detailLabel">Schedule exceptions</span>
-                  <p>{formatExceptionSummary(scheduleExceptions)}</p>
+                  <p>{formatExceptionSummary(openExceptions)}</p>
                 </div>
 
-                <div
-                  className="schedulerActions dentistQuickActions"
-                  onClick={(event) => event.stopPropagation()}
-                >
+                <div className="cardHeader">
+                  <div>
+                    <h3 className="title">Dentist Details</h3>
+                    <p className="sub">Update the specialization and linked login shown in the dentist list.</p>
+                  </div>
+                </div>
+
+                <div className="bookingFlowGrid">
+                  <input
+                    className="input"
+                    placeholder="Specialization"
+                    value={openDetailDraft.specialization}
+                    onChange={(event) => updateDetailDraft(openDentist.id, "specialization", event.target.value)}
+                  />
+                  <select
+                    className="input"
+                    value={openDetailDraft.linkedStaffUid || ""}
+                    onChange={(event) => updateDetailDraft(openDentist.id, "linkedStaffUid", event.target.value)}
+                  >
+                    <option value="">No linked dentist login</option>
+                    {staffAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name || account.email} {account.email ? `- ${account.email}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="inlineActionRow">
+                  <button className="btn btnShine" type="button" onClick={() => saveDentistDetails(openDentist)}>
+                    Save Dentist Details
+                  </button>
                   <button
-                    className="btn archiveButton"
+                    className="btn secondary"
                     type="button"
-                    onClick={() => archiveDentist(dentist.id)}
+                    onClick={() =>
+                      setDetailDrafts((current) => ({
+                        ...current,
+                        [openDentist.id]: {
+                          email: openDentist.email || "",
+                          specialization: openDentist.specialization || "",
+                          linkedStaffUid: openDentist.linkedStaffUid || "",
+                        },
+                      }))
+                    }
+                  >
+                    Reset Details
+                  </button>
+                </div>
+
+                <div className="cardHeader">
+                  <div>
+                    <h3 className="title">Adjust Schedule</h3>
+                    <p className="sub">Turn each day on or off and set the dentist's working hours.</p>
+                  </div>
+                </div>
+
+                <div className="schedulerGrid">
+                  {DAY_ORDER.map((day) => (
+                    <div key={day.key} className="schedulerRow">
+                      <label className="schedulerDay">
+                        <input
+                          type="checkbox"
+                          checked={openSchedule[day.key].active}
+                          onChange={(event) =>
+                            updateDraftSchedule(openDentist.id, day.key, "active", event.target.checked)
+                          }
+                        />
+                        <span>{day.label}</span>
+                      </label>
+
+                      <input
+                        className="input"
+                        type="time"
+                        value={openSchedule[day.key].start}
+                        disabled={!openSchedule[day.key].active}
+                        onChange={(event) =>
+                          updateDraftSchedule(openDentist.id, day.key, "start", event.target.value)
+                        }
+                      />
+
+                      <input
+                        className="input"
+                        type="time"
+                        value={openSchedule[day.key].end}
+                        disabled={!openSchedule[day.key].active}
+                        onChange={(event) =>
+                          updateDraftSchedule(openDentist.id, day.key, "end", event.target.value)
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="schedulerActions">
+                  <button className="btn btnShine" type="button" onClick={() => saveSchedule(openDentist)}>
+                    Save Schedule
+                  </button>
+                  <button
+                    className="btn secondary"
+                    type="button"
+                    onClick={() =>
+                      setDraftSchedules((current) => ({
+                        ...current,
+                        [openDentist.id]: normalizeSchedule(openDentist.schedule),
+                      }))
+                    }
+                  >
+                    Reset Changes
+                  </button>
+                </div>
+
+                <div className="cardHeader">
+                  <div>
+                    <h3 className="title">Schedule Exceptions</h3>
+                    <p className="sub">Use date-specific overrides for leave, half-days, holidays, or emergency changes.</p>
+                  </div>
+                </div>
+
+                <div className="bookingFlowGrid">
+                  <input className="input" type="date" value={exceptionDrafts[openDentist.id]?.date || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "date", event.target.value)} />
+                  <input className="input" placeholder="Label (e.g. Leave, Half-day)" value={exceptionDrafts[openDentist.id]?.label || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "label", event.target.value)} />
+                </div>
+
+                <div className="bookingFlowGrid">
+                  <select className="input" value={String(exceptionDrafts[openDentist.id]?.active || false)} onChange={(event) => updateExceptionDraft(openDentist.id, "active", event.target.value === "true")}>
+                    <option value="false">Unavailable all day</option>
+                    <option value="true">Available with custom hours</option>
+                  </select>
+                  <input className="input" type="time" value={exceptionDrafts[openDentist.id]?.start || "09:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "start", event.target.value)} />
+                  <input className="input" type="time" value={exceptionDrafts[openDentist.id]?.end || "18:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "end", event.target.value)} />
+                </div>
+
+                <div className="inlineActionRow">
+                  <button className="btn btnShine" type="button" onClick={() => addException(openDentist)}>
+                    Save Exception
+                  </button>
+                </div>
+
+                {openExceptions.length ? (
+                  <ul className="list">
+                    {openExceptions.map((entry) => (
+                      <li key={`${openDentist.id}-${entry.date}`} className="item">
+                        <div className="kv">
+                          <strong>{entry.date} • {entry.label}</strong>
+                          <span>{entry.active ? `${entry.start} - ${entry.end}` : "Unavailable all day"}</span>
+                        </div>
+                        <button className="btn danger" type="button" onClick={() => removeException(openDentist, entry.date)}>
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                <div className="actionColumn actionColumnFriendly">
+                  <button
+                    className="btn patientActionBtn archiveButton"
+                    type="button"
+                    onClick={async () => {
+                      await archiveDentist(openDentist.id);
+                      setExpandedDentistId("");
+                    }}
                   >
                     Archive Dentist
                   </button>
                 </div>
-
-                {isOpen ? (
-                  <div
-                    className="schedulerPanel"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <div className="cardHeader" style={{ marginBottom: 8 }}>
-                      <div>
-                        <h3 className="title">Dentist Details</h3>
-                        <p className="sub">Update the clinic-facing email and specialization shown in the dentist management list.</p>
-                      </div>
-                    </div>
-
-                    <div className="bookingFlowGrid">
-                      <input
-                        className="input"
-                        placeholder="Specialization"
-                        value={detailDraft.specialization}
-                        onChange={(event) => updateDetailDraft(dentist.id, "specialization", event.target.value)}
-                      />
-                      <select
-                        className="input"
-                        value={detailDraft.linkedStaffUid || ""}
-                        onChange={(event) => updateDetailDraft(dentist.id, "linkedStaffUid", event.target.value)}
-                      >
-                        <option value="">No linked dentist login</option>
-                        {staffAccounts.map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.name || account.email} {account.email ? `- ${account.email}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="inlineActionRow">
-                      <button className="btn btnShine" type="button" onClick={() => saveDentistDetails(dentist)}>
-                        Save Dentist Details
-                      </button>
-                      <button
-                        className="btn secondary"
-                        type="button"
-                        onClick={() =>
-                          setDetailDrafts((current) => ({
-                            ...current,
-                            [dentist.id]: {
-                              email: dentist.email || "",
-                              specialization: dentist.specialization || "",
-                              linkedStaffUid: dentist.linkedStaffUid || "",
-                            },
-                          }))
-                        }
-                      >
-                        Reset Details
-                      </button>
-                    </div>
-
-                    <div className="cardHeader" style={{ marginBottom: 8, marginTop: 16 }}>
-                      <div>
-                        <h3 className="title">Adjust Schedule</h3>
-                        <p className="sub">Turn each day on or off and set the dentist's working hours.</p>
-                      </div>
-                    </div>
-
-                    <div className="schedulerGrid">
-                      {DAY_ORDER.map((day) => (
-                        <div key={day.key} className="schedulerRow">
-                          <label className="schedulerDay">
-                            <input
-                              type="checkbox"
-                              checked={schedule[day.key].active}
-                              onChange={(event) =>
-                                updateDraftSchedule(dentist.id, day.key, "active", event.target.checked)
-                              }
-                            />
-                            <span>{day.label}</span>
-                          </label>
-
-                          <input
-                            className="input"
-                            type="time"
-                            value={schedule[day.key].start}
-                            disabled={!schedule[day.key].active}
-                            onChange={(event) =>
-                              updateDraftSchedule(dentist.id, day.key, "start", event.target.value)
-                            }
-                          />
-
-                          <input
-                            className="input"
-                            type="time"
-                            value={schedule[day.key].end}
-                            disabled={!schedule[day.key].active}
-                            onChange={(event) =>
-                              updateDraftSchedule(dentist.id, day.key, "end", event.target.value)
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="schedulerActions">
-                      <button className="btn" type="button" onClick={() => saveSchedule(dentist)}>
-                        Save Schedule
-                      </button>
-                      <button
-                        className="btn secondary"
-                        type="button"
-                        onClick={() =>
-                          setDraftSchedules((current) => ({
-                            ...current,
-                            [dentist.id]: normalizeSchedule(dentist.schedule),
-                          }))
-                        }
-                      >
-                        Reset Changes
-                      </button>
-                    </div>
-
-                    <div className="card adminRecordsCard" style={{ marginTop: 14 }}>
-                      <div className="cardHeader">
-                        <div>
-                          <h3 className="title">Schedule Exceptions</h3>
-                          <p className="sub">Use date-specific overrides for leave, half-days, holidays, or emergency changes.</p>
-                        </div>
-                      </div>
-
-                      <div className="bookingFlowGrid">
-                        <input className="input" type="date" value={exceptionDrafts[dentist.id]?.date || ""} onChange={(event) => updateExceptionDraft(dentist.id, "date", event.target.value)} />
-                        <input className="input" placeholder="Label (e.g. Leave, Half-day)" value={exceptionDrafts[dentist.id]?.label || ""} onChange={(event) => updateExceptionDraft(dentist.id, "label", event.target.value)} />
-                      </div>
-
-                      <div className="bookingFlowGrid" style={{ marginTop: 12 }}>
-                        <select className="input" value={String(exceptionDrafts[dentist.id]?.active || false)} onChange={(event) => updateExceptionDraft(dentist.id, "active", event.target.value === "true")}>
-                          <option value="false">Unavailable all day</option>
-                          <option value="true">Available with custom hours</option>
-                        </select>
-                        <input className="input" type="time" value={exceptionDrafts[dentist.id]?.start || "09:00"} disabled={!exceptionDrafts[dentist.id]?.active} onChange={(event) => updateExceptionDraft(dentist.id, "start", event.target.value)} />
-                        <input className="input" type="time" value={exceptionDrafts[dentist.id]?.end || "18:00"} disabled={!exceptionDrafts[dentist.id]?.active} onChange={(event) => updateExceptionDraft(dentist.id, "end", event.target.value)} />
-                      </div>
-
-                      <div className="inlineActionRow">
-                        <button className="btn btnShine" type="button" onClick={() => addException(dentist)}>
-                          Save Exception
-                        </button>
-                      </div>
-
-                      {scheduleExceptions.length ? (
-                        <ul className="list" style={{ marginTop: 14 }}>
-                          {scheduleExceptions.map((entry) => (
-                            <li key={`${dentist.id}-${entry.date}`} className="item">
-                              <div className="kv">
-                                <strong>{entry.date} • {entry.label}</strong>
-                                <span>{entry.active ? `${entry.start} - ${entry.end}` : "Unavailable all day"}</span>
-                              </div>
-                              <button className="btn danger" type="button" onClick={() => removeException(dentist, entry.date)}>
-                                Remove
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
               </div>
-            </li>
-          );
-        })}
-      </ul>
+            </>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

@@ -67,134 +67,117 @@ export default function Logs() {
 
   return (
     <div className="container adminSurface">
-      <div className="hero adminHero">
-        <div className="adminHeroGlow" />
-        <div className="adminHeroContent">
+      <div className="auditHeader">
+        <div>
           <span className="heroEyebrow">Audit Center</span>
-          <h1>Activity Logs</h1>
-          <p>Review the latest staff actions across bookings, patients, dentists, archive activity, and account management from one dedicated page.</p>
+          <h1 className="auditTitle">Activity Logs</h1>
+          <p className="auditSub">
+            Track real-time staff operations, system adjustments, and account activity across your organization.
+          </p>
         </div>
+        <span className="badge">{filteredLogs.length} entries</span>
       </div>
 
-      <div className="card adminEditorCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Search Activity Log</h3>
-            <p className="sub">Search by staff name, role, action, or target record to find the exact update faster.</p>
-          </div>
-          <span className="badge">{filteredLogs.length} entries</span>
+      <div className="auditFilterBar">
+        <div className="searchWrapper">
+          <input
+            className="input auditSearchInput"
+            placeholder="Search staff, action, or target..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button type="button" className="clearSearchBtn" onClick={() => setSearch("")}>
+              Clear
+            </button>
+          )}
         </div>
 
-        <div className="patientSearchSpotlight">
-          <div className="patientSearchHeader">
-            <div>
-              <span className="patientSearchEyebrow">Log Search</span>
-              <p className="patientSearchHint">Type a role, name, action, or target record to filter the audit trail.</p>
-            </div>
-            <span className="patientSearchCount">{search ? "Filtered log view" : "Ready to search"}</span>
-          </div>
+        <div className="filterSelectGroup">
+          <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <option value="">All Roles</option>
+            <option value="admin">Administrator</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="dentist">Dentist</option>
+          </select>
 
-          <div className="patientSearchRow">
-            <input
-              className="input searchInput patientSearchInput"
-              placeholder="Search activity log"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-            {search ? (
-              <button type="button" className="searchClearBtn" onClick={() => setSearch("")}>
-                Clear
-              </button>
-            ) : null}
-          </div>
-
-          <div className="bookingFlowGrid" style={{ marginTop: 12 }}>
-            <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-              <option value="">All roles</option>
-              <option value="admin">Administrator</option>
-              <option value="receptionist">Receptionist</option>
-              <option value="dentist">Dentist</option>
-            </select>
-
-            <select className="input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-              <option value="">All actions</option>
-              {actionOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-
-            <select className="input" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
-              <option value="">All targets</option>
-              {targetOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-
-            <input className="input" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-          </div>
-        </div>
-      </div>
-
-      <div className="card adminRecordsCard" style={{ marginTop: 18 }}>
-        <div className="cardHeader">
-          <div>
-            <h3 className="title">Full Audit Log</h3>
-            <p className="sub">Every logged staff action appears here once Firestore rules allow the `auditLogs` collection.</p>
-          </div>
-        </div>
-
-        {filteredLogs.length ? (
-          <ul className="list detailedList auditLogList">
-            {filteredLogs.map((log) => (
-              <li key={log.id} className="item detailedItem bookingShowcase">
-                <div className="detailContent">
-                  <div className="detailTopRow">
-                    <div>
-                      <strong className="detailTitle">{log.actorName || log.actorEmail || "Staff"}</strong>
-                      <p className="detailSubtitle">
-                        {(log.actorRole || "staff").toUpperCase()} • {formatTimestamp(log.createdAt)}
-                      </p>
-                    </div>
-                    <span className="badge">{log.actionLabel}</span>
-                  </div>
-
-                  <div className="detailGrid">
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Target</span>
-                      <strong>{log.targetLabel || log.targetType || "Record"}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Type</span>
-                      <strong>{log.targetType || "Not recorded"}</strong>
-                    </div>
-                    <div className="detailBox luxeBox">
-                      <span className="detailLabel">Actor email</span>
-                      <strong>{log.actorEmail || "No email recorded"}</strong>
-                    </div>
-                  </div>
-
-                  {log.details && Object.keys(log.details).length ? (
-                    <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
-                      <span className="detailLabel">Details</span>
-                      <div className="auditDetails">
-                        {Object.entries(log.details).map(([key, value]) => (
-                          <div key={key} className="auditDetailRow">
-                            <strong>{key}</strong>
-                            <span>{Array.isArray(value) ? value.join(", ") : String(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </li>
+          <select className="input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <option value="">All Actions</option>
+            {actionOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
             ))}
-          </ul>
+          </select>
+
+          <select className="input" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
+            <option value="">All Targets</option>
+            {targetOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
+          <input className="input" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="auditTableWrapper">
+        {filteredLogs.length ? (
+          <div className="auditTable">
+            <div className="auditTableHeader">
+              <div>Actor</div>
+              <div>Action</div>
+              <div>Target Record</div>
+              <div>Timestamp</div>
+              <div style={{ textAlign: "right" }}>Meta</div>
+            </div>
+
+            {filteredLogs.map((log) => {
+              const hasDetails = log.details && Object.keys(log.details).length > 0;
+
+              return (
+                <div key={log.id} className="auditTableRow">
+                  <div className="actorCell">
+                    <strong className="actorName">{log.actorName || log.actorEmail || "Staff"}</strong>
+                    <span className="actorRole">{(log.actorRole || "staff").toUpperCase()}</span>
+                  </div>
+
+                  <div className="actionCell">
+                    <span className="actionBadge">{log.actionLabel}</span>
+                  </div>
+
+                  <div className="targetCell">
+                    <strong className="targetLabel">{log.targetLabel || log.targetType || "Record"}</strong>
+                    <span className="targetType">{log.targetType || "General"}</span>
+                  </div>
+
+                  <div className="timeCell">
+                    {formatTimestamp(log.createdAt)}
+                  </div>
+
+                  <div className="detailsCell">
+                    {hasDetails ? (
+                      <details className="auditDetailsDrawer">
+                        <summary className="detailsSummary">View Details</summary>
+                        <div className="auditDetailsContent">
+                          {Object.entries(log.details).map(([key, value]) => (
+                            <div key={key} className="auditDetailRow">
+                              <strong>{key}:</strong>
+                              <span>{Array.isArray(value) ? value.join(", ") : String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ) : (
+                      <span className="noDetails">—</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <div className="emptyEditorState">
-            <strong>No audit entries yet</strong>
-            <p>Once your Firestore rules allow `auditLogs`, every staff action will appear here in one dedicated page.</p>
+          <div className="emptyAuditState">
+            <strong>No audit logs found</strong>
+            <p>Try resetting your active filters or query term to inspect recorded events.</p>
           </div>
         )}
       </div>
