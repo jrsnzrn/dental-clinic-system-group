@@ -146,6 +146,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdminOrReceptionist();
     }
 
+    match /promotions/{id} {
+      allow read: if isAdmin() || resource.data.status == "active";
+      allow create, update, delete: if isAdmin();
+    }
+
     match /dentalCharts/{uid} {
       allow read: if isSignedIn() && (
         request.auth.uid == uid ||
@@ -163,6 +168,10 @@ service cloud.firestore {
     }
 
     match /staffMfaChallenges/{id} {
+      allow read, write: if false;
+    }
+
+    match /staffPasswordResetChallenges/{id} {
       allow read, write: if false;
     }
 

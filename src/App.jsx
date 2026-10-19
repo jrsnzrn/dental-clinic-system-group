@@ -27,6 +27,9 @@ import ServicesAdmin from "./pages/admin/ServicesAdmin";
 import Accounts from "./pages/admin/Accounts";
 import Logs from "./pages/admin/Logs";
 import Archive from "./pages/admin/Archive";
+import Promotions from "./pages/admin/Promotions";
+import Analytics from "./pages/admin/Analytics";
+import ForgotPassword from "./pages/admin/ForgotPassword";
 import { getAdminProfile, getDefaultAdminPath, ROLES } from "./utils/rbac";
 
 const THEMES = ["light", "blue", "dark"];
@@ -140,6 +143,7 @@ export default function App() {
             <Route path="/privacy-policy" element={<Navigate to="/about" replace />} />
 
             <Route path="/admin/login" element={isAdmin ? adminRedirect : <Login />} />
+            <Route path="/admin/forgot-password" element={<ForgotPassword />} />
             <Route path="/admin/mfa" element={<Mfa />} />
 
             <Route
@@ -223,6 +227,8 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="promos" element={<ProtectedRoute user={user} allowedRoles={[ROLES.ADMIN]}><Promotions /></ProtectedRoute>} />
+              <Route path="analytics" element={<ProtectedRoute user={user} allowedRoles={[ROLES.ADMIN]}><Analytics /></ProtectedRoute>} />
               <Route
                 path="logs"
                 element={

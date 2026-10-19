@@ -17,12 +17,6 @@ export const PLAN_FREQUENCIES = [
   { value: "Weekly", label: "Weekly" },
 ];
 
-export const PLAN_FREQUENCY_DISCOUNTS = {
-  Monthly: 0,
-  Biweekly: 0.025,
-  Weekly: 0.03,
-};
-
 export function formatCurrency(value) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -34,22 +28,21 @@ export function formatCurrency(value) {
 export function computeInstallmentAmount({
   totalCost = 0,
   downPaymentExpected = 0,
+  discountAmount = 0,
   planCycles = 0,
   planFrequency = "Monthly",
 }) {
   const normalizedTotal = toNumber(totalCost);
   const normalizedDownPayment = toNumber(downPaymentExpected);
   const normalizedCycles = Math.max(0, Math.round(toNumber(planCycles)));
-  const remainingBalance = Math.max(0, normalizedTotal - normalizedDownPayment);
+  const remainingBalance = Math.max(0, normalizedTotal - normalizedDownPayment - toNumber(discountAmount));
   const installmentCount = getInstallmentCount(normalizedCycles, planFrequency);
-  const discountRate = getDiscountRate(planFrequency);
-  const discountedRemainingBalance = remainingBalance * (1 - discountRate);
 
   if (!installmentCount) {
     return 0;
   }
 
-  return discountedRemainingBalance / installmentCount;
+  return remainingBalance / installmentCount;
 }
 
 export function normalizePlanFrequency(value) {
@@ -64,12 +57,12 @@ export function getInstallmentLabel(planFrequency = "Monthly") {
   return "Monthly payment";
 }
 
-export function getCycleCountLabel(planFrequency = "Monthly") {
+export function getCycleCountLabel() {
   return "Plan duration in months";
 }
 
-export function getDiscountRate(planFrequency = "Monthly") {
-  return PLAN_FREQUENCY_DISCOUNTS[normalizePlanFrequency(planFrequency)] || 0;
+export function getDiscountRate() {
+  return 0;
 }
 
 export function getInstallmentCount(planMonths = 0, planFrequency = "Monthly") {
@@ -136,8 +129,10 @@ export function buildBracesAccount(account = {}, payments = [], now = new Date()
   const installmentAmount = toNumber(account.installmentAmount || account.monthlyAmount);
   const planCycles = Math.max(0, Math.round(toNumber(account.planCycles || account.planMonths)));
   const installmentCount = getInstallmentCount(planCycles, planFrequency);
-  const discountRate = getDiscountRate(planFrequency);
-  const discountedTotalInstallments = Math.max(0, totalCost - downPaymentExpected) * (1 - discountRate);
+  const listedCost = toNumber(account.listedCost) || totalCost + toNumber(account.discountAmount);
+  const discountAmount = Math.min(listedCost, toNumber(account.discountAmount));
+  const discountRate = listedCost > 0 ? discountAmount / listedCost : 0;
+  const discountedTotalInstallments = Math.max(0, totalCost - downPaymentExpected);
   const normalizedPayments = payments
     .map((payment) => ({
       ...payment,

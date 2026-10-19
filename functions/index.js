@@ -28,6 +28,7 @@ const STAFF_MFA_REQUEST_MAX_CALLS = 5;
 const STAFF_MFA_VERIFY_MIN_INTERVAL_MS = 1000;
 const STAFF_MFA_VERIFY_WINDOW_MS = 15 * 60 * 1000;
 const STAFF_MFA_VERIFY_MAX_CALLS = 10;
+const STAFF_RESET_CODE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_CLINIC_SERVICES = [
   {
     name: "Cleaning",
@@ -308,7 +309,7 @@ function getActiveClosureForDate(closures = [], date) {
 }
 
 function isActiveBooking(booking = {}) {
-  return booking.archiveStatus !== "Archived" && booking.status !== "cancelled";
+  return booking.archiveStatus !== "Archived" && !["cancelled", "completed", "no-show"].includes(String(booking.status || "").toLowerCase());
 }
 
 function getBookingServices(booking = {}) {
@@ -472,11 +473,12 @@ function hashMfaCode(code, salt) {
     .digest("hex");
 }
 
-function createStaffMfaEmailHtml({ staffName, code }) {
+function createStaffMfaEmailHtml({ staffName, staffRole, code }) {
+  const roleLabel = staffRole === "receptionist" ? "receptionist" : staffRole === "dentist" ? "dentist" : "admin";
   return createEmailShell({
     eyebrow: "TopDent Staff Security",
-    title: "Your admin verification code",
-    intro: `Hello ${staffName || "Staff"}, use this one-time code to finish signing in to the TopDent admin area:`,
+    title: `Your ${roleLabel} verification code`,
+    intro: `Hello ${staffName || "Staff"}, use this one-time code to finish signing in to the TopDent ${roleLabel} area:`,
     detailsHtml: `
       <p style="margin: 0; color: #0f172a; font-size: 32px; font-weight: 800; letter-spacing: 0.18em; text-align: center;">
         ${code}
@@ -489,11 +491,12 @@ function createStaffMfaEmailHtml({ staffName, code }) {
   });
 }
 
-function createStaffMfaEmailText({ staffName, code }) {
+function createStaffMfaEmailText({ staffName, staffRole, code }) {
+  const roleLabel = staffRole === "receptionist" ? "receptionist" : staffRole === "dentist" ? "dentist" : "admin";
   return `
 Hello ${staffName || "Staff"},
 
-Your TopDent admin verification code is: ${code}
+Your TopDent ${roleLabel} verification code is: ${code}
 
 This code expires in 5 minutes. If you did not request it, contact the administrator immediately.
   `.trim();
@@ -810,6 +813,7 @@ async function assertRateLimit({
   minIntervalMs,
   windowMs,
   maxCalls,
+  rateLimitMessage,
 }) {
   const limiterRef = db.collection("rateLimits").doc(`${scope}_${uid}`);
   const limiterSnap = await limiterRef.get();
@@ -834,7 +838,7 @@ async function assertRateLimit({
   if (now - lastCalledAt < minIntervalMs) {
     throw new HttpsError(
       "resource-exhausted",
-      "Too many availability checks. Please wait a moment before trying again."
+      rateLimitMessage || "Too many availability checks. Please wait a moment before trying again."
     );
   }
 
@@ -844,7 +848,7 @@ async function assertRateLimit({
   if (sameWindow && nextCount > maxCalls) {
     throw new HttpsError(
       "resource-exhausted",
-      "Too many availability checks in a short time. Please wait a moment and try again."
+      rateLimitMessage || "Too many availability checks in a short time. Please wait a moment and try again."
     );
   }
 
@@ -1030,13 +1034,6 @@ function normalizeBracesPlanFrequency(value) {
   return "Monthly";
 }
 
-function getBracesDiscountRate(planFrequency = "Monthly") {
-  const normalized = normalizeBracesPlanFrequency(planFrequency);
-  if (normalized === "Weekly") return 0.03;
-  if (normalized === "Biweekly") return 0.025;
-  return 0;
-}
-
 function getBracesInstallmentCount(planMonths = 0, planFrequency = "Monthly") {
   const normalizedMonths = Math.max(0, Math.round(toNumber(planMonths)));
   const normalized = normalizeBracesPlanFrequency(planFrequency);
@@ -1099,11 +1096,11 @@ function summarizeBracesAccount(account = {}, payments = [], now = new Date()) {
   const planFrequency = normalizeBracesPlanFrequency(account.planFrequency || account.paymentSchedule);
   const planMonths = Math.max(0, Math.round(toNumber(account.planCycles || account.planMonths)));
   const installmentCount = getBracesInstallmentCount(planMonths, planFrequency);
-  const discountRate = getBracesDiscountRate(planFrequency);
-  const discountedInstallmentBase = Math.max(0, totalCost - downPaymentExpected) * (1 - discountRate);
+  const discountRate = toNumber(account.discountRate);
+  const discountedInstallmentBase = Math.max(0, totalCost - downPaymentExpected);
   const installmentAmount =
     installmentCount > 0
-      ? discountedInstallmentBase / installmentCount
+    ? toNumber(account.installmentAmount || account.monthlyAmount) || discountedInstallmentBase / installmentCount
       : toNumber(account.installmentAmount || account.monthlyAmount);
   const amountPaid = payments.reduce((sum, payment) => sum + toNumber(payment.amount), 0);
   const remainingBalance = Math.max(0, totalCost - amountPaid);
@@ -1923,6 +1920,7 @@ exports.createBooking = onCall(
     const dentistId = String(payload.dentistId || "").trim();
     const date = String(payload.date || "").trim();
     const time = String(payload.time || "").trim();
+    const promotionId = String(payload.promotionId || "").trim();
     const selectedServices = Array.isArray(payload.selectedServices)
       ? payload.selectedServices.map((entry) => String(entry || "").trim()).filter(Boolean)
       : [];
@@ -1959,20 +1957,23 @@ exports.createBooking = onCall(
       const servicesQuery = db.collection("clinicServices");
       const closuresQuery = db.collection("clinicClosures").where("date", "==", date);
       const bookingsQuery = db.collection("bookings").where("date", "==", date);
+      const promotionRef = promotionId ? db.collection("promotions").doc(promotionId) : null;
 
-      const patientSnap = await transaction.get(patientRef);
+      const [patientSnap, dentistSnap, servicesSnap, closuresSnap, bookingsSnap, promotionSnap] = await Promise.all([
+        transaction.get(patientRef),
+        transaction.get(dentistRef),
+        transaction.get(servicesQuery),
+        transaction.get(closuresQuery),
+        transaction.get(bookingsQuery),
+        promotionRef ? transaction.get(promotionRef) : Promise.resolve(null),
+      ]);
       if (!patientSnap.exists) {
         throw new HttpsError("failed-precondition", "Please complete your patient profile before booking.");
       }
 
-      const dentistSnap = await transaction.get(dentistRef);
       if (!dentistSnap.exists) {
         throw new HttpsError("not-found", "Selected dentist could not be found.");
       }
-
-      const servicesSnap = await transaction.get(servicesQuery);
-      const closuresSnap = await transaction.get(closuresQuery);
-      const bookingsSnap = await transaction.get(bookingsQuery);
 
       const patientProfile = patientSnap.data() || {};
       const dentist = {
@@ -2009,6 +2010,17 @@ exports.createBooking = onCall(
           "invalid-argument",
           `Unknown service selection: ${unknownServices.join(", ")}.`
         );
+      }
+
+      let selectedPromotion = null;
+      if (promotionId) {
+        if (!promotionSnap?.exists) throw new HttpsError("not-found", "Selected promotion is no longer available.");
+        const promotion = promotionSnap.data() || {};
+        const applicable = Array.isArray(promotion.services) && promotion.services.some((name) => selectedServices.includes(name));
+        if (promotion.status !== "active" || (promotion.startDate && date < promotion.startDate) || (promotion.endDate && date > promotion.endDate) || !applicable) {
+          throw new HttpsError("failed-precondition", "This promotion is not active for the selected appointment date and services.");
+        }
+        selectedPromotion = { id: promotionId, title: String(promotion.title || "Promotion"), discountType: promotion.discountType === "fixed" ? "fixed" : "percentage", discountValue: Number(promotion.discountValue || 0) };
       }
 
       const closures = closuresSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
@@ -2128,6 +2140,7 @@ exports.createBooking = onCall(
         service,
         services: selectedServices,
         serviceCount: selectedServices.length,
+        ...(selectedPromotion ? { promotionId: selectedPromotion.id, promotionTitle: selectedPromotion.title, promotionDiscountType: selectedPromotion.discountType, promotionDiscountValue: selectedPromotion.discountValue } : {}),
         estimatedDurationMinutes: durationMinutes,
         estimatedEndTime: minutesToTime(endMinutes),
         date,
@@ -2143,6 +2156,7 @@ exports.createBooking = onCall(
       };
 
       transaction.set(bookingRef, bookingData);
+      if (selectedPromotion) transaction.update(promotionRef, { usageCount: admin.firestore.FieldValue.increment(1), updatedAt: createdAt });
       lockRefs.forEach((lockRef) => {
         transaction.set(lockRef, {
           bookingId: bookingRef.id,
@@ -2182,7 +2196,7 @@ exports.setBookingStatus = onCall(
       throw new HttpsError("invalid-argument", "Booking ID is required.");
     }
 
-    if (!["pending", "approved", "cancelled"].includes(nextStatus)) {
+    if (!["pending", "approved", "cancelled", "completed", "no-show"].includes(nextStatus)) {
       throw new HttpsError("invalid-argument", "Unsupported booking status.");
     }
 
@@ -2197,6 +2211,9 @@ exports.setBookingStatus = onCall(
       }
 
       const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      if (["completed", "no-show"].includes(nextStatus) && !isStoredBookingInPast(booking)) {
+        throw new HttpsError("failed-precondition", "An appointment can be marked completed or no-show only after its scheduled time has passed.");
+      }
       const updatePayload = {
         status: nextStatus,
         statusUpdatedAt: now,
@@ -2206,7 +2223,7 @@ exports.setBookingStatus = onCall(
         updatePayload.approvedAt = now;
       }
 
-      if (nextStatus === "cancelled") {
+      if (["cancelled", "completed", "no-show"].includes(nextStatus)) {
         const { lockRefs, lockSnaps } = await getLockSnapshots(transaction, booking);
         deleteOwnedLocks(transaction, lockRefs, lockSnaps, bookingId);
       } else {
@@ -2500,6 +2517,98 @@ exports.recordAdminAuditLog = onCall(
   }
 );
 
+exports.requestStaffPasswordResetCode = onCall(
+  { secrets: [gmailEmail, gmailAppPassword] },
+  async (request) => {
+    const email = String(request.data?.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpsError("invalid-argument", "Enter a valid staff email address.");
+    const emailKey = crypto.createHash("sha256").update(email).digest("hex");
+    const ipKey = crypto.createHash("sha256").update(String(request.rawRequest?.ip || "unknown")).digest("hex");
+    await assertRateLimit({ uid: emailKey, scope: "staff_reset_email", minIntervalMs: 60_000, windowMs: 60 * 60_000, maxCalls: 4, rateLimitMessage: "Too many password recovery requests. Wait a little while and try again." });
+    await assertRateLimit({ uid: ipKey, scope: "staff_reset_ip", minIntervalMs: 15_000, windowMs: 60 * 60_000, maxCalls: 12, rateLimitMessage: "Too many password recovery requests. Wait a little while and try again." });
+    const generic = { accepted: true, message: "If this email belongs to an active staff account, a verification code has been sent." };
+    async function createDummyChallenge(reason) {
+      console.info("Staff password reset request not eligible for email delivery:", reason);
+      const salt = crypto.randomBytes(16).toString("hex");
+      const challengeRef = db.collection("staffPasswordResetChallenges").doc();
+      await challengeRef.set({ uid: "", email, codeHash: hashMfaCode(String(crypto.randomInt(100000, 1000000)), salt), salt, attemptCount: 0, usedAt: null, expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + STAFF_RESET_CODE_TTL_MS), createdAt: admin.firestore.FieldValue.serverTimestamp() });
+      return { ...generic, challengeId: challengeRef.id };
+    }
+    const staffSnap = await db.collection("admins").where("email", "==", email).limit(1).get();
+    let staffDoc = staffSnap.docs[0] || null;
+    let userRecord = null;
+    if (!staffDoc) {
+      // Older staff records may have mixed-case email fields. Resolve the Auth
+      // account first, then verify its matching staff profile before sending.
+      try {
+        userRecord = await auth.getUserByEmail(email);
+        const profileSnap = await db.collection("admins").doc(userRecord.uid).get();
+        if (profileSnap.exists) staffDoc = profileSnap;
+      } catch {
+        return createDummyChallenge("no matching active staff account");
+      }
+    }
+    if (!staffDoc) return createDummyChallenge("no matching active staff account");
+    const staff = staffDoc.data() || {};
+    if (staff.disabled) return createDummyChallenge("staff account is disabled");
+    if (!userRecord) {
+      try { userRecord = await auth.getUser(staffDoc.id); }
+      catch { return createDummyChallenge("staff authentication account was not found"); }
+    }
+    if (userRecord.disabled || String(userRecord.email || "").trim().toLowerCase() !== email) {
+      return createDummyChallenge("staff authentication account is disabled or email does not match");
+    }
+    const code = String(crypto.randomInt(100000, 1000000));
+    const salt = crypto.randomBytes(16).toString("hex");
+    const challengeRef = db.collection("staffPasswordResetChallenges").doc();
+    await challengeRef.set({ uid: staffDoc.id, email, codeHash: hashMfaCode(code, salt), salt, attemptCount: 0, usedAt: null, expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + STAFF_RESET_CODE_TTL_MS), createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    const role = String(staff.role || "staff").toLowerCase();
+    const mailer = createTransporter();
+    try {
+      await mailer.transporter.sendMail({
+        from: mailer.senderEmail, to: email, subject: "TopDent staff password reset code",
+        text: `Hello ${staff.name || "Staff"}, your TopDent ${role} password reset code is ${code}. It expires in 10 minutes. If you did not request this code, ignore this email.`,
+        html: createEmailShell({ eyebrow: "TopDent Staff Security", title: "Reset your staff password", intro: `Hello ${staff.name || "Staff"}, enter this one-time code to reset your ${role} account password.`, detailsHtml: `<p style="font-size:32px;font-weight:800;letter-spacing:.18em;text-align:center">${code}</p><p>This code expires in 10 minutes.</p>`, closing: "If you did not request this code, ignore this email." }),
+      });
+      console.info("Staff password reset email accepted by mail provider.");
+    } catch (error) {
+      console.error("Staff password reset email delivery failed:", error?.code || "unknown", error?.responseCode || "unknown");
+      throw new HttpsError("internal", "Could not send a recovery code right now. Try again later.");
+    }
+    return { ...generic, challengeId: challengeRef.id };
+  }
+);
+
+exports.resetStaffPasswordWithCode = onCall(async (request) => {
+  const email = String(request.data?.email || "").trim().toLowerCase();
+  const challengeId = String(request.data?.challengeId || "").trim();
+  const code = String(request.data?.code || "").trim();
+  const newPassword = String(request.data?.newPassword || "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !challengeId || !/^\d{6}$/.test(code) || newPassword.length < 8) {
+    throw new HttpsError("invalid-argument", "Enter the email code and a password with at least 8 characters.");
+  }
+  const emailKey = crypto.createHash("sha256").update(email).digest("hex");
+  await assertRateLimit({ uid: emailKey, scope: "staff_reset_verify", minIntervalMs: 1500, windowMs: 15 * 60_000, maxCalls: 8, rateLimitMessage: "Too many code attempts. Wait a little while and try again." });
+  const challengeRef = db.collection("staffPasswordResetChallenges").doc(challengeId);
+  const result = await db.runTransaction(async (transaction) => {
+    const challengeSnap = await transaction.get(challengeRef);
+    if (!challengeSnap.exists) throw new HttpsError("not-found", "The reset code is invalid or expired. Request a new code.");
+    const challenge = challengeSnap.data() || {};
+    if (challenge.email !== email || challenge.usedAt || challenge.expiresAt?.toMillis?.() < Date.now()) throw new HttpsError("failed-precondition", "The reset code is invalid or expired. Request a new code.");
+    if (Number(challenge.attemptCount || 0) >= 5) throw new HttpsError("resource-exhausted", "Too many incorrect codes. Request a new code.");
+    if (hashMfaCode(code, challenge.salt || "") !== challenge.codeHash) {
+      transaction.update(challengeRef, { attemptCount: admin.firestore.FieldValue.increment(1), lastAttemptAt: admin.firestore.FieldValue.serverTimestamp() });
+      return { valid: false };
+    }
+    transaction.update(challengeRef, { usedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return { valid: true, uid: challenge.uid };
+  });
+  if (!result.valid) throw new HttpsError("invalid-argument", "The reset code is incorrect.");
+  try { await auth.updateUser(result.uid, { password: newPassword }); await auth.revokeRefreshTokens(result.uid); }
+  catch (error) { console.error("Staff password reset failed", error); throw new HttpsError("internal", "Could not update the password. Request a new code and try again."); }
+  return { success: true };
+});
+
 exports.requestStaffMfaCode = onCall(
   {
     secrets: [gmailEmail, gmailAppPassword],
@@ -2556,16 +2665,19 @@ exports.requestStaffMfaCode = onCall(
     });
 
     const mailer = createTransporter();
+    const staffRoleLabel = staffRole === "receptionist" ? "receptionist" : staffRole === "dentist" ? "dentist" : "admin";
     await mailer.transporter.sendMail({
       from: mailer.senderEmail,
       to: recipientEmail,
-      subject: "TopDent staff verification code",
+      subject: `TopDent ${staffRoleLabel} verification code`,
       text: createStaffMfaEmailText({
         staffName: staff.name || request.auth.token.email || "Staff",
+        staffRole: staffRoleLabel,
         code,
       }),
       html: createStaffMfaEmailHtml({
         staffName: staff.name || request.auth.token.email || "Staff",
+        staffRole: staffRoleLabel,
         code,
       }),
     });

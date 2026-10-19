@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -49,15 +50,6 @@ function minutesToTime(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${pad(hours)}:${pad(minutes)}`;
-}
-
-function generateSlots() {
-  const slots = [];
-  for (let h = 9; h <= 17; h += 1) {
-    slots.push(`${pad(h)}:00`);
-    slots.push(`${pad(h)}:30`);
-  }
-  return slots;
 }
 
 function getEmptyProfile(email = "") {
@@ -107,6 +99,8 @@ export default function Book() {
 
   const [selectedServices, setSelectedServices] = useState(["Cleaning"]);
   const [clinicServices, setClinicServices] = useState([]);
+  const [promotions, setPromotions] = useState([]);
+  const [promotionId, setPromotionId] = useState("");
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [selectedDentistId, setSelectedDentistId] = useState("");
@@ -141,6 +135,11 @@ export default function Book() {
   const upcomingDates = useMemo(() => generateUpcomingDates(new Date(`${datePageStart}T00:00:00`), 8), [datePageStart]);
   const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
   const selectedClosure = useMemo(() => getActiveClosureForDate(clinicClosures, date), [clinicClosures, date]);
+  const availablePromotions = useMemo(() => promotions.filter((promotion) =>
+    promotion.status === "active" && (!promotion.startDate || promotion.startDate <= date) && (!promotion.endDate || promotion.endDate >= date) &&
+    (promotion.services || []).some((name) => selectedServices.includes(name))
+  ), [date, promotions, selectedServices]);
+  const selectedPromotion = availablePromotions.find((promotion) => promotion.id === promotionId) || null;
   const selectedServiceRecords = useMemo(
     () => selectedServices
       .map((name) => activeServiceOptions.find((entry) => entry.name === name))
@@ -235,6 +234,17 @@ export default function Book() {
 
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(query(collection(db, "promotions"), where("status", "==", "active")), (snapshot) => {
+      setPromotions(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    }, (snapshotError) => console.error("Promotions could not be loaded:", snapshotError));
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!availablePromotions.some((promotion) => promotion.id === promotionId)) setPromotionId("");
+  }, [availablePromotions, promotionId]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "dentists"), (snap) => {
@@ -576,6 +586,7 @@ export default function Book() {
       requestedEnd,
       requestedTimeRange: selectedTimeRange,
       hasDuplicateWarning: duplicateWarning,
+      promotion: selectedPromotion,
     });
   }
 
@@ -591,6 +602,7 @@ export default function Book() {
         date,
         time,
         selectedServices,
+        promotionId: bookingConfirmation.promotion?.id || "",
         notes: notes.trim(),
         privacyConsentAccepted: true,
       });
@@ -798,6 +810,15 @@ export default function Book() {
                     })}
                   </div>
                 </div>
+
+                {availablePromotions.length > 0 ? <label className="bookingFieldCard">
+                  <span className="detailLabel">Promotion (optional)</span>
+                  <select className="input bookingInputSpecial" value={promotionId} onChange={(e) => setPromotionId(e.target.value)} disabled={!user || saving}>
+                    <option value="">No promotion</option>
+                    {availablePromotions.map((promotion) => <option key={promotion.id} value={promotion.id}>{promotion.title} · {promotion.discountType === "percentage" ? `${promotion.discountValue}% off` : `₱${promotion.discountValue} off`}</option>)}
+                  </select>
+                  {selectedPromotion?.description && <span className="bookingFieldHint">{selectedPromotion.description}</span>}
+                </label> : null}
 
                 <div className="bookingDatePanel" data-mascot-target="book-date">
                   <div className="bookingDatePanelHeader">
@@ -1185,7 +1206,7 @@ export default function Book() {
       title="Submit booking request?"
       message={
         bookingConfirmation
-          ? `Patient: ${patientProfile?.fullName || "Patient"} | Services: ${service} | Dentist: ${selectedDentist || "Selected dentist"} | Date: ${formatDateLabel(date)} | Time: ${bookingConfirmation.requestedTimeRange}.${bookingConfirmation.hasDuplicateWarning ? " You already have another booking for one of these services on this day, so the clinic may review this request more carefully." : ""}`
+          ? `Patient: ${patientProfile?.fullName || "Patient"} | Services: ${service}${bookingConfirmation.promotion ? ` | Promotion: ${bookingConfirmation.promotion.title}` : ""} | Dentist: ${selectedDentist || "Selected dentist"} | Date: ${formatDateLabel(date)} | Time: ${bookingConfirmation.requestedTimeRange}.${bookingConfirmation.hasDuplicateWarning ? " You already have another booking for one of these services on this day, so the clinic may review this request more carefully." : ""}`
           : ""
       }
       confirmLabel={saving ? "Submitting..." : "Submit Booking"}

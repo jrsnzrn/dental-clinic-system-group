@@ -336,6 +336,10 @@ export default function MyDentalRecord() {
                 </p>
                 <div className="detailGrid">
                   <div className="detailBox luxeBox">
+                    <span className="detailLabel">Braces type</span>
+                    <strong>{bracesAccount.bracesType || "Not specified"}</strong>
+                  </div>
+                  <div className="detailBox luxeBox">
                     <span className="detailLabel">Total cost</span>
                     <strong>{formatCurrency(bracesAccount.totalCost)}</strong>
                   </div>

@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { NavLink } from "react-router-dom";
 import CursorAura from "../components/CursorAura";
+import { db } from "../firebase";
 import homebg from "../assets/home bg.png";
 import clinicLobby from "../assets/home-clinic-lobby-wide.jpg";
 import recepArea from "../assets/recepArea.png";
@@ -109,6 +111,23 @@ const feedback = [
 ];
 
 export default function Home() {
+  const [promotions, setPromotions] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    getDocs(query(collection(db, "promotions"), where("status", "==", "active")))
+      .then((snapshot) => {
+        if (!active) return;
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        setPromotions(snapshot.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter((item) => (!item.startDate || item.startDate <= today) && (!item.endDate || item.endDate >= today))
+          .sort((a, b) => String(a.endDate || "9999-12-31").localeCompare(String(b.endDate || "9999-12-31"))));
+      })
+      .catch((error) => console.error("Could not load public promotions:", error));
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const animateElements = document.querySelectorAll(
@@ -156,6 +175,27 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {promotions.length > 0 && <section className="homeOffers" aria-labelledby="homeOffersTitle">
+        <div className="innerWrap">
+          <div className="homeOffersHeader">
+            <div><span className="heroEyebrow">Special offers</span><h2 id="homeOffersTitle">Promotions at <span>TopDent</span></h2><p>Explore current offers and choose one when you book an eligible service.</p></div>
+          </div>
+          <div className="homeOffersGrid">
+            {promotions.map((item) => <article className={`homeOfferCard${item.imageUrl ? " hasImage" : ""}`} key={item.id}>
+              {item.imageUrl && <img className="homeOfferImage" src={item.imageUrl} alt={`${item.title} promotion`} loading="lazy" />}
+              <div className="homeOfferContent">
+                <span className="homeOfferDiscount">{item.discountType === "percentage" ? `${item.discountValue}% OFF` : `₱${Number(item.discountValue || 0).toLocaleString()} OFF`}</span>
+                <h3>{item.title}</h3>
+                {item.description && <p>{item.description}</p>}
+                <p className="homeOfferMeta"><strong>For:</strong> {(item.services || []).join(", ") || "Selected services"}</p>
+                {(item.startDate || item.endDate) && <p className="homeOfferDates">{item.startDate || "Now"} – {item.endDate || "While available"}</p>}
+                <NavLink to="/book" className="btnPrimary16">Book with this offer</NavLink>
+              </div>
+            </article>)}
+          </div>
+        </div>
+      </section>}
 
     
       <section className="homeWhyUs" data-mascot-target="home-why">

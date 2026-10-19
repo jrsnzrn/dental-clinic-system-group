@@ -244,6 +244,10 @@ export default function Login() {
             {loading ? "Signing in..." : "Sign In"}
           </button>
 
+          <button className="backButton" type="button" onClick={() => navigate("/admin/forgot-password")}>
+            Forgot password?
+          </button>
+
           <button
             className="backButton"
             type="button"

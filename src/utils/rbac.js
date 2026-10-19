@@ -56,6 +56,7 @@ export function getDefaultAdminPath(role) {
 
 export const ADMIN_NAV_BY_ROLE = {
   [ROLES.ADMIN]: [
+    { to: "/admin/analytics", label: "Analytics" },
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Bookings" },
     { to: "/admin/braces", label: "Payments" },

@@ -46,6 +46,8 @@ const BOOKING_FILTERS = {
     subtitle: "Cancelled appointments move here automatically so the active board stays easier to read.",
     emptyText: "No cancelled bookings.",
   },
+  completed: { title: "Completed Appointments", subtitle: "Appointments marked complete by the clinic.", emptyText: "No completed appointments recorded." },
+  "no-show": { title: "No-show Appointments", subtitle: "Appointments where the patient did not attend.", emptyText: "No no-show appointments recorded." },
 };
 
 function pad(n) {
@@ -111,6 +113,8 @@ function BookingDetailDrawer({
   onApprove,
   onCheckIn,
   onCancel,
+  onComplete,
+  onNoShow,
   onArchive,
   onApproveReschedule,
   onDeclineReschedule,
@@ -233,6 +237,8 @@ function BookingDetailDrawer({
                   <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
                     Reschedule
                   </button>
+                  <button className="btn btnShine patientActionBtn" type="button" onClick={onComplete}>Mark Completed</button>
+                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onNoShow}>Mark No-show</button>
                 </>
               ) : null}
 
@@ -392,6 +398,8 @@ export default function Bookings() {
       pending: activeBookings.filter((booking) => (booking.status || "pending") === "pending"),
       approved: activeBookings.filter((booking) => booking.status === "approved"),
       cancelled: activeBookings.filter((booking) => booking.status === "cancelled"),
+      completed: activeBookings.filter((booking) => booking.status === "completed"),
+      "no-show": activeBookings.filter((booking) => booking.status === "no-show"),
     }),
     [activeBookings]
   );
@@ -553,6 +561,8 @@ export default function Bookings() {
         <NavLink to="/admin/bookings/cancelled" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>
           Cancelled
         </NavLink>
+        <NavLink to="/admin/bookings/completed" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>Completed</NavLink>
+        <NavLink to="/admin/bookings/no-show" className={({ isActive }) => `subnavItem ${isActive ? "active" : ""}`}>No-show</NavLink>
       </div>
 
       <div className="card adminRecordsCard bookingSectionCard">
@@ -701,6 +711,8 @@ export default function Bookings() {
             action: () => setStatus(b.id, "cancelled"),
           });
         }}
+        onComplete={() => selectedBooking && runBookingAction(async () => { await setStatus(selectedBooking.id, "completed"); closeDrawer(); })}
+        onNoShow={() => selectedBooking && runBookingAction(async () => { await setStatus(selectedBooking.id, "no-show"); closeDrawer(); })}
         onArchive={() => {
           const b = selectedBooking;
           if (!b) return;

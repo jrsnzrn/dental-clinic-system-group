@@ -21,7 +21,6 @@ import {
   getCycleCountLabel,
   getBracesAccountForPatient,
   getBracesPaymentsForPatient,
-  getDiscountRate,
   getInstallmentCount,
   getInstallmentLabel,
   PLAN_FREQUENCIES,
@@ -32,6 +31,8 @@ import { formatDateLabel, formatTimeLabel } from "../../utils/schedule";
 function getEmptyAccountDraft() {
   return {
     totalCost: "",
+    discountAmount: "",
+    bracesType: "Metal",
     downPaymentExpected: "",
     planCycles: "",
     planFrequency: "Monthly",
@@ -170,13 +171,13 @@ export default function Braces() {
         downPaymentExpected: accountDraft.downPaymentExpected,
         planCycles: accountDraft.planCycles,
         planFrequency: accountDraft.planFrequency,
+        discountAmount: accountDraft.discountAmount,
       }),
-    [accountDraft.downPaymentExpected, accountDraft.planCycles, accountDraft.planFrequency, accountDraft.totalCost]
+    [accountDraft.downPaymentExpected, accountDraft.discountAmount, accountDraft.planCycles, accountDraft.planFrequency, accountDraft.totalCost]
   );
-  const computedDiscountRate = useMemo(
-    () => getDiscountRate(accountDraft.planFrequency),
-    [accountDraft.planFrequency]
-  );
+  const computedDiscountRate = Number(accountDraft.totalCost) > 0
+    ? Math.min(100, Number(accountDraft.discountAmount || 0) / Number(accountDraft.totalCost))
+    : 0;
   const computedInstallmentCount = useMemo(
     () => getInstallmentCount(accountDraft.planCycles, accountDraft.planFrequency),
     [accountDraft.planCycles, accountDraft.planFrequency]
@@ -192,7 +193,9 @@ export default function Braces() {
 
     if (selectedPatient.bracesAccount) {
       setAccountDraft({
-        totalCost: String(selectedPatient.bracesAccount.totalCost || ""),
+        totalCost: String(selectedPatient.bracesAccount.listedCost || selectedPatient.bracesAccount.totalCost || ""),
+        discountAmount: String(selectedPatient.bracesAccount.discountAmount || ""),
+        bracesType: selectedPatient.bracesAccount.bracesType || "Metal",
         downPaymentExpected: String(selectedPatient.bracesAccount.downPaymentExpected || ""),
         planCycles: String(selectedPatient.bracesAccount.planCycles || selectedPatient.bracesAccount.planMonths || ""),
         planFrequency: selectedPatient.bracesAccount.planFrequency || "Monthly",
@@ -260,7 +263,10 @@ export default function Braces() {
         patientName: selectedPatient.name || "",
         patientEmail: selectedPatient.email || "",
         patientPhone: selectedPatient.phone || "",
-        totalCost: Number(accountDraft.totalCost || 0),
+        listedCost: Number(accountDraft.totalCost || 0),
+        discountAmount: Math.min(Number(accountDraft.totalCost || 0), Number(accountDraft.discountAmount || 0)),
+        totalCost: Math.max(0, Number(accountDraft.totalCost || 0) - Number(accountDraft.discountAmount || 0)),
+        bracesType: accountDraft.bracesType || "Metal",
         downPaymentExpected: Number(accountDraft.downPaymentExpected || 0),
         installmentAmount: computedInstallmentAmount,
         monthlyAmount: computedInstallmentAmount,
@@ -285,6 +291,7 @@ export default function Braces() {
           ...payload,
           amountPaid: computed.amountPaid,
           remainingBalance: computed.remainingBalance,
+          discountRate: computed.discountRate,
           expectedPaidByNow: computed.expectedPaidByNow,
           paymentState: computed.paymentState,
           progressPercent: computed.progressPercent,
@@ -608,6 +615,16 @@ export default function Braces() {
                         onChange={(e) => setAccountDraft((current) => ({ ...current, downPaymentExpected: e.target.value }))}
                       />
                     </label>
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Braces type</span>
+                      <select className="input bookingInputSpecial" value={accountDraft.bracesType} onChange={(e) => setAccountDraft((current) => ({ ...current, bracesType: e.target.value }))}>
+                        {["Metal", "Ceramic", "Sapphire", "Self ligating"].map((type) => <option key={type}>{type}</option>)}
+                      </select>
+                    </label>
+                    <label className="bookingFieldCard">
+                      <span className="detailLabel">Manual discount (PHP)</span>
+                      <input className="input bookingInputSpecial" type="number" min="0" max={accountDraft.totalCost || undefined} placeholder="0" value={accountDraft.discountAmount} onChange={(e) => setAccountDraft((current) => ({ ...current, discountAmount: e.target.value }))} />
+                    </label>
                   </div>
 
                   <div className="bookingFlowGrid">
@@ -643,7 +660,7 @@ export default function Braces() {
                   <div className="detailGrid bracesSummaryGrid">
                     <div className="detailBox luxeBox">
                       <span className="detailLabel">Discount applied</span>
-                      <strong>{(computedDiscountRate * 100).toFixed(computedDiscountRate ? 1 : 0)}%</strong>
+                      <strong>{formatCurrency(accountDraft.discountAmount || 0)} ({(computedDiscountRate * 100).toFixed(computedDiscountRate % 1 ? 1 : 0)}%)</strong>
                     </div>
                     <div className="detailBox luxeBox">
                       <span className="detailLabel">Installment count</span>
@@ -702,6 +719,10 @@ export default function Braces() {
                 {selectedPatient.bracesAccount ? (
                   <>
                     <div className="detailGrid bracesSummaryGrid">
+                      <div className="detailBox luxeBox">
+                        <span className="detailLabel">Braces type</span>
+                        <strong>{selectedPatient.bracesAccount.bracesType || "Not specified"}</strong>
+                      </div>
                       <div className="detailBox luxeBox">
                         <span className="detailLabel">Amount paid</span>
                         <strong>{formatCurrency(selectedPatient.bracesAccount.amountPaid)}</strong>
