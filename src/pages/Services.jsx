@@ -2,8 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import CursorAura from "../components/CursorAura";
 import { db } from "../firebase";
-import { CLINIC_SERVICE_IMAGES, getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
+import { getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
 import scaryServiceTooth from "../assets/scary-service-tooth.png";
+import cleaningImg from "../assets/services/cleaning.jpg";
+import fillingsImg from "../assets/services/fillings.jpg";
+import extractionImg from "../assets/services/extraction.jpg";
+import bracesImg from "../assets/services/braces.jpg";
+import rootCanalImg from "../assets/services/rootcanal.jpg";
+import whiteningImg from "../assets/services/whitening.jpg";
+import crownsImg from "../assets/services/crowns.jpg";
+import denturesImg from "../assets/services/dentures.jpg";
+import oralSurgeryImg from "../assets/services/oralsurgery.jpg";
+import veneersImg from "../assets/services/veneers.jpg";
+import xrayImg from "../assets/services/xray.jpg";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -20,16 +31,31 @@ const key = normalizeServiceKey;
 /* ------------------------------------------------------------------ */
 
 const IMG = {
-  cleaning: CLINIC_SERVICE_IMAGES.cleaning,
-  restoration: CLINIC_SERVICE_IMAGES.fillings,
-  extraction: CLINIC_SERVICE_IMAGES.extraction,
-  braces: CLINIC_SERVICE_IMAGES.braces,
-  rootCanal: CLINIC_SERVICE_IMAGES.rootCanal,
-  whitening: CLINIC_SERVICE_IMAGES.whitening,
-  oralSurgery: CLINIC_SERVICE_IMAGES.extraction,
-  crowns: CLINIC_SERVICE_IMAGES.fillings,
-  dentures: CLINIC_SERVICE_IMAGES.cleaning,
-  xray: CLINIC_SERVICE_IMAGES.rootCanal,
+  cleaning: cleaningImg,
+  restoration: fillingsImg,
+  extraction: extractionImg,
+  braces: bracesImg,
+  rootCanal: rootCanalImg,
+  whitening: whiteningImg,
+  oralSurgery: oralSurgeryImg,
+  veneers: veneersImg,
+  crowns: crownsImg,
+  dentures: denturesImg,
+  xray: xrayImg,
+};
+
+const SERVICE_IMAGES = {
+  [key("Cleaning")]: IMG.cleaning,
+  [key("Fillings")]: IMG.restoration,
+  [key("Extraction")]: IMG.extraction,
+  [key("Braces")]: IMG.braces,
+  [key("Root Canal")]: IMG.rootCanal,
+  [key("Teeth Whitening")]: IMG.whitening,
+  [key("Oral Surgery")]: IMG.oralSurgery,
+  [key("Veneers")]: IMG.veneers,
+  [key("Crowns")]: IMG.crowns,
+  [key("Dentures")]: IMG.dentures,
+  [key("Dental X-ray")]: IMG.xray,
 };
 
 /* ------------------------------------------------------------------ */
@@ -77,19 +103,6 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "Mild sensitivity can happen for a few days while the tooth settles after treatment." },
     ],
   },
-  [key("Restoration")]: {
-    badge: "Tooth repair",
-    highlights: [
-      { label: "Best for", value: "Damaged or decayed teeth that still have enough structure to be restored." },
-      { label: "Visit flow", value: "Tooth preparation, restorative material placement, shaping, and bite balancing." },
-      { label: "Planning note", value: "The exact treatment plan depends on how deep the damaged area goes." },
-    ],
-    overview: [
-      { title: "Before your visit", text: "Share any discomfort you feel while chewing so the team can localize the tooth." },
-      { title: "What the team checks", text: "The dentist reviews the tooth surface, bite pressure, and whether further treatment is needed." },
-      { title: "Aftercare", text: "Avoid very hard food on the treated side until the bite feels normal again." },
-    ],
-  },
   [key("Extraction")]: {
     badge: "Tooth removal",
     highlights: [
@@ -101,19 +114,6 @@ const SERVICE_COPY = {
       { title: "Before your visit", text: "Eat ahead if advised by the clinic and disclose any current medications." },
       { title: "What the team checks", text: "The dentist evaluates the tooth position, root condition, and whether imaging is needed." },
       { title: "Aftercare", text: "Expect a focused recovery plan around rest, soft food, and protecting the extraction site." },
-    ],
-  },
-  [key("Braces Consultation")]: {
-    badge: "Orthodontic",
-    highlights: [
-      { label: "Best for", value: "Patients who want to check alignment, bite concerns, spacing, or crowding." },
-      { label: "Visit flow", value: "Smile and bite evaluation, treatment discussion, and recommended next steps." },
-      { label: "Planning note", value: "Consultation rates are discussed at the clinic because plans vary by case complexity." },
-    ],
-    overview: [
-      { title: "Before your visit", text: "List the alignment concerns you notice so the consultation stays focused on your goals." },
-      { title: "What the team checks", text: "The dentist reviews bite pattern, crowding, spacing, and whether braces are the right fit." },
-      { title: "After the consult", text: "You may receive a treatment outline, imaging recommendation, or payment guidance for the next step." },
     ],
   },
   [key("Braces")]: {
@@ -142,7 +142,6 @@ const SERVICE_COPY = {
       { title: "Aftercare", text: "The tooth may need additional restoration after treatment to keep it strong for biting." },
     ],
   },
-  [key("Whitening")]: WHITENING_COPY,
   [key("Teeth Whitening")]: WHITENING_COPY,
   [key("Oral Surgery")]: {
     badge: "Advanced procedure",
@@ -221,11 +220,10 @@ const SERVICE_TYPES = {
 
 const DEFAULT_SERVICES = [
   { name: "Cleaning", desc: "Professional cleaning for healthier gums and a fresher smile.", price: "PHP 800 starting", img: IMG.cleaning },
-  { name: "Restoration", desc: "Tooth-colored restoration for damaged or decayed teeth.", price: "PHP 800 starting", img: IMG.restoration },
   { name: "Extraction", desc: "Safe and comfortable tooth removal when needed.", price: "PHP 800 starting", img: IMG.extraction },
   { name: "Teeth Whitening", desc: "Whitening treatment designed to brighten your smile in one session.", price: "PHP 8,000", img: IMG.whitening },
   { name: "Oral Surgery", desc: "Minor oral surgical procedures with proper planning and care.", price: "PHP 5,000 starting", img: IMG.oralSurgery },
-  { name: "Veneers", desc: "Cosmetic veneer treatment for smile improvement and tooth enhancement.", price: "Depends on procedure and product", img: IMG.restoration },
+  { name: "Veneers", desc: "Cosmetic veneer treatment for smile improvement and tooth enhancement.", price: "Depends on procedure and product", img: IMG.veneers },
   { name: "Crowns", desc: "Dental crowns to restore strength, shape, and appearance of teeth.", price: "PHP 7,000 starting", img: IMG.crowns },
   { name: "Dentures", desc: "Custom removable replacement for missing teeth.", price: "PHP 5,000 starting", img: IMG.dentures },
   { name: "Root Canal", desc: "Treatment for infected canals to help save the tooth.", price: "PHP 8,000 per canal", img: IMG.rootCanal },
@@ -277,18 +275,25 @@ function mergeServices(managedServices) {
   const merged = new Map(DEFAULT_ITEMS.map((item) => [key(item.name), item]));
 
   getBookingServiceOptions(managedServices).forEach((service) => {
+    const serviceKey = key(service.name);
+    const existing = merged.get(serviceKey);
+
     merged.set(
-      key(service.name),
+      serviceKey,
       buildServiceContent({
         name: service.name,
-        desc: service.description || "Clinic-managed service available for booking.",
-        price: service.startingRate || "Ask the clinic for pricing",
+        desc: service.description || existing?.desc || "Clinic-managed service available for booking.",
+        price: service.startingRate || existing?.price || "Ask the clinic for pricing",
         duration: `${service.durationMinutes} minutes`,
-        img: getClinicServiceImage(service),
+        img: SERVICE_IMAGES[serviceKey] || existing?.img || getClinicServiceImage(service),
         category: service.category || "General",
       })
     );
   });
+
+  merged.delete(key("Braces Consultation"));
+  merged.delete(key("Whitening"));
+  merged.delete(key("Restoration"));
 
   return Array.from(merged.values());
 }
@@ -334,120 +339,52 @@ function useManagedServices() {
   return services;
 }
 
-/* ------------------------------------------------------------------ */
-/* Image stage (arrows, counter, dots)                                 */
-/* ------------------------------------------------------------------ */
-
-function ServiceStage({ items, index, isDemonic, onPrev, onNext, onSelect }) {
-  const selected = items[index];
-  const total = items.length;
-  const pad = (n) => String(n).padStart(2, "0");
-
+function ServiceImage({ service, isDemonic }) {
   return (
-    <div className="svpStageCol">
-      <div className="svpStage" data-mascot-target="selected-service-card">
-        <img
-          key={selected.name}
-          className={`svpStageImg${isDemonic ? " isScary" : ""}`}
-          src={isDemonic ? scaryServiceTooth : selected.img}
-          alt={isDemonic ? `${selected.name} in demon mode` : selected.name}
-          loading="eager"
-          onError={(event) => {
-            event.currentTarget.src = getClinicServiceImage({ name: selected.name, image: "" });
-          }}
-        />
-
-        <div className="svpNav">
-          <button type="button" className="svpArrow" onClick={onPrev} aria-label="Previous" data-mascot-target="services-nav">
-            ‹
-          </button>
-          <button type="button" className="svpArrow" onClick={onNext} aria-label="Next" data-mascot-target="services-nav">
-            ›
-          </button>
-        </div>
-
-        <span className="svpCount" aria-hidden="true">
-          {pad(index + 1)} / {pad(total)}
-        </span>
-      </div>
-
-      <div className="svpDots">
-        {items.map((service, i) => (
-          <button
-            key={service.name}
-            type="button"
-            className={`svpDot${i === index ? " isActive" : ""}`}
-            aria-label={`Show ${service.name}`}
-            aria-current={i === index ? "true" : undefined}
-            onClick={() => onSelect(i)}
-          />
-        ))}
-      </div>
-    </div>
+    <img
+      className={`svxImg${isDemonic ? " isScary" : ""}`}
+      src={isDemonic ? scaryServiceTooth : service.img}
+      alt={isDemonic ? `${service.name} in demon mode` : service.name}
+      loading="lazy"
+      onError={(event) => {
+        event.currentTarget.onerror = null;
+        event.currentTarget.src = getClinicServiceImage({ name: service.name, image: "" });
+      }}
+    />
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Details (name, facts, types, notes, actions)                        */
-/* ------------------------------------------------------------------ */
-
-function InfoRows({ rows }) {
-  return (
-    <dl className="svpRows">
-      {rows.map((row) => (
-        <div key={row.label}>
-          <dt>{row.label}</dt>
-          <dd>{row.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function ServiceDetails({ service }) {
-  const rows = [
-    ...service.highlights,
-    ...service.overview.map((item) => ({ label: item.title, value: item.text })),
-  ];
+function ServiceCard({ service, isActive, isDemonic, onSelect }) {
+  const types = service.types || [];
 
   return (
-    <div className="svpDetail" data-mascot-target="selected-service-details" aria-live="polite">
-      <div className="svpDetailInner" key={service.name}>
-        <span className="svpKind">{service.badge || service.category || "Clinic service"}</span>
+    <article
+      className="svxCard"
+      data-mascot-target={isActive ? "selected-service-card" : undefined}
+      onMouseEnter={onSelect}
+      onFocus={onSelect}
+      onClick={onSelect}
+    >
+      <h3 className="svxCardName">{service.name}</h3>
 
-        <h2 className="svpName">{service.name}</h2>
-        <p className="svpLead">{service.desc}</p>
-
-        <dl className="svpFacts" data-mascot-target="service-pricing">
-          <div>
-            <dt>Starting rate</dt>
-            <dd>{service.price}</dd>
-          </div>
-          <div>
-            <dt>Duration</dt>
-            <dd>{service.duration || "Varies by case"}</dd>
-          </div>
-        </dl>
-
-        {service.types?.length > 0 && (
-          <p className="svpTypes">
-            <span className="svpTypesLabel">Types</span>
-            {service.types.join(" · ")}
-          </p>
-        )}
-
-        <InfoRows rows={rows} />
-
-        <div className="svpActions">
-          <a className="btn btnShine bookingPrimaryBtn" href="/book" data-mascot-target="book">
-            Book this service
-          </a>
-          <a className="svpLink" href="/contact">
-            Ask a question
-          </a>
-        </div>
+      <div className="svxCardMedia">
+        <ServiceImage service={service} isDemonic={isDemonic} />
       </div>
-    </div>
+
+      <p className="svxCardDesc" data-mascot-target={isActive ? "selected-service-details" : undefined}>
+        {service.desc}
+      </p>
+
+      {types.length > 0 && <p className="svxCardTypes">{types.join(" · ")}</p>}
+
+      <p className="svxCardPrice" data-mascot-target={isActive ? "service-pricing" : undefined}>
+        {service.price}
+      </p>
+
+      <a className="svxPill" href="/book" data-mascot-target={isActive ? "book" : undefined}>
+        Book now
+      </a>
+    </article>
   );
 }
 
@@ -461,12 +398,10 @@ export default function Services() {
   const items = useMemo(() => mergeServices(managedServices), [managedServices]);
 
   const [index, setIndex] = useState(0);
+
   const total = items.length;
   const safeIndex = Math.min(index, total - 1);
   const selected = items[safeIndex];
-
-  const prev = () => setIndex((i) => (i - 1 + total) % total);
-  const next = () => setIndex((i) => (i + 1) % total);
 
   // lets the mascot know which service is on screen
   useEffect(() => {
@@ -478,19 +413,23 @@ export default function Services() {
   }, [safeIndex, selected?.name]);
 
   return (
-    <div className="container bookingPage svpPage">
+    <div className="svxPage">
       <CursorAura />
 
-      <div className="svpLayout">
-        <ServiceStage
-          items={items}
-          index={safeIndex}
-          isDemonic={isDemonic}
-          onPrev={prev}
-          onNext={next}
-          onSelect={setIndex}
-        />
-        <ServiceDetails service={selected} />
+      <header className="svxHeader">
+        <h1 className="svxTitle">Dental care for every smile</h1>
+      </header>
+
+      <div className="svxTrack">
+        {items.map((item, i) => (
+          <ServiceCard
+            key={item.name}
+            service={item}
+            isActive={i === safeIndex}
+            isDemonic={isDemonic}
+            onSelect={() => setIndex(i)}
+          />
+        ))}
       </div>
     </div>
   );

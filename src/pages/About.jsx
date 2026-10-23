@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import clinicPhoto from "../assets/about-clinic.jpg";
+import treatmentPhoto from "../assets/home-clinic-treatment.jpg";
 import dentist1 from "../assets/dentist1.png";
 import dentist2 from "../assets/dentist2.jpg";
 import dentist3 from "../assets/dentist3.jpg";
@@ -20,6 +21,11 @@ const frontDesk = [
   { name: "Recep 2", role: "Front Desk", photo: recep2 },
   { name: "Recep 3", role: "Front Desk", photo: recep3 },
   { name: "Recep 4", role: "Front Desk", photo: recep4 },
+];
+
+const story = [
+  "Topdent Clinic was built on a passion for delivering reliable and patient-focused dental services. Our goal has always been to combine modern dental techniques with genuine care, ensuring every visit is a positive and comfortable experience.",
+  "Patients can expect attentive service, organized appointments, modern dental support, and a clinic environment built around comfort and trust.",
 ];
 
 const terms = [
@@ -58,18 +64,6 @@ const privacy = [
   },
 ];
 
-function PolicyRow({ label, heading, body }) {
-  return (
-    <div className="aboutPolicyRow">
-      <span className="detailLabel">{label}</span>
-      <div>
-        <strong>{heading}</strong>
-        <p className="sub">{body}</p>
-      </div>
-    </div>
-  );
-}
-
 function useRevealOnScroll() {
   const containerRef = useRef(null);
 
@@ -103,134 +97,109 @@ function useRevealOnScroll() {
   return containerRef;
 }
 
+function TeamGroup({ label, people }) {
+  return (
+    <div className="aboutTeamGroup">
+      <span className="detailLabel aboutTeamGroupLabel">{label}</span>
+      <div className="aboutTeamGrid">
+        {people.map((person, i) => (
+          <div
+            className="aboutTeamCard revealOnScroll"
+            style={{ "--d": `${i * 80}ms` }}
+            key={person.name}
+          >
+            <div className="aboutTeamCardPhoto">
+              <img src={person.photo} alt={person.name} />
+            </div>
+            <strong>{person.name}</strong>
+            <span className="detailLabel">{person.role}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TeamSection() {
+  return (
+    <section className="aboutSection">
+      <h3 className="title">Meet the Team</h3>
+      <p className="sub">The dentists and front-desk staff who take care of you at every visit.</p>
+
+      <TeamGroup label="Dentists" people={doctors} />
+      <TeamGroup label="Front Desk" people={frontDesk} />
+    </section>
+  );
+}
+
+function PolicyRow({ label, heading, body, open }) {
+  return (
+    <details className="aboutPolicyItem" open={open}>
+      <summary>
+        <span className="detailLabel">{label}</span>
+        <strong>{heading}</strong>
+      </summary>
+      <p className="aboutPolicyBody">{body}</p>
+    </details>
+  );
+}
+
+function PolicyGroup({ title, intro, items }) {
+  return (
+    <section className="aboutSection aboutSplit">
+      <div className="aboutSplitIntro">
+        <h3 className="title">{title}</h3>
+        <p className="sub">{intro}</p>
+      </div>
+
+      <div className="aboutPolicyList">
+        {items.map((item, i) => (
+          <PolicyRow key={item.label} open={i === 0} {...item} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function About() {
-  const teamRef = useRevealOnScroll();
+  const pageRef = useRevealOnScroll();
 
   return (
-    <div className="container bookingPage aboutPage">
+    <div className="container bookingPage aboutPage" ref={pageRef}>
       <CursorAura />
 
-      <div className="hero bookingHero">
-        <div className="bookingHeroGlow" />
-        <div className="bookingHeroGrid">
-          <div>
-            <span className="heroEyebrow">About TopDent</span>
-            <h1>About Us</h1>
-            <p>
-              Topdent Clinic was built on a passion for delivering reliable and patient-focused dental services. Our goal has always been to combine modern dental techniques with genuine care, ensuring every visit is a positive and comfortable experience.
-            </p>
-          </div>
-          <div className="bookingHeroSummary">
-            <div className="aboutStat">
-              <span className="detailLabel">Since</span>
-              <strong>2022</strong>
-            </div>
-            <div className="aboutStat">
-              <span className="detailLabel">Clinic Focus</span>
-              <strong>Reliable and patient-focused dental care</strong>
-            </div>
-          </div>
-        </div>
-      </div>
+      <header className="aboutSection aboutHero">
+        <div className="aboutHeroText">
+          <span className="aboutSince">Since 2022</span>
+          <h1>TopDent Story</h1>
 
-      <div className="aboutSection aboutStoryRow">
-        <div className="aboutStoryText">
-          <h3 className="title">TopDent Story</h3>
-          <p className="sub">A clinic experience designed to feel modern, calm, and welcoming for every patient.</p>
-
-          <div className="aboutLine">
-            <span className="detailLabel">Clinic Mission</span>
-            <p>
-              We focus on creating a dependable dental experience where patients feel informed, comfortable, and genuinely cared for from booking to treatment.
-            </p>
-          </div>
-
-          <div className="aboutLine">
-            <span className="detailLabel">What Patients Experience</span>
-            <p>
-              Patients can expect attentive service, organized appointments, modern dental support, and a clinic environment built around comfort and trust.
-            </p>
-          </div>
-        </div>
-
-        <div className="aboutPhotoFrame">
-          <img className="aboutClinicImage" src={clinicPhoto} alt="TopDent clinic interior" />
-        </div>
-      </div>
-
-      <div className="aboutSection" ref={teamRef}>
-        <h3 className="title">Meet the Team</h3>
-        <p className="sub">The dentists and front-desk staff who take care of you at every visit.</p>
-
-        <div className="aboutTeamGroup">
-          <span className="detailLabel">Dentists</span>
-          <div className="aboutTeamGrid">
-            {doctors.map((person, i) => (
-              <div
-                className="aboutTeamCard revealOnScroll"
-                style={{ transitionDelay: `${i * 80}ms` }}
-                key={person.name}
-              >
-                <div className="aboutTeamCardPhoto">
-                  <img src={person.photo} alt={person.name} />
-                </div>
-                <strong>{person.name}</strong>
-                <span className="detailLabel">{person.role}</span>
-              </div>
+          <div className="aboutHeroStory">
+            {story.map((text, i) => (
+              <p key={i}>{text}</p>
             ))}
           </div>
         </div>
 
-        <div className="aboutTeamGroup">
-          <span className="detailLabel">Front Desk</span>
-          <div className="aboutTeamGrid">
-            {frontDesk.map((person, i) => (
-              <div
-                className="aboutTeamCard revealOnScroll"
-                style={{ transitionDelay: `${i * 80}ms` }}
-                key={person.name}
-              >
-                <div className="aboutTeamCardPhoto">
-                  <img src={person.photo} alt={person.name} />
-                </div>
-                <strong>{person.name}</strong>
-                <span className="detailLabel">{person.role}</span>
-              </div>
-            ))}
+        <div className="aboutPhotos">
+          <div className="aboutPhotoFrame">
+            <img className="aboutClinicImage" src={clinicPhoto} alt="TopDent clinic interior" />
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="aboutSection">
-        <span className="detailLabel">Clinic Principles</span>
-        <ul className="aboutPrinciplesList aboutPrinciplesRow">
-          <li>Patient comfort comes first in every visit.</li>
-          <li>Modern dental care should still feel personal and friendly.</li>
-          <li>Reliable service starts with clear communication and trust.</li>
-        </ul>
-      </div>
+      <TeamSection />
 
-      <div className="aboutSection">
-        <h3 className="title">Terms and Conditions</h3>
-        <p className="sub">A quick guide to how bookings and patient information are handled through the TopDent website.</p>
+      <PolicyGroup
+        title="Terms and Conditions"
+        intro="A quick guide to how bookings and patient information are handled through the TopDent website."
+        items={terms}
+      />
 
-        <div className="aboutBox">
-          {terms.map((item) => (
-            <PolicyRow key={item.label} {...item} />
-          ))}
-        </div>
-      </div>
-
-      <div className="aboutSection">
-        <h3 className="title">Privacy Policy</h3>
-        <p className="sub">This explains how patient information is collected, stored, and used in the TopDent system.</p>
-
-        <div className="aboutBox">
-          {privacy.map((item) => (
-            <PolicyRow key={item.label} {...item} />
-          ))}
-        </div>
-      </div>
+      <PolicyGroup
+        title="Privacy Policy"
+        intro="This explains how patient information is collected, stored, and used in the TopDent system."
+        items={privacy}
+      />
     </div>
   );
 }

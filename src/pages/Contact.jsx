@@ -17,56 +17,8 @@ export default function Contact() {
     <div className="container">
       <CursorAura />
 
-      <div className="hero">
-        <h1>Contact</h1>
-        <p>Reach the clinic fast with the direct details on the left and a live satellite map on the right.</p>
-      </div>
-
       <div className="contactGrid">
-        <div className="contactCard" data-mascot-target="contact">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Clinic Details</h3>
-              <p className="sub">Everything you need to call, email, or locate the clinic right away.</p>
-            </div>
-            <span className="badge">TopDent</span>
-          </div>
-
-          <div className="iconRow">
-            <div className="iconBubble">📍</div>
-            <div>
-              <div><b>Address</b></div>
-              <div className="smallMuted">{streetAddress}</div>
-              <div className="smallMuted">{cityAddress}</div>
-            </div>
-          </div>
-
-          <div className="iconRow">
-            <div className="iconBubble">☎</div>
-            <div>
-              <div><b>Phone</b></div>
-              <div className="smallMuted">+63 994 376 6421</div>
-            </div>
-          </div>
-
-          <div className="iconRow">
-            <div className="iconBubble">✉</div>
-            <div>
-              <div><b>Email</b></div>
-              <div className="smallMuted">TopDent@gmail.com</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="contactCard contactMapCard" data-mascot-target="contact">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Satellite Map</h3>
-              <p className="sub">A live map view of the clinic area so patients can find the exact location more easily.</p>
-            </div>
-            <span className="badge">Live View</span>
-          </div>
-
+        <div className="contactMapCard" data-mascot-target="contact">
           <div className="contactMapFrame" data-mascot-target="map">
             <button
               type="button"
@@ -93,6 +45,37 @@ export default function Contact() {
               referrerPolicy="no-referrer-when-downgrade"
               title="TopDent satellite map"
             />
+          </div>
+        </div>
+
+        <div className="contactInfo" data-mascot-target="contact">
+          <div className="iconRow">
+            <div className="iconBubble">📍</div>
+            <div>
+              <div><b>Address</b></div>
+              <div className="smallMuted">{streetAddress}</div>
+              <div className="smallMuted">{cityAddress}</div>
+            </div>
+          </div>
+
+          <div className="iconRow">
+            <div className="iconBubble">☎</div>
+            <div>
+              <div><b>Phone</b></div>
+              <a className="smallMuted contactLink" href="tel:+639943766421">
+                +63 994 376 6421
+              </a>
+            </div>
+          </div>
+
+          <div className="iconRow">
+            <div className="iconBubble">✉</div>
+            <div>
+              <div><b>Email</b></div>
+              <a className="smallMuted contactLink" href="mailto:TopDent@gmail.com">
+                TopDent@gmail.com
+              </a>
+            </div>
           </div>
         </div>
       </div>

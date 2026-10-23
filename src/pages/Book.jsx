@@ -16,14 +16,15 @@ import { auth, db, functions } from "../firebase";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
-import { getActiveClosureForDate, getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
+import { getActiveClosureForDate, getBookingServiceOptions } from "../utils/clinic";
 import { buildFullName, splitFullName } from "../utils/names";
 import {
   formatDateLabel,
   formatTimeLabel,
   getClinicAvailability,
-  getDentistDaySchedule,
 } from "../utils/schedule";
+
+const GOOGLE_ICON_URL = "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg";
 
 function pad(n) {
   return String(n).padStart(2, "0");
@@ -80,16 +81,8 @@ function generateUpcomingDates(startDate, count = 12) {
   return dates;
 }
 
-function getMonthStart(dateStr) {
-  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
-  return new Date(base.getFullYear(), base.getMonth(), 1);
-}
-
-function addMonths(date, amount) {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
-}
-
 export default function Book() {
+  const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);
   const [patientProfile, setPatientProfile] = useState(null);
   const [profileDraft, setProfileDraft] = useState(getEmptyProfile());
@@ -104,7 +97,6 @@ export default function Book() {
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [selectedDentistId, setSelectedDentistId] = useState("");
-  const [servicePreviewIndex, setServicePreviewIndex] = useState(0);
   const [date, setDate] = useState(toLocalISODate(new Date()));
   const [time, setTime] = useState("09:00");
   const [notes, setNotes] = useState("");
@@ -113,7 +105,6 @@ export default function Book() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [recentlySubmitted, setRecentlySubmitted] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(() => getMonthStart(toLocalISODate(new Date())));
   const [datePageStart, setDatePageStart] = useState(toLocalISODate(new Date()));
   const [slotOptions, setSlotOptions] = useState([]);
   const [blockedRanges, setBlockedRanges] = useState([]);
@@ -147,7 +138,6 @@ export default function Book() {
     [activeServiceOptions, selectedServices]
   );
   const selectedServiceRecord = selectedServiceRecords[0] || null;
-  const previewServiceRecord = selectedServiceRecords[servicePreviewIndex] || selectedServiceRecord;
   const service = selectedServices.join(", ");
   const serviceDurationMinutes = selectedServiceRecords.reduce(
     (total, entry) => total + Number(entry.durationMinutes || 0),
@@ -158,21 +148,9 @@ export default function Book() {
   const selectedTimeRange = time ? `${formatTimeLabel(time)} - ${formatTimeLabel(selectedTimeEnd)}` : "";
 
   useEffect(() => {
-    if (selectedServiceRecords.length <= 1) {
-      setServicePreviewIndex(0);
-      return undefined;
-    }
-
-    const timer = setInterval(() => {
-      setServicePreviewIndex((current) => (current + 1) % selectedServiceRecords.length);
-    }, 2400);
-
-    return () => clearInterval(timer);
-  }, [selectedServiceRecords.length]);
-
-  useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      setAuthReady(true);
       setSuccess("");
       setError("");
 
@@ -305,47 +283,7 @@ export default function Book() {
   }, [dentists, selectedDentistId]);
   const selectedDentist = selectedDentistRecord?.name || "";
 
-  const selectedDaySchedule = getDentistDaySchedule(selectedDentistRecord, date);
   const selectedAvailability = getClinicAvailability(selectedDentistRecord, date, clinicClosures);
-  const calendarCells = useMemo(() => {
-    const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-    const startOffset = firstDay.getDay();
-    const start = new Date(firstDay);
-    start.setDate(firstDay.getDate() - startOffset);
-
-    return Array.from({ length: 42 }, (_, index) => {
-      const day = new Date(start);
-      day.setDate(start.getDate() + index);
-      const iso = toLocalISODate(day);
-      const isCurrentMonth = day.getMonth() === calendarMonth.getMonth();
-      const closure = getActiveClosureForDate(clinicClosures, iso);
-      const hasDentist = selectedDentistRecord
-        ? getClinicAvailability(selectedDentistRecord, iso, clinicClosures).available
-        : dentists.some(
-            (dentist) =>
-              dentist.archiveStatus !== "Archived" &&
-              getClinicAvailability(dentist, iso, clinicClosures).available
-          );
-
-      return {
-        iso,
-        dayNumber: day.getDate(),
-        isCurrentMonth,
-        isSelected: iso === date,
-        isPast: iso < todayStr,
-        isSunday: isSunday(iso),
-        closure,
-        isAvailable: isCurrentMonth && iso >= todayStr && !isSunday(iso) && !closure && hasDentist,
-      };
-    });
-  }, [calendarMonth, clinicClosures, date, dentists, selectedDentistRecord, todayStr]);
-  const calendarMonthLabel = calendarMonth.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-  useEffect(() => {
-    setCalendarMonth(getMonthStart(date));
-  }, [date]);
 
   useEffect(() => {
     if (!availableDentists.length) {
@@ -424,32 +362,11 @@ export default function Book() {
     };
   }, [date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
 
-  function chooseCalendarDate(cell) {
-    if (!cell.isAvailable || saving || !user) return;
-    setDatePageStart(cell.iso);
-    setDate(cell.iso);
-  }
-
-  function moveCalendarMonth(amount) {
-    const nextMonth = addMonths(calendarMonth, amount);
-    const currentMonth = getMonthStart(todayStr);
-    if (nextMonth < currentMonth) return;
-    setCalendarMonth(nextMonth);
-  }
-
   function moveSuggestedDates(amount) {
     const nextStart = new Date(`${datePageStart}T00:00:00`);
     nextStart.setDate(nextStart.getDate() + amount);
     const nextIso = toLocalISODate(nextStart);
     setDatePageStart(nextIso < todayStr ? todayStr : nextIso);
-  }
-
-  function getCalendarCellLabel(cell) {
-    if (cell.closure) return cell.closure.label;
-    if (cell.isSunday) return "Closed";
-    if (cell.isPast) return "Past";
-    if (!cell.isCurrentMonth) return "";
-    return cell.isAvailable ? "Available" : "Unavailable";
   }
 
   async function loginGoogle() {
@@ -641,6 +558,56 @@ export default function Book() {
     return () => clearTimeout(timer);
   }, [recentlySubmitted]);
 
+  // Waiting for Firebase to tell us if someone is already signed in
+  if (!authReady) {
+    return (
+      <div className="container bookingPage">
+        <div className="googleGate">
+          <SkeletonList count={1} />
+        </div>
+      </div>
+    );
+  }
+
+  // Not signed in -> show the "Continue with Google" screen only
+  if (!user) {
+    return (
+      <div className="container bookingPage">
+        <div className="googleGate" data-mascot-target="booking-auth">
+          <div className="googleGateLogo">
+            <img src={GOOGLE_ICON_URL} alt="Google" />
+          </div>
+          <h2>Continue with Google</h2>
+          <p className="googleGateSub">
+            Use your Google account to sign in or create your patient account.
+          </p>
+
+          <button type="button" className="googleGateBtn" onClick={loginGoogle}>
+            <img src={GOOGLE_ICON_URL} alt="" />
+            Sign in with Google
+          </button>
+
+          {error ? <div className="error" style={{ marginTop: 12 }}>{error}</div> : null}
+
+          <div className="googleGateDivider">
+            <span>OR</span>
+          </div>
+
+          <ul className="googleGatePerks">
+            <li>Quick and easy booking</li>
+            <li>Your appointments saved automatically</li>
+            <li>Secure and private</li>
+          </ul>
+
+          <p className="googleGateTerms">
+            By continuing, you agree to our <a href="/terms">Terms and Conditions</a> and{" "}
+            <a href="/privacy">Privacy Policy</a>.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
     <div className="container bookingPage">
@@ -671,7 +638,7 @@ export default function Book() {
         </div>
       </div>
 
-      <div className="grid" style={{ marginTop: 18 }}>
+      <div className="grid" style={{ marginTop: 18, gridTemplateColumns: "1fr" }}>
         <div className="card bookingFormCard">
           <div className="cardHeader">
             <div>
@@ -682,8 +649,25 @@ export default function Book() {
                   : "Before booking, complete your patient profile so the same Gmail cannot create appointments under different names."}
               </p>
             </div>
-            <span className="badge">{user ? "Signed in" : "Guest"}</span>
+            <span className="badge">Signed in</span>
           </div>
+
+          {/* Hidden collectible (kept from the old summary card) */}
+          <button
+            type="button"
+            className="mascotCurseCollectible mascotCurseCollectible-wand"
+            aria-label="Return the hidden wand"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("topdent:curse-item-found", {
+                  detail: { item: "wand", source: "book" },
+                })
+              );
+            }}
+          >
+            <span className="mascotCurseCollectibleStick" />
+            <span className="mascotCurseCollectibleStar" />
+          </button>
 
           {success ? (
             <div className="successBanner">
@@ -692,15 +676,9 @@ export default function Book() {
             </div>
           ) : null}
 
-          {!user ? (
-            <button className="btn btnShine bookingPrimaryBtn" onClick={loginGoogle} type="button" data-mascot-target="booking-auth">
-              Sign in with Google to Start
-            </button>
-          ) : null}
+          {loadingProfile ? <SkeletonList count={1} /> : null}
 
-          {user && loadingProfile ? <SkeletonList count={1} /> : null}
-
-          {user && !loadingProfile && (editingProfile || !patientProfile) ? (
+          {!loadingProfile && (editingProfile || !patientProfile) ? (
             <form className="form" onSubmit={saveProfile} style={{ marginTop: 12 }} data-mascot-target="book-profile">
               <input
                 className="input"
@@ -826,7 +804,7 @@ export default function Book() {
                       <span className="detailLabel">Choose appointment day</span>
                       <strong className="detailTitle">{formatDateLabel(date)}</strong>
                       <p className="detailSubtitle">
-                        Use the arrows to browse suggested clinic days, or choose from the summary calendar.
+                        Use the arrows to browse suggested clinic days.
                       </p>
                     </div>
                     <div className="bookingDateHighlight">
@@ -1031,173 +1009,6 @@ export default function Book() {
           ) : null}
 
           {error ? <div className="error">{error}</div> : null}
-        </div>
-
-        <div className="card bookingDetailsCard" data-mascot-target="booking-summary">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Appointment Summary</h3>
-              <p className="sub">Review the key appointment details before you submit.</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="mascotCurseCollectible mascotCurseCollectible-wand"
-            aria-label="Return the hidden wand"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent("topdent:curse-item-found", {
-                  detail: { item: "wand", source: "book" },
-                })
-              );
-            }}
-          >
-            <span className="mascotCurseCollectibleStick" />
-            <span className="mascotCurseCollectibleStar" />
-          </button>
-
-          {loadingProfile ? (
-            <SkeletonList count={1} />
-          ) : (
-          <>
-            <div className="bookingServicePreviewCard">
-              <div className="bookingServicePreviewMedia">
-                <img
-                  src={getClinicServiceImage(previewServiceRecord || { name: selectedServices[0] || service })}
-                  alt={previewServiceRecord?.name || service}
-                  onError={(event) => {
-                    event.currentTarget.src = getClinicServiceImage({
-                      name: previewServiceRecord?.name || selectedServices[0] || service,
-                      image: "",
-                    });
-                  }}
-                />
-              </div>
-              <div className="bookingServicePreviewContent">
-                <span className="detailLabel">Selected services</span>
-                <strong>{previewServiceRecord?.name || "Choose service"}</strong>
-                <p>
-                  {previewServiceRecord?.description || "These services are currently available for booking through the clinic scheduler."}
-                </p>
-                {selectedServiceRecords.length > 1 ? (
-                  <span className="bookingPreviewCounter">
-                    Showing {servicePreviewIndex + 1} of {selectedServiceRecords.length} selected services
-                  </span>
-                ) : null}
-                <div className="bookingServiceChips">
-                  {selectedServices.map((serviceName) => (
-                    <span
-                      key={serviceName}
-                      className={previewServiceRecord?.name === serviceName ? "active" : ""}
-                    >
-                      {serviceName}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="detailGrid" style={{ marginTop: 18 }}>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Patient name</span>
-                <strong>{patientProfile?.fullName || "Complete sign-up first"}</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Patient type</span>
-                <strong>{patientProfile?.patientType || "Complete sign-up first"}</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Age</span>
-                <strong>{patientProfile?.age || "Complete sign-up first"}</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Services</span>
-                <strong>{selectedServices.length} selected</strong>
-              </div>
-              <div className="detailBox luxeBox bookingRatesBox">
-                <span className="detailLabel">Starting rates</span>
-                <div className="bookingRateList">
-                  {selectedServiceRecords.length ? (
-                    selectedServiceRecords.map((entry) => (
-                      <div key={entry.name} className="bookingRateItem">
-                        <span>{entry.name}</span>
-                        <strong>{entry.startingRate || "Ask clinic"}</strong>
-                      </div>
-                    ))
-                  ) : (
-                    <strong>Ask clinic</strong>
-                  )}
-                </div>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Estimated duration</span>
-                <strong>{appointmentDurationMinutes} minutes</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Preferred dentist</span>
-                <strong>{selectedDentist || "No dentist available"}</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Appointment day</span>
-                <strong>{formatDateLabel(date)}</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Appointment time</span>
-                <strong>{selectedTimeRange || "Choose time"}</strong>
-              </div>
-              <div className="detailBox luxeBox">
-                <span className="detailLabel">Dentist status</span>
-                <strong>{selectedDentistId && selectedDaySchedule?.active ? "Active" : "Inactive"}</strong>
-              </div>
-            </div>
-
-            <div className="bookingCalendar summaryCalendar" data-mascot-target="booking-calendar">
-              <div className="bookingCalendarHeader">
-                <div>
-                  <span className="detailLabel">
-                    {selectedDentist ? `${selectedDentist} availability` : "Dentist availability"}
-                  </span>
-                  <strong>{calendarMonthLabel}</strong>
-                </div>
-                <div className="bookingCalendarControls">
-                  <button
-                    type="button"
-                    onClick={() => moveCalendarMonth(-1)}
-                    disabled={getMonthStart(todayStr).getTime() === calendarMonth.getTime()}
-                  >
-                    Prev
-                  </button>
-                  <button type="button" onClick={() => moveCalendarMonth(1)}>
-                    Next
-                  </button>
-                </div>
-              </div>
-
-              <div className="bookingCalendarWeekdays">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
-                  <span key={dayName}>{dayName}</span>
-                ))}
-              </div>
-
-              <div className="bookingCalendarGrid">
-                {calendarCells.map((cell) => (
-                  <button
-                    key={cell.iso}
-                    type="button"
-                    className={`bookingCalendarDay ${cell.isSelected ? "active" : ""} ${!cell.isCurrentMonth ? "muted" : ""} ${cell.isAvailable ? "available" : "blocked"}`}
-                    onClick={() => chooseCalendarDate(cell)}
-                    disabled={!user || saving || !cell.isAvailable}
-                    title={getCalendarCellLabel(cell)}
-                  >
-                    <strong>{cell.dayNumber}</strong>
-                    <span>{getCalendarCellLabel(cell)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-          )}
         </div>
       </div>
     </div>

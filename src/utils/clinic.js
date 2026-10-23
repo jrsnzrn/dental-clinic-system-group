@@ -1,10 +1,10 @@
 import { normalizeText } from "./appointments";
-import bracesImg from "../assets/services/braces.png";
-import cleaningImg from "../assets/services/cleaning.png";
-import extractionImg from "../assets/services/extraction.png";
-import fillingsImg from "../assets/services/fillings.png";
-import rootCanalImg from "../assets/services/rootcanal.png";
-import whiteningImg from "../assets/services/whitening.png";
+import bracesImg from "../assets/services/braces.jpg";
+import cleaningImg from "../assets/services/cleaning.jpg";
+import extractionImg from "../assets/services/extraction.jpg";
+import fillingsImg from "../assets/services/fillings.jpg";
+import rootCanalImg from "../assets/services/rootcanal.jpg";
+import whiteningImg from "../assets/services/whitening.jpg";
 
 export const CLINIC_SERVICE_IMAGES = {
   braces: bracesImg,

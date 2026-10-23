@@ -1,13 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import { doc, onSnapshot, query, collection, updateDoc, serverTimestamp, where } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  collection,
+  updateDoc,
+  serverTimestamp,
+  where,
+} from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { formatDateLabel, formatTimeLabel, formatTimestamp, getClinicAvailability } from "../utils/schedule";
+import {
+  formatDateLabel,
+  formatTimeLabel,
+  formatTimestamp,
+  getClinicAvailability,
+  getDentistDaySchedule,
+} from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
-import { getActiveClosureForDate } from "../utils/clinic";
+import {
+  getActiveClosureForDate,
+  getBookingServiceOptions,
+  getClinicServiceImage,
+} from "../utils/clinic";
 
 function pad(n) {
   return String(n).padStart(2, "0");
+}
+
+function toLocalISODate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function isSunday(dateStr) {
+  return new Date(`${dateStr}T00:00:00`).getDay() === 0;
+}
+
+function getMonthStart(dateStr) {
+  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+  return new Date(base.getFullYear(), base.getMonth(), 1);
+}
+
+function addMonths(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
 }
 
 function timeToMinutes(timeStr = "") {
@@ -28,6 +65,17 @@ function getBookingTimeRange(booking) {
   return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
 }
 
+function getBookingServiceNames(booking) {
+  if (!booking) return [];
+  if (Array.isArray(booking.selectedServices) && booking.selectedServices.length) {
+    return booking.selectedServices;
+  }
+  return String(booking.service || "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
 function buildSlots() {
   const slots = [];
   for (let h = 9; h <= 17; h += 1) {
@@ -41,14 +89,14 @@ function getNextBookableDates(count = 10) {
   const result = [];
   const cursor = new Date();
   while (result.length < count) {
-    const iso = cursor.toISOString().slice(0, 10);
-    if (new Date(`${iso}T00:00:00`).getDay() !== 0) result.push(iso);
+    const iso = toLocalISODate(cursor);
+    if (!isSunday(iso)) result.push(iso);
     cursor.setDate(cursor.getDate() + 1);
   }
   return result;
 }
 
-function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
+function AppointmentCard({ booking, isViewing, onViewSummary, onStartReschedule, onStartCancellation }) {
   const isCompleted = Boolean(booking.checkedInAt);
   const appointmentTimeRange = getBookingTimeRange(booking);
   const canRequestChanges =
@@ -117,16 +165,26 @@ function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
         ) : null}
       </div>
 
-      {canRequestChanges ? (
-        <div className="actionColumn actionColumnFriendly">
-          <button className="btn btnShine patientActionBtn" onClick={() => onStartReschedule(booking)}>
-            Request Reschedule
-          </button>
-          <button className="btn secondary patientActionBtn" type="button" onClick={() => onStartCancellation(booking)}>
-            Request Cancellation
-          </button>
-        </div>
-      ) : null}
+      <div className="actionColumn actionColumnFriendly">
+        <button
+          className="btn secondary btnSoft patientActionBtn"
+          type="button"
+          onClick={() => onViewSummary(booking)}
+          disabled={isViewing}
+        >
+          {isViewing ? "Viewing Summary" : "View Summary"}
+        </button>
+        {canRequestChanges ? (
+          <>
+            <button className="btn btnShine patientActionBtn" type="button" onClick={() => onStartReschedule(booking)}>
+              Request Reschedule
+            </button>
+            <button className="btn secondary patientActionBtn" type="button" onClick={() => onStartCancellation(booking)}>
+              Request Cancellation
+            </button>
+          </>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -142,11 +200,13 @@ function buildStatusGroups(bookings) {
 
 export default function MyAppointments() {
   const [user, setUser] = useState(null);
+  const [patientProfile, setPatientProfile] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [editingBookingId, setEditingBookingId] = useState("");
+  const [summaryBookingId, setSummaryBookingId] = useState("");
   const [requestMode, setRequestMode] = useState("reschedule");
   const [rescheduleDraft, setRescheduleDraft] = useState({
     requestedDate: "",
@@ -155,7 +215,11 @@ export default function MyAppointments() {
   });
   const [dentists, setDentists] = useState([]);
   const [clinicClosures, setClinicClosures] = useState([]);
+  const [clinicServices, setClinicServices] = useState([]);
+  const [servicePreviewIndex, setServicePreviewIndex] = useState(0);
+  const [calendarMonth, setCalendarMonth] = useState(() => getMonthStart(toLocalISODate(new Date())));
   const slotOptions = useMemo(() => buildSlots(), []);
+  const todayStr = toLocalISODate(new Date());
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
@@ -167,6 +231,24 @@ export default function MyAppointments() {
 
     return () => unsubAuth();
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setPatientProfile(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    getDoc(doc(db, "patientProfiles", user.uid))
+      .then((snap) => {
+        if (!cancelled) setPatientProfile(snap.exists() ? snap.data() : null);
+      })
+      .catch((profileError) => console.error(profileError));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -207,9 +289,16 @@ export default function MyAppointments() {
     const unsubClosures = onSnapshot(collection(db, "clinicClosures"), (snapshot) => {
       setClinicClosures(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
     });
+    const unsubServices = onSnapshot(
+      query(collection(db, "clinicServices"), orderBy("name", "asc")),
+      (snapshot) => {
+        setClinicServices(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+      }
+    );
     return () => {
       unsubDentists();
       unsubClosures();
+      unsubServices();
     };
   }, []);
 
@@ -222,6 +311,122 @@ export default function MyAppointments() {
     [bookings]
   );
 
+  /* ---------- Appointment Summary data ---------- */
+  const summaryBooking = useMemo(
+    () => bookings.find((entry) => entry.id === summaryBookingId) || nextAppointment || null,
+    [bookings, nextAppointment, summaryBookingId]
+  );
+  const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
+  const summaryServiceNames = useMemo(() => getBookingServiceNames(summaryBooking), [summaryBooking]);
+  const summaryServiceRecords = useMemo(
+    () => summaryServiceNames
+      .map((name) => activeServiceOptions.find((entry) => entry.name === name))
+      .filter(Boolean),
+    [activeServiceOptions, summaryServiceNames]
+  );
+  const previewServiceRecord = summaryServiceRecords[servicePreviewIndex] || summaryServiceRecords[0] || null;
+  const summaryDuration =
+    Number(summaryBooking?.estimatedDurationMinutes) ||
+    summaryServiceRecords.reduce((total, entry) => total + Number(entry.durationMinutes || 0), 0) ||
+    60;
+  const summaryDentist = useMemo(
+    () => dentists.find((entry) => entry.name === summaryBooking?.selectedDentist) || null,
+    [dentists, summaryBooking]
+  );
+  const summaryDaySchedule = summaryBooking
+    ? getDentistDaySchedule(summaryDentist, summaryBooking.date)
+    : null;
+  const summaryStatus = summaryBooking?.checkedInAt
+    ? "Completed"
+    : summaryBooking?.status
+      ? summaryBooking.status.charAt(0).toUpperCase() + summaryBooking.status.slice(1)
+      : "Pending";
+  const patientName =
+    patientProfile?.fullName ||
+    [patientProfile?.firstName, patientProfile?.lastName].filter(Boolean).join(" ") ||
+    user?.displayName ||
+    "-";
+
+  useEffect(() => {
+    if (summaryServiceRecords.length <= 1) {
+      setServicePreviewIndex(0);
+      return undefined;
+    }
+
+    const timer = setInterval(() => {
+      setServicePreviewIndex((current) => (current + 1) % summaryServiceRecords.length);
+    }, 2400);
+
+    return () => clearInterval(timer);
+  }, [summaryServiceRecords.length]);
+
+  useEffect(() => {
+    if (summaryBooking?.date) setCalendarMonth(getMonthStart(summaryBooking.date));
+  }, [summaryBooking?.date]);
+
+  const highlightedDate =
+    editingBookingId && requestMode === "reschedule" && rescheduleDraft.requestedDate
+      ? rescheduleDraft.requestedDate
+      : summaryBooking?.date || "";
+
+  const calendarCells = useMemo(() => {
+    const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const start = new Date(firstDay);
+    start.setDate(firstDay.getDate() - firstDay.getDay());
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      const iso = toLocalISODate(day);
+      const isCurrentMonth = day.getMonth() === calendarMonth.getMonth();
+      const closure = getActiveClosureForDate(clinicClosures, iso);
+      const hasDentist = summaryDentist
+        ? getClinicAvailability(summaryDentist, iso, clinicClosures).available
+        : dentists.some(
+            (dentist) =>
+              dentist.archiveStatus !== "Archived" &&
+              getClinicAvailability(dentist, iso, clinicClosures).available
+          );
+
+      return {
+        iso,
+        dayNumber: day.getDate(),
+        isCurrentMonth,
+        isSelected: iso === highlightedDate,
+        isPast: iso < todayStr,
+        isSunday: isSunday(iso),
+        closure,
+        isAvailable: isCurrentMonth && iso >= todayStr && !isSunday(iso) && !closure && hasDentist,
+      };
+    });
+  }, [calendarMonth, clinicClosures, dentists, highlightedDate, summaryDentist, todayStr]);
+
+  const calendarMonthLabel = calendarMonth.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  function moveCalendarMonth(amount) {
+    const nextMonth = addMonths(calendarMonth, amount);
+    if (nextMonth < getMonthStart(todayStr)) return;
+    setCalendarMonth(nextMonth);
+  }
+
+  function getCalendarCellLabel(cell) {
+    if (cell.closure) return cell.closure.label;
+    if (cell.isSunday) return "Closed";
+    if (cell.isPast) return "Past";
+    if (!cell.isCurrentMonth) return "";
+    return cell.isAvailable ? "Available" : "Unavailable";
+  }
+
+  function chooseCalendarDate(cell) {
+    if (!cell.isAvailable) return;
+    if (!editingBookingId || requestMode !== "reschedule") return;
+    setRescheduleDraft((current) => ({ ...current, requestedDate: cell.iso }));
+  }
+
+  /* ---------- Reschedule suggestions ---------- */
   const rescheduleSuggestions = useMemo(() => {
     if (!editingBookingId) return [];
     const booking = bookings.find((entry) => entry.id === editingBookingId);
@@ -256,9 +461,14 @@ export default function MyAppointments() {
     return suggestions;
   }, [bookings, clinicClosures, dentists, editingBookingId, slotOptions]);
 
+  function viewSummary(booking) {
+    setSummaryBookingId(booking.id);
+  }
+
   function startReschedule(booking) {
     setRequestMode("reschedule");
     setEditingBookingId(booking.id);
+    setSummaryBookingId(booking.id);
     setRescheduleDraft({
       requestedDate: booking.date || "",
       requestedTime: booking.time || "09:00",
@@ -271,6 +481,7 @@ export default function MyAppointments() {
   function startCancellation(booking) {
     setRequestMode("cancel");
     setEditingBookingId(booking.id);
+    setSummaryBookingId(booking.id);
     setRescheduleDraft({
       requestedDate: booking.date || "",
       requestedTime: booking.time || "09:00",
@@ -399,97 +610,293 @@ export default function MyAppointments() {
 
       {error ? <div className="error" style={{ marginTop: 18 }}>{error}</div> : null}
 
-      {editingBookingId ? (
-        <div className="card adminEditorCard" style={{ marginTop: 18 }}>
+      {/* ===================== FORM + APPOINTMENT SUMMARY ===================== */}
+      <div className="grid" style={{ marginTop: 18 }}>
+        {/* ---------- Form ---------- */}
+        <div className="card adminEditorCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">{requestMode === "cancel" ? "Request a Cancellation" : "Request a New Schedule"}</h3>
+              <h3 className="title">
+                {!editingBookingId
+                  ? "Request a Change"
+                  : requestMode === "cancel"
+                    ? "Request a Cancellation"
+                    : "Request a New Schedule"}
+              </h3>
               <p className="sub">
-                {requestMode === "cancel"
-                  ? "Send one clear cancellation request to the clinic so they can review and confirm it."
-                  : "Send one clear reschedule request to the clinic instead of creating another booking."}
+                {!editingBookingId
+                  ? "Pick an appointment below, then choose Request Reschedule or Request Cancellation."
+                  : requestMode === "cancel"
+                    ? "Send one clear cancellation request to the clinic so they can review and confirm it."
+                    : "Send one clear reschedule request to the clinic instead of creating another booking."}
               </p>
             </div>
-            <button className="searchClearBtn" type="button" onClick={() => setEditingBookingId("")}>
-              Close
-            </button>
+            {editingBookingId ? (
+              <button className="searchClearBtn" type="button" onClick={() => setEditingBookingId("")}>
+                Close
+              </button>
+            ) : null}
           </div>
 
-          {requestMode === "reschedule" ? (
-            <div className="bookingFlowGrid">
-              <label className="bookingFieldCard" data-mascot-target="appointment-request-date">
-                <span className="detailLabel">Requested date</span>
-                <input
-                  className="input bookingInputSpecial"
-                  type="date"
-                  value={rescheduleDraft.requestedDate}
-                  onChange={(e) =>
-                    setRescheduleDraft((current) => ({ ...current, requestedDate: e.target.value }))
-                  }
-                />
-              </label>
+          {editingBookingId ? (
+            <>
+              {requestMode === "reschedule" ? (
+                <div className="bookingFlowGrid">
+                  <label className="bookingFieldCard" data-mascot-target="appointment-request-date">
+                    <span className="detailLabel">Requested date</span>
+                    <input
+                      className="input bookingInputSpecial"
+                      type="date"
+                      value={rescheduleDraft.requestedDate}
+                      onChange={(e) =>
+                        setRescheduleDraft((current) => ({ ...current, requestedDate: e.target.value }))
+                      }
+                    />
+                  </label>
 
-              <label className="bookingFieldCard" data-mascot-target="appointment-request-time">
-                <span className="detailLabel">Requested time</span>
-                <input
-                  className="input bookingInputSpecial"
-                  type="time"
-                  value={rescheduleDraft.requestedTime}
-                  onChange={(e) =>
-                    setRescheduleDraft((current) => ({ ...current, requestedTime: e.target.value }))
-                  }
-                />
-              </label>
+                  <label className="bookingFieldCard" data-mascot-target="appointment-request-time">
+                    <span className="detailLabel">Requested time</span>
+                    <input
+                      className="input bookingInputSpecial"
+                      type="time"
+                      value={rescheduleDraft.requestedTime}
+                      onChange={(e) =>
+                        setRescheduleDraft((current) => ({ ...current, requestedTime: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              <textarea
+                className="input"
+                rows={4}
+                placeholder={requestMode === "cancel" ? "Reason for cancellation (required)" : "Reason for reschedule (required)"}
+                value={rescheduleDraft.reason}
+                onChange={(e) =>
+                  setRescheduleDraft((current) => ({ ...current, reason: e.target.value }))
+                }
+                data-mascot-target="appointment-request-reason"
+                style={{ marginTop: 14 }}
+              />
+
+              {requestMode === "reschedule" && rescheduleSuggestions.length ? (
+                <div className="detailNote historyPanel" style={{ marginTop: 14 }}>
+                  <span className="detailLabel">Suggested reschedule slots</span>
+                  <div className="inlineActionRow">
+                    {rescheduleSuggestions.map((option) => (
+                      <button
+                        key={`${option.date}-${option.time}`}
+                        className="btn secondary btnSoft"
+                        type="button"
+                        onClick={() =>
+                          setRescheduleDraft((current) => ({
+                            ...current,
+                            requestedDate: option.date,
+                            requestedTime: option.time,
+                          }))
+                        }
+                      >
+                        {formatDateLabel(option.date)} • {formatTimeLabel(option.time)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <button
+                className="btn btnShine bookingPrimaryBtn"
+                type="button"
+                style={{ marginTop: 14 }}
+                onClick={() => submitAppointmentRequest(editingBookingId)}
+              >
+                {requestMode === "cancel" ? "Send Cancellation Request" : "Send Reschedule Request"}
+              </button>
+            </>
+          ) : (
+            <div className="emptyEditorState">
+              No request in progress. Use the buttons on any appointment below to start one.
             </div>
-          ) : null}
-
-          <textarea
-            className="input"
-            rows={4}
-            placeholder={requestMode === "cancel" ? "Reason for cancellation (required)" : "Reason for reschedule (required)"}
-            value={rescheduleDraft.reason}
-            onChange={(e) =>
-              setRescheduleDraft((current) => ({ ...current, reason: e.target.value }))
-            }
-            data-mascot-target="appointment-request-reason"
-            style={{ marginTop: 14 }}
-          />
-
-          {requestMode === "reschedule" && rescheduleSuggestions.length ? (
-            <div className="detailNote historyPanel" style={{ marginTop: 14 }}>
-              <span className="detailLabel">Suggested reschedule slots</span>
-              <div className="inlineActionRow">
-                {rescheduleSuggestions.map((option) => (
-                  <button
-                    key={`${option.date}-${option.time}`}
-                    className="btn secondary btnSoft"
-                    type="button"
-                    onClick={() =>
-                      setRescheduleDraft((current) => ({
-                        ...current,
-                        requestedDate: option.date,
-                        requestedTime: option.time,
-                      }))
-                    }
-                  >
-                    {formatDateLabel(option.date)} • {formatTimeLabel(option.time)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          <button
-            className="btn btnShine bookingPrimaryBtn"
-            type="button"
-            style={{ marginTop: 14 }}
-            onClick={() => submitAppointmentRequest(editingBookingId)}
-          >
-            {requestMode === "cancel" ? "Send Cancellation Request" : "Send Reschedule Request"}
-          </button>
+          )}
         </div>
-      ) : null}
 
+        {/* ---------- Appointment Summary ---------- */}
+        <div className="card bookingDetailsCard" data-mascot-target="booking-summary">
+          <div className="cardHeader">
+            <div>
+              <h3 className="title">Appointment Summary</h3>
+              <p className="sub">
+                {summaryBooking
+                  ? summaryBooking.id === nextAppointment?.id
+                    ? "Showing your next upcoming appointment."
+                    : "Showing the appointment you selected."
+                  : "Review the key details of your appointment."}
+              </p>
+            </div>
+            {summaryBooking ? (
+              <span className={`statusPill ${summaryBooking.checkedInAt ? "approved" : summaryBooking.status || "pending"}`}>
+                {summaryStatus}
+              </span>
+            ) : null}
+          </div>
+
+          {loading ? (
+            <div className="emptyEditorState">Loading your appointments...</div>
+          ) : !summaryBooking ? (
+            <div className="emptyEditorState">
+              You have no appointment to summarize yet. Book one and it will show up here.
+            </div>
+          ) : (
+            <>
+              <div className="bookingServicePreviewCard">
+                <div className="bookingServicePreviewMedia">
+                  <img
+                    src={getClinicServiceImage(previewServiceRecord || { name: summaryServiceNames[0] || summaryBooking.service })}
+                    alt={previewServiceRecord?.name || summaryBooking.service || "Service"}
+                    onError={(event) => {
+                      event.currentTarget.src = getClinicServiceImage({
+                        name: previewServiceRecord?.name || summaryServiceNames[0] || summaryBooking.service,
+                        image: "",
+                      });
+                    }}
+                  />
+                </div>
+                <div className="bookingServicePreviewContent">
+                  <span className="detailLabel">Booked services</span>
+                  <strong>{previewServiceRecord?.name || summaryServiceNames[0] || summaryBooking.service || "Consultation"}</strong>
+                  <p>
+                    {previewServiceRecord?.description || "These services were booked through the clinic scheduler."}
+                  </p>
+                  {summaryServiceRecords.length > 1 ? (
+                    <span className="bookingPreviewCounter">
+                      Showing {servicePreviewIndex + 1} of {summaryServiceRecords.length} booked services
+                    </span>
+                  ) : null}
+                  <div className="bookingServiceChips">
+                    {summaryServiceNames.map((serviceName) => (
+                      <span
+                        key={serviceName}
+                        className={previewServiceRecord?.name === serviceName ? "active" : ""}
+                      >
+                        {serviceName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="detailGrid" style={{ marginTop: 18 }}>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Patient name</span>
+                  <strong>{patientName}</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Patient type</span>
+                  <strong>{patientProfile?.patientType || "-"}</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Age</span>
+                  <strong>{patientProfile?.age || "-"}</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Services</span>
+                  <strong>
+                    {summaryServiceNames.length} booked
+                  </strong>
+                </div>
+                <div className="detailBox luxeBox bookingRatesBox">
+                  <span className="detailLabel">Starting rates</span>
+                  <div className="bookingRateList">
+                    {summaryServiceRecords.length ? (
+                      summaryServiceRecords.map((entry) => (
+                        <div key={entry.name} className="bookingRateItem">
+                          <span>{entry.name}</span>
+                          <strong>{entry.startingRate || "Ask clinic"}</strong>
+                        </div>
+                      ))
+                    ) : (
+                      <strong>Ask clinic</strong>
+                    )}
+                  </div>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Estimated duration</span>
+                  <strong>{summaryDuration} minutes</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Dentist</span>
+                  <strong>{summaryBooking.selectedDentist || "Clinic dentist"}</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Appointment day</span>
+                  <strong>{formatDateLabel(summaryBooking.date)}</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Appointment time</span>
+                  <strong>{getBookingTimeRange(summaryBooking)}</strong>
+                </div>
+                <div className="detailBox luxeBox">
+                  <span className="detailLabel">Dentist status</span>
+                  <strong>{summaryDentist && summaryDaySchedule?.active ? "Active" : "Inactive"}</strong>
+                </div>
+              </div>
+
+              <div className="bookingCalendar summaryCalendar" data-mascot-target="booking-calendar">
+                <div className="bookingCalendarHeader">
+                  <div>
+                    <span className="detailLabel">
+                      {summaryBooking.selectedDentist ? `${summaryBooking.selectedDentist} availability` : "Dentist availability"}
+                    </span>
+                    <strong>{calendarMonthLabel}</strong>
+                  </div>
+                  <div className="bookingCalendarControls">
+                    <button
+                      type="button"
+                      onClick={() => moveCalendarMonth(-1)}
+                      disabled={getMonthStart(todayStr).getTime() === calendarMonth.getTime()}
+                    >
+                      Prev
+                    </button>
+                    <button type="button" onClick={() => moveCalendarMonth(1)}>
+                      Next
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bookingCalendarWeekdays">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+                    <span key={dayName}>{dayName}</span>
+                  ))}
+                </div>
+
+                <div className="bookingCalendarGrid">
+                  {calendarCells.map((cell) => (
+                    <button
+                      key={cell.iso}
+                      type="button"
+                      className={`bookingCalendarDay ${cell.isSelected ? "active" : ""} ${!cell.isCurrentMonth ? "muted" : ""} ${cell.isAvailable ? "available" : "blocked"}`}
+                      onClick={() => chooseCalendarDate(cell)}
+                      disabled={!cell.isAvailable}
+                      title={getCalendarCellLabel(cell)}
+                    >
+                      <strong>{cell.dayNumber}</strong>
+                      <span>{getCalendarCellLabel(cell)}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {editingBookingId && requestMode === "reschedule" ? (
+                  <p className="bookingFieldHint" style={{ marginTop: 10 }}>
+                    Tap an available day to use it as your requested date.
+                  </p>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ===================== APPOINTMENT LISTS ===================== */}
       <div className="adminPanelGrid" style={{ marginTop: 18 }}>
         {[
           ["Pending", groupedBookings.pending, "Appointments waiting for clinic approval."],
@@ -514,6 +921,8 @@ export default function MyAppointments() {
                   <AppointmentCard
                     key={booking.id}
                     booking={booking}
+                    isViewing={booking.id === summaryBooking?.id}
+                    onViewSummary={viewSummary}
                     onStartReschedule={startReschedule}
                     onStartCancellation={startCancellation}
                   />
