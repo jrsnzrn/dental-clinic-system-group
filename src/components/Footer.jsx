@@ -9,37 +9,30 @@ const THEME_OPTIONS = [
   {
     id: "dark",
     icon: (
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.2 15.4A8.6 8.6 0 0 1 8.6 3.8 8.8 8.8 0 1 0 20.2 15.4Z" />
       </svg>
-    )
+    ),
   },
   {
     id: "light",
     icon: (
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1" x2="12" y2="3"/>
-        <line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-        <line x1="1" y1="12" x2="3" y2="12"/>
-        <line x1="21" y1="12" x2="23" y2="12"/>
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
       </svg>
-    )
+    ),
   },
   {
     id: "blue",
     icon: (
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.03454 16.5542 7.09086 14.6154 9.61538 14.6154H14.3846C16.9091 14.6154 18.9655 16.5542 19.1414 19C17.3732 20.8038 14.9026 22 12 22Z"/>
-        <circle cx="7.5" cy="10.5" r="1.5"/>
-        <circle cx="11.5" cy="7.5" r="1.5"/>
-        <circle cx="16.5" cy="9.5" r="1.5"/>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3a9 9 0 1 0 0 18h1.1a2.4 2.4 0 0 0 1.7-4.1 1.2 1.2 0 0 1 .8-2.1H18a3 3 0 0 0 3-3c0-4.9-4-8.8-9-8.8Z" />
+        <circle cx="7.5" cy="10" r="1" />
+        <circle cx="11" cy="7" r="1" />
+        <circle cx="16" cy="8.5" r="1" />
       </svg>
-    )
+    ),
   },
 ];
 

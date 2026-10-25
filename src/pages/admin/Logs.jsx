@@ -66,8 +66,8 @@ export default function Logs() {
   );
 
   return (
-    <div className="container adminSurface">
-      <div className="auditHeader">
+    <div className="container adminSurface auditPage">
+      <header className="adminPageHeader auditHeader">
         <div>
           <span className="heroEyebrow">Audit Center</span>
           <h1 className="auditTitle">Activity Logs</h1>
@@ -76,7 +76,7 @@ export default function Logs() {
           </p>
         </div>
         <span className="badge">{filteredLogs.length} entries</span>
-      </div>
+      </header>
 
       <div className="auditFilterBar">
         <div className="searchWrapper">

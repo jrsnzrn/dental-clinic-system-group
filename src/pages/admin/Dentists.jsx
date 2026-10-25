@@ -12,10 +12,10 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import {
   DAY_ORDER,
   createDefaultSchedule,
-  formatExceptionSummary,
   formatTimeLabel,
   getDentistScheduleStatus,
   normalizeScheduleExceptions,
@@ -34,6 +34,8 @@ export default function Dentists() {
   const [detailDrafts, setDetailDrafts] = useState({});
   const [draftSchedules, setDraftSchedules] = useState({});
   const [exceptionDrafts, setExceptionDrafts] = useState({});
+  const [confirmState, setConfirmState] = useState(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   const [name, setName] = useState("");
   const [specialization, setSpecialization] = useState("");
@@ -109,15 +111,18 @@ export default function Dentists() {
 
   // Close the dentist modal with the Escape key
   useEffect(() => {
-    if (!expandedDentistId) return;
+    if (!expandedDentistId && !addModalOpen) return;
 
     const onKeyDown = (event) => {
-      if (event.key === "Escape") setExpandedDentistId("");
+      if (event.key === "Escape") {
+        setExpandedDentistId("");
+        setAddModalOpen(false);
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [expandedDentistId]);
+  }, [addModalOpen, expandedDentistId]);
 
   async function addDentist(e) {
     e.preventDefault();
@@ -152,6 +157,7 @@ export default function Dentists() {
     setName("");
     setSpecialization("");
     setLinkedStaffUid("");
+    setAddModalOpen(false);
   }
 
   function getBookingCount(dentistName) {
@@ -316,14 +322,6 @@ export default function Dentists() {
     await updateDoc(doc(db, "dentists", dentist.id), { scheduleExceptions: nextExceptions });
   }
 
-  const summary = useMemo(() => {
-    const activeDentists = dentists.filter((dentist) => dentist.archiveStatus !== "Archived");
-    return {
-      total: activeDentists.length,
-      activeToday: activeDentists.filter((dentist) => normalizeSchedule(dentist.schedule)[todayKey]?.active).length,
-    };
-  }, [dentists]);
-
   const visibleDentists = useMemo(
     () => dentists.filter((dentist) => dentist.archiveStatus !== "Archived"),
     [dentists]
@@ -343,6 +341,13 @@ export default function Dentists() {
     });
   }
 
+  async function handleConfirmAction() {
+    if (!confirmState?.action) return;
+    const action = confirmState.action;
+    setConfirmState(null);
+    await action();
+  }
+
   // The dentist currently open in the modal (if any)
   const openDentist = visibleDentists.find((entry) => entry.id === expandedDentistId) || null;
   const openDetailDraft = openDentist
@@ -358,80 +363,26 @@ export default function Dentists() {
   const openExceptions = openDentist ? normalizeScheduleExceptions(openDentist.scheduleExceptions) : [];
 
   return (
-    <div className="container adminSurface">
-      <div className="hero">
-        <h1>Dentists Management</h1>
-        <p>Click a dentist to adjust weekly availability. A dentist is marked active only on days enabled in the schedule, and users cannot book them on inactive days.</p>
-      </div>
-
-      <div className="grid" style={{ marginTop: 18 }}>
-        <div className="card">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Add Dentist</h3>
-              <p className="sub">New dentists start with a Mon-Sat 9:00 AM to 6:00 PM schedule.</p>
-            </div>
-          </div>
-
-          <form onSubmit={addDentist} className="form">
-            <input
-              className="input"
-              placeholder="Dentist Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-
-            <input
-              className="input"
-              placeholder="Specialization (e.g. Orthodontist)"
-              value={specialization}
-              onChange={(e) => setSpecialization(e.target.value)}
-            />
-            <select
-              className="input"
-              value={linkedStaffUid}
-              onChange={(e) => setLinkedStaffUid(e.target.value)}
-            >
-              <option value="">Link dentist staff account</option>
-              {staffAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name || account.email} {account.email ? `- ${account.email}` : ""}
-                </option>
-              ))}
-            </select>
-
-            <button className="btn">Add Dentist</button>
-          </form>
+    <div className="container adminSurface dentistManagementPage">
+      <header className="adminPageHeader dentistManagementHeader">
+        <div>
+          <h1>Dentists</h1>
+          <p>Manage dentist profiles, availability, and linked staff accounts.</p>
         </div>
+      </header>
 
-        <div className="card">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Schedule Overview</h3>
-              <p className="sub">Current-day activity comes directly from the weekly scheduler.</p>
-            </div>
-          </div>
-
-          <div className="statsGrid compact">
-            <div className="statCard">
-              <span className="statLabel">Dentists</span>
-              <strong className="statValue">{summary.total}</strong>
-            </div>
-            <div className="statCard">
-              <span className="statLabel">Active today</span>
-              <strong className="statValue">{summary.activeToday}</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="card adminRecordsCard" style={{ marginTop: 24 }}>
-        <div className="cardHeader">
+      <section className="card adminRecordsCard dentistRecordsCard">
+        <div className="cardHeader dentistRecordsHeader">
           <div>
             <h3 className="title">Dentist Records</h3>
             <p className="sub">Click a dentist to review details, adjust the weekly schedule, and manage exceptions.</p>
           </div>
-          <span className="badge">{visibleDentists.length} records</span>
+          <div className="dentistRecordsActions">
+            <span className="badge">{visibleDentists.length} records</span>
+            <button className="btn dentistAddButton" type="button" onClick={() => setAddModalOpen(true)}>
+              + Add Dentist
+            </button>
+          </div>
         </div>
 
         {visibleDentists.length ? (
@@ -444,7 +395,7 @@ export default function Dentists() {
                   <th>Email</th>
                   <th>Linked Login</th>
                   <th>Bookings</th>
-                  <th className="patientTableStatusHead"></th>
+                  <th className="patientTableStatusHead">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -485,10 +436,79 @@ export default function Dentists() {
         ) : (
           <div className="emptyEditorState" style={{ marginTop: 16 }}>
             <strong>No dentists yet</strong>
-            <p>Add a dentist above and they will appear in this list.</p>
+            <p>Add a dentist to see their record here.</p>
           </div>
         )}
-      </div>
+      </section>
+
+      {addModalOpen
+        ? createPortal(
+            <>
+              <div className="dentistModalOverlay" onClick={() => setAddModalOpen(false)} />
+              <form
+                className="schedulerPanel dentistModal addDentistDialog"
+                onSubmit={addDentist}
+                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="addDentistTitle"
+              >
+                <div className="patientDrawerHeader">
+                  <div>
+                    <strong className="detailTitle" id="addDentistTitle">Add Dentist</strong>
+                    <p className="detailSubtitle">New dentists start with a Mon-Sat 9:00 AM to 6:00 PM schedule.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="patientDrawerCloseBtn"
+                    onClick={() => setAddModalOpen(false)}
+                    aria-label="Close Add Dentist form"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="form addDentistForm">
+                  <input
+                    className="input"
+                    aria-label="Dentist Name"
+                    placeholder="Dentist Name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                  <input
+                    className="input"
+                    aria-label="Specialization"
+                    placeholder="Specialization (e.g. Orthodontist)"
+                    value={specialization}
+                    onChange={(event) => setSpecialization(event.target.value)}
+                  />
+                  <select
+                    className="input"
+                    aria-label="Link dentist staff account"
+                    value={linkedStaffUid}
+                    onChange={(event) => setLinkedStaffUid(event.target.value)}
+                  >
+                    <option value="">Link dentist staff account</option>
+                    {staffAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name || account.email} {account.email ? `- ${account.email}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="addDentistActions">
+                  <button className="btn secondary" type="button" onClick={() => setAddModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btnShine" type="submit">Add Dentist</button>
+                </div>
+              </form>
+            </>,
+            document.body
+          )
+        : null}
 
       {openDentist
         ? createPortal(
@@ -502,15 +522,14 @@ export default function Dentists() {
                 role="dialog"
                 aria-modal="true"
               >
-                <div className="patientDrawerHeader">
-                  <div>
+                <div className="patientDrawerHeader dentistProfileHeader">
+                  <div className="dentistProfileInfo">
                     <strong className="detailTitle">{openDentist.name}</strong>
-                    <p className="detailSubtitle">
-                      {openDentist.specialization || "No specialization"} • {openDentist.email || "No email"}
-                    </p>
-                    <p className="detailSubtitle">
-                      {openDentist.linkedStaffName || openDentist.linkedStaffEmail || "No linked dentist login yet"}
-                    </p>
+                    <div className="dentistProfileMeta">
+                      <span><strong>Specialization</strong>{openDentist.specialization || "Not specified"}</span>
+                      <span><strong>Email</strong>{openDentist.email || "No email"}</span>
+                      <span><strong>Linked account</strong>{openDentist.linkedStaffName || openDentist.linkedStaffEmail || "Not linked"}</span>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -522,7 +541,7 @@ export default function Dentists() {
                   </button>
                 </div>
 
-                <div className="detailNote">
+                <section className="detailNote dentistSchedulePreview">
                   <span className="detailLabel">Weekly schedule</span>
                   <div className="weekSummary">
                     {DAY_ORDER.map((day) => {
@@ -545,176 +564,214 @@ export default function Dentists() {
                       );
                     })}
                   </div>
-                </div>
+                </section>
 
-                <div className="detailNote">
-                  <span className="detailLabel">Schedule exceptions</span>
-                  <p>{formatExceptionSummary(openExceptions)}</p>
-                </div>
-
-                <div className="cardHeader">
-                  <div>
-                    <h3 className="title">Dentist Details</h3>
-                    <p className="sub">Update the specialization and linked login shown in the dentist list.</p>
+                <details className="dentistExceptions">
+                  <summary>
+                    <span>Schedule Exceptions</span>
+                    <span className="dentistExceptionCount">
+                      {openExceptions.length
+                        ? `${openExceptions.length} exception${openExceptions.length === 1 ? "" : "s"}`
+                        : "No exceptions"}
+                    </span>
+                  </summary>
+                  {openExceptions.length ? (
+                    <ul className="list">
+                      {openExceptions.map((entry) => (
+                        <li key={`${openDentist.id}-${entry.date}`} className="item">
+                          <div className="kv">
+                            <strong>{entry.date} • {entry.label}</strong>
+                            <span>{entry.active ? `${entry.start} - ${entry.end}` : "Unavailable all day"}</span>
+                          </div>
+                          <button className="btn danger" type="button" onClick={() => setConfirmState({
+                            title: "Remove this schedule exception?",
+                            message: `The schedule exception for ${entry.date} will be removed.`,
+                            confirmLabel: "Remove Exception",
+                            tone: "danger",
+                            action: () => removeException(openDentist, entry.date),
+                          })}>
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="dentistExceptionEmpty">No schedule exceptions yet.</p>
+                  )}
+                  <div className="dentistExceptionForm">
+                    <div className="dentistExceptionFields">
+                      <label>
+                        <span>Date</span>
+                        <input className="input" aria-label="Exception date" type="date" value={exceptionDrafts[openDentist.id]?.date || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "date", event.target.value)} />
+                      </label>
+                      <label>
+                        <span>Label</span>
+                        <input className="input" aria-label="Exception label" placeholder="e.g. Leave, Half-day" value={exceptionDrafts[openDentist.id]?.label || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "label", event.target.value)} />
+                      </label>
+                    </div>
+                    <div className="dentistExceptionFields">
+                      <label>
+                        <span>Availability</span>
+                        <select className="input" value={String(exceptionDrafts[openDentist.id]?.active || false)} onChange={(event) => updateExceptionDraft(openDentist.id, "active", event.target.value === "true")}>
+                          <option value="false">Unavailable all day</option>
+                          <option value="true">Available with custom hours</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Start time</span>
+                        <input className="input" aria-label="Exception start time" type="time" value={exceptionDrafts[openDentist.id]?.start || "09:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "start", event.target.value)} />
+                      </label>
+                      <label>
+                        <span>End time</span>
+                        <input className="input" aria-label="Exception end time" type="time" value={exceptionDrafts[openDentist.id]?.end || "18:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "end", event.target.value)} />
+                      </label>
+                    </div>
+                    <div className="dentistEditorActions">
+                      <button className="btn btnShine" type="button" onClick={() => addException(openDentist)}>
+                        Save Exception
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </details>
 
-                <div className="bookingFlowGrid">
-                  <input
-                    className="input"
-                    placeholder="Specialization"
-                    value={openDetailDraft.specialization}
-                    onChange={(event) => updateDetailDraft(openDentist.id, "specialization", event.target.value)}
-                  />
-                  <select
-                    className="input"
-                    value={openDetailDraft.linkedStaffUid || ""}
-                    onChange={(event) => updateDetailDraft(openDentist.id, "linkedStaffUid", event.target.value)}
-                  >
-                    <option value="">No linked dentist login</option>
-                    {staffAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name || account.email} {account.email ? `- ${account.email}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="inlineActionRow">
-                  <button className="btn btnShine" type="button" onClick={() => saveDentistDetails(openDentist)}>
-                    Save Dentist Details
-                  </button>
-                  <button
-                    className="btn secondary"
-                    type="button"
-                    onClick={() =>
-                      setDetailDrafts((current) => ({
-                        ...current,
-                        [openDentist.id]: {
-                          email: openDentist.email || "",
-                          specialization: openDentist.specialization || "",
-                          linkedStaffUid: openDentist.linkedStaffUid || "",
-                        },
-                      }))
-                    }
-                  >
-                    Reset Details
-                  </button>
-                </div>
-
-                <div className="cardHeader">
-                  <div>
-                    <h3 className="title">Adjust Schedule</h3>
-                    <p className="sub">Turn each day on or off and set the dentist's working hours.</p>
+                <section className="dentistEditorSection">
+                  <div className="cardHeader dentistEditorSectionHeader">
+                    <div>
+                      <h3 className="title">Dentist Details</h3>
+                      <p className="sub">Update the specialization and linked login shown in the dentist list.</p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="schedulerGrid">
-                  {DAY_ORDER.map((day) => (
-                    <div key={day.key} className="schedulerRow">
-                      <label className="schedulerDay">
+                  <div className="dentistDetailFields">
+                    <label>
+                      <span>Specialization</span>
+                      <input
+                        className="input"
+                        placeholder="Specialization"
+                        value={openDetailDraft.specialization}
+                        onChange={(event) => updateDetailDraft(openDentist.id, "specialization", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Linked staff account</span>
+                      <select
+                        className="input"
+                        value={openDetailDraft.linkedStaffUid || ""}
+                        onChange={(event) => updateDetailDraft(openDentist.id, "linkedStaffUid", event.target.value)}
+                      >
+                        <option value="">No linked dentist login</option>
+                        {staffAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name || account.email} {account.email ? `- ${account.email}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="inlineActionRow dentistEditorActions">
+                    <button className="btn btnShine" type="button" onClick={() => saveDentistDetails(openDentist)}>
+                      Save Dentist Details
+                    </button>
+                    <button
+                      className="btn secondary"
+                      type="button"
+                      onClick={() =>
+                        setDetailDrafts((current) => ({
+                          ...current,
+                          [openDentist.id]: {
+                            email: openDentist.email || "",
+                            specialization: openDentist.specialization || "",
+                            linkedStaffUid: openDentist.linkedStaffUid || "",
+                          },
+                        }))
+                      }
+                    >
+                      Reset Details
+                    </button>
+                  </div>
+                </section>
+
+                <section className="dentistEditorSection">
+                  <div className="cardHeader dentistEditorSectionHeader">
+                    <div>
+                      <h3 className="title">Adjust Schedule</h3>
+                      <p className="sub">Turn each day on or off and set the dentist's working hours.</p>
+                    </div>
+                  </div>
+
+                  <div className="schedulerGrid">
+                    {DAY_ORDER.map((day) => (
+                      <div key={day.key} className={`schedulerRow ${openSchedule[day.key].active ? "isEnabled" : "isDisabled"}`}>
+                        <label className="schedulerDay">
+                          <input
+                            type="checkbox"
+                            checked={openSchedule[day.key].active}
+                            onChange={(event) =>
+                              updateDraftSchedule(openDentist.id, day.key, "active", event.target.checked)
+                            }
+                          />
+                          <span>{day.label}</span>
+                        </label>
+
                         <input
-                          type="checkbox"
-                          checked={openSchedule[day.key].active}
+                          className="input"
+                          type="time"
+                          aria-label={`${day.label} start time`}
+                          value={openSchedule[day.key].start}
+                          disabled={!openSchedule[day.key].active}
                           onChange={(event) =>
-                            updateDraftSchedule(openDentist.id, day.key, "active", event.target.checked)
+                            updateDraftSchedule(openDentist.id, day.key, "start", event.target.value)
                           }
                         />
-                        <span>{day.label}</span>
-                      </label>
 
-                      <input
-                        className="input"
-                        type="time"
-                        value={openSchedule[day.key].start}
-                        disabled={!openSchedule[day.key].active}
-                        onChange={(event) =>
-                          updateDraftSchedule(openDentist.id, day.key, "start", event.target.value)
-                        }
-                      />
-
-                      <input
-                        className="input"
-                        type="time"
-                        value={openSchedule[day.key].end}
-                        disabled={!openSchedule[day.key].active}
-                        onChange={(event) =>
-                          updateDraftSchedule(openDentist.id, day.key, "end", event.target.value)
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="schedulerActions">
-                  <button className="btn btnShine" type="button" onClick={() => saveSchedule(openDentist)}>
-                    Save Schedule
-                  </button>
-                  <button
-                    className="btn secondary"
-                    type="button"
-                    onClick={() =>
-                      setDraftSchedules((current) => ({
-                        ...current,
-                        [openDentist.id]: normalizeSchedule(openDentist.schedule),
-                      }))
-                    }
-                  >
-                    Reset Changes
-                  </button>
-                </div>
-
-                <div className="cardHeader">
-                  <div>
-                    <h3 className="title">Schedule Exceptions</h3>
-                    <p className="sub">Use date-specific overrides for leave, half-days, holidays, or emergency changes.</p>
-                  </div>
-                </div>
-
-                <div className="bookingFlowGrid">
-                  <input className="input" type="date" value={exceptionDrafts[openDentist.id]?.date || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "date", event.target.value)} />
-                  <input className="input" placeholder="Label (e.g. Leave, Half-day)" value={exceptionDrafts[openDentist.id]?.label || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "label", event.target.value)} />
-                </div>
-
-                <div className="bookingFlowGrid">
-                  <select className="input" value={String(exceptionDrafts[openDentist.id]?.active || false)} onChange={(event) => updateExceptionDraft(openDentist.id, "active", event.target.value === "true")}>
-                    <option value="false">Unavailable all day</option>
-                    <option value="true">Available with custom hours</option>
-                  </select>
-                  <input className="input" type="time" value={exceptionDrafts[openDentist.id]?.start || "09:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "start", event.target.value)} />
-                  <input className="input" type="time" value={exceptionDrafts[openDentist.id]?.end || "18:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "end", event.target.value)} />
-                </div>
-
-                <div className="inlineActionRow">
-                  <button className="btn btnShine" type="button" onClick={() => addException(openDentist)}>
-                    Save Exception
-                  </button>
-                </div>
-
-                {openExceptions.length ? (
-                  <ul className="list">
-                    {openExceptions.map((entry) => (
-                      <li key={`${openDentist.id}-${entry.date}`} className="item">
-                        <div className="kv">
-                          <strong>{entry.date} • {entry.label}</strong>
-                          <span>{entry.active ? `${entry.start} - ${entry.end}` : "Unavailable all day"}</span>
-                        </div>
-                        <button className="btn danger" type="button" onClick={() => removeException(openDentist, entry.date)}>
-                          Remove
-                        </button>
-                      </li>
+                        <input
+                          className="input"
+                          type="time"
+                          aria-label={`${day.label} end time`}
+                          value={openSchedule[day.key].end}
+                          disabled={!openSchedule[day.key].active}
+                          onChange={(event) =>
+                            updateDraftSchedule(openDentist.id, day.key, "end", event.target.value)
+                          }
+                        />
+                      </div>
                     ))}
-                  </ul>
-                ) : null}
+                  </div>
+
+                  <div className="schedulerActions dentistEditorActions">
+                    <button className="btn btnShine" type="button" onClick={() => saveSchedule(openDentist)}>
+                      Save Schedule
+                    </button>
+                    <button
+                      className="btn secondary"
+                      type="button"
+                      onClick={() =>
+                        setDraftSchedules((current) => ({
+                          ...current,
+                          [openDentist.id]: normalizeSchedule(openDentist.schedule),
+                        }))
+                      }
+                    >
+                      Reset Changes
+                    </button>
+                  </div>
+                </section>
 
                 <div className="actionColumn actionColumnFriendly">
                   <button
                     className="btn patientActionBtn archiveButton"
                     type="button"
-                    onClick={async () => {
-                      await archiveDentist(openDentist.id);
-                      setExpandedDentistId("");
-                    }}
+                    onClick={() => setConfirmState({
+                      title: "Archive this dentist?",
+                      message: `${openDentist.name} will be removed from the active dentist list.`,
+                      confirmLabel: "Archive Dentist",
+                      tone: "archive",
+                      action: async () => {
+                        await archiveDentist(openDentist.id);
+                        setExpandedDentistId("");
+                      },
+                    })}
                   >
                     Archive Dentist
                   </button>
@@ -724,6 +781,15 @@ export default function Dentists() {
             document.body
           )
         : null}
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmLabel={confirmState?.confirmLabel}
+        tone={confirmState?.tone}
+        onClose={() => setConfirmState(null)}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }

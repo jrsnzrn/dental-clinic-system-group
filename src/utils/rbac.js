@@ -56,7 +56,7 @@ export function getDefaultAdminPath(role) {
 
 export const ADMIN_NAV_BY_ROLE = {
   [ROLES.ADMIN]: [
-    { to: "/admin/analytics", label: "Analytics" },
+    { to: "/admin/analytics", label: "Overview" },
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Bookings" },
     { to: "/admin/braces", label: "Payments" },
@@ -70,7 +70,7 @@ export const ADMIN_NAV_BY_ROLE = {
   [ROLES.RECEPTIONIST]: [
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Bookings" },
-    { to: "/admin/braces", label: "Braces" },
+    { to: "/admin/braces", label: "Payment" },
     { to: "/admin/archive", label: "Archive" },
   ],
   [ROLES.DENTIST]: [

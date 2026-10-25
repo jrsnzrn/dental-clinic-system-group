@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
@@ -166,6 +167,7 @@ export default function Accounts() {
   const [menuId, setMenuId] = useState("");
   const [sortBy, setSortBy] = useState("role");
   const [search, setSearch] = useState("");
+  const [confirmAccount, setConfirmAccount] = useState(null);
 
   const labelOf = (account) => account.email || account.name || "Staff account";
 
@@ -300,6 +302,14 @@ export default function Accounts() {
       setListError("Disable the staff account first before archiving it.");
       return undefined;
     }
+    setConfirmAccount(account);
+    return undefined;
+  }
+
+  async function handleConfirmArchive() {
+    if (!confirmAccount) return;
+    const account = confirmAccount;
+    setConfirmAccount(null);
     return runAccountAction(
       account,
       () => ARCHIVE_STAFF_ACCOUNT({ uid: account.id }),
@@ -337,6 +347,13 @@ export default function Accounts() {
 
   return (
     <div className="container adminSurface acctPage">
+      <header className="adminPageHeader acctPageHeader">
+        <div>
+          <h1>Staff Accounts</h1>
+          <p>Manage staff access, roles, and security settings.</p>
+        </div>
+      </header>
+
       {success ? (
         <div className="successBanner acctBanner acctToast" role="status">
           <span>{success}</span>
@@ -511,6 +528,16 @@ export default function Accounts() {
           </form>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(confirmAccount)}
+        title="Archive this staff account?"
+        message={`${labelOf(confirmAccount || {})} will be removed from the active accounts list.`}
+        confirmLabel="Archive Account"
+        tone="archive"
+        onClose={() => setConfirmAccount(null)}
+        onConfirm={handleConfirmArchive}
+      />
     </div>
   );
 }

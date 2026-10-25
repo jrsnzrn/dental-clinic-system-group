@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import clinicPhoto from "../assets/about-clinic.jpg";
 import treatmentPhoto from "../assets/home-clinic-treatment.jpg";
 import dentist1 from "../assets/dentist1.png";
@@ -63,39 +62,6 @@ const privacy = [
     body: "Sensitive records should only be managed by authorized clinic personnel. The clinic is responsible for protecting patient data stored in connected services.",
   },
 ];
-
-function useRevealOnScroll() {
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const targets = el.querySelectorAll(".revealOnScroll");
-
-    if (!("IntersectionObserver" in window)) {
-      targets.forEach((t) => t.classList.add("visible"));
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15 }
-    );
-
-    targets.forEach((t) => observer.observe(t));
-    return () => observer.disconnect();
-  }, []);
-
-  return containerRef;
-}
 
 function TeamGroup({ label, people }) {
   return (
@@ -162,10 +128,8 @@ function PolicyGroup({ title, intro, items }) {
 }
 
 export default function About() {
-  const pageRef = useRevealOnScroll();
-
   return (
-    <div className="container bookingPage aboutPage" ref={pageRef}>
+    <div className="container bookingPage aboutPage">
       <CursorAura />
 
       <header className="aboutSection aboutHero">

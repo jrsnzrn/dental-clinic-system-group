@@ -112,6 +112,14 @@ html[data-theme="blue"] {
   --text-promo: #1d2a35;
 }
 
+html[data-dashboard="true"][data-theme="light"] {
+  --bg: #ffffff;
+}
+
+html[data-dashboard="true"][data-theme="blue"] {
+  --bg: #f8fafc;
+}
+
 * {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
@@ -329,7 +337,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   padding: 6px 16px;
   border: 1px solid var(--line);
   color: var(--text);
-  background: rgba(var(--accent-rgb), 0.06);
+  background: transparent;
 }
 
 .btn {
@@ -364,7 +372,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* ==========================================================================
-   SITE FOOTER 
+   SITE FOOTER
    ========================================================================== */
 
 .siteFooter {
@@ -445,64 +453,46 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
 
 .footerThemeSwitcher {
   display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
+  align-items: center;
+  gap: 7px;
 }
 
 .footerThemeSwitcher .themeChip {
-  width: auto;
-  height: auto;
-  min-height: 0;
-  padding: 7px 16px;
-  border: none;
-  border-right: none;
-  border-radius: 999px;
-  font-family: var(--font-nav);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--muted);
-  background: transparent;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: background-color 0.25s var(--ease-cinematic), color 0.25s var(--ease-cinematic);
-}
-
-.footerThemeSwitcher .themeChip:hover,
-.footerThemeSwitcher .themeChip:focus-visible {
-  color: var(--text);
-}
-
-.footerThemeSwitcher .themeChip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.footerThemeSwitcher .themeChip.active {
-  background: var(--accent);
-  color: #2b2410;
-}
-
-.footerThemeSwitcher .themeChip .themeDot {
-  width: 8px;
-  height: 8px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
+  background: transparent;
+  color: var(--muted);
 }
 
 .footerThemeSwitcher .themeChip svg {
-  width: 13px;
-  height: 13px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.footerThemeSwitcher .themeChip:hover:not(.active) {
+  background: color-mix(in srgb, var(--text) 5%, var(--bg));
+  color: var(--text);
+}
+
+.footerThemeSwitcher .themeChip.active {
+  border-color: #ffd60a;
+  border-radius: 50%;
+  background: #ffd60a;
+  color: #2b2410;
+}
+
+.footerThemeSwitcher .themeChip:focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 2px;
 }
 
 .footerCopy {
@@ -559,10 +549,6 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--muted);
-}
-
-.footerBrandGroup .footerThemeSwitcher {
-  margin-top: 2px;
 }
 
 /* ==========================================================================
@@ -728,7 +714,6 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
 
 @media (max-width: 480px) {
   .siteFooter { padding: 56px 0 32px; }
-  .footerThemeSwitcher .themeChip { padding: 7px 12px; font-size: 12px; }
   .footerCopyBottom { margin-top: 36px; }
 }
 /* ==========================================================================
@@ -783,7 +768,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeLanding {
   background: var(--bg-landing);
-  padding: 96px 0 80px;
+  padding: clamp(72px, 8vw, 96px) 0;
 }
 
 .homeLandingInner {
@@ -1283,7 +1268,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeWhyUs {
   background: var(--bg-whyus);
-  padding: 96px 0;
+  padding: clamp(72px, 8vw, 96px) 0;
 }
 
 .homeWhyUsInner {
@@ -1420,45 +1405,6 @@ section > .innerWrap > p,
   margin: 0;
 }
 
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes whyUsFadeUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to { opacity: 1; transform: none; }
-    }
-
-    @keyframes whyUsWipe {
-      from { clip-path: inset(100% 0 0 0); }
-      to { clip-path: inset(0 0 0 0); }
-    }
-
-    @keyframes whyUsZoom {
-      from { transform: scale(1.15); }
-      to { transform: scale(1); }
-    }
-
-    .homeWhyUsVisual {
-      animation: whyUsWipe linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 70%;
-    }
-
-    .homeWhyUsVisual img {
-      animation: whyUsZoom linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 100%;
-    }
-
-    .homeWhyUsContent h2,
-    .homeWhyUsContent > p,
-    .whyUsCard {
-      animation: whyUsFadeUp linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 60%;
-    }
-  }
-}
-
 @media (max-width: 860px) {
   .homeWhyUs {
     padding: 72px 0;
@@ -1501,7 +1447,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeGalleryBand {
   background: var(--bg-gallery);
-  padding: 96px 0;
+  padding: clamp(72px, 8vw, 96px) 0;
 }
 
 .homeGalleryIntro {
@@ -1583,7 +1529,7 @@ section > .innerWrap > p,
 
 .homeSmile {
   background: var(--bg-smile, var(--bg));
-  padding: 96px 0;
+  padding: clamp(72px, 8vw, 96px) 0;
   overflow: hidden;
 }
 
@@ -1685,7 +1631,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeServices {
   background: var(--bg-services);
-  padding: 96px 0;
+  padding: clamp(72px, 8vw, 96px) 0;
 }
 
 .homeServicesIntro {
@@ -1821,7 +1767,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeDoctors {
   background: var(--bg-doctors);
-  padding: 96px 0;
+  padding: clamp(72px, 8vw, 96px) 0;
 }
 
 .homeDoctorsIntro {
@@ -1980,7 +1926,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeFeedback {
   background: var(--bg-feedback);
-  padding: 96px 0;
+  padding: clamp(72px, 8vw, 96px) 0;
 }
 
 .homeFeedbackIntro {
@@ -2157,7 +2103,7 @@ section > .innerWrap > p,
 
 .homePromo .btnPrimary16 {
   background: var(--text-promo);
-  color: #fff;
+  color: var(--bg);
   border: 1px solid var(--text-promo);
 }
 
@@ -2179,36 +2125,113 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 /*  Scroll-reveal / effects                                         */
 /* ---------------------------------------------------------------- */
-.feedbackCard,
-.whyUsCard,
-.serviceCardIcon,
-.doctorCard {
+.publicAnimationScope .publicScrollReveal {
   opacity: 0;
-  transform: translateY(var(--reveal-dist, 24px));
-  transition: opacity 0.7s var(--ease-cinematic-heavy), transform 0.7s var(--ease-cinematic-heavy);
+  transform: translateY(12px);
+  transition:
+    opacity 420ms var(--ease-cinematic) var(--reveal-delay, 0ms),
+    transform 420ms var(--ease-cinematic) var(--reveal-delay, 0ms);
 }
 
-.feedbackCard.visible,
-.whyUsCard.visible,
-.serviceCardIcon.visible,
-.doctorCard.visible {
+.publicAnimationScope .publicScrollReveal.visible {
   opacity: 1;
   transform: translateY(0);
 }
 
-.serviceCardIcon:nth-child(2) { transition-delay: 0.08s; }
-.serviceCardIcon:nth-child(3) { transition-delay: 0.16s; }
-.serviceCardIcon:nth-child(4) { transition-delay: 0.24s; }
-.serviceCardIcon:nth-child(5) { transition-delay: 0.32s; }
+.publicAnimationScope img.publicScrollReveal {
+  transition-delay: calc(var(--reveal-delay, 0ms) + 40ms);
+}
+
+.publicAnimationScope .btn:hover:not(:disabled):not(:active),
+.publicAnimationScope .btnPrimary16:hover,
+.publicAnimationScope .btnOutline16:hover,
+.publicAnimationScope .exploreServicesLink:hover svg {
+  transform: none;
+}
+
+.homeLandingCopy > :nth-child(2) { --reveal-delay: 70ms; }
+.homeLandingCopy > :nth-child(3) { --reveal-delay: 140ms; }
+.homeLandingCopy > :nth-child(4) { --reveal-delay: 210ms; }
+.homeLandingVisual img { --reveal-delay: 120ms; }
+
+.homeOffersGrid > .homeOfferCard:nth-child(2) { --reveal-delay: 80ms; }
+.homeOffersGrid > .homeOfferCard:nth-child(3) { --reveal-delay: 160ms; }
+.homeOffersGrid > .homeOfferCard:nth-child(4) { --reveal-delay: 240ms; }
+
+.homeWhyUsVisual img { --reveal-delay: 60ms; }
+.homeWhyUsContent > p { --reveal-delay: 60ms; }
+
+.homeGalleryIntro > :nth-child(2),
+.smileIntro > :nth-child(2),
+.homeServicesIntro > :nth-child(2),
+.homeDoctorsIntro > :nth-child(2),
+.homeFeedbackIntro > :nth-child(2) { --reveal-delay: 60ms; }
+
+.homePromoInner > :nth-child(2) { --reveal-delay: 70ms; }
+
+.serviceCardIcon:nth-child(2) { --reveal-delay: 80ms; }
+.serviceCardIcon:nth-child(3) { --reveal-delay: 160ms; }
+.serviceCardIcon:nth-child(4) { --reveal-delay: 240ms; }
+.serviceCardIcon:nth-child(5) { --reveal-delay: 320ms; }
+
+.whyUsCard:nth-child(2) { --reveal-delay: 40ms; }
+.whyUsCard:nth-child(3) { --reveal-delay: 80ms; }
+.whyUsCard:nth-child(4) { --reveal-delay: 120ms; }
+
+.homeGalleryCard:nth-child(2),
+.doctorCard:nth-child(2) { --reveal-delay: 50ms; }
+.homeGalleryCard:nth-child(3),
+.doctorCard:nth-child(3) { --reveal-delay: 100ms; }
+.homeGalleryCard:nth-child(4) { --reveal-delay: 150ms; }
+
+.smileCard:nth-child(2) { --reveal-delay: 50ms; }
+.smileCard:nth-child(3) { --reveal-delay: 100ms; }
+
+.feedbackCard:nth-child(2) { --reveal-delay: 40ms; }
+.feedbackCard:nth-child(3) { --reveal-delay: 80ms; }
+.feedbackCard:nth-child(4) { --reveal-delay: 120ms; }
+.feedbackCard:nth-child(5) { --reveal-delay: 160ms; }
+.feedbackCard:nth-child(6) { --reveal-delay: 200ms; }
+
+.svxCard:nth-child(2) { --reveal-delay: 40ms; }
+.svxCard:nth-child(3) { --reveal-delay: 80ms; }
+.svxCard:nth-child(4) { --reveal-delay: 120ms; }
+.svxCard:nth-child(5) { --reveal-delay: 160ms; }
+
+.contactInfo .iconRow:nth-child(2) { --reveal-delay: 50ms; }
+.contactInfo .iconRow:nth-child(3) { --reveal-delay: 100ms; }
+
+.publicAnimationScope.publicPageEnter {
+  animation: publicPageEnter 220ms var(--ease-cinematic) both;
+}
+
+@keyframes publicPageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes publicPageFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .feedbackCard,
-  .whyUsCard,
-  .serviceCardIcon,
-  .doctorCard {
-    opacity: 1;
+  .publicAnimationScope .publicScrollReveal {
     transform: none;
-    transition: none;
+    transition: opacity 120ms ease-out;
+    transition-delay: 0ms;
+  }
+
+  .publicAnimationScope img.publicScrollReveal {
+    transition-delay: 0ms;
+  }
+
+  .aboutPage .revealOnScroll {
+    --reveal-delay: 0ms;
+  }
+
+  .publicAnimationScope.publicPageEnter {
+    animation: publicPageFadeIn 120ms ease-out both;
   }
 }
 /* ==========================================================================
@@ -2284,13 +2307,9 @@ section > .innerWrap > p,
   color: var(--svx-card-text);
   text-align: center;
   scroll-snap-align: start;
-  transition: transform 0.4s var(--ease-cinematic), box-shadow 0.4s var(--ease-cinematic);
-}
-
-.svxCard:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent);
-  box-shadow: var(--shadow, 0 18px 40px rgba(0, 0, 0, 0.35));
+  transition:
+    opacity 420ms var(--ease-cinematic) var(--reveal-delay, 0ms),
+    transform 420ms var(--ease-cinematic);
 }
 
 .svxCardName {
@@ -2314,11 +2333,6 @@ section > .innerWrap > p,
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.8s var(--ease-cinematic);
-}
-
-.svxCard:hover .svxImg {
-  transform: scale(1.04);
 }
 
 .svxImg.isScary {
@@ -2393,10 +2407,11 @@ section > .innerWrap > p,
     transition: none;
   }
 
-  .svxCard:hover,
-  .svxCard:hover .svxImg {
+  .publicAnimationScope .svxCard.publicScrollReveal {
+    opacity: 1;
     transform: none;
   }
+
 }
 
 /* ==========================================================================
@@ -2469,13 +2484,6 @@ html[data-theme="blue"] .mapFrame {
   font-size: 18px;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  transition: transform 0.25s var(--ease-cinematic, ease),
-              background 0.25s var(--ease-cinematic, ease);
-}
-
-.iconRow:hover .iconBubble {
-  transform: translateY(-2px);
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .iconRow b {
@@ -2499,8 +2507,10 @@ html[data-theme="blue"] .mapFrame {
   transition: color 0.2s ease;
 }
 
-.contactLink:hover {
-  color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .contactLink:hover {
+    color: var(--accent);
+  }
 }
 
 /* --------------------------------------------------------------------
@@ -2521,10 +2531,6 @@ html[data-theme="blue"] .mapFrame {
 @media (prefers-reduced-motion: reduce) {
   .iconBubble {
     transition: none !important;
-  }
-
-  .iconRow:hover .iconBubble {
-    transform: none !important;
   }
 
   .mascotCurseCollectible {
@@ -2568,7 +2574,7 @@ html[data-theme="blue"] .googleGateTerms{color:#666}
 html[data-theme="light"] .googleGateTerms a,
 html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
 /* ==========================================================================
-   ABOUT US PAGE 
+   ABOUT US PAGE
    ========================================================================== */
 
 .aboutPage *,
@@ -2786,18 +2792,7 @@ html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
 }
 
 .aboutPage .revealOnScroll {
-  opacity: 0;
-  transform: translateY(20px);
-  transition:
-    opacity 0.7s ease var(--d, 0ms),
-    transform 0.7s var(--about-ease) var(--d, 0ms);
-  animation: aboutFadeIn 0.7s var(--about-ease) 1.5s forwards;
-}
-
-.aboutPage .revealOnScroll.visible {
-  opacity: 1;
-  transform: none;
-  animation: none;
+  --reveal-delay: var(--d, 0ms);
 }
 
 .aboutPolicyList {
@@ -2963,15 +2958,9 @@ html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
     animation: none;
   }
 
-  .aboutPage .revealOnScroll {
-    opacity: 1;
-    transform: none;
-    transition: none;
-    animation: none;
-  }
 }
 /* ==========================================================================
-   LOGIN / ROLE AUTH PAGE 
+   LOGIN / ROLE AUTH PAGE
    ========================================================================== */
 .authWrap {
   min-height: 100vh;
@@ -3386,7 +3375,7 @@ html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
   font-weight: 600;
   color: #2b2410;
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  transition: none;
 }
 html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 .verificationCard .btn.btnWide:hover:not(:disabled) {
@@ -3422,7 +3411,7 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 }
 
 /* --------------------------------------------------------------------
-   ADMIN NAVBAR 
+   ADMIN NAVBAR
    -------------------------------------------------------------------- */
 .adminMobileBar {
   display: none;
@@ -3522,7 +3511,7 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
   flex-direction: column;
   height: 100%;
   padding: 28px 18px;
-  gap: 24px;
+  gap: 16px;
 }
 
 .adminSidebarBrand {
@@ -3601,7 +3590,7 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
   letter-spacing: -0.005em;
   color: var(--muted);
   border-left: 2px solid transparent;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: none;
 }
 
 .adminSidebarLink svg {
@@ -3630,7 +3619,7 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 .adminSidebarLink:focus-visible {
   outline: none;
   border-left-color: var(--accent);
-  background: rgba(var(--accent-rgb), 0.06);
+  background: transparent;
 }
 
 .adminSidebarLink.active {
@@ -3642,26 +3631,6 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 
 .adminSidebarLink.active svg {
   opacity: 1;
-}
-
-.adminSidebarFooter {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
-
-.adminSidebarRole {
-  align-self: flex-start;
-}
-
-.adminSidebarLogout {
-  width: 100%;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-weight: 600;
 }
 
 @media (min-width: 861px) {
@@ -3862,38 +3831,33 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  width: 320px;
-  padding: 10px;
+  width: min(300px, calc(100vw - 24px));
+  max-height: calc(100vh - 88px);
+  max-height: calc(100dvh - 88px);
+  overflow-y: auto;
+  padding: 6px;
   background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(15, 15, 20, 0.1);
+  border: 1px solid color-mix(in srgb, var(--line) 82%, var(--text) 18%);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-6px) scale(0.97);
-  transform-origin: top right;
   pointer-events: none;
-  transition: opacity 0.22s var(--ease-cinematic), transform 0.22s var(--ease-cinematic), visibility 0.22s;
+  transition: opacity 120ms ease, visibility 120ms linear;
   z-index: 1000;
-}
-
-html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
-  background: #121210;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 .accountDropdown.open {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 
 .accountDropdownHead {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 10px 12px;
+  gap: 11px;
+  padding: 7px 8px 9px;
 }
 
 .accountDropdownInfo {
@@ -3913,6 +3877,12 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
   white-space: nowrap;
 }
 
+.accountRole {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .accountEmail {
   font-size: 13px;
   color: var(--muted);
@@ -3923,30 +3893,30 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
 
 .accountDropdownDivider {
   height: 1px;
-  margin: 8px 6px;
+  margin: 5px 4px;
   background: var(--line);
-  opacity: 0.7;
+  opacity: 0.4;
 }
 
 .accountDropdownItem {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
-  padding: 12px 14px;
+  padding: 9px 10px;
   background: transparent;
   color: var(--text);
   border: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
   font-family: var(--font-display);
   letter-spacing: 0;
-  transition: background 0.2s var(--ease-cinematic);
+  transition: none;
 }
 
 .accountDropdownItem:hover {
-  background: rgba(var(--accent-rgb), 0.1);
+  background: color-mix(in srgb, var(--text) 5%, var(--bg));
   opacity: 1;
 }
 
@@ -3959,7 +3929,7 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
   background: none;
   color: var(--muted);
   flex-shrink: 0;
-  transition: color 0.2s var(--ease-cinematic);
+  transition: none;
 }
 
 .accountItemIcon svg {
@@ -4001,7 +3971,7 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
 }
 
 .accountDropdownItem.danger:hover {
-  background: rgba(255, 84, 73, 0.1);
+  background: color-mix(in srgb, var(--danger) 7%, var(--bg));
 }
 
 @media (max-width: 860px) {
@@ -4043,12 +4013,12 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
   }
 
   .accountDropdown {
-    right: -58px;
-    width: min(320px, calc(100vw - 24px));
+    right: 0;
+    width: min(300px, calc(100vw - 24px));
   }
 
   .accountDropdownItem {
-    min-height: 56px;
+    min-height: 44px;
   }
 }
 
@@ -4064,7 +4034,8 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
   .accountChevron,
   .accountDropdown,
   .accountDropdownItem,
-  .accountItemIcon {
+  .accountItemIcon,
+  .accountAppearanceOption {
     transition: none !important;
   }
 }
@@ -4132,6 +4103,8 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
   font-weight: 700;
   color: var(--text);
   border-color: var(--accent);
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .ovBell {
@@ -4612,7 +4585,35 @@ html:not([data-theme="light"]):not([data-theme="blue"]) .accountDropdown {
 /* ==========================================================================
    ADMIN PATIENTS PAGE
    ========================================================================== */
-  .adminSurface {
+.adminAppMain {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+html[data-theme="light"] .adminAppMain {
+  --bg: #ffffff;
+  --card: #ffffff;
+  --card2: #f7f8fa;
+  --line: #e5e7eb;
+  --line-focus: rgba(var(--accent-rgb), 0.3);
+  --surface: #ffffff;
+  --surface-border: #e5e7eb;
+  --field-bg: #ffffff;
+}
+
+html[data-theme="blue"] .adminAppMain {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --card2: #f1f5f9;
+  --line: #dce4ea;
+  --line-focus: rgba(var(--accent-rgb), 0.35);
+  --surface: #ffffff;
+  --surface-border: #dce4ea;
+  --field-bg: #ffffff;
+}
+
+.adminSurface {
   width: 100%;
   max-width: var(--maxw);
   margin: 0 auto;
@@ -4723,6 +4724,12 @@ input[type="date"].input { min-height: 48px; }
   backdrop-filter: blur(var(--blur));
   box-shadow: var(--shadow, none);
 }
+.adminAppMain .adminSurface .panel {
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: none;
+  backdrop-filter: none;
+}
 .panelHead {
   display: flex;
   align-items: flex-start;
@@ -4794,6 +4801,30 @@ input[type="date"].input { min-height: 48px; }
 .patientRow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .patientName { font-weight: 600; font-size: 15.5px; color: var(--text); }
 .patientRow:hover .patientName { color: var(--accent); }
+.patientListPage .patientTable th,
+.patientListPage .patientTable td {
+  white-space: nowrap;
+}
+.patientListPage .patientTable td:nth-child(2) {
+  color: var(--muted);
+}
+.patientListPage .typeBadge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.patientListPage .typeBadge.regular {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 92%, var(--muted));
+  color: var(--muted);
+}
+.patientListPage .typeBadge.ortho {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+  background: color-mix(in srgb, var(--surface) 84%, var(--accent));
+  color: var(--text);
+}
 .typeSelect { width: auto; min-width: 140px; border-radius: 999px; cursor: pointer; }
 
 /* ---- Badges & status pills ---- */
@@ -4857,49 +4888,56 @@ input[type="date"].input { min-height: 48px; }
 .backLink::before { content: "\2190\00a0"; }
 .backLink:hover { color: var(--accent); }
 
-.recordHeader { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 14px; }
-.recordIdentity { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
-.recordBadges { display: flex; flex-wrap: wrap; gap: 8px; }
-.recordName { margin: 0; font-size: 30px; color: var(--text); overflow-wrap: anywhere; }
+.recordHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.recordIdentity { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; }
+.recordBadges { display: flex; flex-wrap: wrap; gap: 6px; }
+.recordName { margin: 0; font-size: clamp(21px, 3vw, 26px); line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
 
 .recordTabs {
   display: flex;
-  gap: 6px;
+  gap: 2px;
   overflow-x: auto;
-  padding-bottom: 2px;
-  border-bottom: 1px solid rgba(var(--accent-rgb), 0.45);
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--line);
 }
 .recordTab {
   flex: none;
-  padding: 12px 18px;
+  padding: 9px 13px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 550;
   cursor: pointer;
-  transition: color 0.3s var(--ease-cinematic), border-color 0.3s var(--ease-cinematic);
+  transition: none;
 }
-.recordTab:hover { color: var(--text); }
-.recordTab.active { color: var(--text); border-bottom-color: var(--accent); }
+.recordTab:hover { color: var(--muted); }
+.recordTab.active { color: var(--text); font-weight: 650; border-bottom-color: var(--accent); }
 
 /* ---- Patient Details tab ---- */
 .pdl { display: flex; flex-direction: column; }
-.pdlList { margin: 0; }
-.pdlRow {
+.pdlList {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  align-items: center;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(var(--accent-rgb), 0.45);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
 }
-.pdlRow:first-child { padding-top: 4px; }
-.pdlRow:last-child { border-bottom: 0; }
-.pdlRow dt { font-size: 15px; color: var(--muted); }
-.pdlRow dd { margin: 0; font-size: 16.5px; font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+.pdlRow {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 66px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+.pdlRow dt { font-size: 12px; font-weight: 500; color: var(--muted); }
+.pdlRow dd { margin: 0; font-size: 14px; font-weight: 550; color: var(--text); overflow-wrap: anywhere; }
 
 .pdlForm {
   display: grid;
@@ -4943,6 +4981,11 @@ input[type="date"].input { min-height: 48px; }
   cursor: pointer;
   transition: border-color 0.25s var(--ease-cinematic), background-color 0.25s var(--ease-cinematic),
     transform 0.25s var(--ease-cinematic);
+}
+.patientDetailsPage .toothMarker,
+.patientDetailsPage .toothMarker.focused {
+  transform: translate(-50%, -50%);
+  transition: none;
 }
 .toothMarker:hover,
 .toothMarker:focus-visible {
@@ -5129,33 +5172,118 @@ input[type="date"].input { min-height: 48px; }
 .modalBody { display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; overflow-y: auto; }
 .modalFoot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid rgba(var(--accent-rgb), 0.45); }
 
-/* ---- Patient record overlay ---- */
-.recordOverlay { z-index: 900; align-items: start; overflow-y: auto; padding: 12px; }
-.recordModal {
-  position: relative;
-  width: 98%;
-  max-width: 1800px; 
-  max-height: none;
+/* ---- Patient record page ---- */
+.patientDetailsPage {
+  width: 100%;
+  max-width: 1600px;
+  min-width: 0;
   margin: 0 auto;
-  padding: 22px 28px;
-  overflow: visible;
 }
-
-.recordModal .recordPage { gap: 12px; }
-.recordModal .input { padding: 8px 12px; font-size: 14.5px; }
-.recordModal select.input,
-.recordModal input[type="date"].input { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
-.recordModal textarea.input { min-height: 64px; }
-.recordModal .fieldLabel { font-size: 13.5px; }
-.recordModal .btn { min-height: 38px; padding: 7px 18px; font-size: 14.5px; }
-.recordModal .planForms { gap: 14px; margin-bottom: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
-.recordModal .planForm { padding: 16px; gap: 10px; }
-.recordModal .panelHead { margin-bottom: 12px; }
-.recordModal .recordTab { padding: 10px 16px; font-size: 14.5px; }
-.recordModal .recordName { font-size: 26px; }
-.recordClose { position: absolute; top: 16px; right: 16px; z-index: 2; }
-.recordModal .recordHeader { padding-right: 48px; }
-.recordModal .panel {
+.patientDetailsPage .recordPage { gap: 12px; }
+.patientDetailsPage .input { padding: 8px 12px; font-size: 14.5px; }
+.patientDetailsPage select.input,
+.patientDetailsPage input[type="date"].input { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
+.patientDetailsPage textarea.input { min-height: 64px; }
+.patientDetailsPage .fieldLabel { font-size: 13.5px; }
+.patientDetailsPage .btn {
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  transition: none;
+}
+.patientDetailsPage .recordHeader > .btnPrimary {
+  color: var(--text);
+  background: var(--card);
+  border-color: var(--line);
+}
+.patientDetailsPage .btnSuccess {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.patientDetailsPage .btnWarning {
+  color: var(--text);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+}
+.patientDetailsPage .recordFooter .btnWarning {
+  color: var(--danger);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+.patientDetailsPage .btnInfo,
+.patientDetailsPage .btnSecondary {
+  color: var(--text);
+  background: var(--card);
+  border-color: var(--line);
+}
+.patientDetailsPage .btnDanger {
+  color: var(--danger);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+.patientDetailsPage .btnTeal {
+  color: var(--accent-teal);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--accent-teal) 45%, var(--line));
+}
+.patientDetailsPage .btn:hover:not(:disabled) {
+  transform: none;
+  opacity: 1;
+}
+.patientDetailsPage .recordHeader > .btnPrimary:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--card);
+  border-color: var(--line);
+}
+.patientDetailsPage .btnSuccess:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.patientDetailsPage .btnWarning:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+}
+.patientDetailsPage .recordFooter .btnWarning:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+.patientDetailsPage .btnInfo:hover:not(:disabled),
+.patientDetailsPage .btnSecondary:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--card);
+  border-color: var(--line);
+}
+.patientDetailsPage .btnDanger:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+.patientDetailsPage .btnTeal:hover:not(:disabled) {
+  color: var(--accent-teal);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--accent-teal) 45%, var(--line));
+}
+.patientDetailsPage .recordTab,
+.patientDetailsPage .backLink {
+  transition: none;
+}
+.patientDetailsPage .recordTab:hover,
+.patientDetailsPage .backLink:hover {
+  color: var(--muted);
+}
+.patientDetailsPage .recordTab.active:hover {
+  color: var(--text);
+}
+.patientDetailsPage .planForms { gap: 14px; margin-bottom: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
+.patientDetailsPage .planForm { padding: 16px; gap: 10px; }
+.patientDetailsPage .panelHead { margin-bottom: 12px; }
+.patientDetailsPage .recordTab { padding: 8px 12px; font-size: 13.5px; }
+.patientDetailsPage .panel {
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -5163,13 +5291,17 @@ input[type="date"].input { min-height: 48px; }
   box-shadow: none;
   backdrop-filter: none;
 }
-.recordModal .recordTabs { margin-bottom: 4px; }
+.patientDetailsPage .recordTabs { margin-bottom: 4px; }
 
 @media (max-width: 640px) {
-  .recordOverlay { padding: 12px; }
-  .recordModal { padding: 20px 16px; }
-  .recordFooter .btn,
+  .patientDetailsPage .recordHeader { align-items: flex-start; }
+  .patientDetailsPage .recordFooter .btn { flex: 0 1 auto; }
+  .patientDetailsPage .pdlRow { gap: 5px; padding: 11px 13px; }
   .confirmActions .btn { flex: 1; }
+}
+
+@media (max-width: 520px) {
+  .patientDetailsPage .pdlList { grid-template-columns: 1fr; }
 }
 
 /* ---- Record footer (Archive / Download PDF) ---- */
@@ -5178,8 +5310,8 @@ input[type="date"].input { min-height: 48px; }
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 24px;
-  padding-top: 18px;
+  margin-top: 16px;
+  padding-top: 14px;
   border-top: 1px solid rgba(var(--accent-rgb), 0.45);
 }
 
@@ -5241,22 +5373,14 @@ input[type="date"].input { min-height: 48px; }
     letter-spacing: 0.05em;
     color: var(--muted);
   }
+
+  .patientListPage .patientTable td:nth-child(2) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
 }
 
-/* ---- Patient record popup size  ---- */
-.modalOverlay.recordOverlay {
-  padding: 24px !important;
-  box-sizing: border-box;
-}
-.modalOverlay.recordOverlay .recordModal,
-.recordOverlay .modalCard,
-.recordModal {
-  box-sizing: border-box !important;
-  width: 100% !important;
-  max-width: 1000px !important; 
-  margin: 0 auto !important;
-  padding: 26px 30px !important;
-}
    /* ==========================================================================
    ADMIN BOOKING PAGE
    ========================================================================== */
@@ -5316,10 +5440,10 @@ input[type="date"].input { min-height: 48px; }
   font-size: 13.5px;
   color: var(--muted);
   text-decoration: none;
-  transition: border-color 0.2s var(--ease-cinematic), color 0.2s var(--ease-cinematic), background 0.2s var(--ease-cinematic);
+  transition: none;
 }
-.subnavItem:hover { border-color: var(--accent); color: var(--accent); }
-.subnavItem.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.subnavItem:hover { border-color: var(--line); color: var(--text); }
+.subnavItem.active { border-color: var(--accent); background: transparent; color: var(--text); }
 
 /* Card */
 .card {
@@ -5381,6 +5505,109 @@ input[type="date"].input { min-height: 48px; }
 .btn.archiveButton { border-color: rgba(var(--accent-rgb), 0.45); background: transparent; color: var(--muted); }
 .btn.archiveButton:hover { border-color: var(--muted); filter: none; }
 
+.adminAppMain .adminSurface .btn,
+.dentistModal .btn {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: none;
+}
+
+.adminAppMain .adminSurface :is(button, a, input, select, textarea),
+.dentistModal :is(button, a, input, select, textarea),
+.adminAppMain .adminSurface :is(.patientRow, .bookingRow, .patientTableRow, .calendarCell, .bookingShowcase, .promoItem, .acctRow, .auditTableRow, .archiveTab, .archiveCard),
+.adminSidebarLink,
+.adminSidebarLink svg,
+.accountTrigger,
+.accountTrigger .accountChevron,
+.accountDropdownItem,
+.accountDropdownItem .accountItemIcon {
+  transition: none;
+}
+
+.adminAppMain .adminSurface .btn:hover:not(:disabled),
+.adminAppMain .adminSurface .btn:active,
+.dentistModal .btn:hover:not(:disabled),
+.dentistModal .btn:active {
+  transform: none;
+  filter: none;
+  opacity: 1;
+}
+
+.adminAppMain .adminSurface .btnPrimary,
+.adminAppMain .adminSurface .btn.btnShine,
+.adminAppMain .adminSurface form .btn[type="submit"],
+.dentistModal .btn.btnShine {
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.adminAppMain .patientDetailsPage .recordHeader > .btnPrimary,
+.adminAppMain .patientDetailsPage .recordFooter .btnInfo,
+.adminAppMain .patientDetailsPage .recordFooter .btnSecondary,
+.adminAppMain .patientDetailsPage .pdlActions .btnSecondary {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.adminAppMain .patientDetailsPage .recordFooter .btnWarning {
+  color: var(--danger);
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+
+.adminAppMain .adminSurface .btnSuccess,
+.dentistModal .btnSuccess {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.adminAppMain .adminSurface .btnSecondary,
+.adminAppMain .adminSurface .btn.btnGhost,
+.adminAppMain .adminSurface .btn.secondary,
+.adminAppMain .adminSurface .btn.btnSoft,
+.adminAppMain .adminSurface .btn.btnInfo,
+.dentistModal .btn.secondary,
+.dentistModal .btn.btnSoft {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.adminAppMain .adminSurface .btnDanger,
+.adminAppMain .adminSurface .btn.btnDangerSolid,
+.adminAppMain .adminSurface .btn.danger,
+.adminAppMain .adminSurface .btn.archiveButton,
+.dentistModal .btn.danger,
+.dentistModal .btn.archiveButton {
+  color: var(--danger);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+
+.adminAppMain .adminSurface .btn:focus-visible,
+.dentistModal .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.adminAppMain .adminSurface :is(.planForm, .itemCard, .detailBox, .luxeBox, .bracesPaymentCard, .adminRecordsCard, .historyRow, .bookingShowcase, .archiveCard, .acctCard, .auditTableWrapper) {
+  border-color: var(--line);
+}
+
+.adminAppMain .adminSurface :is(.badge, .countLabel, .typeBadge) {
+  border-color: var(--line);
+}
+
 /* Status pills */
 .statusPill {
   display: inline-block;
@@ -5423,6 +5650,498 @@ input[type="date"].input { min-height: 48px; }
 .bookingRow.clickable { cursor: pointer; }
 .bookingRow.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+/* Admin bookings list and monthly calendar */
+.bookingManagementPage {
+  --booking-border: var(--line);
+  min-width: 0;
+}
+
+.bookingManagementHeader {
+  margin-bottom: 20px;
+}
+
+.bookingManagementHeader h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.bookingManagementHeader p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.bookingActionError { margin-bottom: 14px; }
+
+.bookingManagementGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.6fr) minmax(250px, 1fr);
+  align-items: start;
+  gap: 22px;
+  min-width: 0;
+}
+
+.bookingListPanel,
+.bookingCalendarPanel {
+  min-width: 0;
+}
+
+.bookingToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.bookingSearch {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 14px;
+}
+
+.bookingToolbar .bookingSearch {
+  margin-bottom: 0;
+}
+
+.bookingManagementPage .bookingSearch .input {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 64px 11px 14px;
+  border: 1px solid var(--booking-border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  transition: none;
+}
+
+.bookingManagementPage .bookingSearch .input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--line-focus);
+}
+
+.bookingSortControl {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--booking-border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: 500 14px/1.3 var(--font-body);
+  cursor: pointer;
+}
+
+.bookingSortControl select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bookingSortControl:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--line-focus);
+}
+
+.bookingSortControl svg {
+  position: absolute;
+  right: 11px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.bookingClearSearch,
+.bookingDateFilter button,
+.bookingCalendarSummary button {
+  border: 0;
+  padding: 4px 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: none;
+}
+
+.bookingClearSearch {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.bookingStatusFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.bookingStatusFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--booking-border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: none;
+}
+
+.bookingStatusFilter:hover {
+  color: var(--muted);
+  border-color: var(--booking-border);
+  background: var(--surface);
+}
+
+.bookingStatusFilter.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--booking-border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--text);
+}
+
+.bookingFilterCount {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bookingStatusFilter.active .bookingFilterCount {
+  color: var(--text);
+}
+
+.bookingStatusFilter:focus-visible,
+.bookingClearSearch:focus-visible,
+.bookingDateFilter button:focus-visible,
+.bookingCalendarSummary button:focus-visible,
+.bookingMonthControls button:focus-visible,
+.bookingMonthDay:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bookingDateFilter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--booking-border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bookingDateFilter strong { color: var(--text); }
+
+.bookingManagementPage .bookingsTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--booking-border);
+  border-radius: 6px;
+}
+
+.bookingManagementPage .bookingsTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.bookingManagementPage .bookingsTable th {
+  padding: 10px 14px;
+  border-color: var(--booking-border);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bookingManagementPage .bookingsTable td {
+  padding: 14px;
+  border-color: var(--booking-border);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.bookingManagementPage .bookingsTable th:nth-child(1) { width: 25%; }
+.bookingManagementPage .bookingsTable th:nth-child(2) { width: 17%; }
+.bookingManagementPage .bookingsTable th:nth-child(3) { width: 18%; }
+.bookingManagementPage .bookingsTable th:nth-child(4) { width: 20%; }
+.bookingManagementPage .bookingsTable th:nth-child(5) { width: 20%; }
+
+.bookingManagementPage .bookingNameCell {
+  white-space: normal;
+}
+
+.bookingManagementPage .bookingNameCell strong,
+.bookingManagementPage .bookingsTable td > strong {
+  display: block;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
+.bookingManagementPage .bookingNameCell small,
+.bookingManagementPage .bookingsTable td > small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.bookingManagementPage .statusPill {
+  display: inline-block;
+  margin: 1px 2px 1px 0;
+  padding: 3px 7px;
+  border-color: var(--booking-border);
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bookingManagementPage .bookingRow:hover {
+  background: transparent;
+}
+
+.bookingResultCount {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.bookingCalendarPanel {
+  padding: 14px;
+  border: 1px solid var(--booking-border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.bookingMonthHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bookingMonthHeader h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.bookingMonthControls {
+  display: flex;
+  gap: 4px;
+}
+
+.bookingMonthControls button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--booking-border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  transition: none;
+}
+
+.bookingMonthControls button:hover,
+.bookingCalendarSummary button:hover,
+.bookingDateFilter button:hover,
+.bookingClearSearch:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+.bookingMonthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.bookingWeekday {
+  padding: 4px 0 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.bookingDayBlank {
+  aspect-ratio: 1;
+}
+
+.bookingMonthDay {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1;
+  min-width: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: none;
+}
+
+.bookingMonthDay:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+}
+
+.bookingMonthDay.today {
+  border-color: var(--booking-border);
+  font-weight: 700;
+}
+
+.bookingMonthDay.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.bookingMonthDay i {
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.bookingMonthDay.selected i {
+  background: var(--accent-text);
+}
+
+.bookingCalendarSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--booking-border);
+}
+
+.bookingCalendarSummary div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bookingCalendarSummary strong {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.bookingCalendarSummary span,
+.bookingMonthTotal {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+@media (max-width: 1020px) {
+  .bookingManagementGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bookingCalendarPanel {
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .bookingManagementGrid { gap: 18px; }
+  .bookingManagementPage .bookingsTable,
+  .bookingManagementPage .bookingsTable tbody,
+  .bookingManagementPage .bookingsTable tr,
+  .bookingManagementPage .bookingsTable td {
+    display: block;
+    width: 100%;
+  }
+
+  .bookingManagementPage .bookingsTable thead { display: none; }
+  .bookingManagementPage .bookingsTable tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .bookingManagementPage .bookingsTable tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--booking-border);
+  }
+
+  .bookingManagementPage .bookingsTable tbody tr:last-child { border-bottom: 0; }
+  .bookingManagementPage .bookingsTable td {
+    padding: 2px 0;
+    border: 0;
+    font-size: 12px;
+  }
+
+  .bookingManagementPage .bookingsTable td:not(.bookingNameCell)::before {
+    display: block;
+    margin-bottom: 2px;
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .bookingManagementPage .bookingsTable td.bookingNameCell {
+    grid-column: 1 / -1;
+  }
+
+  .bookingManagementPage .statusPill { max-width: 100%; }
+}
+
 /* Calendar */
 .calendarLegend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
 .calendarLegendItem { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
@@ -5448,8 +6167,8 @@ input[type="date"].input { min-height: 48px; }
   color: var(--text);
   cursor: default;
 }
-.calendarCell.interactive { cursor: pointer; transition: border-color 0.2s var(--ease-cinematic), transform 0.2s var(--ease-cinematic); }
-.calendarCell.interactive:hover { border-color: var(--accent); transform: translateY(-2px); }
+.calendarCell.interactive { cursor: pointer; transition: none; }
+.calendarCell.interactive:hover { border-color: var(--line); transform: none; }
 .calendarCellHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .calendarCellHeader strong { display: block; font-size: 14px; }
 .calendarCellHeader small { color: var(--muted); font-size: 12px; }
@@ -5606,6 +6325,9 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(2px);
 }
+.adminAppMain .adminSurface .modalOverlay:has(.confirmModalCard) {
+  z-index: 1100;
+}
 .modalCard {
   width: min(600px, 100%);
   max-height: calc(100vh - 48px);
@@ -5615,6 +6337,87 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   border-radius: 18px;
   background: var(--bg);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+.modalOverlay.addPatientModalOverlay {
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
+}
+.modalCard.addPatientModal {
+  width: min(760px, 100%);
+  max-width: 760px;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  overflow: hidden;
+  border-color: var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+}
+.addPatientModal .modalHead {
+  flex: 0 0 auto;
+  padding: 14px 20px;
+  border-color: var(--line);
+}
+.addPatientModal .modalTitle {
+  font-size: 20px;
+  line-height: 1.1;
+}
+.addPatientModal .iconBtn {
+  flex: 0 0 auto;
+  border-color: var(--line);
+  border-radius: 8px;
+}
+.addPatientModal .iconBtn:hover {
+  border-color: var(--line);
+  color: var(--muted);
+}
+.addPatientModal .iconBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.addPatientModal .modalBody {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px 16px;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.addPatientModal .modalFoot {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  border-color: var(--line);
+  background: var(--surface);
+}
+.addPatientModal .btnSecondary:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--surface);
+}
+@media (max-width: 640px) {
+  .modalOverlay.addPatientModalOverlay {
+    align-items: flex-start;
+    padding: 10px;
+  }
+  .modalCard.addPatientModal {
+    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 12px;
+  }
+  .addPatientModal .modalHead { padding: 12px 14px; }
+  .addPatientModal .modalBody {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px;
+  }
+  .addPatientModal .modalFoot { padding: 10px 14px; }
 }
 .modalHeader {
   display: flex;
@@ -5683,13 +6486,13 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   transform: none !important;
   box-sizing: border-box;
   width: calc(100% - 32px) !important;
-  max-width: 1000px !important; 
+  max-width: 1000px !important;
   height: fit-content;
   max-height: calc(100vh - 32px) !important;
   overflow-y: auto;
   border-radius: 22px;
 }
- 
+
 .bracesWorkspaceModal .patientDrawerInner { padding: 24px 28px; }
 .bracesWorkspaceModal .patientDrawerBody { display: flex; flex-direction: column; gap: 16px; }
 .bracesWorkspaceModal .bookingFlowGrid {
@@ -5698,14 +6501,14 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   gap: 14px;
 }
 .bracesWorkspaceModal .bookingFieldCard { min-width: 0; }
- 
+
 /* Summary boxes (Amount paid, Remaining balance, ...) */
 .bracesWorkspaceModal .bracesSummaryGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
- 
+
 .bracesWorkspaceModal select.input,
 .bracesWorkspaceModal input[type="date"].input,
 .bracesWorkspaceModal input[type="time"].input {
@@ -5720,7 +6523,7 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   padding: 20px;
   gap: 14px;
 }
- 
+
 /* Phones */
 @media (max-width: 640px) {
   .patientDrawer.bracesWorkspaceModal {
@@ -5732,11 +6535,11 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
 .patientDrawer.bracesWorkspaceModal {
   background: var(--bg);
   color: var(--text);
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border: 1px solid var(--line);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
 }
 .bracesWorkspaceModal .patientDrawerHeader {
-  border-bottom: 1px solid rgba(var(--accent-rgb), 0.45);
+  border-bottom: 1px solid var(--line);
   padding-bottom: 14px;
 }
 .bracesWorkspaceModal .patientDrawerHeader h3 { color: var(--text); }
@@ -5749,20 +6552,20 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   text-transform: uppercase;
 }
 .bracesWorkspaceModal .patientDrawerCloseBtn {
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  background: transparent;
+  border: 1px solid var(--line);
+  background: var(--surface);
   color: var(--muted);
 }
 .bracesWorkspaceModal .patientDrawerCloseBtn:hover {
-  color: var(--text);
-  border-color: var(--accent);
+  color: var(--muted);
+  border-color: var(--line);
 }
- 
+
 /* Inputs */
 .bracesWorkspaceModal .input {
-  background: transparent;
+  background: var(--surface);
   color: var(--text);
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border: 1px solid var(--line);
 }
 .bracesWorkspaceModal .input:focus {
   border-color: var(--accent);
@@ -5773,13 +6576,13 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   flex-direction: column;
   gap: 6px;
 }
- 
+
 .bracesWorkspaceModal .detailBox,
 .bracesWorkspaceModal .luxeBox {
-  background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  border-left: 4px solid var(--accent);
-  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 8px;
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
@@ -5789,39 +6592,38 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   font-size: 20px;
   color: var(--text);
 }
- 
+
 /* Cards inside the popup */
 .bracesWorkspaceModal .bracesPaymentCard,
 .bracesWorkspaceModal .adminRecordsCard {
-  background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 .bracesWorkspaceModal .cardHeader .title { color: var(--text); }
 .bracesWorkspaceModal .cardHeader .sub { color: var(--muted); }
 .bracesWorkspaceModal .badge {
   color: var(--muted);
   background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border: 1px solid var(--line);
 }
- 
+
 /* History rows */
 .bracesWorkspaceModal .historyRow {
-  background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 12px 16px;
 }
 .bracesWorkspaceModal .historyRow p { color: var(--muted); }
 .bracesWorkspaceModal .bookingPrimaryBtn {
   background: var(--accent);
-  color: #1c1a14;
-  border: 0;
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
   align-self: flex-start;
 }
-html[data-theme="blue"] .bracesWorkspaceModal .bookingPrimaryBtn { color: #fff; }
-.bracesWorkspaceModal .bookingPrimaryBtn:hover:not(:disabled) { opacity: 0.9; }
- 
+.bracesWorkspaceModal .bookingPrimaryBtn:hover:not(:disabled) { opacity: 1; }
+
 /* ==========================================================================
    ADMIN DENTISTS PAGE
    ========================================================================== *
@@ -5831,15 +6633,15 @@ html[data-theme="blue"] .bracesWorkspaceModal .bookingPrimaryBtn { color: #fff; 
   gap: 18px;
   align-items: start;
 }
- 
+
 /* ---- Generic cards on this page ---- */
 .adminSurface .card {
   padding: 22px;
-  border-radius: 20px;
-  background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  backdrop-filter: blur(var(--blur));
-  box-shadow: var(--shadow, none);
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  backdrop-filter: none;
+  box-shadow: none;
 }
 .adminSurface .cardHeader {
   display: flex;
@@ -5857,43 +6659,45 @@ html[data-theme="blue"] .bracesWorkspaceModal .bookingPrimaryBtn { color: #fff; 
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border: 1px solid var(--line);
   background: transparent;
 }
 .adminSurface .form { display: flex; flex-direction: column; gap: 12px; }
- 
+
 .adminSurface .btn.btnShine,
-.adminSurface form .btn:not(.secondary):not(.danger) {
+.adminSurface form .btn[type="submit"] {
   background: var(--accent);
-  color: #1c1a14;
-  border-color: transparent;
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
-html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
+html[data-theme="blue"] .adminSurface .btn.btnShine,
+html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--accent-text); }
 .adminSurface .btn.secondary {
-  background: transparent;
+  background: var(--surface);
   color: var(--text);
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border: 1px solid var(--line);
 }
 .adminSurface .btn.secondary:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: transparent, 0.08;
+  border-color: var(--line);
+  background: var(--surface);
 }
 .adminSurface .btn.danger {
-  background: transparent;
+  background: var(--surface);
   color: var(--danger);
-  border: 1px solid var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
 }
-.adminSurface .btn.danger:hover:not(:disabled) { background: transparent; }
+.adminSurface .btn.danger:hover:not(:disabled) { background: var(--surface); }
 .adminSurface .btn.archiveButton {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  background: var(--surface);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
 }
 .adminSurface .btn.archiveButton:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--accent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: var(--surface);
 }
- 
+
 /* ---- Stat cards (Dentists / Active today) ---- */
 .adminSurface .statsGrid.compact {
   display: grid;
@@ -5905,17 +6709,58 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   flex-direction: column;
   gap: 4px;
   padding: 14px 18px;
-  border-radius: 16px;
-  background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
 .adminSurface .statsGrid.compact .statLabel { font-size: 14px; color: var(--muted); }
 .adminSurface .statsGrid.compact .statValue { font-size: 28px; color: var(--text); }
- 
+
 /* ---- Dentist table (reuses the Patients table look) ---- */
-.dentistTableWrap { overflow-x: auto; }
-.dentistTableWrap .patientTable { width: 100%; border-collapse: collapse; }
+.dentistManagementPage {
+  width: 100%;
+  max-width: 100%;
+}
+
+.dentistManagementHeader {
+  margin-bottom: 22px;
+}
+
+.dentistRecordsCard {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.dentistRecordsHeader {
+  align-items: center;
+}
+
+.dentistRecordsActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.dentistAddButton {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-color: var(--accent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--text);
+  transition: none;
+}
+
+.dentistAddButton:hover,
+.dentistAddButton:active {
+  filter: none;
+  transform: none;
+}
+
+.dentistTableWrap { max-width: 100%; overflow-x: auto; }
+.dentistTableWrap .patientTable { width: 100%; min-width: 820px; border-collapse: collapse; }
 .dentistTableWrap .patientTable th {
   padding: 10px 14px;
   text-align: left;
@@ -5932,6 +6777,18 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   color: var(--text);
   border-bottom: 1px solid rgba(var(--accent-rgb), 0.45);
 }
+
+@media (max-width: 640px) {
+  .dentistRecordsHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dentistRecordsActions {
+    justify-content: space-between;
+  }
+}
+
 .patientTableRow { cursor: pointer; transition: background-color 0.3s var(--ease-cinematic); }
 .patientTableRow:hover,
 .patientTableRow.selectedRecord { background: transparent, 0.06; }
@@ -5941,7 +6798,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 .patientTableRow:hover .patientTableNameCell { color: var(--accent); }
 .patientTableStatusHead { width: 110px; }
 .patientTableStatusCell { text-align: right; }
- 
+
 .adminSurface .emptyEditorState {
   padding: 22px;
   border-radius: 16px;
@@ -5951,7 +6808,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 }
 .adminSurface .emptyEditorState strong { display: block; color: var(--text); margin-bottom: 4px; }
 .adminSurface .emptyEditorState p { margin: 0; }
- 
+
 /* =====================================================================
    Dentist popup (centered, fits the screen, scrolls inside)
    ===================================================================== */
@@ -5983,7 +6840,61 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   border: 1px solid rgba(var(--accent-rgb), 0.45);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
- 
+
+.schedulerPanel.dentistModal.addDentistDialog {
+  max-width: 520px;
+  gap: 16px;
+  padding: 22px;
+  border-color: var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.addDentistForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.addDentistForm .input {
+  min-height: 44px;
+  border-color: var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: 400 14px/1.4 var(--font-body);
+}
+
+.addDentistActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.addDentistDialog .btn {
+  transition: none;
+}
+
+.addDentistDialog .btn:hover,
+.addDentistDialog .btn:active {
+  filter: none;
+  transform: none;
+}
+
+html[data-theme="light"] .dentistModal,
+html[data-theme="blue"] .dentistModal {
+  --bg: #ffffff;
+  --card: #ffffff;
+  --card2: #f7f8fa;
+  --line: #e5e7eb;
+  --surface: #ffffff;
+  --surface-border: #e5e7eb;
+  --field-bg: #ffffff;
+}
+
 .dentistModal .patientDrawerHeader {
   display: flex;
   align-items: flex-start;
@@ -6008,7 +6919,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   cursor: pointer;
 }
 .dentistModal .patientDrawerCloseBtn:hover { color: var(--text); border-color: var(--accent); }
- 
+
 /* Summary notes */
 .dentistModal .detailNote {
   display: flex;
@@ -6028,11 +6939,11 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   text-transform: uppercase;
   color: var(--muted);
 }
- 
+
 /* Section headings inside the popup */
 .dentistModal .cardHeader { margin: 6px 0 0; }
 .dentistModal .cardHeader .title { font-size: 18px; }
- 
+
 /* Field rows */
 .dentistModal .bookingFlowGrid {
   display: grid;
@@ -6044,10 +6955,10 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 .dentistModal input[type="date"].input,
 .dentistModal input[type="time"].input { height: 42px; padding-top: 0; padding-bottom: 0; }
 .dentistModal .input:disabled { opacity: 0.5; cursor: not-allowed; }
- 
+
 .dentistModal .inlineActionRow,
 .dentistModal .schedulerActions { display: flex; flex-wrap: wrap; gap: 10px; }
- 
+
 /* Weekly scheduler: Day | Start | End */
 .dentistModal .schedulerGrid { display: flex; flex-direction: column; gap: 8px; }
 .dentistModal .schedulerRow {
@@ -6069,7 +6980,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   cursor: pointer;
 }
 .dentistModal .schedulerDay input { width: 18px; height: 18px; accent-color: var(--accent); }
- 
+
 /* Exceptions list */
 .dentistModal .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .dentistModal .item {
@@ -6085,7 +6996,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 .dentistModal .kv { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dentistModal .kv strong { font-size: 15px; color: var(--text); }
 .dentistModal .kv span { font-size: 14px; color: var(--muted); }
- 
+
 /* Archive button at the bottom */
 .dentistModal .actionColumn {
   display: flex;
@@ -6094,7 +7005,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   padding-top: 14px;
   border-top: 1px solid rgba(var(--accent-rgb), 0.45);
 }
- 
+
 /* ---- Phones ---- */
 @media (max-width: 640px) {
   .schedulerPanel.dentistModal {
@@ -6102,11 +7013,15 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
     max-height: calc(100vh - 16px);
     padding: 18px 16px;
   }
+  .schedulerPanel.dentistModal.addDentistDialog {
+    width: calc(100% - 28px);
+    padding: 18px 16px;
+  }
   .dentistModal .schedulerRow { grid-template-columns: 1fr 1fr; }
   .dentistModal .schedulerDay { grid-column: 1 / -1; }
-  .adminSurface .card { padding: 16px; border-radius: 16px; }
+  .adminSurface .card { padding: 16px; border-radius: 10px; }
 }
- 
+
 /* ---- Weekly schedule summary: one small card per day ---- */
 .dentistModal .weekSummary {
   display: grid;
@@ -6141,9 +7056,370 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 .dentistModal .weekDay.on .weekDayName { color: var(--text); }
 .dentistModal .weekDay.off { border-style: dashed; opacity: 0.75; }
 .dentistModal .weekDay.today { box-shadow: 0 0 0 2px var(--accent); }
- 
+
 @media (max-width: 640px) {
   .dentistModal .weekSummary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.schedulerPanel.dentistModal:not(.addDentistDialog) {
+  max-width: 900px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 20px 22px;
+  gap: 12px;
+  border-color: var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.dentistModal .dentistProfileHeader {
+  align-items: flex-start;
+  gap: 18px;
+  margin: 0;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dentistProfileInfo {
+  min-width: 0;
+}
+
+.dentistModal .dentistProfileInfo .detailTitle {
+  margin: 0 0 8px;
+  font-size: 23px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.dentistProfileMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.dentistProfileMeta span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.dentistProfileMeta span strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dentistModal .dentistProfileHeader .patientDrawerCloseBtn {
+  border-color: var(--line);
+  border-radius: 9px;
+}
+
+.dentistModal .dentistProfileHeader .patientDrawerCloseBtn:hover {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.dentistModal .dentistSchedulePreview {
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent));
+}
+
+.dentistModal .dentistSchedulePreview .detailLabel {
+  font-size: 11px;
+}
+
+.dentistModal .weekSummary {
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.dentistModal .weekDay {
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 3px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.dentistModal .weekDayName {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.dentistModal .weekDayTime,
+.dentistModal .weekDayOff {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.dentistModal .weekDay.on {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--surface) 86%, var(--accent));
+}
+
+.dentistModal .weekDay.today {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.dentistModal .weekDay.off {
+  border-style: solid;
+  opacity: 0.65;
+}
+
+.dentistExceptions {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.dentistExceptions > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dentistExceptions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dentistExceptions > summary::after {
+  content: "⌄";
+  order: 1;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.dentistExceptions[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.dentistExceptions > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.dentistExceptionCount {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dentistExceptionEmpty {
+  margin: 0;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dentistExceptionForm {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.dentistExceptionFields,
+.dentistDetailFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dentistExceptionFields label,
+.dentistDetailFields label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dentistModal .dentistExceptionFields .input,
+.dentistModal .dentistDetailFields .input {
+  min-width: 0;
+  height: 40px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: 400 13.5px/1.35 var(--font-body);
+}
+
+.dentistEditorSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dentistModal .dentistEditorSectionHeader {
+  align-items: flex-end;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dentistModal .dentistEditorSectionHeader .title {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.dentistModal .dentistEditorSectionHeader .sub {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.dentistModal .dentistDetailFields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dentistModal .schedulerGrid {
+  gap: 5px;
+}
+
+.dentistModal .schedulerRow {
+  grid-template-columns: minmax(150px, 1.25fr) repeat(2, minmax(110px, 1fr));
+  gap: 10px;
+  padding: 6px 10px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.dentistModal .schedulerRow.isEnabled {
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent));
+}
+
+.dentistModal .schedulerRow.isDisabled {
+  background: color-mix(in srgb, var(--surface) 96%, var(--muted));
+}
+
+.dentistModal .schedulerDay {
+  gap: 9px;
+  font-size: 13px;
+}
+
+.dentistModal .schedulerDay input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+.dentistModal .schedulerRow .input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  padding: 5px 8px;
+  border-color: var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: 400 13px/1.3 var(--font-body);
+}
+
+.dentistModal .schedulerRow .input:disabled {
+  opacity: 0.55;
+  background: color-mix(in srgb, var(--surface) 90%, var(--muted));
+}
+
+.dentistModal .dentistEditorActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+}
+
+.dentistModal .dentistEditorActions .btn {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dentistModal .dentistEditorActions .btn.btnShine {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.dentistModal .dentistEditorActions .btn.secondary {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dentistModal .dentistEditorActions .btn:hover,
+.dentistModal .dentistEditorActions .btn:active {
+  filter: none;
+  transform: none;
+}
+
+.dentistModal .actionColumn.actionColumnFriendly {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top-color: var(--line);
+}
+
+@media (max-width: 640px) {
+  .schedulerPanel.dentistModal:not(.addDentistDialog) {
+    width: calc(100% - 16px);
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 16px 14px;
+  }
+
+  .dentistProfileMeta {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .dentistModal .weekSummary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dentistModal .schedulerRow {
+    grid-template-columns: minmax(105px, 1fr) repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .dentistModal .schedulerDay {
+    grid-column: auto;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .dentistModal .dentistExceptionFields:last-child {
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 0.8fr));
+  }
 }
 
    /* ==========================================================================
@@ -6158,7 +7434,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   margin: 0 auto;
   padding: 24px 20px 60px;
 }
- 
+
 /* ---------- Top: image stage ---------- */
 .svcStageCol {
   display: flex;
@@ -6182,7 +7458,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   animation: svcFadeIn 0.45s var(--ease-cinematic, ease) both;
 }
 .svcStageImg.serviceMediaScary { object-fit: contain; background: #120a0a; }
- 
+
 .svcNav {
   position: absolute;
   inset: 0;
@@ -6210,7 +7486,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 }
 .svcArrow:hover { transform: scale(1.08); background: var(--accent); color: var(--on-accent, #1c1a14); }
 .svcArrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
- 
+
 .svcCount {
   position: absolute;
   right: 16px;
@@ -6224,7 +7500,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   background: var(--bg);
   border: 1px solid rgba(var(--accent-rgb), 0.45);
 }
- 
+
 .svcDots { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .svcDot {
   width: 10px;
@@ -6238,7 +7514,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 }
 .svcDot:hover { background: rgba(var(--accent-rgb), 0.6); }
 .svcDot.isActive { width: 28px; background: var(--accent); }
- 
+
 /* ---------- Below: details ---------- */
 .svcDetail { min-width: 0; }
 .svcDetailInner {
@@ -6248,7 +7524,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   gap: 16px;
   animation: svcFadeIn 0.45s var(--ease-cinematic, ease) both;
 }
- 
+
 /* badge: plain accent text, no pill */
 .svcKind {
   font-size: 13px;
@@ -6259,7 +7535,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 }
 .svcName { margin: 0; font-size: clamp(30px, 4vw, 44px); line-height: 1.1; color: var(--text); }
 .svcLead { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); }
- 
+
 /* rate + duration: the only boxed element, one strip */
 .svcFacts {
   display: grid;
@@ -6282,11 +7558,11 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   color: var(--muted);
 }
 .svcFacts dd { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
- 
+
 /* types as one plain line */
 .svcTypes { margin: 0; font-size: 15.5px; font-weight: 600; color: var(--text); }
 .svcTypesLabel { margin-right: 12px; }
- 
+
 /* label / value rows, no boxes */
 .svcRows { width: 100%; margin: 0; }
 .svcRows > div {
@@ -6298,7 +7574,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 }
 .svcRows dt { padding-top: 3px; }
 .svcRows dd { margin: 0; font-size: 15px; line-height: 1.6; color: var(--text); }
- 
+
 /* extra detail tucked behind a toggle */
 .svcMore { width: 100%; }
 .svcMore summary {
@@ -6324,7 +7600,7 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 .svcMore[open] summary::after { transform: rotate(-135deg); }
 .svcMore summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
 .svcMore .svcRows { margin-top: 10px; }
- 
+
 /* actions */
 .svcActions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 8px; }
 .svcActions .btn { min-height: 48px; padding: 11px 28px; font-size: 16px; text-decoration: none; }
@@ -6337,12 +7613,12 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
   transition: border-color 0.25s ease;
 }
 .svcLink:hover { border-bottom-color: var(--accent); }
- 
+
 @keyframes svcFadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
- 
+
 /* ---------- Phone ---------- */
 @media (max-width: 640px) {
   .bookingPage .svcLayout { gap: 22px; padding: 16px 14px 48px; }
@@ -6403,26 +7679,6 @@ html[data-theme="blue"] .adminSurface .btn.btnShine { color: #fff; }
 @keyframes promoFadeIn {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-.promotionsPage .btnShine {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.promotionsPage .btnShine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
-  transform: translateX(-120%);
-  transition: transform 0.6s var(--ease-cinematic);
-  z-index: -1;
-}
-
-.promotionsPage .btnShine:hover:not(:disabled)::after {
-  transform: translateX(120%);
 }
 
 .promotionsPage .promoForm {
@@ -6689,7 +7945,7 @@ html[data-theme="blue"] .promotionsPage .promoBadge[data-status="Scheduled"] { -
    ADMIN ACCOUNT PAGE
    ========================================================================== */
    .acctPage {
-  --acct-stroke: rgba(var(--accent-rgb), 0.45);
+  --acct-stroke: var(--line);
   --acct-radius: 20px;
   --acct-ease: var(--ease-cinematic, ease);
 
@@ -7247,7 +8503,7 @@ html[data-theme="blue"] .acctOverlay {
    ADMIN LOGs PAGE
    ========================================================================== */
    .auditHeader {
-  --audit-stroke: rgba(var(--accent-rgb), 0.45);
+  --audit-stroke: var(--line);
   --audit-ease: var(--ease-cinematic, ease);
 
   display: flex;
@@ -7417,11 +8673,11 @@ html[data-theme="blue"] .auditFilterBar input[type="date"].input {
 }
 
 .auditTableRow:hover {
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--line);
 }
 
 .auditTableRow:last-child:hover {
-  border-bottom-color: transparent;
+  border-bottom-color: var(--line);
 }
 
 .actorCell,
@@ -7655,7 +8911,7 @@ html[data-theme="blue"] .auditFilterBar input[type="date"].input {
    ADMIN ARCHIVE PAGE
    ========================================================================== */
    .archivePage {
-  --archive-stroke: rgba(var(--accent-rgb), 0.45);
+  --archive-stroke: var(--line);
   --archive-ease: var(--ease-cinematic, ease);
 
   display: flex;
@@ -7827,7 +9083,7 @@ html[data-theme="blue"] .auditFilterBar input[type="date"].input {
 }
 
 .archiveCard:hover {
-  border-color: var(--accent);
+  border-color: var(--archive-stroke);
 }
 
 .archiveCardTop {
@@ -7959,7 +9215,7 @@ html[data-theme="blue"] .auditFilterBar input[type="date"].input {
    My Appointment PAGE
    ========================================================================== */
    .bookingPage {
-  --appt-stroke: rgba(var(--accent-rgb), 0.45);
+  --appt-stroke: var(--line);
   --appt-ease: var(--ease-cinematic, ease);
 }
 
@@ -8376,7 +9632,7 @@ html[data-theme="blue"] .bookingInputSpecial {
 }
 
 .bookingShowcase:hover {
-  border-color: var(--accent);
+  border-color: var(--appt-stroke);
 }
 
 .bookingShowcase .detailContent {
@@ -8986,6 +10242,17 @@ html[data-theme="blue"] .bookingInputSpecial {
 }
 
 @media (max-width: 520px) {
+  .bookingToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bookingSortControl {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
   .bookingPage .historyRow {
     flex-direction: column;
   }
@@ -9004,5 +10271,1828 @@ html[data-theme="blue"] .bookingInputSpecial {
   .bookingPage *,
   .bookingHero * {
     transition: none !important;
+  }
+}
+
+/* Management dialog visual normalization; public modal styles remain unchanged. */
+.adminAppMain .adminSurface .modalOverlay.addPatientModalOverlay,
+.adminAppMain .adminSurface .modalOverlay:has(.confirmModalCard),
+.adminAppMain .acctOverlay,
+.patientDrawerOverlay,
+.dentistModalOverlay {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: none;
+  animation: none;
+}
+
+.adminAppMain .adminSurface .addPatientModal,
+.adminAppMain .acctDialog,
+.patientDrawer,
+.dentistModal {
+  border-color: var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.patientDrawer,
+.dentistModal {
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  transition: none;
+}
+
+.acctDialog {
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  gap: 12px;
+  overflow: hidden;
+  padding: 20px;
+  animation: none;
+  transition: none;
+}
+
+.acctDialogHead {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.acctDialogHead h3 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.acctDialog .acctHint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.acctDialog .acctFields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.acctDialog .acctField > span {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.acctDialogActions {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-top: 12px;
+  border-color: var(--line);
+}
+
+.acctDialog .acctIconBtn {
+  width: 34px;
+  height: 34px;
+  border-color: var(--line);
+  border-radius: 8px;
+  transition: none;
+}
+
+.acctDialog .acctIconBtn:hover:not(:disabled) {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.acctDialog .acctIconBtn:focus-visible,
+.acctDialog .btn:focus-visible,
+.adminAppMain .adminSurface .confirmModalCard :is(button, a):focus-visible,
+.adminAppMain .adminSurface .addPatientModal :is(button, a):focus-visible,
+.patientDrawer :is(button, a):focus-visible,
+.dentistModal :is(button, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.patientDrawer {
+  border-radius: 16px;
+  opacity: 0;
+  transform: translate(-50%, -48%);
+}
+
+.patientDrawer.open {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.patientDrawerHeader,
+.dentistModal .patientDrawerHeader {
+  border-color: var(--line);
+}
+
+.patientDrawer .detailRow,
+.patientDrawer .actionColumnFriendly,
+.patientDrawer .drawerReschedule,
+.dentistModal .detailNote,
+.dentistModal .schedulerRow,
+.dentistModal .item,
+.dentistModal .actionColumn {
+  border-color: var(--line);
+}
+
+.dentistModal .detailNote {
+  border-left-color: var(--line);
+}
+
+.patientDrawer .rescheduleFields input,
+.patientDrawer .rescheduleFields select,
+.dentistModal .input {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.patientDrawer .rescheduleFields input:focus,
+.patientDrawer .rescheduleFields select:focus,
+.dentistModal .input:focus {
+  border-color: var(--accent);
+}
+
+.addPatientModal .modalTitle,
+.acctDialogHead h3,
+.patientDrawerHeader h3,
+.dentistModal .detailTitle,
+.adminAppMain .adminSurface .confirmModalCard .modalTitleGroup h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.patientDrawerCloseBtn,
+.dentistModal .patientDrawerCloseBtn {
+  width: 34px;
+  height: 34px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  transition: none;
+}
+
+.patientDrawerCloseBtn:hover,
+.dentistModal .patientDrawerCloseBtn:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.dentistModal {
+  border: 1px solid var(--line);
+  padding: 20px;
+  gap: 12px;
+}
+
+.dentistModal .patientDrawerHeader {
+  padding-bottom: 12px;
+}
+
+.patientDrawerOverlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dentistModalOverlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+.patientDrawerOverlay.open { opacity: 1; }
+
+.adminAppMain .adminSurface .confirmModalCard {
+  width: min(420px, 100%);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.adminAppMain .adminSurface .confirmModalCard .modalHeader {
+  align-items: center;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-color: var(--line);
+}
+
+.adminAppMain .adminSurface .confirmModalCard .modalTitleGroup h3 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.adminAppMain .adminSurface .confirmModalCard .modalToneLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.adminAppMain .adminSurface .confirmModalCard .modalToneLabel.danger,
+.adminAppMain .adminSurface .confirmModalCard.danger .modalToneLabel,
+.adminAppMain .adminSurface .confirmModalCard.archive .modalToneLabel {
+  color: var(--danger);
+}
+
+.adminAppMain .adminSurface .confirmModalCard .modalClose {
+  width: 34px;
+  height: 34px;
+  border-color: var(--line);
+  border-radius: 8px;
+  transition: none;
+}
+
+.adminAppMain .adminSurface .confirmModalCard .modalClose:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.adminAppMain .adminSurface .confirmModalCard .confirmModalBody p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.adminAppMain .adminSurface .confirmModalCard .confirmModalActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn,
+.adminAppMain .adminSurface .addPatientModal .modalFoot .btn,
+.adminAppMain .acctDialogActions .btn,
+.patientDrawer .actionColumn .btn,
+.dentistModal .btn {
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  transition: none;
+}
+
+.adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn.danger,
+.adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn.archiveButton {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: var(--surface);
+}
+
+@media (max-width: 520px) {
+  .acctDialog {
+    padding: 16px;
+  }
+
+  .dentistModal {
+    padding: 16px;
+  }
+
+  .adminAppMain .adminSurface .confirmModalCard {
+    padding: 16px;
+  }
+}
+
+/* Booking Details drawer only */
+.bookingDetailsModal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.bookingDetailsModal .patientDrawerInner {
+  min-height: 0;
+  max-height: inherit;
+  gap: 10px;
+  padding: 16px;
+}
+
+.bookingDetailsModal .patientDrawerHeader {
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-color: var(--line);
+}
+
+.bookingDetailsModal .patientDrawerHeader h3 {
+  margin: 3px 0 6px;
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.bookingDetailsModal .patientDrawerCloseBtn {
+  width: 32px;
+  height: 32px;
+  border-color: var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  transition: none;
+}
+
+.bookingDetailsModal .patientDrawerCloseBtn:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.bookingDetailsModal .patientDrawerCloseBtn:focus-visible,
+.bookingDetailsModal .actionColumn :is(button, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bookingDetailsModal .patientDrawerBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.bookingDetailsModal .detailRow {
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  border-color: var(--line);
+}
+
+.bookingDetailsModal .detailRow dt {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.bookingDetailsModal .detailRow dd {
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.bookingDetailsModal .actionColumnFriendly {
+  flex: 0 0 auto;
+  gap: 7px;
+  padding-top: 10px;
+  border-color: var(--line);
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn {
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  transition: none;
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.btnShine:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.danger,
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.archiveButton {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  color: var(--danger);
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.danger:hover:not(:disabled),
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.archiveButton:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  color: var(--danger);
+}
+
+@media (max-width: 520px) {
+  .bookingDetailsModal .patientDrawerInner { padding: 14px; }
+  .bookingDetailsModal .detailRow { grid-template-columns: 86px minmax(0, 1fr); }
+}
+
+/* Shared staff navigation and header notifications */
+.adminSidebarNav {
+  gap: 4px;
+}
+
+.adminSidebarLink {
+  min-height: 42px;
+  min-width: 0;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.adminSidebarLink span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.adminSidebarLink svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+  opacity: 1;
+}
+
+.adminSidebarLink:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--text));
+}
+
+.adminSidebarLink:focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 2px;
+  border-left-color: var(--accent);
+  background: var(--surface);
+}
+
+.adminSidebarLink.active {
+  border-color: var(--line);
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+}
+
+.adminSidebarLink.active svg {
+  color: var(--accent);
+}
+
+.adminTopbar {
+  gap: 12px;
+}
+
+.adminTopbar .accountMenu {
+  margin-left: 0;
+}
+
+.staffNotification {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.staffNotificationButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: none;
+}
+
+.staffNotificationButton svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.staffNotificationButton:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.staffNotificationButton:focus-visible,
+.staffNotificationPanel button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.staffNotificationBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--surface);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.staffNotificationPanel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 1400;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(440px, calc(100vh - 88px));
+  max-height: min(440px, calc(100dvh - 88px));
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.staffNotificationHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.staffNotificationHead strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.staffNotificationPanel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.staffNotificationPanel li + li {
+  border-top: 1px solid var(--line);
+}
+
+.staffNotificationPanel button {
+  font-family: var(--font-body);
+  transition: none;
+}
+
+.staffNotificationHead button {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.staffNotificationHead button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.staffNotificationItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.staffNotificationItem:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--text));
+}
+
+.staffNotificationItem strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.staffNotificationItem span,
+.staffNotificationItem.read strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.staffNotificationMessage {
+  margin: 0;
+  padding: 18px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 860px) {
+  .adminTopbar {
+    gap: 8px;
+  }
+
+  .staffNotificationButton {
+    width: 38px;
+    height: 38px;
+  }
+
+  .staffNotificationPanel {
+    right: -54px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staffNotificationButton,
+  .staffNotificationPanel button {
+    transition: none !important;
+  }
+}
+
+.accountAppearance {
+  position: relative;
+}
+
+.accountAppearanceTrigger {
+  font: inherit;
+  transition: none;
+}
+
+.accountAppearanceTrigger:focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 1px;
+}
+
+.accountAppearanceTrigger .accountItemIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.accountAppearanceTrigger[aria-expanded="true"] .accountAppearanceIcon {
+  color: var(--accent);
+}
+
+.accountAppearanceChevron {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.accountAppearanceMenu {
+  display: grid;
+  gap: 2px;
+  margin: 2px 4px 6px 40px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.accountAppearanceOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: 500 13px/1.35 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: none;
+}
+
+.accountAppearanceOption:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.accountAppearanceOption:focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 1px;
+}
+
+.accountAppearanceOptionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accountAppearanceOptionLabel svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--muted);
+}
+
+.accountAppearanceOption[aria-checked="true"] .accountAppearanceOptionLabel svg {
+  color: var(--accent);
+}
+
+.accountAppearanceCheck {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+/* Shared text-only treatment for status, category, and informational labels. */
+html body :is(.badge, .countLabel, .typeBadge, .statusPill, .promoBadge, .actionBadge, .viewerStatusPill, .acctRole, .acctMeta, .pill),
+html body .adminAppMain .adminSurface :is(.badge, .countLabel, .typeBadge, .statusPill),
+html body .bookingPage :is(.badge, .countLabel, .typeBadge, .statusPill),
+html body .bookingManagementPage .statusPill,
+html body .patientListPage :is(.typeBadge),
+html body .promotionsPage .promoBadge,
+html body .acctPage :is(.acctRole, .acctMeta),
+html body .auditHeader .badge,
+html body .bookingPage .cardHeader .badge,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill {
+  display: inline;
+  width: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: normal;
+  line-height: 1.4;
+  text-decoration: none;
+  text-transform: none;
+  vertical-align: baseline;
+}
+
+html body :is(.badge, .countLabel, .typeBadge, .statusPill, .promoBadge, .actionBadge, .viewerStatusPill, .acctRole, .acctMeta, .pill),
+html body .adminAppMain .adminSurface :is(.badge, .countLabel, .typeBadge, .statusPill),
+html body .bookingPage :is(.badge, .countLabel, .typeBadge, .statusPill),
+html body .bookingManagementPage .statusPill,
+html body .patientListPage .typeBadge,
+html body .promotionsPage .promoBadge,
+html body .acctPage :is(.acctRole, .acctMeta),
+html body .auditHeader .badge,
+html body .bookingPage .cardHeader .badge,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill {
+  color: var(--muted);
+}
+
+html body .statusPill.active,
+html body .statusPill.approved,
+html body .statusPill.completed,
+html body .statusPill.checked-in,
+html body .statusPill.in-progress,
+html body .statusPill.rescheduled,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.approved,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.completed,
+html body .bookingPage .statusPill.active,
+html body .bookingPage .statusPill.approved,
+html body .promotionsPage .promoBadge[data-status="Active"] {
+  color: color-mix(in srgb, var(--accent-teal) 70%, var(--text));
+}
+
+html body .statusPill.pending,
+html body .statusPill.attention,
+html body .statusPill.awaiting_payment,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.pending,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.awaiting_payment,
+html body .bookingPage .statusPill.pending,
+html body .promotionsPage .promoBadge[data-status="Scheduled"],
+html body .typeBadge.ortho {
+  color: color-mix(in srgb, var(--accent) 48%, var(--text));
+}
+
+html body .statusPill.cancelled,
+html body .statusPill.rejected,
+html body .statusPill.no-show,
+html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.cancelled,
+html body .bookingPage .statusPill.cancelled,
+html body .acctMeta.isWarn,
+html body .promotionsPage .promoBadge[data-status="Expired"] {
+  color: var(--danger);
+}
+
+html body .statusPill.archived,
+html body .typeBadge.regular,
+html body .promotionsPage .promoBadge[data-status="Draft"],
+html body .countLabel,
+html body .badge,
+html body .actionBadge,
+html body .viewerStatusPill,
+html body .pill {
+  color: var(--muted);
+}
+
+html body .promotionsPage .promoBadge::before {
+  display: none;
+}
+
+html body .accountStatus {
+  color: color-mix(in srgb, var(--accent-teal) 70%, var(--text));
+}
+
+html body .accountStatus i {
+  display: none;
+}
+
+html body .patientListPage .typeBadge.regular,
+html body .patientListPage .typeBadge.ortho {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+html body .patientListPage .typeBadge.ortho {
+  color: color-mix(in srgb, var(--accent) 48%, var(--text));
+}
+
+html[data-dashboard="true"][data-theme="dark"] .adminAppMain .adminSurface .addPatientModal,
+html[data-dashboard="true"][data-theme="dark"] .adminAppMain .acctDialog,
+html[data-dashboard="true"][data-theme="dark"] .adminAppMain .confirmModalCard,
+html[data-dashboard="true"][data-theme="dark"] .patientDrawer,
+html[data-dashboard="true"][data-theme="dark"] .dentistModal {
+  --surface: color-mix(in srgb, var(--bg) 90%, var(--text));
+  --surface-border: var(--line);
+  --field-bg: color-mix(in srgb, var(--bg) 84%, var(--text));
+  --line: color-mix(in srgb, var(--text) 18%, var(--bg));
+  background-color: var(--surface);
+}
+
+
+/* Admin Services page */
+.servicesAdminPage {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.servicesAdminHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 0 2px;
+}
+
+.servicesAdminHeader h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.servicesAdminHeader p,
+.servicesAdminSectionHeading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.servicesAdminSection {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.servicesAdminSectionHeading,
+.servicesAdminNameLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.servicesAdminSectionHeading {
+  margin-bottom: 14px;
+}
+
+.servicesAdminSectionHeading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.servicesAdminToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.servicesAdminSearch {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+
+.servicesAdminPage input:not([type="checkbox"]),
+.servicesAdminPage select,
+.servicesAdminPage textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.servicesAdminPage textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.servicesAdminPage input::placeholder,
+.servicesAdminPage textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.servicesAdminPage input:focus-visible,
+.servicesAdminPage select:focus-visible,
+.servicesAdminPage textarea:focus-visible,
+.servicesAdminPage button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.servicesAdminFilters {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.servicesAdminFilters button,
+.servicesAdminTextButton,
+.servicesAdminCancelButton,
+.servicesAdminAddButton,
+.servicesAdminModalClose {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.servicesAdminFilters button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.servicesAdminFilters button.isSelected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--text);
+  font-weight: 600;
+}
+
+.servicesAdminAddButton {
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.servicesAdminAddButton span {
+  font-size: 18px;
+  line-height: 0.8;
+}
+
+.servicesAdminAddButton:disabled,
+.servicesAdminTextButton:disabled,
+.servicesAdminCancelButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.servicesAdminList,
+.servicesAdminClosureList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.servicesAdminRow {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.servicesAdminThumbnail {
+  width: 64px;
+  height: 58px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--text));
+}
+
+.servicesAdminThumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.servicesAdminRowContent {
+  min-width: 0;
+}
+
+.servicesAdminNameLine {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.servicesAdminNameLine h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.servicesAdminStatus,
+.servicesAdminClosureActions > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.servicesAdminStatus.isActive,
+.servicesAdminClosureActions > span.isBlocking {
+  color: var(--text);
+}
+
+.servicesAdminDescription {
+  overflow: hidden;
+  margin: 3px 0 5px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+}
+
+.servicesAdminMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.servicesAdminRowActions,
+.servicesAdminClosureActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.servicesAdminTextButton {
+  padding: 5px 2px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.servicesAdminTextButton:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.servicesAdminMessage {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.servicesAdminMessage.isError {
+  color: var(--text);
+}
+
+.servicesAdminClosureCount {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.servicesAdminClosureForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.servicesAdminClosureForm label,
+.servicesAdminForm label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.servicesAdminOptional {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.servicesAdminClosureList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.servicesAdminClosureList li:last-child {
+  border-bottom: 0;
+}
+
+.servicesAdminClosureList li > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.servicesAdminClosureList strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.servicesAdminClosureList span,
+.servicesAdminClosureList p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.servicesAdminModalOverlay {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.servicesAdminModal {
+  display: flex;
+  width: min(620px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  max-height: min(760px, calc(100dvh - 40px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+}
+
+.servicesAdminModalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.servicesAdminModalHeader h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 19px;
+}
+
+.servicesAdminModalHeader p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.servicesAdminModalClose {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+}
+
+.servicesAdminForm {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.servicesAdminFormBody {
+  display: grid;
+  min-height: 0;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.servicesAdminFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.servicesAdminFormHint {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.servicesAdminActiveControl {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.servicesAdminActiveControl input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.servicesAdminEditPreview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.servicesAdminEditPreview img {
+  width: 72px;
+  height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.servicesAdminModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.servicesAdminCancelButton {
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .servicesAdminHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .servicesAdminClosureForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .servicesAdminPage {
+    gap: 12px;
+  }
+
+  .servicesAdminHeader h1 {
+    font-size: 25px;
+  }
+
+  .servicesAdminSection {
+    padding: 14px;
+  }
+
+  .servicesAdminToolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .servicesAdminSearch {
+    flex-basis: 100%;
+  }
+
+  .servicesAdminFilters {
+    flex: 1 1 auto;
+  }
+
+  .servicesAdminFilters button {
+    flex: 1;
+  }
+
+  .servicesAdminRow {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  .servicesAdminThumbnail {
+    width: 52px;
+    height: 50px;
+  }
+
+  .servicesAdminRowActions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .servicesAdminClosureForm {
+    grid-template-columns: 1fr;
+  }
+
+  .servicesAdminClosureForm .servicesAdminAddButton {
+    width: 100%;
+  }
+
+  .servicesAdminClosureList li {
+    align-items: flex-start;
+  }
+
+  .servicesAdminClosureActions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+
+  .servicesAdminModalOverlay {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .servicesAdminModal {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 13px;
+  }
+
+  .servicesAdminFormGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .servicesAdminPage *,
+  .servicesAdminModalOverlay * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Admin layout refinements */
+.adminPageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 0 0 20px;
+  padding: 0;
+  background: none;
+}
+
+.adminPageHeader h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(24px, 2.2vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.adminPageHeader p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.bookingManagementHeader {
+  margin-bottom: 20px;
+}
+
+.dentistManagementHeader {
+  margin-bottom: 20px;
+}
+
+.servicesAdminHeader {
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.servicesAdminStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 132px));
+  gap: 8px;
+  flex: 0 1 auto;
+}
+
+.servicesAdminStat {
+  display: flex;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.servicesAdminStat span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.servicesAdminStat strong {
+  color: var(--text);
+  font-size: 19px;
+  line-height: 1.15;
+}
+
+.patientListPanel {
+  padding: 18px;
+}
+
+.patientPanelHead {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 14px;
+}
+
+.patientPanelIntro {
+  min-width: 180px;
+}
+
+.patientPanelIntro .panelTitle {
+  font-size: 19px;
+}
+
+.patientPanelIntro .panelSub {
+  font-size: 13px;
+}
+
+.patientToolbar {
+  flex: 1 1 520px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+}
+
+.topSearchBar {
+  flex: 1 1 220px;
+  max-width: 380px;
+}
+
+.patientToolbar .topSearchInput,
+.patientToolbar .typeSelect {
+  height: 40px;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: 9px;
+}
+
+.patientToolbar .typeSelect {
+  width: auto;
+  min-width: 150px;
+}
+
+.patientToolbar > .btn {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.patientListPage .patientTable th,
+.dentistTableWrap .patientTable th,
+.bookingManagementPage .bookingsTable th {
+  border-bottom-color: color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.patientListPage .patientTable td,
+.dentistTableWrap .patientTable td,
+.bookingManagementPage .bookingsTable td {
+  border-bottom: 0;
+}
+
+.bookingManagementPage .bookingsTable tbody tr:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--text));
+}
+
+.servicesAdminRow {
+  padding: 14px 0;
+  border-top: 0;
+}
+
+.servicesAdminClosureList li {
+  padding: 12px 0;
+  border-bottom: 0;
+}
+
+.archivePageHeader {
+  margin-bottom: 0;
+}
+
+.archiveBar {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.archiveGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 10px;
+}
+
+.archiveCard {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.archiveMeta {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.auditHeader {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.auditHeader .auditTitle {
+  margin: 4px 0 6px;
+}
+
+.auditFilterBar {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.auditTableWrapper {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.auditTable {
+  display: grid;
+  gap: 8px;
+}
+
+.auditTableHeader {
+  border-bottom: 0;
+  padding: 0 14px 4px;
+}
+
+.auditTableRow {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.auditTableRow:last-child,
+.auditTableRow:hover,
+.auditTableRow:last-child:hover {
+  border-bottom: 1px solid var(--line);
+}
+
+.acctPageHeader {
+  margin-bottom: 0;
+}
+
+.acctBar {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.acctCard {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.acctList {
+  display: grid;
+  gap: 8px;
+}
+
+.acctRow,
+.acctRow:last-child {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.ovStatCard {
+  gap: 12px;
+  min-height: 88px;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.ovIcon {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+}
+
+.ovStatValue {
+  font-size: 1.35rem;
+}
+
+.servicesAdminClosureForm {
+  border-bottom: 0;
+}
+
+.servicesAdminClosureList li {
+  border-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .servicesAdminHeader {
+    align-items: flex-start;
+  }
+
+  .servicesAdminStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .patientPanelHead {
+    flex-direction: column;
+  }
+
+  .patientToolbar {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .adminPageHeader {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .adminPageHeader .badge {
+    align-self: flex-start;
+  }
+
+  .servicesAdminHeader {
+    flex-direction: column;
+  }
+
+  .servicesAdminStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .servicesAdminStat {
+    padding: 7px 8px;
+  }
+
+  .servicesAdminStat span {
+    font-size: 10px;
+  }
+
+  .patientToolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .patientToolbar .topSearchBar,
+  .patientToolbar .patientTypeFilter,
+  .patientToolbar .typeSelect,
+  .patientToolbar > .btn {
+    width: 100%;
+    max-width: none;
+  }
+
+  .archiveBar {
+    padding: 10px;
+  }
+
+  .archiveGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .auditTableHeader {
+    display: none;
+  }
+
+  .auditTableRow {
+    padding: 12px;
+  }
+
+  .acctBar {
+    padding: 10px;
+  }
+
+  .acctRow,
+  .acctRow:last-child {
+    padding: 12px;
   }
 }

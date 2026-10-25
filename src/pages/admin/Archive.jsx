@@ -338,6 +338,14 @@ export default function Archive() {
 
   return (
     <div className="container adminSurface archivePage">
+      <header className="adminPageHeader archivePageHeader">
+        <div>
+          <h1>{current.title}</h1>
+          <p>{current.subtitle}</p>
+        </div>
+        <span className="badge">{currentRows.length} records</span>
+      </header>
+
       <div className="archiveBar">
         <nav className="archiveTabs" aria-label="Archive sections">
           {Object.entries(ARCHIVE_FILTERS).map(([key, value]) => (
@@ -376,8 +384,6 @@ export default function Archive() {
       {error ? <div className="error">{error}</div> : null}
 
       <section className="archiveSection">
-        <p className="archiveIntro">{current.subtitle}</p>
-
         {loading ? <SkeletonList count={2} /> : null}
 
         {!loading && currentRows.length === 0 ? (

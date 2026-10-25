@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import CursorAura from "../components/CursorAura";
 import { db } from "../firebase";
-import { getBookingServiceOptions, getClinicServiceImage } from "../utils/clinic";
+import { getActiveServices, getClinicServiceImage, getLocalClinicServiceImage, PUBLIC_SERVICE_CATALOG } from "../utils/clinic";
 import scaryServiceTooth from "../assets/scary-service-tooth.png";
 import cleaningImg from "../assets/services/cleaning.jpg";
 import fillingsImg from "../assets/services/fillings.jpg";
@@ -56,6 +56,10 @@ const SERVICE_IMAGES = {
   [key("Crowns")]: IMG.crowns,
   [key("Dentures")]: IMG.dentures,
   [key("Dental X-ray")]: IMG.xray,
+};
+
+const LEGACY_SERVICE_PRICE_FALLBACKS = {
+  [key("Braces Consultation")]: "Consultation pricing available at clinic",
 };
 
 /* ------------------------------------------------------------------ */
@@ -215,23 +219,6 @@ const SERVICE_TYPES = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Built-in services (shown when the clinic hasn't overridden them)    */
-/* ------------------------------------------------------------------ */
-
-const DEFAULT_SERVICES = [
-  { name: "Cleaning", desc: "Professional cleaning for healthier gums and a fresher smile.", price: "PHP 800 starting", img: IMG.cleaning },
-  { name: "Extraction", desc: "Safe and comfortable tooth removal when needed.", price: "PHP 800 starting", img: IMG.extraction },
-  { name: "Teeth Whitening", desc: "Whitening treatment designed to brighten your smile in one session.", price: "PHP 8,000", img: IMG.whitening },
-  { name: "Oral Surgery", desc: "Minor oral surgical procedures with proper planning and care.", price: "PHP 5,000 starting", img: IMG.oralSurgery },
-  { name: "Veneers", desc: "Cosmetic veneer treatment for smile improvement and tooth enhancement.", price: "Depends on procedure and product", img: IMG.veneers },
-  { name: "Crowns", desc: "Dental crowns to restore strength, shape, and appearance of teeth.", price: "PHP 7,000 starting", img: IMG.crowns },
-  { name: "Dentures", desc: "Custom removable replacement for missing teeth.", price: "PHP 5,000 starting", img: IMG.dentures },
-  { name: "Root Canal", desc: "Treatment for infected canals to help save the tooth.", price: "PHP 8,000 per canal", img: IMG.rootCanal },
-  { name: "Braces", desc: "Orthodontic treatment for bite alignment and smile correction.", price: "PHP 5,000 down payment", img: IMG.braces },
-  { name: "Dental X-ray", desc: "Diagnostic imaging for treatment planning and case evaluation.", price: "Panoramic: PHP 1,000 • Periapical: PHP 500", img: IMG.xray },
-];
-
-/* ------------------------------------------------------------------ */
 /* Building the final list                                             */
 /* ------------------------------------------------------------------ */
 
@@ -256,7 +243,7 @@ function buildServiceContent(service) {
     highlights: [
       { label: "Best for", value: service.desc || "Clinic-managed treatment available for booking." },
       { label: "Visit flow", value: "Your appointment flow is confirmed by the clinic after the dentist reviews the case." },
-      { label: "Planning note", value: `Estimated chair time is ${service.duration || "case-based"}, and final fees may vary by procedure details.` },
+      { label: "Planning note", value: "Appointment length is confirmed by the clinic based on the treatment plan and case details." },
     ],
     overview: [
       { title: "Before your visit", text: "Share the concern you want checked so the clinic can prepare the right appointment flow." },
@@ -266,36 +253,47 @@ function buildServiceContent(service) {
   };
 }
 
-const DEFAULT_ITEMS = DEFAULT_SERVICES.map((service) =>
-  buildServiceContent({ ...service, category: "General", duration: "Varies by case" })
+const DEFAULT_ITEMS = PUBLIC_SERVICE_CATALOG.map((service) =>
+  buildServiceContent({
+    name: service.name,
+    desc: service.description,
+    price: service.startingRate,
+    img: SERVICE_IMAGES[key(service.name)] || getClinicServiceImage(service),
+    category: service.category,
+  })
 );
 
-/** Built-in services, with any clinic-managed services (Firestore) layered on top by name. */
+/** Use the Firestore catalog for membership while retaining curated presentation fallbacks. */
 function mergeServices(managedServices) {
-  const merged = new Map(DEFAULT_ITEMS.map((item) => [key(item.name), item]));
-
-  getBookingServiceOptions(managedServices).forEach((service) => {
-    const serviceKey = key(service.name);
-    const existing = merged.get(serviceKey);
-
-    merged.set(
-      serviceKey,
-      buildServiceContent({
-        name: service.name,
-        desc: service.description || existing?.desc || "Clinic-managed service available for booking.",
-        price: service.startingRate || existing?.price || "Ask the clinic for pricing",
-        duration: `${service.durationMinutes} minutes`,
-        img: SERVICE_IMAGES[serviceKey] || existing?.img || getClinicServiceImage(service),
-        category: service.category || "General",
-      })
-    );
+  const catalogOrder = new Map(PUBLIC_SERVICE_CATALOG.map((service, index) => [key(service.name), index]));
+  const activeServices = getActiveServices(managedServices).sort((left, right) => {
+    const leftOrder = catalogOrder.get(key(left.name));
+    const rightOrder = catalogOrder.get(key(right.name));
+    if (leftOrder !== undefined && rightOrder !== undefined) return leftOrder - rightOrder;
+    if (leftOrder !== undefined) return -1;
+    if (rightOrder !== undefined) return 1;
+    return left.name.localeCompare(right.name);
   });
 
-  merged.delete(key("Braces Consultation"));
-  merged.delete(key("Whitening"));
-  merged.delete(key("Restoration"));
+  return activeServices.map((service) => {
+    const serviceKey = key(service.name);
+    const existing = DEFAULT_ITEMS.find((item) => key(item.name) === serviceKey);
+    const source = managedServices.find((entry) => entry.id === service.id) || {};
 
-  return Array.from(merged.values());
+    return buildServiceContent({
+      name: service.name,
+      desc: Object.prototype.hasOwnProperty.call(source, "description")
+        ? service.description
+        : existing?.desc ?? "Clinic-managed service available for booking.",
+      price: Object.prototype.hasOwnProperty.call(source, "startingRate")
+        ? service.startingRate
+        : existing?.price ?? LEGACY_SERVICE_PRICE_FALLBACKS[serviceKey] ?? "Ask the clinic for pricing",
+      img: service.image
+        ? getClinicServiceImage(service)
+        : SERVICE_IMAGES[serviceKey] || existing?.img || getClinicServiceImage(service),
+      category: service.category || "General",
+    });
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -348,7 +346,7 @@ function ServiceImage({ service, isDemonic }) {
       loading="lazy"
       onError={(event) => {
         event.currentTarget.onerror = null;
-        event.currentTarget.src = getClinicServiceImage({ name: service.name, image: "" });
+        event.currentTarget.src = getLocalClinicServiceImage({ name: service.name });
       }}
     />
   );

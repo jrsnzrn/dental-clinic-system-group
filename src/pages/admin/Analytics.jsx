@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, onSnapshot } from "firebase/firestore";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { db } from "../../firebase";
 
 // Edit these if your collection or field names are different.
 const ROUTES = { bookings: "/admin/bookings", dentists: "/admin/dentists", accounts: "/admin/accounts", payments: "/admin/braces" };
-const ACCOUNT_COLLECTIONS = ["users", "accounts", "staff"];
 const PAYMENTS_COLLECTION = "payments";
-const READ_KEY = "topdentOverviewRead";
 
 const pad = (value) => String(value).padStart(2, "0");
 const iso = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -162,9 +160,6 @@ const icons = {
   user: (
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20c0-3.600 3-6 7-6s7 2.400 7 6" /></svg>
   ),
-  bell: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15z" /><path d="M10 21h4" /></svg>
-  ),
   search: (
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.500" /><path d="m16 16 4 4" /></svg>
   ),
@@ -174,11 +169,12 @@ const icons = {
 };
 
 export default function Overview() {
-  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [patients, setPatients] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -188,16 +184,6 @@ export default function Overview() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilter, setShowFilter] = useState(false);
-
-  const [bellOpen, setBellOpen] = useState(false);
-  const [readIds, setReadIds] = useState(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]"));
-    } catch {
-      return new Set();
-    }
-  });
-  const bellRef = useRef(null);
 
   useEffect(() => {
     const stop = onSnapshot(
@@ -218,22 +204,23 @@ export default function Overview() {
           console.warn(`Overview: could not read "${name}"`, readError);
           return [];
         });
-    Promise.all([safe("patients"), Promise.all(ACCOUNT_COLLECTIONS.map(safe)), safe(PAYMENTS_COLLECTION)]).then(([patientList, accountLists, paymentList]) => {
+    Promise.all([safe("patients"), safe(PAYMENTS_COLLECTION)]).then(([patientList, paymentList]) => {
       setPatients(patientList);
-      setAccounts(accountLists.flat());
       setPayments(paymentList);
     });
+    getDocs(collection(db, "admins"))
+      .then((snapshot) => {
+        setAccounts(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+        setAccountsError("");
+      })
+      .catch((readError) => {
+        console.error('Overview: could not read staff accounts from "admins".', readError);
+        setAccounts([]);
+        setAccountsError("Staff accounts could not be loaded. The Receptionists list may be incomplete.");
+      })
+      .finally(() => setAccountsLoading(false));
     return stop;
   }, []);
-
-  useEffect(() => {
-    if (!bellOpen) return undefined;
-    const close = (event) => {
-      if (bellRef.current && !bellRef.current.contains(event.target)) setBellOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [bellOpen]);
 
   const today = iso(new Date());
   const periodInfo = PERIODS.find((item) => item.key === period);
@@ -300,51 +287,6 @@ export default function Overview() {
       .slice(0, 10);
   }, [bookings, search, statusFilter, selectedDay]);
 
-  const notifications = useMemo(() => {
-    const list = [];
-    bookings
-      .filter((item) => item.status === "pending")
-      .sort((a, b) => b.added.localeCompare(a.added))
-      .slice(0, 6)
-      .forEach((item) =>
-        list.push({
-          id: `pending:${item.id}`,
-          title: `New booking request from ${item.name}`,
-          sub: `${item.service || "No service"} · ${formatDate(item.date)}${item.time ? `, ${item.time}` : ""}`,
-        })
-      );
-    const todayCount = bookings.filter((item) => item.date === today && !["cancelled", "no-show"].includes(item.status)).length;
-    if (todayCount) {
-      list.unshift({ id: `today:${today}:${todayCount}`, title: `${todayCount} appointment${todayCount > 1 ? "s" : ""} today`, sub: "Open bookings to see the schedule" });
-    }
-    bookings
-      .filter((item) => item.status === "cancelled" && item.date >= today)
-      .slice(0, 4)
-      .forEach((item) => list.push({ id: `cancelled:${item.id}`, title: `${item.name} cancelled`, sub: `${item.service || "No service"} · ${formatDate(item.date)}` }));
-    return list;
-  }, [bookings, today]);
-
-  const unread = notifications.filter((item) => !readIds.has(item.id)).length;
-
-  function saveRead(next) {
-    setReadIds(next);
-    try {
-      localStorage.setItem(READ_KEY, JSON.stringify([...next]));
-    } catch {
-      /* storage unavailable */
-    }
-  }
-
-  function markAllRead() {
-    saveRead(new Set([...readIds, ...notifications.map((item) => item.id)]));
-  }
-
-  function openNotification(item) {
-    saveRead(new Set([...readIds, item.id]));
-    setBellOpen(false);
-    navigate(ROUTES.bookings);
-  }
-
   if (loading) {
     return (
       <section className="container adminSurface pageSection adminPage ovPage">
@@ -370,39 +312,11 @@ export default function Overview() {
             ))}
           </div>
 
-          <div className="ovBell" ref={bellRef}>
-            <button type="button" className="ovBellBtn" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`} aria-expanded={bellOpen} onClick={() => setBellOpen((open) => !open)}>
-              {icons.bell}
-              {unread > 0 && <span className="ovBadge">{unread > 9 ? "9+" : unread}</span>}
-            </button>
-
-          {bellOpen && (
-            <div className="ovPanel" role="dialog" aria-label="Notifications">
-              <div className="ovPanelHead">
-                <strong>Notifications</strong>
-                <button type="button" className="ovLink" onClick={markAllRead} disabled={!unread}>Mark all as read</button>
-              </div>
-              {notifications.length ? (
-                <ul>
-                  {notifications.map((item) => (
-                    <li key={item.id}>
-                      <button type="button" className={readIds.has(item.id) ? "ovNote read" : "ovNote"} onClick={() => openNotification(item)}>
-                        <strong>{item.title}</strong>
-                        <span>{item.sub}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="ovMuted ovPanelEmpty">You&apos;re all caught up.</p>
-              )}
-            </div>
-          )}
-          </div>
         </div>
       </header>
 
       {error && <div className="error" role="alert">{error}</div>}
+      {accountsError && <div className="error" role="alert">{accountsError}</div>}
 
       <div className="ovTop">
         <div className="ovLeft">
@@ -414,7 +328,13 @@ export default function Overview() {
 
           <div className="ovPeopleRow">
             <PeopleCard title="Dentists" icon={icons.dentist} people={dentists} to={ROUTES.dentists} empty="No dentists yet." />
-            <PeopleCard title="Receptionists" icon={icons.user} people={receptionists} to={ROUTES.accounts} empty="No receptionists yet." />
+            <PeopleCard
+              title="Receptionists"
+              icon={icons.user}
+              people={receptionists}
+              to={ROUTES.accounts}
+              empty={accountsLoading ? "Loading staff accounts…" : accountsError ? "Receptionist list unavailable." : "No receptionists yet."}
+            />
           </div>
         </div>
 

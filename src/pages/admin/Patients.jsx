@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   collection,
@@ -12,6 +12,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import { useNavigate, useParams } from "react-router-dom";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
@@ -513,11 +514,14 @@ async function exportPatientPdf(patient) {
 }
 
 export default function Patients() {
+  const navigate = useNavigate();
+  const { patientId = "" } = useParams();
+  const patientListScrollPosition = useRef(0);
+  const wasPatientDetails = useRef(Boolean(patientId));
   const [patients, setPatients] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [dentistProfiles, setDentistProfiles] = useState([]);
-  const [selectedPatientId, setSelectedPatientId] = useState("");
-  const [patientWorkspaceOpen, setPatientWorkspaceOpen] = useState(false);
+  const selectedPatientId = patientId;
   const [draft, setDraft] = useState(getEmptyDraft());
   const [isEditing, setIsEditing] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
@@ -698,20 +702,6 @@ export default function Patients() {
   }, [addOpen]);
 
   useEffect(() => {
-    if (!patientWorkspaceOpen) return undefined;
-    function handleKey(e) {
-      if (e.key === "Escape" && !confirmState && !addOpen) closePatientRecord();
-    }
-    window.addEventListener("keydown", handleKey);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [patientWorkspaceOpen, confirmState, addOpen]);
-
-  useEffect(() => {
     if (!notice || notice.type !== "success") return undefined;
     const timer = setTimeout(() => setNotice(null), 5000);
     return () => clearTimeout(timer);
@@ -720,6 +710,16 @@ export default function Patients() {
   useEffect(() => {
     setActivePatientView(PATIENT_VIEWS.DETAILS);
   }, [selectedPatientId]);
+
+  useLayoutEffect(() => {
+    if (patientId) {
+      window.scrollTo(0, 0);
+      wasPatientDetails.current = true;
+    } else if (wasPatientDetails.current) {
+      window.scrollTo(0, patientListScrollPosition.current);
+      wasPatientDetails.current = false;
+    }
+  }, [patientId]);
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -764,14 +764,14 @@ export default function Patients() {
   function openPatientRecord(patientId) {
     setNotice(null);
     setIsEditing(false);
-    setSelectedPatientId(patientId);
     setActivePatientView(PATIENT_VIEWS.DETAILS);
-    setPatientWorkspaceOpen(true);
+    patientListScrollPosition.current = window.scrollY;
+    navigate(`/admin/patients/${encodeURIComponent(patientId)}`);
   }
 
   function closePatientRecord() {
     setIsEditing(false);
-    setPatientWorkspaceOpen(false);
+    navigate("/admin/patients");
   }
 
   function startEditing() {
@@ -1153,8 +1153,7 @@ export default function Patients() {
     try {
       await toggleArchive(patient);
       setIsEditing(false);
-      setPatientWorkspaceOpen(false);
-      setSelectedPatientId("");
+      navigate("/admin/patients");
       setNotice({ type: "success", text: `${patient.name || "Patient"} was moved to the archive.` });
     } catch (error) {
       console.error(error);
@@ -1222,54 +1221,54 @@ export default function Patients() {
       ) : null}
 
       {/* ---------------- Patient list ---------------- */}
+      {!patientId ? (
       <div className="patientListPage">
-        <div className="patientToolbar">
-          <div className="topSearchBar">
-            <svg className="topSearchIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            <input
-              className="input topSearchInput"
-              placeholder="Search patient name"
-              aria-label="Search patients by name"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search ? (
-              <button type="button" className="searchClearBtn" onClick={() => setSearch("")}>
-                Clear
-              </button>
-            ) : null}
-          </div>
-
-          <div className="patientTypeFilter">
-            <select
-              className="input typeSelect"
-              aria-label="Filter by patient type"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              {TYPE_FILTERS.map((filter) => (
-                <option key={filter} value={filter}>{filter}</option>
-              ))}
-            </select>
-          </div>
-
-          {canEditPatientProfile ? (
-            <button type="button" className="btn btnPrimary" onClick={() => setAddOpen(true)}>
-              Add New Patient
-            </button>
-          ) : null}
-        </div>
-
-        <section className="panel">
-          <div className="panelHead">
-            <div>
+        <section className="panel patientListPanel">
+          <div className="panelHead patientPanelHead">
+            <div className="patientPanelIntro">
               <h2 className="panelTitle">Patient Records</h2>
               <p className="panelSub">Select a patient to open their record.</p>
+              <span className="countLabel">{filteredPatientCards.length} records</span>
             </div>
-            <span className="countLabel">{filteredPatientCards.length} records</span>
+            <div className="patientToolbar">
+              <div className="topSearchBar">
+                <svg className="topSearchIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+                <input
+                  className="input topSearchInput"
+                  placeholder="Search patient name"
+                  aria-label="Search patients by name"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {search ? (
+                  <button type="button" className="searchClearBtn" onClick={() => setSearch("")}>
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="patientTypeFilter">
+                <select
+                  className="input typeSelect"
+                  aria-label="Filter by patient type"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                >
+                  {TYPE_FILTERS.map((filter) => (
+                    <option key={filter} value={filter}>{filter}</option>
+                  ))}
+                </select>
+              </div>
+
+              {canEditPatientProfile ? (
+                <button type="button" className="btn btnPrimary" onClick={() => setAddOpen(true)}>
+                  Add New Patient
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {loadingPatients ? (
@@ -1279,10 +1278,11 @@ export default function Patients() {
               <table className="patientTable">
                 <thead>
                   <tr>
-                    <th>Full Name</th>
+                    <th>Patient Name</th>
+                    <th>Email</th>
+                    <th>Type of Patient</th>
                     <th>Age</th>
                     <th>Contact Number</th>
-                    <th>Type of Patient</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1301,14 +1301,15 @@ export default function Patients() {
                           }
                         }}
                       >
-                        <td data-label="Full Name">
+                        <td data-label="Patient Name">
                           <span className="patientName">{patient.name || "Unnamed patient"}</span>
                         </td>
-                        <td data-label="Age">{patient.age || "-"}</td>
-                        <td data-label="Contact Number">{patient.phone || "No number"}</td>
+                        <td data-label="Email">{patient.email || "—"}</td>
                         <td data-label="Type of Patient">
                           <span className={`typeBadge ${type === "Ortho" ? "ortho" : "regular"}`}>{type}</span>
                         </td>
+                        <td data-label="Age">{patient.age || "-"}</td>
+                        <td data-label="Contact Number">{patient.phone || "No number"}</td>
                       </tr>
                     );
                   })}
@@ -1327,25 +1328,21 @@ export default function Patients() {
           )}
         </section>
       </div>
+      ) : null}
 
       {/* ---------------- Patient record workspace ---------------- */}
-      {patientWorkspaceOpen ? (
-        <div className="modalOverlay recordOverlay" role="presentation">
-          <div className="modalCard recordModal" role="dialog" aria-modal="true" aria-label="Patient record">
-            <button type="button" className="iconBtn recordClose" aria-label="Close patient record" onClick={closePatientRecord}>
-              &times;
+      {patientId ? (
+        <main className="patientDetailsPage">
+          <div className="recordPage">
+            <button type="button" className="backLink" onClick={closePatientRecord}>
+              Back to Patients
             </button>
-            <div className="recordPage">
-              <button type="button" className="backLink" onClick={closePatientRecord}>
-                Back to patient list
-              </button>
-
           {loadingPatients && !selectedPatient ? (
             <SkeletonList count={2} />
           ) : !selectedPatient ? (
             <EmptyState
               title="Patient not found"
-              message="This patient may have been archived or is no longer available. Go back to the patient list."
+              message="This patient may have been archived or is no longer available. Return to the patient list to choose another record."
             />
           ) : (
             <>
@@ -1964,15 +1961,14 @@ export default function Patients() {
               </footer>
             </>
           )}
-            </div>
           </div>
-        </div>
+        </main>
       ) : null}
 
       {addOpen ? (
-        <div className="modalOverlay" onClick={() => setAddOpen(false)} role="presentation">
+        <div className="modalOverlay addPatientModalOverlay" onClick={() => setAddOpen(false)} role="presentation">
           <form
-            className="modalCard"
+            className="modalCard addPatientModal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-patient-title"
@@ -1986,7 +1982,7 @@ export default function Patients() {
               </button>
             </div>
 
-            <div className="modalBody">
+            <div className="modalBody addPatientModalBody">
               <label className="field">
                 <span className="fieldLabel">First name</span>
                 <input className="input" required value={addDraft.firstName} onChange={(e) => updateAddDraft("firstName", e.target.value)} />
@@ -1999,16 +1995,14 @@ export default function Patients() {
                 <span className="fieldLabel">Last name</span>
                 <input className="input" required value={addDraft.lastName} onChange={(e) => updateAddDraft("lastName", e.target.value)} />
               </label>
-              <div className="twoCol">
-                <label className="field">
-                  <span className="fieldLabel">Age</span>
-                  <input className="input" type="number" min="1" value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
-                </label>
-                <label className="field">
-                  <span className="fieldLabel">Contact number</span>
-                  <input className="input" value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
-                </label>
-              </div>
+              <label className="field">
+                <span className="fieldLabel">Age</span>
+                <input className="input" type="number" min="1" value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Contact number</span>
+                <input className="input" value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
+              </label>
               <label className="field">
                 <span className="fieldLabel">Gmail</span>
                 <input className="input" type="email" value={addDraft.email} onChange={(e) => updateAddDraft("email", e.target.value)} />

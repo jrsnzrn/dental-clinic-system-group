@@ -5,6 +5,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
+import StaffNotificationBell from "./StaffNotificationBell";
 
 const THEME_OPTIONS = [
   {
@@ -45,6 +46,9 @@ const THEME_OPTIONS = [
 ];
 
 const ADMIN_NAV_ICONS = {
+  "/admin/analytics": (
+    <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg>
+  ),
   "/admin/dashboard": (
     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
   ),
@@ -143,24 +147,26 @@ function AccountAvatar({ user, large = false }) {
   );
 }
 
-function AccountMenu({ user, items, onLogout, closeSignal = false }) {
+function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole = "" }) {
   const [open, setOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const ref = useRef(null);
-  const location = useLocation();
-
-  useEffect(() => {
-    setOpen(false);
-  }, [location.pathname, closeSignal]);
 
   useEffect(() => {
     if (!open) return undefined;
 
     function handlePointerDown(event) {
-      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+      if (ref.current && !ref.current.contains(event.target)) {
+        setOpen(false);
+        setAppearanceOpen(false);
+      }
     }
 
     function handleKeyDown(event) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        setAppearanceOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", handlePointerDown);
@@ -181,12 +187,14 @@ function AccountMenu({ user, items, onLogout, closeSignal = false }) {
         className={`accountTrigger ${open ? "open" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (open) setAppearanceOpen(false);
+          setOpen((current) => !current);
+        }}
       >
         <AccountAvatar user={user} />
         <span className="accountMeta">
           <span className="accountName">{getDisplayName(user)}</span>
-          <span className="accountStatus"><i />Online</span>
         </span>
         <span className="accountChevron">{ACCOUNT_ICONS.chevron}</span>
       </button>
@@ -196,8 +204,8 @@ function AccountMenu({ user, items, onLogout, closeSignal = false }) {
           <AccountAvatar user={user} large />
           <div className="accountDropdownInfo">
             <strong>{getDisplayName(user)}</strong>
+            {accountRole ? <span className="accountRole">{accountRole}</span> : null}
             <span className="accountEmail">{user?.email}</span>
-            <span className="accountStatus"><i />Online</span>
           </div>
         </div>
 
@@ -219,6 +227,55 @@ function AccountMenu({ user, items, onLogout, closeSignal = false }) {
           </>
         )}
 
+        {theme && onThemeChange && (
+          <>
+            <div className="accountAppearance">
+              <button
+                type="button"
+                className="accountDropdownItem accountAppearanceTrigger"
+                role="menuitem"
+                aria-haspopup="menu"
+                aria-expanded={appearanceOpen}
+                onClick={() => setAppearanceOpen((current) => !current)}
+              >
+                <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
+                  {THEME_OPTIONS.find((option) => option.id === "blue").icon}
+                </span>
+                <span className="accountItemText"><strong>Appearance</strong></span>
+                <span className="accountAppearanceChevron" aria-hidden="true">›</span>
+              </button>
+              {appearanceOpen && (
+                <div className="accountAppearanceMenu" role="menu" aria-label="Choose appearance">
+                  {["light", "dark", "blue"].map((themeId) => {
+                    const option = THEME_OPTIONS.find((themeOption) => themeOption.id === themeId);
+                    return (
+                      <button
+                        key={themeId}
+                        type="button"
+                        className="accountAppearanceOption"
+                        role="menuitemradio"
+                        aria-checked={theme === themeId}
+                        onClick={() => onThemeChange(themeId)}
+                      >
+                        <span className="accountAppearanceOptionLabel">
+                          {option.icon}
+                          {themeId.charAt(0).toUpperCase() + themeId.slice(1)} theme
+                        </span>
+                        {theme === themeId && (
+                          <svg className="accountAppearanceCheck" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {theme && onThemeChange && <div className="accountDropdownDivider" />}
         <button
           type="button"
           className="accountDropdownItem danger"
@@ -317,7 +374,16 @@ export default function NavBar({
       <>
         {user && (
           <div className="adminTopbar">
-            <AccountMenu user={user} items={ADMIN_ACCOUNT_ITEMS} onLogout={logout} closeSignal={menuOpen} />
+            <StaffNotificationBell adminRole={adminRole} />
+            <AccountMenu
+              key={`${location.pathname}:${menuOpen}`}
+              user={user}
+              items={ADMIN_ACCOUNT_ITEMS}
+              onLogout={logout}
+              theme={theme}
+              onThemeChange={onThemeChange}
+              accountRole={ROLE_LABELS[adminRole] || "Staff"}
+            />
           </div>
         )}
 
@@ -353,12 +419,6 @@ export default function NavBar({
               </div>
             </div>
 
-            <div className="adminSidebarMeta">
-              <span className="detailLabel">Workspace</span>
-              <strong>{ROLE_LABELS[adminRole] || "Staff"}</strong>
-              <p>{user?.email || "Signed-in staff account"}</p>
-            </div>
-
             <nav className="adminSidebarNav">
               {adminLinks.map((link) => (
                 <NavLink
@@ -366,6 +426,7 @@ export default function NavBar({
                   to={link.to}
                   className={({ isActive }) => `adminSidebarLink ${isActive ? "active" : ""}`}
                   onClick={() => setMenuOpen(false)}
+                  title={link.to === "/admin/braces" && adminRole === ROLES.RECEPTIONIST ? "Braces payment ledger" : undefined}
                 >
                   {ADMIN_NAV_ICONS[link.to] || ADMIN_NAV_ICON_DEFAULT}
                   <span>{link.label}</span>
@@ -373,23 +434,6 @@ export default function NavBar({
               ))}
             </nav>
 
-            <div className="adminSidebarFooter">
-              <div className="themeSwitcher adminThemeSwitcher">
-                {THEME_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`themeChip iconThemeChip ${theme === option.id ? "active" : ""}`}
-                    onClick={() => onThemeChange(option.id)}
-                    aria-label={`Switch to ${option.id} theme`}
-                    title={`${option.id.charAt(0).toUpperCase() + option.id.slice(1)} Theme`}
-                  >
-                    {option.icon}
-                  </button>
-                ))}
-              </div>
-
-            </div>
           </div>
         </aside>
       </>
@@ -426,7 +470,12 @@ export default function NavBar({
           </div>
 
           {user && (
-            <AccountMenu user={user} items={USER_ACCOUNT_ITEMS} onLogout={logout} closeSignal={menuOpen} />
+            <AccountMenu
+              key={`${location.pathname}:${menuOpen}`}
+              user={user}
+              items={USER_ACCOUNT_ITEMS}
+              onLogout={logout}
+            />
           )}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   doc,
@@ -16,7 +16,11 @@ import { auth, db, functions } from "../firebase";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
-import { getActiveClosureForDate, getBookingServiceOptions } from "../utils/clinic";
+import {
+  BOOKING_SLOT_INTERVAL_MINUTES,
+  getActiveClosureForDate,
+  getBookingServiceOptions,
+} from "../utils/clinic";
 import { buildFullName, splitFullName } from "../utils/names";
 import {
   formatDateLabel,
@@ -105,6 +109,7 @@ export default function Book() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [recentlySubmitted, setRecentlySubmitted] = useState(false);
+
   const [datePageStart, setDatePageStart] = useState(toLocalISODate(new Date()));
   const [slotOptions, setSlotOptions] = useState([]);
   const [blockedRanges, setBlockedRanges] = useState([]);
@@ -113,6 +118,14 @@ export default function Book() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [availabilityRefreshVersion, setAvailabilityRefreshVersion] = useState(0);
+  const availabilityRefreshTimer = useRef(null);
+
+  useEffect(() => () => {
+    if (availabilityRefreshTimer.current) {
+      window.clearTimeout(availabilityRefreshTimer.current);
+    }
+  }, []);
 
   const todayStr = toLocalISODate(new Date());
   const getBookingAvailability = useMemo(
@@ -131,19 +144,8 @@ export default function Book() {
     (promotion.services || []).some((name) => selectedServices.includes(name))
   ), [date, promotions, selectedServices]);
   const selectedPromotion = availablePromotions.find((promotion) => promotion.id === promotionId) || null;
-  const selectedServiceRecords = useMemo(
-    () => selectedServices
-      .map((name) => activeServiceOptions.find((entry) => entry.name === name))
-      .filter(Boolean),
-    [activeServiceOptions, selectedServices]
-  );
-  const selectedServiceRecord = selectedServiceRecords[0] || null;
   const service = selectedServices.join(", ");
-  const serviceDurationMinutes = selectedServiceRecords.reduce(
-    (total, entry) => total + Number(entry.durationMinutes || 0),
-    0
-  );
-  const appointmentDurationMinutes = serviceDurationMinutes || selectedServiceRecord?.durationMinutes || 60;
+  const appointmentDurationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
   const selectedTimeEnd = time ? minutesToTime(timeToMinutes(time) + appointmentDurationMinutes) : "";
   const selectedTimeRange = time ? `${formatTimeLabel(time)} - ${formatTimeLabel(selectedTimeEnd)}` : "";
 
@@ -360,7 +362,7 @@ export default function Book() {
     return () => {
       cancelled = true;
     };
-  }, [date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
+  }, [availabilityRefreshVersion, date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
 
   function moveSuggestedDates(amount) {
     const nextStart = new Date(`${datePageStart}T00:00:00`);
@@ -524,6 +526,28 @@ export default function Book() {
         privacyConsentAccepted: true,
       });
 
+      const reservedStartMinutes = timeToMinutes(time);
+      const reservedEndMinutes = bookingConfirmation.requestedEnd;
+      const bookedRange = `${formatTimeLabel(time)}-${formatTimeLabel(minutesToTime(reservedEndMinutes))}`;
+      setSlotOptions((current) => current.map((slot) => {
+        const slotStart = timeToMinutes(slot.value);
+        const slotEnd = slotStart + BOOKING_SLOT_INTERVAL_MINUTES;
+        if (slotStart < reservedEndMinutes && slotEnd > reservedStartMinutes) {
+          return { ...slot, disabled: true, disabledReason: `Booked ${bookedRange}` };
+        }
+        return slot;
+      }));
+      setBlockedRanges((current) => [
+        ...current,
+        { start: time, end: minutesToTime(reservedEndMinutes), reason: "occupied" },
+      ]);
+      if (availabilityRefreshTimer.current) {
+        window.clearTimeout(availabilityRefreshTimer.current);
+      }
+      availabilityRefreshTimer.current = window.setTimeout(() => {
+        setAvailabilityRefreshVersion((current) => current + 1);
+        availabilityRefreshTimer.current = null;
+      }, 2200);
       setBookingConfirmation(null);
       setNotes("");
       setAgreedToPrivacyConsent(false);
@@ -782,7 +806,7 @@ export default function Book() {
                           aria-pressed={active}
                         >
                           <span>{option.name}</span>
-                          <strong>{option.durationMinutes || 60} min</strong>
+                          <strong>Book</strong>
                         </button>
                       );
                     })}
@@ -925,7 +949,7 @@ export default function Book() {
                     <span className="bookingFieldHint">
                       {loadingAvailability
                         ? "Loading live slot availability..."
-                        : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"} for a ${appointmentDurationMinutes}-minute appointment`}
+                        : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
                     </span>
                   </label>
                 </div>

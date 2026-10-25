@@ -210,28 +210,6 @@ export default function Home() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    const animateElements = document.querySelectorAll(
-      ".feedbackCard, .whyUsCard, .serviceCard, .doctorCard, .homeIntroCopy, .homeIntroVisual"
-    );
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15 }
-    );
-
-    animateElements.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <div className="homePage">
       <CursorAura />

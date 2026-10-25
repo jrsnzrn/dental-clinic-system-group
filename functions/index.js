@@ -20,6 +20,8 @@ const BOOKING_AVAILABILITY_MAX_CALLS = 20;
 const BOOKING_CREATE_MIN_INTERVAL_MS = 4000;
 const BOOKING_CREATE_WINDOW_MS = 60 * 1000;
 const BOOKING_CREATE_MAX_CALLS = 6;
+const BOOKING_SLOT_INTERVAL_MINUTES = 30;
+const LEGACY_BOOKING_DURATION_FALLBACK_MINUTES = 60;
 const STAFF_MFA_CODE_TTL_MS = 5 * 60 * 1000;
 const STAFF_MFA_VERIFIED_MS = 12 * 60 * 60 * 1000;
 const STAFF_MFA_REQUEST_MIN_INTERVAL_MS = 60 * 1000;
@@ -183,8 +185,9 @@ function formatTimeLabel(timeStr) {
 function generateSlots() {
   const slots = [];
   for (let hour = 9; hour <= 17; hour += 1) {
-    slots.push(`${pad(hour)}:00`);
-    slots.push(`${pad(hour)}:30`);
+    for (let minute = 0; minute < 60; minute += BOOKING_SLOT_INTERVAL_MINUTES) {
+      slots.push(`${pad(hour)}:${pad(minute)}`);
+    }
   }
   return slots;
 }
@@ -262,13 +265,30 @@ function getDentistDaySchedule(dentist, dateStr) {
 }
 
 function normalizeClinicService(service = {}) {
+  const durationMinutes = Number(service.durationMinutes);
   return {
     name: String(service.name || "").trim(),
     description: String(service.description || "").trim(),
-    durationMinutes: Number(service.durationMinutes || 60),
+    durationMinutes: Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : null,
     startingRate: String(service.startingRate || "").trim(),
     active: service.active !== false,
   };
+}
+
+function getServiceBookingDurationMinutes(serviceRecord) {
+  const durationMinutes = Number(serviceRecord?.durationMinutes);
+  return Number.isFinite(durationMinutes) && durationMinutes > 0
+    ? durationMinutes
+    : LEGACY_BOOKING_DURATION_FALLBACK_MINUTES;
+}
+
+function getServicesBookingDurationMinutes(serviceNames, serviceOptions) {
+  return serviceNames.length
+    ? serviceNames.reduce((total, serviceName) => {
+      const serviceRecord = serviceOptions.find((entry) => entry.name === serviceName);
+      return total + getServiceBookingDurationMinutes(serviceRecord);
+    }, 0)
+    : LEGACY_BOOKING_DURATION_FALLBACK_MINUTES;
 }
 
 function getBookingServiceOptions(services = []) {
@@ -328,12 +348,7 @@ function getBookingDurationMinutes(booking = {}, serviceOptions = []) {
     return Number(booking.estimatedDurationMinutes);
   }
 
-  const inferredDuration = getBookingServices(booking).reduce((total, serviceName) => {
-    const serviceRecord = serviceOptions.find((entry) => entry.name === serviceName);
-    return total + Number(serviceRecord?.durationMinutes || 0);
-  }, 0);
-
-  return inferredDuration || 60;
+  return getServicesBookingDurationMinutes(getBookingServices(booking), serviceOptions);
 }
 
 function getManilaNowContext() {
@@ -357,7 +372,7 @@ function getManilaNowContext() {
 
 function getSlotLockIds({ dentistId, date, startMinutes, endMinutes }) {
   const lockIds = [];
-  for (let cursor = startMinutes; cursor < endMinutes; cursor += 30) {
+  for (let cursor = startMinutes; cursor < endMinutes; cursor += BOOKING_SLOT_INTERVAL_MINUTES) {
     lockIds.push(`${dentistId}_${date}_${minutesToTime(cursor).replace(":", "")}`);
   }
   return lockIds;
@@ -372,7 +387,7 @@ function buildPersonName({ firstName = "", middleName = "", lastName = "", fallb
 
 function getStoredBookingDurationMinutes(booking = {}) {
   const duration = Number(booking.estimatedDurationMinutes || 0);
-  return duration > 0 ? duration : 60;
+  return duration > 0 ? duration : LEGACY_BOOKING_DURATION_FALLBACK_MINUTES;
 }
 
 function getStoredBookingWindow(booking = {}, overrides = {}) {
@@ -571,6 +586,8 @@ async function validateStaffBookingSlot(transaction, {
   booking,
   nextDate,
   nextTime,
+  nextDurationMinutes,
+  allowPastStart = false,
 }) {
   const dentistId = String(booking.dentistId || "").trim();
   if (!dentistId) {
@@ -619,6 +636,7 @@ async function validateStaffBookingSlot(transaction, {
     dentistId,
     date: nextDate,
     time: nextTime,
+    ...(nextDurationMinutes ? { durationMinutes: nextDurationMinutes } : {}),
   });
   const scheduleStart = timeToMinutes(schedule.start);
   const scheduleEnd = timeToMinutes(schedule.end);
@@ -628,7 +646,7 @@ async function validateStaffBookingSlot(transaction, {
     throw new HttpsError("failed-precondition", "That time is outside the dentist's schedule.");
   }
 
-  if (nextDate === manilaNow.date && window.startMinutes < manilaNow.minutes) {
+  if (!allowPastStart && nextDate === manilaNow.date && window.startMinutes < manilaNow.minutes) {
     throw new HttpsError("failed-precondition", "That time already passed. Choose a later time.");
   }
 
@@ -660,6 +678,7 @@ async function validateStaffBookingSlot(transaction, {
     dentistId,
     date: nextDate,
     time: nextTime,
+    ...(nextDurationMinutes ? { durationMinutes: nextDurationMinutes } : {}),
   });
   const lockedBookingIds = Array.from(
     new Set(
@@ -705,10 +724,7 @@ function buildAvailabilityResponse({
   closure,
 }) {
   const schedule = getDentistDaySchedule(dentist, date);
-  const durationMinutes = selectedServices.reduce((total, serviceName) => {
-    const serviceRecord = serviceOptions.find((entry) => entry.name === serviceName);
-    return total + Number(serviceRecord?.durationMinutes || 0);
-  }, 0) || 60;
+  const durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
 
   if (closure || !schedule.active) {
     return {
@@ -2034,10 +2050,7 @@ exports.createBooking = onCall(
         throw new HttpsError("failed-precondition", "That dentist is inactive on the selected day.");
       }
 
-      const durationMinutes = selectedServices.reduce((total, serviceName) => {
-        const serviceRecord = serviceOptions.find((entry) => entry.name === serviceName);
-        return total + Number(serviceRecord?.durationMinutes || 0);
-      }, 0) || 60;
+      const durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
       const startMinutes = timeToMinutes(time);
       const endMinutes = startMinutes + durationMinutes;
       const scheduleStart = timeToMinutes(schedule.start);
@@ -2939,6 +2952,102 @@ exports.declineReschedule = onCall(
     });
 
     return { success: true, bookingId };
+  }
+);
+
+exports.adjustBookingEndTime = onCall(
+  {},
+  async (request) => {
+    const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const bookingId = String(request.data?.bookingId || "").trim();
+    const endTime = String(request.data?.endTime || "").trim();
+
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "Booking ID is required.");
+    }
+    if (!/^\d{2}:\d{2}$/.test(endTime)) {
+      throw new HttpsError("invalid-argument", "End time must use HH:mm format.");
+    }
+
+    let updatedBooking = null;
+    let previousEndTime = "";
+
+    await db.runTransaction(async (transaction) => {
+      const bookingRef = db.collection("bookings").doc(bookingId);
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking could not be found.");
+      }
+
+      const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      if (!["pending", "approved"].includes(String(booking.status || "pending"))) {
+        throw new HttpsError("failed-precondition", "Only pending or approved bookings can have their end time extended.");
+      }
+      if (booking.archiveStatus === "Archived") {
+        throw new HttpsError("failed-precondition", "Archived bookings cannot be changed.");
+      }
+
+      const startMinutes = timeToMinutes(booking.time);
+      const endMinutes = timeToMinutes(endTime);
+      if (!booking.date || !booking.time || endMinutes <= startMinutes) {
+        throw new HttpsError("invalid-argument", "End time must be after the appointment start time.");
+      }
+      if (endMinutes <= startMinutes + getStoredBookingDurationMinutes(booking)) {
+        throw new HttpsError("invalid-argument", "Choose an end time later than the current appointment end time.");
+      }
+
+      const oldLocks = await getLockSnapshots(transaction, booking);
+      const slot = await validateStaffBookingSlot(transaction, {
+        bookingId,
+        booking,
+        nextDate: booking.date,
+        nextTime: booking.time,
+        nextDurationMinutes: endMinutes - startMinutes,
+        allowPastStart: true,
+      });
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      deleteOwnedLocks(transaction, oldLocks.lockRefs, oldLocks.lockSnaps, bookingId);
+      slot.lockRefs.forEach((lockRef) => {
+        transaction.set(lockRef, {
+          bookingId,
+          dentistId: slot.window.dentistId,
+          date: slot.window.date,
+          time: slot.window.time,
+          startMinutes: slot.window.startMinutes,
+          endMinutes: slot.window.endMinutes,
+          uid: booking.uid || "",
+          updatedAt: now,
+        });
+      });
+
+      previousEndTime = String(booking.estimatedEndTime || minutesToTime(
+        startMinutes + getStoredBookingDurationMinutes(booking)
+      ));
+      const updatePayload = {
+        estimatedDurationMinutes: slot.window.durationMinutes,
+        estimatedEndTime: slot.estimatedEndTime,
+        endTimeAdjustedAt: now,
+        endTimeAdjustedBy: staff.uid,
+      };
+      transaction.update(bookingRef, updatePayload);
+      updatedBooking = { ...booking, ...updatePayload };
+    });
+
+    await writeStaffAuditLog(staff, {
+      action: "adjust_booking_end_time",
+      targetType: "booking",
+      targetId: bookingId,
+      targetLabel: getBookingTargetLabel(updatedBooking),
+      details: {
+        previousEndTime,
+        endTime: updatedBooking.estimatedEndTime,
+        date: updatedBooking.date,
+        time: updatedBooking.time,
+      },
+    });
+
+    return { success: true, bookingId, endTime: updatedBooking.estimatedEndTime };
   }
 );
 

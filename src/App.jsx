@@ -34,6 +34,7 @@ import { getAdminProfile, getDefaultAdminPath, ROLES } from "./utils/rbac";
 
 const THEMES = ["light", "blue", "dark"];
 const FIRST_VISIT_KEY = "topdent-has-visited";
+const PUBLIC_ANIMATION_PATHS = new Set(["/", "/about", "/services", "/contact", "/book"]);
 
 function getInitialTheme() {
   if (typeof window === "undefined") return "light";
@@ -43,6 +44,151 @@ function getInitialTheme() {
 
 function FirstVisitHomeGate({ isAdmin, children }) {
   const location = useLocation();
+
+  useEffect(() => {
+    const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+    const isPublicRoute = !isAdmin && PUBLIC_ANIMATION_PATHS.has(currentPath);
+    const appMain = document.querySelector(".appMain");
+    if (!appMain) return undefined;
+
+    if (!isPublicRoute) {
+      appMain.classList.remove("publicAnimationScope");
+      appMain.classList.remove("publicPageEnter");
+      return undefined;
+    }
+
+    appMain.classList.add("publicAnimationScope");
+    appMain.classList.remove("publicPageEnter");
+    void appMain.offsetWidth;
+    appMain.classList.add("publicPageEnter");
+
+    const revealSelectors = [
+      ".feedbackCard",
+      ".whyUsCard",
+      ".serviceCardIcon",
+      ".doctorCard",
+      ".aboutPage .revealOnScroll",
+      ".aboutPage .aboutSection > .title",
+      ".aboutPage .aboutSplitIntro .title",
+      ".aboutPage .aboutHeroText > *",
+      ".aboutPage .aboutPhotos img",
+      ".aboutPage .aboutTeamCard img",
+      ".aboutPage .aboutTeamCard",
+      ".aboutPage .aboutSplitIntro > *",
+      ".aboutPage .aboutPolicyItem",
+      ".svxHeader",
+      ".svxHeader > *",
+      ".svxCard",
+      ".svxCard img",
+      ".contactMapCard",
+      ".contactInfo .iconRow",
+      ".bookingPage .hero.bookingHero",
+      ".bookingPage .googleGate",
+      ".bookingPage .bookingSummaryCard",
+      ".bookingPage .bookingFormCard",
+      ".bookingPage .editorPreview",
+      ".bookingPage .bookingServiceSelector",
+      ".bookingPage .bookingDatePanel",
+    ];
+
+    if (currentPath === "/") {
+      revealSelectors.push(
+        ".homePage .homeLandingCopy > :not(.homeLandingActions)",
+        ".homePage .homeLandingActions > *",
+        ".homePage .homeLandingVisual img",
+        ".homePage .homeOffersGrid > .homeOfferCard",
+        ".homePage .homeWhyUsVisual img",
+        ".homePage .homeWhyUsContent > h2",
+        ".homePage .homeWhyUsContent > p",
+        ".homePage .homeGalleryIntro > *",
+        ".homePage .homeGalleryCard",
+        ".homePage .smileIntro > *",
+        ".homePage .smileCard",
+        ".homePage .homeServicesIntro > *",
+        ".homePage .serviceCard",
+        ".homePage .homeDoctorsIntro > *",
+        ".homePage .doctorCard",
+        ".homePage .homeFeedbackIntro > *",
+        ".homePage .feedbackCard",
+        ".homePage .homePromo .homePromoInner > *",
+        ".homePage img"
+      );
+    }
+
+    const revealSelector = revealSelectors.join(", ");
+    const revealTargets = appMain.querySelectorAll(revealSelector);
+
+    const showAllReveals = () => {
+      revealTargets.forEach((target) => {
+        target.classList.add("publicScrollReveal", "visible");
+      });
+    };
+
+    if (typeof window.IntersectionObserver !== "function") {
+      showAllReveals();
+      return undefined;
+    }
+
+    let observer;
+    let mutationObserver;
+    const observedTargets = new Set();
+    try {
+      observer = new window.IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.12 }
+      );
+
+      const observeTargets = (root) => {
+        if (!root || root.nodeType !== 1) return;
+
+        const targets = [];
+        if (root.matches(revealSelector)) targets.push(root);
+        targets.push(...root.querySelectorAll(revealSelector));
+
+        targets.forEach((target) => {
+          if (observedTargets.has(target)) return;
+          observer.observe(target);
+          target.classList.add("publicScrollReveal");
+          observedTargets.add(target);
+        });
+      };
+
+      observeTargets(appMain);
+
+      if (typeof window.MutationObserver === "function") {
+        mutationObserver = new window.MutationObserver((records) => {
+          records.forEach((record) => {
+            record.addedNodes.forEach((node) => {
+              try {
+                observeTargets(node);
+              } catch (error) {
+                console.warn("A public scroll reveal target could not be observed; leaving it visible.", error);
+              }
+            });
+          });
+        });
+        mutationObserver.observe(appMain, { childList: true, subtree: true });
+      }
+    } catch (error) {
+      observer?.disconnect();
+      mutationObserver?.disconnect();
+      console.warn("Public scroll reveals unavailable; showing content without observation.", error);
+      showAllReveals();
+      return undefined;
+    }
+
+    return () => {
+      observer.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [isAdmin, location.pathname]);
 
   if (typeof window === "undefined") return children;
 
@@ -113,6 +259,10 @@ export default function App() {
     window.localStorage.setItem("topdent-theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    document.documentElement.dataset.dashboard = isAdmin ? "true" : "false";
+  }, [isAdmin]);
+
   if (loadingAuth || checkingAdmin) {
     return <div style={{ padding: 20 }}>Loading...</div>;
   }
@@ -159,7 +309,7 @@ export default function App() {
             >
               <Route index element={<Navigate to={getDefaultAdminPath(adminRole).replace("/admin/", "")} replace />} />
               <Route
-                path="patients"
+                path="patients/:patientId?"
                 element={
                   <ProtectedRoute
                     user={user}
