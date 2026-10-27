@@ -2,10 +2,64 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../../firebase";
 import { getAuditActionLabel } from "../../utils/audit";
+import { ROLE_LABELS } from "../../utils/rbac";
 import { formatTimestamp } from "../../utils/schedule";
 
 function normalizeText(value) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+const ACTION_CATEGORIES = [
+  "Create",
+  "Update",
+  "Request",
+  "Approve",
+  "Decline",
+  "Cancel",
+  "Complete",
+  "Archive",
+  "Restore",
+  "Delete",
+];
+
+function getActionCategory(log) {
+  const action = normalizeText(log.action);
+  const status = normalizeText(log.details?.status || log.details?.nextStatus || log.details?.newStatus);
+
+  if (action === "update_booking_status") {
+    if (status.includes("cancel")) return "Cancel";
+    if (["completed", "complete"].includes(status)) return "Complete";
+    if (status === "approved") return "Approve";
+    return "Update";
+  }
+  if (action.startsWith("approve")) return "Approve";
+  if (action.startsWith("decline")) return "Decline";
+  if (action.startsWith("request")) return "Request";
+  if (action.startsWith("cancel")) return "Cancel";
+  if (action.startsWith("complete")) return "Complete";
+  if (action.startsWith("archive")) return "Archive";
+  if (action.startsWith("restore")) return "Restore";
+  if (action.startsWith("delete")) return "Delete";
+  if (["create", "add", "log", "schedule"].some((prefix) => action.startsWith(prefix))) return "Create";
+  if (["update", "set", "toggle", "mark", "clear", "save", "sync", "share", "hide", "remove"].some((prefix) => action.startsWith(prefix))) {
+    return "Update";
+  }
+  return "";
+}
+
+const TARGET_TYPE_LABELS = {
+  admin_account: "Staff Account",
+  staff_account: "Staff Account",
+  booking: "Appointment",
+  appointment: "Appointment",
+  clinic_service: "Service",
+  patient: "Patient",
+  promotion: "Promotion",
+};
+
+function getTargetTypeLabel(targetType) {
+  const normalized = normalizeText(targetType);
+  return TARGET_TYPE_LABELS[normalized] || normalized.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) || "General";
 }
 
 export default function Logs() {
@@ -43,10 +97,11 @@ export default function Logs() {
           log.actionLabel,
           log.targetLabel,
           log.targetType,
+          getTargetTypeLabel(log.targetType),
         ].some((value) => normalizeText(value).includes(term));
 
       const matchesRole = !roleFilter || normalizeText(log.actorRole) === normalizeText(roleFilter);
-      const matchesAction = !actionFilter || normalizeText(log.action) === normalizeText(actionFilter);
+      const matchesAction = !actionFilter || getActionCategory(log) === actionFilter;
       const matchesTarget = !targetFilter || normalizeText(log.targetType) === normalizeText(targetFilter);
       const matchesDate =
         !dateFilter ||
@@ -57,7 +112,7 @@ export default function Logs() {
   }, [actionFilter, dateFilter, logs, roleFilter, search, targetFilter]);
 
   const actionOptions = useMemo(
-    () => [...new Set(logs.map((log) => log.action).filter(Boolean))].sort(),
+    () => ACTION_CATEGORIES.filter((category) => logs.some((log) => getActionCategory(log) === category)),
     [logs]
   );
   const targetOptions = useMemo(
@@ -67,21 +122,15 @@ export default function Logs() {
 
   return (
     <div className="container adminSurface auditPage">
-      <header className="adminPageHeader auditHeader">
-        <div>
-          <span className="heroEyebrow">Audit Center</span>
-          <h1 className="auditTitle">Activity Logs</h1>
-          <p className="auditSub">
-            Track real-time staff operations, system adjustments, and account activity across your organization.
-          </p>
-        </div>
-        <span className="badge">{filteredLogs.length} entries</span>
-      </header>
-
       <div className="auditFilterBar">
-        <div className="searchWrapper">
+        <div className="searchWrapper adminSearchField">
+          <svg className="adminSearchIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
           <input
-            className="input auditSearchInput"
+            className="input"
+            aria-label="Search activity logs"
             placeholder="Search staff, action, or target..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -94,28 +143,28 @@ export default function Logs() {
         </div>
 
         <div className="filterSelectGroup">
-          <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+          <select className="input" aria-label="Filter activity logs by role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
             <option value="">All Roles</option>
             <option value="admin">Administrator</option>
             <option value="receptionist">Receptionist</option>
             <option value="dentist">Dentist</option>
           </select>
 
-          <select className="input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+          <select className="input" aria-label="Filter activity logs by action" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="">All Actions</option>
             {actionOptions.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
           </select>
 
-          <select className="input" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
+          <select className="input" aria-label="Filter activity logs by target" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
             <option value="">All Targets</option>
             {targetOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{getTargetTypeLabel(option)}</option>
             ))}
           </select>
 
-          <input className="input" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+          <input className="input" type="date" aria-label="Filter activity logs by date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
         </div>
       </div>
 
@@ -137,7 +186,7 @@ export default function Logs() {
                 <div key={log.id} className="auditTableRow">
                   <div className="actorCell">
                     <strong className="actorName">{log.actorName || log.actorEmail || "Staff"}</strong>
-                    <span className="actorRole">{(log.actorRole || "staff").toUpperCase()}</span>
+                    <span className="actorRole">{ROLE_LABELS[log.actorRole] || log.actorRole || "Staff"}</span>
                   </div>
 
                   <div className="actionCell">
@@ -145,8 +194,8 @@ export default function Logs() {
                   </div>
 
                   <div className="targetCell">
-                    <strong className="targetLabel">{log.targetLabel || log.targetType || "Record"}</strong>
-                    <span className="targetType">{log.targetType || "General"}</span>
+                    <strong className="targetLabel">{log.targetLabel || getTargetTypeLabel(log.targetType)}</strong>
+                    <span className="targetType">{getTargetTypeLabel(log.targetType)}</span>
                   </div>
 
                   <div className="timeCell">

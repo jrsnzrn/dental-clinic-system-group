@@ -245,12 +245,11 @@ export default function Promotions() {
 
   return (
     <section className="container adminSurface pageSection adminPage promotionsPage">
-      {!formOpen && !loading && !promotions.length && (
-        <div className="pageHeader">
-          <div />
-          <button className="btn btnShine" type="button" onClick={openFirst}>Set up promotion</button>
+      {!formOpen && !loading && !promotions.length ? (
+        <div className="promotionsPageActions">
+          <button className="btn btnPrimary" type="button" onClick={openFirst}>Set up promotion</button>
         </div>
-      )}
+      ) : null}
 
       {error && <div className="error" role="alert">{error}</div>}
 

@@ -81,6 +81,14 @@ export default function Login() {
       ? requestedNext
       : getDefaultAdminPath(profile.role);
 
+    await credential.user.reload();
+    if (!credential.user.emailVerified) {
+      navigate(`/admin/verify-email?next=${encodeURIComponent(targetPath)}`, {
+        replace: true,
+      });
+      return;
+    }
+
     if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile)) {
       navigate(`/admin/mfa?next=${encodeURIComponent(targetPath)}`, {
         replace: true,
@@ -249,10 +257,13 @@ export default function Login() {
           </button>
 
           <button
-            className="backButton"
+            className="backButton appBackAction"
             type="button"
             onClick={() => navigate("/")}
           >
+            <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
+              <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10h9" />
+            </svg>
             Back to Home
           </button>
         </form>

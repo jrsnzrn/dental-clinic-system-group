@@ -32,6 +32,7 @@ export default function Mfa() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const codeInputRefs = useRef([]);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -42,7 +43,7 @@ export default function Mfa() {
     return next.startsWith("/admin") ? next : "";
   }, [searchParams]);
 
-  async function requireFreshAuthToken() {
+  const requireFreshAuthToken = useCallback(async () => {
     const user = currentUser || auth.currentUser;
     if (!user) {
       throw new Error(
@@ -51,7 +52,7 @@ export default function Mfa() {
     }
     await user.getIdToken(true);
     return user;
-  }
+  }, [currentUser]);
 
   const requestCode = useCallback(async () => {
     setError("");
@@ -83,7 +84,7 @@ export default function Mfa() {
     } finally {
       setSending(false);
     }
-  }, [currentUser, nextPath, profile?.role, navigate]);
+  }, [nextPath, profile?.role, navigate, requireFreshAuthToken]);
 
   useEffect(() => {
     let alive = true;
@@ -97,7 +98,10 @@ export default function Mfa() {
       if (alive) setCurrentUser(user);
 
       try {
-        const snap = await getDoc(doc(db, "admins", user.uid));
+        await user.reload();
+        const freshUser = auth.currentUser || user;
+        if (alive) setCurrentUser(freshUser);
+        const snap = await getDoc(doc(db, "admins", freshUser.uid));
 
         if (!snap.exists()) {
           await signOut(auth);
@@ -109,6 +113,14 @@ export default function Mfa() {
 
         if (!alive) return;
         setProfile(nextProfile);
+
+        if (!freshUser.emailVerified) {
+          const targetPath = nextPath || getDefaultAdminPath(nextProfile.role);
+          navigate(`/admin/verify-email?next=${encodeURIComponent(targetPath)}`, {
+            replace: true,
+          });
+          return;
+        }
 
         if (
           !requiresStaffMfa(nextProfile) ||
@@ -143,6 +155,46 @@ export default function Mfa() {
       unsubscribe();
     };
   }, [navigate, nextPath, requestCode]);
+
+  function updateCodeDigit(index, value) {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length > 1) {
+      const pastedCode = digits.slice(0, 6).split("");
+      setCode(pastedCode.join(""));
+      codeInputRefs.current[Math.min(pastedCode.length, 5)]?.focus();
+      return;
+    }
+
+    const nextCode = code.padEnd(6, " ").split("");
+    nextCode[index] = digits;
+    setCode(nextCode.join(""));
+    if (digits && index < 5) codeInputRefs.current[index + 1]?.focus();
+  }
+
+  function handleCodeKeyDown(event, index) {
+    if (event.key === "Backspace") {
+      if (/\d/.test(code[index] || "")) {
+        event.preventDefault();
+        updateCodeDigit(index, "");
+      } else if (index > 0) {
+        event.preventDefault();
+        updateCodeDigit(index - 1, "");
+        codeInputRefs.current[index - 1]?.focus();
+      }
+    } else if (event.key === "ArrowLeft" && index > 0) {
+      codeInputRefs.current[index - 1]?.focus();
+    } else if (event.key === "ArrowRight" && index < 5) {
+      codeInputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleCodePaste(event) {
+    const pastedCode = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pastedCode) return;
+    event.preventDefault();
+    setCode(pastedCode);
+    codeInputRefs.current[Math.min(pastedCode.length, 5)]?.focus();
+  }
 
   async function verifyCode(event) {
     event.preventDefault();
@@ -219,28 +271,34 @@ export default function Mfa() {
         <form onSubmit={verifyCode} className="verificationForm">
 
           <div className="inputGroup">
-            <label htmlFor="verificationCode">
-              Verification Code
-            </label>
-
-            <input
-              id="verificationCode"
-              className="input"
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Enter 6-digit code"
-              value={code}
-              onChange={(event) =>
-                setCode(
-                  event.target.value
-                    .replace(/\D/g, "")
-                    .slice(0, 6)
-                )
-              }
-              autoComplete="one-time-code"
-              autoFocus
-            />
+            <label id="verificationCodeLabel">Verification Code</label>
+            <div
+              className="verificationDigits"
+              role="group"
+              aria-labelledby="verificationCodeLabel"
+              aria-describedby={error ? "verificationCodeError" : undefined}
+            >
+              {Array.from({ length: 6 }, (_, index) => (
+                <input
+                  key={index}
+                  ref={(element) => { codeInputRefs.current[index] = element; }}
+                  className="verificationDigit"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  aria-label={`Digit ${index + 1} of 6`}
+                  aria-invalid={Boolean(error)}
+                  value={/\d/.test(code[index] || "") ? code[index] : ""}
+                  onChange={(event) => updateCodeDigit(index, event.target.value)}
+                  onKeyDown={(event) => handleCodeKeyDown(event, index)}
+                  onPaste={handleCodePaste}
+                  autoComplete={index === 0 ? "one-time-code" : "off"}
+                  autoFocus={index === 0}
+                  disabled={verifying}
+                />
+              ))}
+            </div>
           </div>
 
           {status && (
@@ -250,7 +308,7 @@ export default function Mfa() {
           )}
 
           {error && (
-            <div className="error">
+            <div className="error" id="verificationCodeError" role="alert">
               {error}
             </div>
           )}

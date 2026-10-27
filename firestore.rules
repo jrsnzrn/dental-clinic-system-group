@@ -35,6 +35,12 @@ service cloud.firestore {
       return isAdmin() || isReceptionist();
     }
 
+    function isPaymentsStaff() {
+      return isStaff() &&
+        role() is string &&
+        (role().matches("(?i)^admin$") || role().matches("(?i)^receptionist$"));
+    }
+
     function isAnyStaffRole() {
       return isAdmin() || isReceptionist() || isDentist();
     }
@@ -111,7 +117,11 @@ service cloud.firestore {
 
     match /patients/{id} {
       allow read: if isAnyStaffRole();
-      allow create, update, delete: if isAdminOrReceptionist();
+      allow create: if isAdminOrReceptionist();
+      allow delete: if isAdmin();
+      allow update: if isAdmin() ||
+        (isReceptionist() &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["status", "archiveStatus"]));
     }
 
     match /bookings/{id} {
@@ -171,6 +181,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /staffEmailVerificationChallenges/{id} {
+      allow read, write: if false;
+    }
+
     match /staffPasswordResetChallenges/{id} {
       allow read, write: if false;
     }
@@ -185,6 +199,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /bracesPricing/{id} {
+      allow read: if isAdminOrReceptionist();
+      allow create, update: if isAdmin() &&
+        id == "reference" &&
+        request.resource.data.keys().hasOnly(["prices", "updatedAt"]);
+      allow delete: if isAdmin();
+    }
+
     match /bracesPayments/{id} {
       allow read: if isSignedIn() && (
         isAnyStaffRole() ||
@@ -193,6 +215,68 @@ service cloud.firestore {
 
       allow create, update: if isAdminOrReceptionist();
       allow delete: if isAdmin();
+    }
+
+    match /payments/{id} {
+      allow read: if isPaymentsStaff();
+      allow create: if isAdminOrReceptionist() &&
+        request.resource.data.keys().hasOnly([
+          "patientId",
+          "uid",
+          "patientName",
+          "patientEmail",
+          "patientType",
+          "appointmentId",
+          "treatmentId",
+          "treatmentName",
+          "totalCost",
+          "amount",
+          "paymentDate",
+          "method",
+          "notes",
+          "createdAt"
+        ]) &&
+        request.resource.data.patientId is string &&
+        request.resource.data.treatmentId is string &&
+        request.resource.data.patientType in ["Regular", "Ortho"] &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.totalCost is number &&
+        request.resource.data.totalCost > 0;
+      allow update, delete: if false;
+    }
+
+    match /paymentTreatmentSummaries/{id} {
+      allow read: if isPaymentsStaff();
+      allow create, update: if isAdminOrReceptionist() &&
+        request.resource.data.keys().hasOnly([
+          "patientId",
+          "uid",
+          "patientName",
+          "patientEmail",
+          "patientType",
+          "treatmentId",
+          "appointmentId",
+          "treatmentName",
+          "procedureName",
+          "totalCost",
+          "amountPaid",
+          "remainingBalance",
+          "createdAt",
+          "updatedAt"
+        ]) &&
+        request.resource.data.patientId is string &&
+        request.resource.data.treatmentId is string &&
+        request.resource.data.patientType in ["Regular", "Ortho"] &&
+        request.resource.data.totalCost is number &&
+        request.resource.data.totalCost > 0 &&
+        request.resource.data.amountPaid is number &&
+        request.resource.data.amountPaid >= 0 &&
+        request.resource.data.amountPaid <= request.resource.data.totalCost &&
+        request.resource.data.remainingBalance is number &&
+        request.resource.data.remainingBalance >= 0 &&
+        request.resource.data.remainingBalance <= request.resource.data.totalCost;
+      allow delete: if false;
     }
 
     match /bracesAdjustments/{id} {

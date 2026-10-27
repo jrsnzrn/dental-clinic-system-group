@@ -24,8 +24,8 @@ export function buildCalendarCells(bookings = [], daysToShow = 21) {
 
 export function getBookingCalendarTone(booking = {}) {
   if (String(booking.archiveStatus || "").toLowerCase() === "archived") return "archived";
-  if (booking.checkedInAt) return "completed";
   const status = String(booking.status || "pending").toLowerCase();
+  if (status === "completed") return "completed";
   if (status === "approved") return "approved";
   if (status === "cancelled") return "cancelled";
   if (status === "archived") return "archived";

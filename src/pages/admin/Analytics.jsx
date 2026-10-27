@@ -1,171 +1,197 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, onSnapshot } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { NavLink } from "react-router-dom";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
+import { getAuditActionLabel } from "../../utils/audit";
+import { formatCurrency } from "../../utils/braces";
+import { ROLES } from "../../utils/rbac";
 
-// Edit these if your collection or field names are different.
-const ROUTES = { bookings: "/admin/bookings", dentists: "/admin/dentists", accounts: "/admin/accounts", payments: "/admin/braces" };
-const PAYMENTS_COLLECTION = "payments";
-
-const pad = (value) => String(value).padStart(2, "0");
-const iso = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const ROUTES = {
+  patients: "/admin/patients",
+  bookings: "/admin/bookings",
+  payments: "/admin/payments",
+  dentists: "/admin/dentists",
+  receptionists: "/admin/accounts",
+};
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const pad = (value) => String(value).padStart(2, "0");
 
 function toISO(value) {
   if (!value) return "";
   if (typeof value === "string") return value.slice(0, 10);
-  if (typeof value.toDate === "function") return iso(value.toDate());
-  if (value.seconds) return iso(new Date(value.seconds * 1000));
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : iso(date);
+  if (typeof value.toDate === "function") return toISO(value.toDate());
+  if (typeof value.seconds === "number") return toISO(new Date(value.seconds * 1000));
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function toDate(value) {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const dateOnly = new Date(`${value}T00:00:00`);
+    return Number.isNaN(dateOnly.getTime()) ? null : dateOnly;
+  }
+  if (typeof value.toDate === "function") return value.toDate();
+  if (typeof value.seconds === "number") return new Date(value.seconds * 1000);
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function timestampMillis(value) {
+  const date = toDate(value);
+  return date ? date.getTime() : null;
+}
+
+function appointmentMillis(booking) {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(booking.date || ""));
+  const time = /^(\d{1,2}):(\d{2})$/.exec(String(booking.time || ""));
+  if (date && time) {
+    const [, year, month, day] = date.map(Number);
+    const [, hour, minute] = time.map(Number);
+    if (hour <= 23 && minute <= 59) {
+      const appointmentDate = new Date(year, month - 1, day, hour, minute);
+      if (
+        appointmentDate.getFullYear() === year &&
+        appointmentDate.getMonth() === month - 1 &&
+        appointmentDate.getDate() === day
+      ) {
+        return appointmentDate.getTime();
+      }
+    }
+  }
+  return timestampMillis(booking.appointmentAt);
 }
 
 function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  const date = toDate(value) || (typeof value === "string" ? new Date(`${value}T00:00:00`) : null);
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })
+    : "Date unavailable";
 }
 
-const peso = (value) => `₱${Math.round(value).toLocaleString("en-PH")}`;
-const statusOf = (data) => String(data.status || "pending").toLowerCase().replace(" ", "-");
-const initialOf = (name) => String(name || "?").trim().charAt(0).toUpperCase();
+function formatDateTime(value) {
+  const date = toDate(value);
+  return date
+    ? date.toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "Time unavailable";
+}
+
+function getAppointmentTime(booking) {
+  if (booking.appointmentAt) return formatDateTime(booking.appointmentAt);
+  if (!booking.date) return booking.time || "Time unavailable";
+  return `${formatDate(booking.date)}${booking.time ? ` · ${booking.time}` : ""}`;
+}
+
+function getProfileName(profile = {}) {
+  return String(
+    profile.name ||
+    profile.displayName ||
+    profile.fullName ||
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
+    ""
+  ).trim();
+}
+
+function getName(profile = {}) {
+  return getProfileName(profile) || String(profile.username || "").trim();
+}
+
+function firstNameOf(value) {
+  const name = String(value || "").trim();
+  if (!name || name.includes("@")) return "";
+  return name.split(/\s+/)[0] || "";
+}
+
+function initialsOf(value) {
+  const initials = String(value || "").trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((part) => part[0].toUpperCase()).join("");
+  return initials || "•";
+}
+
+function profileImage(profile) {
+  return profile.photoURL || profile.photoUrl || profile.profileImage || profile.imageUrl || profile.avatarUrl || "";
+}
 
 function normalizeBooking(entry) {
   const data = entry.data();
-  const services = (data.services || [data.service]).filter(Boolean);
-  const date = toISO(data.date);
+  const services = Array.isArray(data.services) && data.services.length
+    ? data.services
+    : String(data.service || "").split(",");
   return {
     id: entry.id,
     name: data.patientName || data.fullName || data.name || data.email || "Patient",
-    service: services.join(", "),
-    phone: data.phone || data.contactNumber || data.contact || data.mobile || "",
-    email: data.email || "",
-    dentist: data.selectedDentist || "",
-    date,
+    service: services.map((service) => String(service || "").trim()).filter(Boolean).join(", ") || "—",
+    date: toISO(data.date || data.appointmentAt),
+    appointmentAt: data.appointmentAt || null,
     time: data.time || "",
-    added: toISO(data.createdAt) || date,
-    status: statusOf(data),
+    status: String(data.status || "pending").toLowerCase().replaceAll("_", " "),
+    archiveStatus: data.archiveStatus || "",
   };
 }
 
-const PERIODS = [
-  { key: "today", label: "Today", phrase: "today", since: "yesterday" },
-  { key: "week", label: "7 days", phrase: "in the last 7 days", since: "the previous 7 days" },
-  { key: "month", label: "Month", phrase: "this month", since: "last month" },
-  { key: "year", label: "Year", phrase: "this year", since: "last year" },
-];
+function StatCard({ icon, label, value, to, tone }) {
+  const contents = (
+    <>
+      <span className="overviewStatIcon" aria-hidden="true">{icon}</span>
+      <span className="overviewStatText">
+        <span className="overviewStatLabel">{label}</span>
+        <strong className="overviewStatValue">{value}</strong>
+      </span>
+      <span className="overviewChevron" aria-hidden="true">›</span>
+    </>
+  );
 
-function clampDay(year, month, day) {
-  return new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
-}
-
-// Returns the selected range and the matching previous range to compare against.
-function rangesFor(period) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const end = iso(now);
-  if (period === "today") {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    return { range: [end, end], prev: [iso(yesterday), iso(yesterday)] };
-  }
-  if (period === "week") {
-    const start = new Date(now);
-    start.setDate(start.getDate() - 6);
-    const prevEnd = new Date(start);
-    prevEnd.setDate(prevEnd.getDate() - 1);
-    const prevStart = new Date(prevEnd);
-    prevStart.setDate(prevStart.getDate() - 6);
-    return { range: [iso(start), end], prev: [iso(prevStart), iso(prevEnd)] };
-  }
-  if (period === "year") {
-    const year = now.getFullYear();
-    return { range: [`${year}-01-01`, end], prev: [`${year - 1}-01-01`, iso(clampDay(year - 1, now.getMonth(), now.getDate()))] };
-  }
-  return {
-    range: [iso(new Date(now.getFullYear(), now.getMonth(), 1)), end],
-    prev: [iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)), iso(clampDay(now.getFullYear(), now.getMonth() - 1, now.getDate()))],
-  };
-}
-
-function change(current, previous) {
-  if (!previous) return null;
-  return Math.round(((current - previous) / previous) * 100);
-}
-
-function Delta({ value, since }) {
-  if (value === null) return <span className="ovDelta">No data for {since}</span>;
   return (
-    <span className="ovDelta">
-      <b className={value >= 0 ? "up" : "down"}>{value >= 0 ? "↑" : "↓"} {Math.abs(value)}%</b> from {since}
-    </span>
+    <NavLink className={`overviewStatCard ${tone}`} to={to} aria-label={`${label}: ${value}`}>
+      {contents}
+    </NavLink>
   );
 }
 
-function StatCard({ icon, label, value, delta, since }) {
+function PeopleCard({ label, count, people, to, tone, loading, error }) {
   return (
-    <article className="ovStatCard">
-      <span className="ovIcon">{icon}</span>
-      <div>
-        <span className="ovStatLabel">{label}</span>
-        <strong className="ovStatValue">{value}</strong>
-        <Delta value={delta} since={since} />
-      </div>
-    </article>
-  );
-}
-
-function PeopleCard({ title, icon, people, to, empty }) {
-  return (
-    <article className="ovCard ovPeopleCard">
-      <NavLink to={to} className="ovCardHead">
-        <span className="ovHeadTitle"><span className="ovIconSm">{icon}</span>{title}</span>
-        <span aria-hidden="true">›</span>
-      </NavLink>
-      {people.length ? (
-        <ul className="ovPeople">
-          {people.slice(0, 6).map((name) => (
-            <li key={name}>
-              <span className="ovAvatar">{initialOf(name)}</span>
-              <span>{name.split(" ")[0]}</span>
-            </li>
-          ))}
-          {people.length > 6 && (
-            <li>
-              <span className="ovAvatar">+{people.length - 6}</span>
-              <span>more</span>
-            </li>
-          )}
-        </ul>
-      ) : (
-        <p className="ovMuted">{empty}</p>
-      )}
-    </article>
+    <NavLink className={`overviewPeopleCard ${tone}`} to={to}>
+      <span className="overviewPeopleInfo">
+        <span className="overviewStatLabel">{label}</span>
+        <strong className="overviewStatValue">{count}</strong>
+        <span className="overviewPeopleAvatars" aria-label={`${Math.min(people.length, 3)} ${label.toLowerCase()}`}>
+          {people.slice(0, 3).map((person) => {
+            const image = profileImage(person);
+            const name = getName(person) || person.email || label.slice(0, -1);
+            return (
+              <span className="overviewAvatar" key={person.id || name} title={name}>
+                {image ? (
+                  <img
+                    src={image}
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.hidden = true;
+                      event.currentTarget.nextElementSibling.hidden = false;
+                    }}
+                  />
+                ) : null}
+                <span hidden={Boolean(image)}>{initialsOf(name)}</span>
+              </span>
+            );
+          })}
+          {!people.length && !loading && !error ? <span className="overviewAvatarFallback" aria-hidden="true">♙</span> : null}
+          {loading ? <span className="overviewAvatarFallback" aria-label="Loading">…</span> : null}
+          {error ? <span className="overviewAvatarFallback" aria-label="Unavailable">!</span> : null}
+        </span>
+      </span>
+      <span className="overviewChevron" aria-hidden="true">›</span>
+    </NavLink>
   );
 }
 
 const icons = {
-  patients: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.4" /><path d="M16.5 14c2.7.2 4.5 2 4.5 5" /></svg>
-  ),
-  bookings: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>
-  ),
-  revenue: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5" /><path d="M3 10h18" /><circle cx="16.5" cy="14.5" r="1.2" /></svg>
-  ),
-  dentist: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c-1.8 0-2.8 1-4.2 1C6 6 5 7.5 5 9.5c0 3 1.4 8 3 9.5.7.6 1.2-.4 1.5-1.4.3-1 .5-3.1 1.5-3.1s1.2 2.100 1.500 3.100c.3 1 .8 2 1.500 1.400 1.600-1.500 3-6.500 3-9.500 0-2-1-3.500-2.800-3.500C14.800 6 13.800 5 12 5z" /></svg>
-  ),
-  user: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20c0-3.600 3-6 7-6s7 2.400 7 6" /></svg>
-  ),
-  search: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.500" /><path d="m16 16 4 4" /></svg>
-  ),
-  filter: (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" /></svg>
-  ),
+  patients: <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" /><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.4" /><path d="M16.5 14c2.7.2 4.5 2 4.5 5" /></svg>,
+  bookings: <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>,
+  payments: <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18M7 15h4" /></svg>,
+  dentists: <svg viewBox="0 0 24 24"><path d="M12 4c-2 0-3 1.2-4.6 1.2S4.5 7 4.5 9.8c0 3.3 1.7 8.6 3.4 9.7 1.5 1 1.9-4.5 4.1-4.5s2.6 5.5 4.1 4.5c1.7-1.1 3.4-6.4 3.4-9.7 0-2.8-1.3-4.6-2.9-4.6S14 4 12 4z" /></svg>,
+  receptionists: <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 2.8-6 7-6s7 2.5 7 6" /></svg>,
 };
 
 export default function Overview() {
@@ -173,98 +199,174 @@ export default function Overview() {
   const [patients, setPatients] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [accountsLoading, setAccountsLoading] = useState(true);
-  const [accountsError, setAccountsError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [viewMonth, setViewMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [period, setPeriod] = useState("month");
+  const [activities, setActivities] = useState([]);
+  const [userName, setUserName] = useState("");
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [selectedDay, setSelectedDay] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [showFilter, setShowFilter] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [loading, setLoading] = useState(true);
+  const [sourceErrors, setSourceErrors] = useState({});
 
   useEffect(() => {
-    const stop = onSnapshot(
-      collection(db, "bookings"),
-      (snap) => {
-        setBookings(snap.docs.map(normalizeBooking));
-        setLoading(false);
-      },
-      (snapError) => {
-        setError(snapError.message || "Could not load bookings.");
-        setLoading(false);
-      }
-    );
-    const safe = (name) =>
-      getDocs(collection(db, name))
-        .then((snap) => snap.docs.map((entry) => ({ id: entry.id, ...entry.data() })))
-        .catch((readError) => {
-          console.warn(`Overview: could not read "${name}"`, readError);
-          return [];
-        });
-    Promise.all([safe("patients"), safe(PAYMENTS_COLLECTION)]).then(([patientList, paymentList]) => {
-      setPatients(patientList);
-      setPayments(paymentList);
-    });
-    getDocs(collection(db, "admins"))
-      .then((snapshot) => {
-        setAccounts(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-        setAccountsError("");
-      })
-      .catch((readError) => {
-        console.error('Overview: could not read staff accounts from "admins".', readError);
-        setAccounts([]);
-        setAccountsError("Staff accounts could not be loaded. The Receptionists list may be incomplete.");
-      })
-      .finally(() => setAccountsLoading(false));
-    return stop;
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
   }, []);
 
-  const today = iso(new Date());
-  const periodInfo = PERIODS.find((item) => item.key === period);
-  const { range, prev } = useMemo(() => rangesFor(period), [period]);
+  useEffect(() => {
+    let active = true;
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const authName = currentUser.displayName || "";
+      getDoc(doc(db, "admins", currentUser.uid)).then((snapshot) => {
+        if (!active) return;
+        const profile = snapshot.exists() ? snapshot.data() : {};
+        setUserName(firstNameOf(getProfileName(profile) || authName));
+      }).catch((error) => {
+        console.error("Overview user profile could not load:", error);
+        if (active) setUserName(firstNameOf(authName));
+      });
+    }
 
-  const stats = useMemo(() => {
-    const inside = (value, bounds) => Boolean(value) && value >= bounds[0] && value <= bounds[1];
-    const patientsNew = patients.filter((item) => inside(toISO(item.createdAt), range)).length;
-    const patientsBefore = patients.length - patientsNew;
-    const bookingsNow = bookings.filter((item) => inside(item.date, range)).length;
-    const bookingsPrev = bookings.filter((item) => inside(item.date, prev)).length;
-    const amountOf = (item) => Number(item.amount ?? item.total ?? item.paid ?? 0) || 0;
-    const dateOf = (item) => toISO(item.date || item.paidAt || item.createdAt);
-    const revenueNow = payments.filter((item) => inside(dateOf(item), range)).reduce((sum, item) => sum + amountOf(item), 0);
-    const revenuePrev = payments.filter((item) => inside(dateOf(item), prev)).reduce((sum, item) => sum + amountOf(item), 0);
-    return {
-      patients: patients.length,
-      patientsDelta: change(patientsNew, patientsBefore),
-      bookings: bookingsNow,
-      bookingsDelta: change(bookingsNow, bookingsPrev),
-      revenue: revenueNow,
-      revenueDelta: change(revenueNow, revenuePrev),
+    let resolveBookingsLoaded;
+    const bookingsLoaded = new Promise((resolve) => {
+      resolveBookingsLoaded = resolve;
+    });
+    const markBookingsLoaded = () => resolveBookingsLoaded();
+    const unsubscribeBookings = onSnapshot(
+      query(collection(db, "bookings"), orderBy("appointmentAt", "asc")),
+      (snapshot) => {
+        setBookings(snapshot.docs.map(normalizeBooking));
+        setSourceErrors((current) => {
+          const next = { ...current };
+          delete next.bookings;
+          return next;
+        });
+        markBookingsLoaded();
+      },
+      (error) => {
+        console.error("Overview bookings could not load:", error);
+        setSourceErrors((current) => ({ ...current, bookings: "Appointments could not be loaded." }));
+        markBookingsLoaded();
+      }
+    );
+
+    const loadSource = async (name, setter, sourceName = name) => {
+      try {
+        const snapshot = name === "auditLogs"
+          ? await getDocs(query(collection(db, name), orderBy("createdAt", "desc"), limit(8)))
+          : await getDocs(collection(db, name));
+        if (!active) return;
+        const records = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+        setter(records);
+        setSourceErrors((current) => {
+          const next = { ...current };
+          delete next[sourceName];
+          return next;
+        });
+      } catch (error) {
+        console.error(`Overview ${sourceName} could not load:`, error);
+        if (!active) return;
+        setSourceErrors((current) => ({ ...current, [sourceName]: `${sourceName} could not be loaded.` }));
+        setter([]);
+      }
     };
-  }, [patients, bookings, payments, range, prev]);
 
-  const nameOf = (item) =>
-    item.name || item.displayName || item.fullName || [item.firstName, item.lastName].filter(Boolean).join(" ") || item.username || item.email || "";
-  const hasRole = (item, word) =>
-    [item.role, item.roleName, item.type, ...(Array.isArray(item.roles) ? item.roles : [])]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(word));
-  const peopleWith = (...words) => [...new Set(accounts.filter((item) => words.some((word) => hasRole(item, word))).map(nameOf).filter(Boolean))];
+    const paymentSourcesReady = new Set();
+    let resolvePaymentsLoaded;
+    const paymentsLoaded = new Promise((resolve) => {
+      resolvePaymentsLoaded = resolve;
+    });
+    const markPaymentSourceReady = (name) => {
+      paymentSourcesReady.add(name);
+      if (paymentSourcesReady.size === 2) resolvePaymentsLoaded();
+    };
+    const subscribePaymentSource = (name) => onSnapshot(
+      collection(db, name),
+      (snapshot) => {
+        const records = snapshot.docs.map((entry) => ({
+          id: entry.id,
+          ...entry.data(),
+          source: name,
+        }));
+        setPayments((current) => [
+          ...current.filter((item) => item.source !== name),
+          ...records,
+        ]);
+        setSourceErrors((current) => {
+          const next = { ...current };
+          delete next[name];
+          return next;
+        });
+        markPaymentSourceReady(name);
+      },
+      (error) => {
+        console.error(`Overview ${name} could not load (${error?.code || "unknown"}):`, error);
+        setSourceErrors((current) => ({
+          ...current,
+          [name]: `${name} could not be loaded.`,
+        }));
+        markPaymentSourceReady(name);
+      }
+    );
+    const unsubscribePayments = [
+      subscribePaymentSource("payments"),
+      subscribePaymentSource("bracesPayments"),
+    ];
 
-  const dentists = useMemo(() => {
-    const fromAccounts = peopleWith("dentist", "doctor");
-    return fromAccounts.length ? fromAccounts : [...new Set(bookings.map((item) => item.dentist).filter(Boolean))].sort();
-  }, [accounts, bookings]);
-  const receptionists = useMemo(() => peopleWith("reception", "front desk"), [accounts]);
+    const sourceLoads = Promise.all([
+      loadSource("patients", setPatients),
+      loadSource("admins", setAccounts, "staff accounts"),
+      loadSource("auditLogs", setActivities, "recent activity"),
+    ]);
+    void Promise.all([sourceLoads, paymentsLoaded, bookingsLoaded]).finally(() => {
+      if (active) setLoading(false);
+    });
 
-  const dayCounts = useMemo(() => {
-    const counts = new Map();
-    bookings.forEach((item) => item.date && counts.set(item.date, (counts.get(item.date) || 0) + 1));
-    return counts;
-  }, [bookings]);
+    return () => {
+      active = false;
+      unsubscribeBookings();
+      unsubscribePayments.forEach((unsubscribe) => unsubscribe());
+    };
+  }, []);
+
+  const today = toISO(new Date(now));
+  const totalPayments = useMemo(() => payments.reduce((total, payment) =>
+    total + (Number(payment.amount ?? payment.paid ?? 0) || 0), 0), [payments]);
+
+  const activeBookings = useMemo(() => bookings.filter((booking) =>
+    booking.archiveStatus !== "Archived"
+  ), [bookings]);
+  const activeAccounts = useMemo(() => accounts.filter((account) =>
+    account.archiveStatus !== "Archived"
+  ), [accounts]);
+  const receptionists = useMemo(() => activeAccounts.filter((account) =>
+    account.role === ROLES.RECEPTIONIST
+  ), [activeAccounts]);
+  const dentistAccounts = useMemo(() => activeAccounts.filter((account) =>
+    account.role === ROLES.DENTIST
+  ), [activeAccounts]);
+  const paymentsUnavailable = Boolean(sourceErrors.payments || sourceErrors.bracesPayments);
+
+  const appointments = useMemo(() => activeBookings
+    .filter((booking) => !selectedDay || booking.date === selectedDay)
+    .sort((left, right) => {
+      const leftTime = appointmentMillis(left);
+      const rightTime = appointmentMillis(right);
+      if (leftTime == null) return rightTime == null ? left.id.localeCompare(right.id) : 1;
+      if (rightTime == null) return -1;
+      return leftTime - rightTime;
+    }), [activeBookings, selectedDay]);
+
+  const appointmentDates = useMemo(() => {
+    const dates = new Set();
+    activeBookings.forEach((booking) => {
+      if (booking.date) dates.add(booking.date);
+    });
+    return dates;
+  }, [activeBookings]);
 
   const calendarCells = useMemo(() => {
     const year = viewMonth.getFullYear();
@@ -277,160 +379,125 @@ export default function Overview() {
     ];
   }, [viewMonth]);
 
-  const rows = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return bookings
-      .filter((item) => (statusFilter === "all" ? true : item.status === statusFilter))
-      .filter((item) => (selectedDay ? item.date === selectedDay : true))
-      .filter((item) => !term || [item.name, item.service, item.phone, item.email].some((value) => String(value).toLowerCase().includes(term)))
-      .sort((a, b) => b.added.localeCompare(a.added) || b.time.localeCompare(a.time))
-      .slice(0, 10);
-  }, [bookings, search, statusFilter, selectedDay]);
-
-  if (loading) {
-    return (
-      <section className="container adminSurface pageSection adminPage ovPage">
-        <p className="ovMuted">Loading overview…</p>
-      </section>
-    );
-  }
-
+  const recentActivities = useMemo(() => activities.slice(0, 6), [activities]);
   return (
-    <section className="container adminSurface pageSection adminPage ovPage">
-      <header className="ovHead">
+    <section className="container adminSurface overviewDashboard">
+      <header className="overviewWelcome">
+        <span className="overviewWelcomeTooth" aria-hidden="true">{icons.dentists}</span>
         <div>
-          <h1>Overview</h1>
-          <p>Here&apos;s a summary of your clinic&apos;s activity {periodInfo.phrase}.</p>
-        </div>
-
-        <div className="ovHeadTools">
-          <div className="ovPeriod" role="group" aria-label="Period">
-            {PERIODS.map((item) => (
-              <button key={item.key} type="button" className={period === item.key ? "active" : ""} aria-pressed={period === item.key} onClick={() => setPeriod(item.key)}>
-                {item.label}
-              </button>
-            ))}
-          </div>
-
+          <h1>Hi{userName ? `, ${userName}` : ""}! <span aria-hidden="true">👋</span></h1>
+          <p>Here's what's happening at your dental clinic today.</p>
         </div>
       </header>
 
-      {error && <div className="error" role="alert">{error}</div>}
-      {accountsError && <div className="error" role="alert">{accountsError}</div>}
+      {Object.values(sourceErrors).length ? (
+        <div className="error" role="alert">{Object.values(sourceErrors).join(" ")}</div>
+      ) : null}
 
-      <div className="ovTop">
-        <div className="ovLeft">
-          <div className="ovStats">
-            <StatCard icon={icons.patients} label="Total Patients" value={stats.patients} delta={stats.patientsDelta} since={periodInfo.since} />
-            <StatCard icon={icons.bookings} label="Bookings" value={stats.bookings} delta={stats.bookingsDelta} since={periodInfo.since} />
-            <StatCard icon={icons.revenue} label="Revenue" value={peso(stats.revenue)} delta={stats.revenueDelta} since={periodInfo.since} />
-          </div>
-
-          <div className="ovPeopleRow">
-            <PeopleCard title="Dentists" icon={icons.dentist} people={dentists} to={ROUTES.dentists} empty="No dentists yet." />
-            <PeopleCard
-              title="Receptionists"
-              icon={icons.user}
-              people={receptionists}
-              to={ROUTES.accounts}
-              empty={accountsLoading ? "Loading staff accounts…" : accountsError ? "Receptionist list unavailable." : "No receptionists yet."}
-            />
-          </div>
-        </div>
-
-        <aside className="ovCard ovCalendar">
-          <div className="ovCalHead">
-            <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="Previous month">‹</button>
-            <strong>{viewMonth.toLocaleDateString("en", { month: "long", year: "numeric" })}</strong>
-            <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="Next month">›</button>
-          </div>
-          <div className="ovCalGrid">
-            {WEEKDAYS.map((day) => <span className="ovWeekday" key={day}>{day}</span>)}
-            {calendarCells.map((cell, index) => {
-              if (!cell) return <span key={`blank-${index}`} />;
-              const classes = ["ovDay", cell === today ? "today" : "", cell === selectedDay ? "selected" : "", dayCounts.get(cell) ? "has" : ""].join(" ");
-              return (
-                <button type="button" key={cell} className={classes} aria-pressed={cell === selectedDay} onClick={() => setSelectedDay(cell === selectedDay ? "" : cell)}>
-                  {Number(cell.slice(8))}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
+      <div className="overviewStats overviewStatsPrimary">
+        <StatCard icon={icons.patients} label="Total Patients" value={loading ? "…" : sourceErrors.patients ? "—" : patients.length} to={ROUTES.patients} tone="yellow" />
+        <StatCard icon={icons.bookings} label="Bookings" value={loading ? "…" : sourceErrors.bookings ? "—" : activeBookings.length} to={ROUTES.bookings} tone="green" />
+        <StatCard icon={icons.payments} label="Payments" value={loading ? "…" : paymentsUnavailable ? "—" : formatCurrency(totalPayments)} to={ROUTES.payments} tone="blue" />
       </div>
 
-      <article className="ovCard ovHistory">
-        <div className="ovHistoryHead">
-          <span className="ovHeadTitle"><span className="ovIconSm">{icons.bookings}</span><strong>History</strong></span>
-          <div className="ovSearchRow">
-            <label className="ovSearch">
-              {icons.search}
-              <input type="search" placeholder="Search name, service, or contact number…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </label>
-            <button type="button" className="ovFilterBtn" aria-label="Filter by status" aria-expanded={showFilter} onClick={() => setShowFilter((open) => !open)}>
-              {icons.filter}
-            </button>
-          </div>
-        </div>
+      <div className="overviewStats overviewStatsPeople">
+        <PeopleCard label="Dentists" count={loading ? "…" : sourceErrors["staff accounts"] ? "—" : dentistAccounts.length} people={dentistAccounts} to={ROUTES.dentists} tone="pink" loading={loading} error={Boolean(sourceErrors["staff accounts"])} />
+        <PeopleCard label="Receptionists" count={loading ? "…" : sourceErrors["staff accounts"] ? "—" : receptionists.length} people={receptionists} to={ROUTES.receptionists} tone="purple" loading={loading} error={Boolean(sourceErrors["staff accounts"])} />
+      </div>
 
-        {(showFilter || selectedDay) && (
-          <div className="ovFilterRow">
-            {showFilter && (
-              <label>
-                <span>Status</span>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="no-show">No-show</option>
-                </select>
-              </label>
-            )}
-            {selectedDay && (
-              <button type="button" className="ovLink" onClick={() => setSelectedDay("")}>Showing {formatDate(selectedDay)} · Clear</button>
-            )}
+      <div className="overviewLower">
+        <section className="overviewPanel overviewAppointments">
+          <div className="overviewPanelHeader">
+            <div>
+              <h2>Appointments</h2>
+              <p>{selectedDay ? `Appointments for ${new Date(`${selectedDay}T00:00:00`).toLocaleDateString("en-PH")}` : "All clinic appointments"}</p>
+            </div>
+            {selectedDay ? <button type="button" className="overviewClearDay" onClick={() => setSelectedDay("")}>Clear date</button> : null}
           </div>
-        )}
+          {loading ? <p className="overviewEmpty">Loading appointments…</p> : appointments.length ? (
+            <div className="overviewTableWrap">
+              <table className="overviewTable">
+                <thead>
+                  <tr><th>Patient</th><th>Service</th><th>Date &amp; Time</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {appointments.map((booking) => (
+                    <tr key={booking.id}>
+                      <td>{booking.name}</td>
+                      <td>{booking.service}</td>
+                      <td>{getAppointmentTime(booking)}</td>
+                      <td><span className={`overviewStatus ${booking.status.replaceAll(" ", "-")}`}>{booking.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="overviewEmpty">{sourceErrors.bookings || (selectedDay ? "No appointments for this date." : "No appointments found.")}</p>
+          )}
+        </section>
 
-        <div className="ovTableWrap">
-          <table className="ovTable">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>Service</th>
-                <th>Contact Number</th>
-                <th>Email</th>
-                <th>Date Added</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length ? (
-                rows.map((item, index) => (
-                  <tr key={item.id}>
-                    <td>{index + 1}</td>
-                    <td className="ovName">{item.name}</td>
-                    <td>{item.service || "—"}</td>
-                    <td className="ovName">{item.phone || "—"}</td>
-                    <td>{item.email || "—"}</td>
-                    <td>{formatDate(item.added)}</td>
-                    <td>
-                      <NavLink to={ROUTES.bookings} className="ovDots" aria-label={`Open ${item.name} in bookings`}>⋮</NavLink>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="ovMuted ovTableEmpty">No bookings found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="overviewRight">
+          <section className="overviewPanel overviewCalendar" aria-label="Appointment calendar">
+            <div className="overviewCalendarHeader">
+              <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="Previous month">‹</button>
+              <h2>{viewMonth.toLocaleDateString("en", { month: "long", year: "numeric" })}</h2>
+              <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="Next month">›</button>
+            </div>
+            <div className="overviewCalendarGrid">
+              {WEEKDAYS.map((day) => <span className="overviewWeekday" key={day}>{day}</span>)}
+              {calendarCells.map((cell, index) => {
+                if (!cell) return <span key={`blank-${index}`} />;
+                const pastWithAppointments = cell < today && appointmentDates.has(cell);
+                const isToday = cell === today;
+                const hasAppointments = appointmentDates.has(cell);
+                const className = [
+                  "overviewCalendarDay",
+                  isToday ? "today" : "",
+                  cell === selectedDay ? "selected" : "",
+                  hasAppointments ? "hasAppointments" : "",
+                  pastWithAppointments ? "pastAppointment" : "",
+                ].filter(Boolean).join(" ");
+                return (
+                  <button
+                    key={cell}
+                    type="button"
+                    className={className}
+                    aria-pressed={cell === selectedDay}
+                    aria-label={`${formatDate(cell)}${hasAppointments ? ", appointments" : ""}${isToday ? ", today" : ""}`}
+                    onClick={() => setSelectedDay(cell === selectedDay ? "" : cell)}
+                  >
+                    {Number(cell.slice(8))}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="overviewPanel overviewActivity">
+            <div className="overviewPanelHeader">
+              <div><h2>Recent Activity</h2><p>Latest recorded clinic updates</p></div>
+            </div>
+            {recentActivities.length ? (
+              <ol className="overviewActivityList">
+                {recentActivities.map((activity) => (
+                  <li key={activity.id}>
+                    <div>
+                      <strong>{getAuditActionLabel(activity.action)}</strong>
+                      {activity.targetLabel ? <span>{activity.targetLabel}</span> : null}
+                      <time>{formatDateTime(activity.createdAt)}</time>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="overviewEmpty">
+                {sourceErrors["recent activity"] || "No recent activity recorded."}
+              </p>
+            )}
+          </section>
         </div>
-      </article>
+      </div>
     </section>
   );
 }

@@ -45,6 +45,10 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
   }, [allowedRoles, user]);
 
   if (!user) return <Navigate to="/admin/login" replace />;
+  if (!user.emailVerified) {
+    const next = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/admin/verify-email?next=${next}`} replace />;
+  }
   if (loading) return null;
   if (!adminProfile) return <Navigate to="/" replace />;
   if (adminProfile.disabled) return <Navigate to="/admin/login" replace />;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
@@ -55,14 +55,14 @@ const ADMIN_NAV_ICONS = {
   "/admin/bookings": (
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
   ),
-  "/admin/appointments": (
-    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
-  ),
   "/admin/services": (
     <svg viewBox="0 0 24 24"><path d="M14.5 3.5 17 6l-8 8-3.5.8L6.3 11z"/><path d="M3 21l2.2-5.2"/><path d="M13.5 4.5l3 3"/></svg>
   ),
   "/admin/patients": (
     <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+  ),
+  "/admin/completed": (
+    <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>
   ),
   "/admin/records": (
     <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
@@ -78,6 +78,9 @@ const ADMIN_NAV_ICONS = {
   ),
   "/admin/braces": (
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
+  ),
+  "/admin/payments": (
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/><path d="M16 15h1"/></svg>
   ),
   "/admin/accounts": (
     <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20c.7-3.4 3.4-5.5 6.5-5.5s5.8 2.1 6.5 5.5"/></svg>
@@ -299,6 +302,12 @@ export default function NavBar({
   adminRole: adminRoleFromApp = "",
   theme = "light",
   onThemeChange = () => {},
+  dentistSearch = "",
+  onDentistSearchChange = () => {},
+  dentistPatientTypeFilter = "All",
+  onDentistPatientTypeFilterChange = () => {},
+  archiveSearch = "",
+  onArchiveSearchChange = () => {},
 }) {
   const navClass = ({ isActive }) => "navItem" + (isActive ? " active" : "");
 
@@ -307,6 +316,7 @@ export default function NavBar({
   const [adminRole, setAdminRole] = useState(adminRoleFromApp);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -368,12 +378,94 @@ export default function NavBar({
   }
 
   const adminLinks = ADMIN_NAV_BY_ROLE[adminRole] || ADMIN_NAV_BY_ROLE[ROLES.ADMIN] || [];
+  const isDentistRecordsRoute =
+    adminRole === ROLES.DENTIST &&
+    (location.pathname === "/admin/patients" || location.pathname === "/admin/completed");
+  const isDentistPatientsRoute =
+    adminRole === ROLES.DENTIST &&
+    (location.pathname === "/admin/patients" || location.pathname === "/admin/patients/");
+  const isArchiveRoute = isAdmin && location.pathname.startsWith("/admin/archive");
+  const isStaffVerificationRoute =
+    location.pathname === "/admin/verify-email" || location.pathname === "/admin/mfa";
+  const archiveSection = location.pathname.split("/")[3] || "all";
+  const archiveCategory = archiveSection === "accounts"
+    ? "accounts"
+    : ["all", "patients", "dentists", "bookings"].includes(archiveSection)
+      ? archiveSection
+      : "all";
+
+  if (isStaffVerificationRoute || (user && isAdmin && !user.emailVerified)) return null;
 
   return (
     isAdmin ? (
       <>
         {user && (
-          <div className="adminTopbar">
+          <div className={`adminTopbar${isDentistRecordsRoute ? " dentistRecordsTopbar" : ""}${isArchiveRoute ? " archiveTopbar" : ""}`}>
+            {isArchiveRoute ? (
+              <>
+                <div className="archiveTopbarSearch">
+                  <svg className="topSearchIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </svg>
+                  <input
+                    className="input"
+                    type="search"
+                    placeholder="Search archived records by name"
+                    aria-label="Search archived records"
+                    value={archiveSearch}
+                    onChange={(event) => onArchiveSearchChange(event.target.value)}
+                  />
+                </div>
+                <label className="archiveTopbarFilter">
+                  <span>Sort</span>
+                  <select
+                    className="input"
+                    aria-label="Filter archived records by category"
+                    value={archiveCategory}
+                    onChange={(event) => navigate(`/admin/archive/${event.target.value}`)}
+                  >
+                    <option value="all">All</option>
+                    <option value="patients" disabled={adminRole !== ROLES.ADMIN}>Patients</option>
+                    <option value="dentists">Dentists</option>
+                    <option value="accounts">Staff</option>
+                    <option value="bookings">Bookings</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
+            {isDentistRecordsRoute ? (
+              <>
+                <div className="dentistHeaderSearch topSearchBar">
+                  <svg className="topSearchIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </svg>
+                  <input
+                    className="input topSearchInput"
+                    type="search"
+                    placeholder="Search patients"
+                    aria-label="Search patients"
+                    value={dentistSearch}
+                    onChange={(event) => onDentistSearchChange(event.target.value)}
+                  />
+                </div>
+                {isDentistPatientsRoute ? (
+                  <label className="dentistPatientTypeFilter">
+                    <select
+                      className="input"
+                      aria-label="Filter patients by type"
+                      value={dentistPatientTypeFilter}
+                      onChange={(event) => onDentistPatientTypeFilterChange(event.target.value)}
+                    >
+                      <option value="All">All</option>
+                      <option value="Ortho">Ortho</option>
+                      <option value="Regular">Regular</option>
+                    </select>
+                  </label>
+                ) : null}
+              </>
+            ) : null}
             <StaffNotificationBell adminRole={adminRole} />
             <AccountMenu
               key={`${location.pathname}:${menuOpen}`}

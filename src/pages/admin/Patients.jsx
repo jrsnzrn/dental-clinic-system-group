@@ -2,16 +2,19 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { auth, db } from "../../firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../../firebase";
 import { useNavigate, useParams } from "react-router-dom";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
@@ -26,17 +29,28 @@ import {
 import { buildFullName, splitFullName } from "../../utils/names";
 import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, isInactivePatient, normalizeName } from "../../utils/appointments";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
+import { PUBLIC_SERVICE_CATALOG } from "../../utils/clinic";
 import {
   createEmptyDentalChart,
   DENTAL_CHART_IMAGE,
   TOOTH_IDS,
   TOOTH_LABELS,
   TOOTH_MARKERS,
+  getClosestToothFromPoint,
 } from "../../utils/teeth";
 import { getAdminProfile, ROLES } from "../../utils/rbac";
 
 const PATIENT_TYPES = ["Regular", "Ortho"];
+const PATIENT_BRACES_TYPES = [
+  "Metal Braces",
+  "Ceramic Braces",
+  "Sapphire Braces",
+  "Self-Ligating Braces",
+];
 const TYPE_FILTERS = ["All", ...PATIENT_TYPES];
+const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crowns", "Root canal"];
+const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
+const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTreatmentComplete");
 
 const PATIENT_VIEWS = {
   DETAILS: "details",
@@ -48,7 +62,6 @@ const PATIENT_VIEWS = {
 const RECORD_TABS = [
   { id: PATIENT_VIEWS.DETAILS, label: "Patient Details" },
   { id: PATIENT_VIEWS.CHART, label: "Dental Chart" },
-  { id: PATIENT_VIEWS.PLAN, label: "Clinical Plan" },
   { id: PATIENT_VIEWS.TIMELINE, label: "Visit Timeline" },
 ];
 
@@ -63,6 +76,7 @@ function getEmptyDraft() {
     phone: "",
     email: "",
     patientType: "Regular",
+    bracesType: "",
     status: "Active",
   };
 }
@@ -79,6 +93,7 @@ function buildDraftFromPatient(patient) {
     phone: patient.phone || "",
     email: patient.email || "",
     patientType: normalizePatientType(patient.patientType),
+    bracesType: patient.bracesType || "",
     status: patient.status || "Active",
   };
 }
@@ -92,6 +107,7 @@ function getEmptyAddDraft() {
     phone: "",
     email: "",
     patientType: "Regular",
+    bracesType: "",
     preferredDentist: "",
   };
 }
@@ -177,14 +193,43 @@ function getPatientCareRecommendations(recommendations = []) {
   }));
 }
 
+function getBookingServiceLabel(booking) {
+  const services = Array.isArray(booking.services) && booking.services.length
+    ? booking.services
+    : String(booking.service || "").split(",");
+  return services.map((service) => String(service || "").trim()).filter(Boolean).join(", ") || "Appointment";
+}
+
+function isBookingAssignedToDentist(booking, dentist) {
+  if (!dentist) return false;
+  return booking.dentistId
+    ? booking.dentistId === dentist.id
+    : normalizeName(booking.selectedDentist) === normalizeName(dentist.name);
+}
+
+function bookingMatchesPatient(booking, patient) {
+  const patientIds = [patient.id, patient.uid].filter(Boolean);
+  if (
+    (booking.patientProfileId && patientIds.includes(booking.patientProfileId)) ||
+    (booking.uid && patientIds.includes(booking.uid))
+  ) {
+    return true;
+  }
+  if (
+    booking.email &&
+    patient.email &&
+    normalizeName(booking.email) === normalizeName(patient.email)
+  ) {
+    return true;
+  }
+  return normalizeName(booking.fullName || booking.patientKey) === normalizeName(patient.name);
+}
+
 function getPatientHistory(bookings, patient, options = {}) {
   const { includeArchived = false } = options;
 
   return bookings
-    .filter((booking) => {
-      if (patient.uid && booking.uid) return patient.uid === booking.uid;
-      return normalizeName(booking.fullName || booking.patientKey) === normalizeName(patient.name);
-    })
+    .filter((booking) => bookingMatchesPatient(booking, patient))
     .filter((booking) => includeArchived || booking.archiveStatus !== "Archived")
     .sort((a, b) => {
       const aTime = a.appointmentAt?.seconds || a.createdAt?.seconds || 0;
@@ -513,7 +558,11 @@ async function exportPatientPdf(patient) {
   return true;
 }
 
-export default function Patients() {
+export default function Patients({
+  completedOnly = false,
+  dentistSearch = "",
+  dentistPatientTypeFilter = "All",
+}) {
   const navigate = useNavigate();
   const { patientId = "" } = useParams();
   const patientListScrollPosition = useRef(0);
@@ -532,12 +581,20 @@ export default function Patients() {
   const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState(getEmptyAddDraft());
   const [addSaving, setAddSaving] = useState(false);
-  const [chartDraft, setChartDraft] = useState(createEmptyDentalChart());
+  const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
   const [selectedTeeth, setSelectedTeeth] = useState([]);
-  const [hoveredTooth, setHoveredTooth] = useState("");
+  const [chartSelectionBeforeEdit, setChartSelectionBeforeEdit] = useState([]);
+  const [selectedChartTooth, setSelectedChartTooth] = useState("");
+  const [chartToothBeforeEdit, setChartToothBeforeEdit] = useState("");
+  const [isEditingDentalChart, setIsEditingDentalChart] = useState(false);
+  const [savingDentalChart, setSavingDentalChart] = useState(false);
+  const [pendingChartProcedures, setPendingChartProcedures] = useState([]);
+  const [chartProcedureDraft, setChartProcedureDraft] = useState(EMPTY_CHART_PROCEDURE_DRAFT);
   const [adminRole, setAdminRole] = useState(ROLES.ADMIN);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
+  const [openPatientActionsId, setOpenPatientActionsId] = useState("");
+  const [processingTreatmentId, setProcessingTreatmentId] = useState("");
   const [treatmentDraft, setTreatmentDraft] = useState(emptyTreatmentDraft());
   const [careDraft, setCareDraft] = useState(emptyCareDraft());
   const [activePatientView, setActivePatientView] = useState(PATIENT_VIEWS.DETAILS);
@@ -545,21 +602,12 @@ export default function Patients() {
     uid: "",
     email: "",
   });
+  const dentistActionMenuRef = useRef(null);
 
-  function toggleToothSelection(tooth) {
-    setSelectedTeeth((current) => {
-      if (current.includes(tooth)) {
-        return current.filter((entry) => entry !== tooth);
-      }
-
-      return [...current, tooth];
-    });
-  }
-
-  async function load(role = adminRole) {
+  async function load() {
     const [patientsResult, bookingsResult, dentistsResult] = await Promise.allSettled([
       getDocs(query(collection(db, "patients"), orderBy("createdAt", "desc"))),
-      role === ROLES.DENTIST ? Promise.resolve({ docs: [] }) : getDocs(collection(db, "bookings")),
+      getDocs(collection(db, "bookings")),
       getDocs(collection(db, "dentists")),
     ]);
 
@@ -599,7 +647,7 @@ export default function Patients() {
       if (adminSnap.exists()) {
         const role = getAdminProfile(adminSnap.data()).role;
         setAdminRole(role);
-        await load(role);
+        await load();
       }
     }
 
@@ -634,6 +682,14 @@ export default function Patients() {
           ...patient,
           history,
           allHistory,
+          eligibleDentistAppointments: linkedDentistProfile
+            ? history.filter((booking) =>
+              booking.status === "approved" &&
+              (booking.dentistId
+                ? booking.dentistId === linkedDentistProfile.id
+                : normalizeName(booking.selectedDentist) === normalizeName(linkedDentistProfile.name))
+            )
+            : [],
           latest,
           latestOverall,
           inactiveFlag: isInactivePatient(patient, latest),
@@ -645,9 +701,73 @@ export default function Patients() {
         if (adminRole !== ROLES.DENTIST) return true;
         if (!linkedDentistProfile?.name) return false;
 
-        return normalizeName(patient.preferredDentist) === normalizeName(linkedDentistProfile.name);
+        return (
+          normalizeName(patient.preferredDentist) === normalizeName(linkedDentistProfile.name) ||
+          bookings.some((booking) =>
+            isBookingAssignedToDentist(booking, linkedDentistProfile) &&
+            bookingMatchesPatient(booking, patient)
+          )
+        );
       });
-  }, [adminRole, bookings, linkedDentistProfile?.name, patients]);
+  }, [adminRole, bookings, linkedDentistProfile, patients]);
+
+  const dentistAppointments = useMemo(() => {
+    if (!linkedDentistProfile) return [];
+    return bookings
+      .filter((booking) =>
+        booking.archiveStatus !== "Archived" &&
+        isBookingAssignedToDentist(booking, linkedDentistProfile)
+      )
+      .map((booking) => ({
+        ...booking,
+        patient: patients.find((patient) => bookingMatchesPatient(booking, patient)) || null,
+      }))
+      .sort((left, right) =>
+        String(left.date || "").localeCompare(String(right.date || "")) ||
+        String(left.time || "").localeCompare(String(right.time || "")) ||
+        String(left.id).localeCompare(String(right.id))
+      );
+  }, [bookings, linkedDentistProfile, patients]);
+
+  const visibleDentistAppointments = useMemo(() => {
+    const searchTerm = normalizeName(dentistSearch);
+    return dentistAppointments.filter((booking) => {
+      if (completedOnly) {
+        if (booking.status !== "completed") return false;
+      } else if (!["approved", "pending_payment"].includes(booking.status)) {
+        return false;
+      }
+
+      const patient = booking.patient;
+      const patientType = normalizePatientType(patient?.patientType ?? booking.patientType);
+      if (!completedOnly && dentistPatientTypeFilter !== "All" && patientType !== dentistPatientTypeFilter) {
+        return false;
+      }
+      if (!searchTerm) return true;
+
+      return [
+        patient?.name,
+        patient?.email,
+        patient?.phone,
+        patient?.patientType,
+        booking.fullName,
+        booking.email,
+        booking.phone,
+        booking.patientType,
+        booking.service,
+        ...(Array.isArray(booking.services) ? booking.services : []),
+        booking.date,
+        booking.time,
+        booking.treatmentNotes,
+        booking.notes,
+      ].some((value) => normalizeName(value).includes(searchTerm));
+    });
+  }, [
+    completedOnly,
+    dentistPatientTypeFilter,
+    dentistAppointments,
+    dentistSearch,
+  ]);
 
   const filteredPatientCards = useMemo(() => {
     const term = normalizeName(search);
@@ -660,7 +780,9 @@ export default function Patients() {
   }, [patientCards, search, typeFilter]);
 
   const selectedPatient = useMemo(
-    () => patientCards.find((patient) => patient.id === selectedPatientId) || null,
+    () => patientCards.find((patient) =>
+      patient.id === selectedPatientId || patient.uid === selectedPatientId
+    ) || null,
     [patientCards, selectedPatientId]
   );
 
@@ -708,6 +830,27 @@ export default function Patients() {
   }, [notice]);
 
   useEffect(() => {
+    if (!openPatientActionsId || adminRole !== ROLES.DENTIST || completedOnly) return undefined;
+
+    function closeOnOutsideClick(event) {
+      if (dentistActionMenuRef.current && !dentistActionMenuRef.current.contains(event.target)) {
+        setOpenPatientActionsId("");
+      }
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setOpenPatientActionsId("");
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [adminRole, completedOnly, openPatientActionsId]);
+
+  useEffect(() => {
     setActivePatientView(PATIENT_VIEWS.DETAILS);
   }, [selectedPatientId]);
 
@@ -725,9 +868,12 @@ export default function Patients() {
     if (!selectedPatient) {
       setDraft(getEmptyDraft());
       setIsEditing(false);
-      setChartDraft(createEmptyDentalChart());
+      setChartProcedureHistory([]);
       setSelectedTeeth([]);
-      setHoveredTooth("");
+      setIsEditingDentalChart(false);
+      setSelectedChartTooth("");
+      setPendingChartProcedures([]);
+      setChartProcedureDraft(EMPTY_CHART_PROCEDURE_DRAFT);
       setTreatmentDraft(emptyTreatmentDraft());
       setCareDraft(emptyCareDraft());
       setActivePatientView(PATIENT_VIEWS.DETAILS);
@@ -735,38 +881,69 @@ export default function Patients() {
     }
 
     setSelectedTeeth([]);
-    setHoveredTooth("");
+    setSelectedChartTooth("");
+    setIsEditingDentalChart(false);
+    setPendingChartProcedures([]);
+    setChartProcedureDraft(EMPTY_CHART_PROCEDURE_DRAFT);
     setDraft(buildDraftFromPatient(selectedPatient));
     setTreatmentDraft(emptyTreatmentDraft());
     setCareDraft(emptyCareDraft());
 
     async function loadDentalChart() {
       if (!selectedPatient.uid) {
-        setChartDraft(createEmptyDentalChart());
+        setChartProcedureHistory([]);
+        const recordedTeeth = (selectedPatient.treatmentPlans || []).flatMap((plan) => plan.toothNumbers || []);
+        const nextSelectedTeeth = [...new Set(recordedTeeth.map(String))];
+        setSelectedTeeth(nextSelectedTeeth);
+        setSelectedChartTooth(nextSelectedTeeth[0] || "");
         return;
       }
 
       const chartSnap = await getDoc(doc(db, "dentalCharts", selectedPatient.uid));
-      if (chartSnap.exists()) {
-        setChartDraft({
-          uid: selectedPatient.uid,
-          generalNotes: chartSnap.data().generalNotes || "",
-          teeth: chartSnap.data().teeth || {},
-        });
-      } else {
-        setChartDraft(createEmptyDentalChart(selectedPatient.uid));
-      }
+      const chartPlans = chartSnap.exists() && Array.isArray(chartSnap.data().patientTreatmentPlans)
+        ? chartSnap.data().patientTreatmentPlans
+        : [];
+      setChartProcedureHistory(chartPlans);
+      const recordedTeeth = [
+        ...(selectedPatient.treatmentPlans || []),
+        ...chartPlans,
+      ].flatMap((plan) => plan.toothNumbers || []);
+      const nextSelectedTeeth = [...new Set(recordedTeeth.map(String))];
+      setSelectedTeeth(nextSelectedTeeth);
+      setSelectedChartTooth(nextSelectedTeeth[0] || "");
     }
 
     loadDentalChart();
   }, [selectedPatient?.id]);
 
   function openPatientRecord(patientId) {
+    preparePatientRecordNavigation();
+    navigate(`/admin/patients/${encodeURIComponent(patientId)}`);
+  }
+
+  function handleDentistAppointmentRowClick(event, patientId) {
+    if (!patientId || event.target.closest("button, a, input, select, textarea, [role='menu'], [role='menuitem']")) {
+      return;
+    }
+    openPatientRecord(patientId);
+  }
+
+  function handleDentistAppointmentRowKeyDown(event, patientId) {
+    if (
+      patientId &&
+      event.target === event.currentTarget &&
+      (event.key === "Enter" || event.key === " ")
+    ) {
+      event.preventDefault();
+      openPatientRecord(patientId);
+    }
+  }
+
+  function preparePatientRecordNavigation() {
     setNotice(null);
     setIsEditing(false);
     setActivePatientView(PATIENT_VIEWS.DETAILS);
     patientListScrollPosition.current = window.scrollY;
-    navigate(`/admin/patients/${encodeURIComponent(patientId)}`);
   }
 
   function closePatientRecord() {
@@ -789,16 +966,28 @@ export default function Patients() {
   }
 
   function updateDraft(key, value) {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
+    }));
   }
 
   function updateAddDraft(key, value) {
-    setAddDraft((current) => ({ ...current, [key]: value }));
+    setAddDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
+    }));
   }
 
   async function addPatient(e) {
     e.preventDefault();
     if (addSaving || !addDraft.firstName.trim() || !addDraft.lastName.trim()) return;
+    if (addDraft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(addDraft.bracesType)) {
+      setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
+      return;
+    }
 
     setAddSaving(true);
 
@@ -813,6 +1002,7 @@ export default function Patients() {
         phone: addDraft.phone.trim(),
         email: addDraft.email.trim(),
         patientType: addDraft.patientType,
+        ...(addDraft.patientType === "Ortho" ? { bracesType: addDraft.bracesType } : {}),
         preferredDentist: addDraft.preferredDentist,
         status: "Active",
         createdAt: serverTimestamp(),
@@ -846,6 +1036,10 @@ export default function Patients() {
       setNotice({ type: "error", text: "First name and last name are required." });
       return;
     }
+    if (draft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(draft.bracesType)) {
+      setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
+      return;
+    }
 
     setSavingDetails(true);
     setNotice(null);
@@ -862,6 +1056,7 @@ export default function Patients() {
         phone: draft.phone.trim(),
         email: draft.email.trim(),
         patientType: draft.patientType,
+        bracesType: draft.patientType === "Ortho" ? draft.bracesType : deleteField(),
         status: draft.status,
       });
 
@@ -877,6 +1072,7 @@ export default function Patients() {
             phone: draft.phone.trim(),
             email: draft.email.trim(),
             patientType: draft.patientType,
+            bracesType: draft.patientType === "Ortho" ? draft.bracesType : deleteField(),
           },
           { merge: true }
         );
@@ -904,52 +1100,218 @@ export default function Patients() {
     }
   }
 
-  async function saveDentalChart() {
-    if (!selectedPatient?.uid) return;
+  function focusChartTooth(tooth) {
+    setSelectedChartTooth(tooth);
+    setSelectedTeeth((current) => current.includes(tooth) ? current : [...current, tooth]);
+    const pending = pendingChartProcedures.find((entry) => entry.toothNumbers[0] === tooth);
+    setChartProcedureDraft(pending ? { ...pending } : { ...EMPTY_CHART_PROCEDURE_DRAFT });
+  }
 
-    await setDoc(
-      doc(db, "dentalCharts", selectedPatient.uid),
-      {
-        uid: selectedPatient.uid,
-        patientName: selectedPatient.name || "",
-        patientEmail: selectedPatient.email || "",
-        generalNotes: chartDraft.generalNotes || "",
-        teeth: chartDraft.teeth || {},
-        toothConditions: chartDraft.toothConditions || {},
-      },
-      { merge: true }
+  function toggleChartTooth(tooth) {
+    setSelectedChartTooth(tooth);
+    setSelectedTeeth((current) => current.includes(tooth)
+      ? current.filter((selectedTooth) => selectedTooth !== tooth)
+      : [...current, tooth]);
+    const pending = pendingChartProcedures.find((entry) => entry.toothNumbers[0] === tooth);
+    setChartProcedureDraft(pending ? { ...pending } : { ...EMPTY_CHART_PROCEDURE_DRAFT });
+  }
+
+  function handleChartSurfaceClick(event) {
+    const marker = event.target.closest("[data-tooth-id]");
+    let tooth = marker?.dataset.toothId;
+    if (!tooth) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const xPercent = ((event.clientX - bounds.left) / bounds.width) * 100;
+      const yPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
+      tooth = getClosestToothFromPoint(xPercent, yPercent);
+    }
+    if (isEditingDentalChart && TOOTH_IDS.includes(tooth)) {
+      toggleChartTooth(tooth);
+    }
+  }
+
+  function addOrUpdateChartProcedure() {
+    if (!selectedChartTooth || !TOOTH_IDS.includes(selectedChartTooth)) {
+      setNotice({ type: "error", text: "Select a tooth on the dental chart first." });
+      return;
+    }
+    if (!selectedTeeth.includes(selectedChartTooth)) {
+      setNotice({ type: "error", text: "Select the active tooth before adding its procedure." });
+      return;
+    }
+    if (!DENTAL_CHART_PROCEDURES.includes(chartProcedureDraft.title)) {
+      setNotice({ type: "error", text: "Select a procedure from the list." });
+      return;
+    }
+    if (!chartProcedureDraft.targetDate) {
+      setNotice({ type: "error", text: "Enter a procedure date." });
+      return;
+    }
+
+    const currentEntry = pendingChartProcedures.find(
+      (entry) => entry.toothNumbers[0] === selectedChartTooth
     );
+    let createdAt = currentEntry?.createdAt || chartProcedureDraft.createdAt || new Date().toISOString();
+    const usedCreatedAt = new Set([
+      ...chartProcedureHistory.map((entry) => entry.createdAt),
+      ...(selectedPatient?.treatmentPlans || []).map((entry) => entry.createdAt),
+      ...pendingChartProcedures
+        .filter((entry) => entry.toothNumbers[0] !== selectedChartTooth)
+        .map((entry) => entry.createdAt),
+    ]);
+    while (usedCreatedAt.has(createdAt)) {
+      createdAt = new Date(Date.parse(createdAt) + 1).toISOString();
+    }
+    const nextEntry = {
+      title: chartProcedureDraft.title,
+      targetDate: chartProcedureDraft.targetDate,
+      status: "Completed",
+      instructions: chartProcedureDraft.instructions.trim(),
+      patientSummary: "",
+      beforeImageUrl: "",
+      afterImageUrl: "",
+      patientVisible: true,
+      toothNumbers: [selectedChartTooth],
+      createdAt,
+    };
+    setPendingChartProcedures((current) => currentEntry
+      ? current.map((entry) => entry.toothNumbers[0] === selectedChartTooth ? nextEntry : entry)
+      : [...current, nextEntry]);
+    setChartProcedureDraft(nextEntry);
+    setNotice(null);
+  }
 
-    await logAdminAction({
-      action: "save_dental_chart",
-      targetType: "dental_chart",
-      targetId: selectedPatient.uid,
-      targetLabel: selectedPatient.name || selectedPatient.email || "Dental chart",
-      details: {
-        selectedTeeth,
-        generalNotesLength: String(chartDraft.generalNotes || "").length,
-      },
-    });
+  function removePendingChartProcedure(tooth) {
+    setPendingChartProcedures((current) => current.filter((entry) => entry.toothNumbers[0] !== tooth));
+    if (selectedChartTooth === tooth) {
+      setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
+    }
+  }
 
-    await load();
-    setNotice({ type: "success", text: "Dental chart notes saved." });
+  async function saveDentalChart() {
+    if (!selectedPatient?.uid || !isEditingDentalChart || savingDentalChart) return;
+    if (pendingChartProcedures.some((entry) =>
+      !TOOTH_IDS.includes(entry.toothNumbers?.[0]) ||
+      !DENTAL_CHART_PROCEDURES.includes(entry.title) ||
+      !entry.targetDate
+    )) {
+      setNotice({ type: "error", text: "Every pending procedure must have a tooth, procedure, and date." });
+      return;
+    }
+    const currentPendingEntry = pendingChartProcedures.find(
+      (entry) => entry.toothNumbers[0] === selectedChartTooth
+    );
+    const hasUnlistedFormChanges = Boolean(
+      chartProcedureDraft.title || chartProcedureDraft.targetDate || chartProcedureDraft.instructions
+    ) && (
+      !currentPendingEntry ||
+      chartProcedureDraft.title !== currentPendingEntry.title ||
+      chartProcedureDraft.targetDate !== currentPendingEntry.targetDate ||
+      chartProcedureDraft.instructions !== currentPendingEntry.instructions
+    );
+    if (hasUnlistedFormChanges) {
+      setNotice({ type: "error", text: "Add or update the selected tooth procedure in the list before saving changes." });
+      return;
+    }
+
+    setSavingDentalChart(true);
+    setNotice(null);
+    try {
+      const chartRef = doc(db, "dentalCharts", selectedPatient.uid);
+      let nextHistory = [];
+      await runTransaction(db, async (transaction) => {
+        const chartSnap = await transaction.get(chartRef);
+        const existingHistory = chartSnap.exists() && Array.isArray(chartSnap.data().patientTreatmentPlans)
+          ? chartSnap.data().patientTreatmentPlans
+          : [];
+        const historyByCreatedAt = new Set(existingHistory.map((entry) => entry.createdAt).filter(Boolean));
+        nextHistory = [...existingHistory];
+        pendingChartProcedures.forEach((entry) => {
+          if (historyByCreatedAt.has(entry.createdAt)) return;
+          nextHistory.push(entry);
+          historyByCreatedAt.add(entry.createdAt);
+        });
+        transaction.set(chartRef, {
+          uid: selectedPatient.uid,
+          patientName: selectedPatient.name || "",
+          patientEmail: selectedPatient.email || "",
+          patientTreatmentPlans: nextHistory,
+        }, { merge: true });
+      });
+
+      await logAdminAction({
+        action: "save_dental_chart",
+        targetType: "dental_chart",
+        targetId: selectedPatient.uid,
+        targetLabel: selectedPatient.name || selectedPatient.email || "Dental chart",
+        details: {
+          selectedTeeth,
+          procedureCount: pendingChartProcedures.length,
+        },
+      });
+
+      setChartProcedureHistory(nextHistory);
+      setPendingChartProcedures([]);
+      setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
+      setIsEditingDentalChart(false);
+      await load();
+      setNotice({ type: "success", text: "Dental chart changes saved." });
+    } catch (error) {
+      console.error(error);
+      setNotice({ type: "error", text: "Could not save dental chart changes. Please try again." });
+    } finally {
+      setSavingDentalChart(false);
+    }
+  }
+
+  function startEditingDentalChart() {
+    if (!selectedPatient || !canEditDentalChart) return;
+    setChartSelectionBeforeEdit([...selectedTeeth]);
+    setChartToothBeforeEdit(selectedChartTooth);
+    setPendingChartProcedures([]);
+    setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
+    setIsEditingDentalChart(true);
+    setNotice(null);
+  }
+
+  function cancelEditingDentalChart() {
+    setSelectedTeeth(chartSelectionBeforeEdit);
+    setSelectedChartTooth(chartToothBeforeEdit);
+    setPendingChartProcedures([]);
+    setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
+    setIsEditingDentalChart(false);
+    setNotice(null);
   }
 
   async function addTreatmentPlan() {
     if (!selectedPatient || !treatmentDraft.title.trim()) return;
-    const nextPlans = [
-      ...(selectedPatient.treatmentPlans || []),
-      {
-        ...treatmentDraft,
-        title: treatmentDraft.title.trim(),
-        instructions: treatmentDraft.instructions.trim(),
-        patientSummary: treatmentDraft.patientSummary.trim(),
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    await updateDoc(doc(db, "patients", selectedPatient.id), {
-      treatmentPlans: nextPlans,
+    if (!selectedTeeth.length) {
+      setNotice({ type: "error", text: "Select at least one tooth in the Dental Chart before adding a procedure." });
+      return;
+    }
+    const createdAt = new Date().toISOString();
+    const plan = {
+      ...treatmentDraft,
+      title: treatmentDraft.title.trim(),
+      instructions: treatmentDraft.instructions.trim(),
+      patientSummary: treatmentDraft.patientSummary.trim(),
+      toothNumbers: [...selectedTeeth],
+      createdAt,
+    };
+    const patientRef = doc(db, "patients", selectedPatient.id);
+    let nextPlans = [];
+    await runTransaction(db, async (transaction) => {
+      const patientSnap = await transaction.get(patientRef);
+      if (!patientSnap.exists()) throw new Error("The patient record could not be found.");
+      const currentPlans = Array.isArray(patientSnap.data().treatmentPlans)
+        ? patientSnap.data().treatmentPlans
+        : [];
+      nextPlans = currentPlans.some((entry) => entry.createdAt === createdAt)
+        ? currentPlans
+        : [...currentPlans, plan];
+      if (nextPlans !== currentPlans) {
+        transaction.update(patientRef, { treatmentPlans: nextPlans });
+      }
     });
     await publishPatientRecord(nextPlans, selectedPatient.careRecommendations || []);
 
@@ -968,13 +1330,27 @@ export default function Patients() {
   async function publishPatientRecord(treatmentPlans, careRecommendations) {
     if (!selectedPatient?.uid) return;
 
+    const chartRef = doc(db, "dentalCharts", selectedPatient.uid);
+    const chartSnap = await getDoc(chartRef);
+    const staffProcedureCreatedAt = new Set(
+      treatmentPlans.map((plan) => plan.createdAt).filter(Boolean)
+    );
+    const chartOnlyProcedures = chartSnap.exists() && Array.isArray(chartSnap.data().patientTreatmentPlans)
+      ? chartSnap.data().patientTreatmentPlans.filter(
+          (plan) => !plan.createdAt || !staffProcedureCreatedAt.has(plan.createdAt)
+        )
+      : [];
+
     await setDoc(
-      doc(db, "dentalCharts", selectedPatient.uid),
+      chartRef,
       {
         uid: selectedPatient.uid,
         patientName: selectedPatient.name || "",
         patientEmail: selectedPatient.email || "",
-        patientTreatmentPlans: getPatientVisibleTreatmentPlans(treatmentPlans),
+        patientTreatmentPlans: [
+          ...getPatientVisibleTreatmentPlans(treatmentPlans),
+          ...chartOnlyProcedures,
+        ],
         patientCareRecommendations: getPatientCareRecommendations(careRecommendations),
       },
       { merge: true }
@@ -1133,36 +1509,53 @@ export default function Patients() {
     await load();
   }
 
-  async function toggleArchive(patient) {
-    await updateDoc(doc(db, "patients", patient.id), {
-      status: patient.status === "Archived" ? "Active" : "Archived",
-    });
-
-    await logAdminAction({
-      action: patient.status === "Archived" ? "restore_patient" : "archive_patient",
-      targetType: "patient",
-      targetId: patient.id,
-      targetLabel: patient.name || patient.email || "Patient",
-    });
-
-    await load();
-  }
-
-  // Archive only changes the status. The patient's bookings, chart and plans stay in the database.
-  async function archiveFromRecord(patient) {
-    try {
-      await toggleArchive(patient);
-      setIsEditing(false);
-      navigate("/admin/patients");
-      setNotice({ type: "success", text: `${patient.name || "Patient"} was moved to the archive.` });
-    } catch (error) {
-      console.error(error);
-      setNotice({ type: "error", text: "Could not archive this patient. Please try again." });
-    }
-  }
-
   function openConfirm(config) {
     setConfirmState(config);
+  }
+
+  function requestTreatmentCompletion(patient, booking) {
+    setOpenPatientActionsId("");
+    if (booking.status !== "approved" || !booking.checkedInAt) {
+      setNotice({
+        type: "error",
+        text: "Only an approved, checked-in appointment can be sent to Payments.",
+      });
+      return;
+    }
+    const patientName = patient?.name || booking.fullName || "this patient";
+    openConfirm({
+      title: "Send Treatment to Payments?",
+      message: `Confirm treatment was performed for ${patientName} on ${booking.date ? formatDateLabel(booking.date) : "the appointment date"} at ${formatTimeLabel(booking.time)} for ${getBookingServiceLabel(booking)}. The appointment will move to Payments and will only be marked Completed after payment is verified.`,
+      confirmLabel: "Confirm treatment",
+      action: async () => {
+        if (processingTreatmentId) return;
+        setProcessingTreatmentId(booking.id);
+        try {
+          await MARK_DENTIST_TREATMENT_COMPLETE({ bookingId: booking.id });
+          setBookings((current) => current.map((entry) =>
+            entry.id === booking.id
+              ? {
+                  ...entry,
+                  status: "pending_payment",
+                  treatmentCompletedAt: new Date(),
+                }
+              : entry
+          ));
+          setNotice({
+            type: "success",
+            text: `Treatment for ${patientName} was sent to Payments for verification.`,
+          });
+        } catch (error) {
+          console.error("Dentist treatment completion could not be recorded:", error);
+          setNotice({
+            type: "error",
+            text: error?.message || "Treatment could not be marked completed. Please try again.",
+          });
+        } finally {
+          setProcessingTreatmentId("");
+        }
+      },
+    });
   }
 
   async function handleConfirmAction() {
@@ -1188,21 +1581,16 @@ export default function Patients() {
     }
   }
 
-  const focusedTooth = hoveredTooth || selectedTeeth[selectedTeeth.length - 1] || "";
-  const selectedToothValues = selectedTeeth.map((tooth) => chartDraft.teeth?.[tooth] || "");
-  const selectedToothConditions = selectedTeeth.map((tooth) => chartDraft.toothConditions?.[tooth] || "healthy");
-  const selectedToothEntries = selectedTeeth.map((tooth) => ({
-    tooth,
-    label: TOOTH_LABELS[tooth],
-    note: chartDraft.teeth?.[tooth] || "",
-    condition: chartDraft.toothConditions?.[tooth] || "healthy",
-  }));
-  const selectedToothComment = selectedToothValues.every((note) => note === selectedToothValues[0])
-    ? selectedToothValues[0] || ""
-    : "";
-  const selectedToothCondition = selectedToothConditions.every((value) => value === selectedToothConditions[0])
-    ? selectedToothConditions[0]
-    : "healthy";
+  const patientTreatmentPlans = selectedPatient?.treatmentPlans || [];
+  const patientTreatmentPlanCreatedAt = new Set(
+    patientTreatmentPlans.map((plan) => plan.createdAt).filter(Boolean)
+  );
+  const savedProcedureHistory = [
+    ...patientTreatmentPlans,
+    ...chartProcedureHistory.filter(
+      (plan) => !plan.createdAt || !patientTreatmentPlanCreatedAt.has(plan.createdAt)
+    ),
+  ];
   const isDentist = adminRole === ROLES.DENTIST;
   const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
   const canEditPatientProfile = adminRole === ROLES.ADMIN || adminRole === ROLES.RECEPTIONIST;
@@ -1210,7 +1598,7 @@ export default function Patients() {
   const patientStatus = selectedPatient?.status || "Active";
 
   return (
-    <div className="container adminSurface">
+    <div className={`container adminSurface${isDentist ? " dentistPatientsPage" : ""}`}>
       {notice ? (
         <div className={`notice notice-${notice.type}`} role={notice.type === "error" ? "alert" : "status"}>
           <span>{notice.text}</span>
@@ -1220,19 +1608,192 @@ export default function Patients() {
         </div>
       ) : null}
 
+      {!patientId && isDentist ? (
+        <div className={`dentistRecordsPage${completedOnly ? " dentistCompletedPage" : ""}`}>
+          <header className="dentistRecordsHeader">
+            <div>
+              <span className="dentistRecordsEyebrow">DENTIST WORKSPACE</span>
+              <h1>{completedOnly ? "Completed" : "Patient"}</h1>
+              <p>
+                {completedOnly
+                  ? "Review treatments completed for your assigned patients."
+                  : "View your assigned patients and manage their treatment."}
+              </p>
+            </div>
+          </header>
+          <section className="panel dentistRecordsPanel" aria-label={completedOnly ? "Completed treatments" : "Assigned patients"}>
+            <div className="dentistRecordsToolbar">
+              <div>
+                <h2 className="panelTitle">{completedOnly ? "Completed treatments" : "Patient list"}</h2>
+                <p className="panelSub">
+                  {completedOnly
+                    ? "Treatments recorded as completed."
+                    : "Appointments and treatment details assigned to you."}
+                </p>
+              </div>
+            </div>
+            {loadingPatients ? (
+              <SkeletonList count={2} />
+            ) : visibleDentistAppointments.length ? (
+              <div className="patientTableWrap dentistRecordsTableWrap">
+                <table className={`patientTable ${completedOnly ? "dentistCompletedTable" : "dentistPatientTable"}`}>
+                  <thead>
+                    <tr>
+                      {!completedOnly ? <th>TYPE OF PATIENT</th> : <th>#</th>}
+                      <th>PATIENT</th>
+                      <th>SERVICE</th>
+                      <th>DATE &amp; TIME</th>
+                      {!completedOnly ? <th>ACTION</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleDentistAppointments.map((booking, index) => {
+                      const linkedPatient = booking.patient || patients.find((patient) =>
+                        bookingMatchesPatient(booking, patient)
+                      ) || null;
+                      const patientRecordId =
+                        linkedPatient?.id ||
+                        linkedPatient?.uid ||
+                        booking.patientProfileId ||
+                        booking.patientId ||
+                        booking.uid;
+                      const patientType = normalizePatientType(
+                        linkedPatient?.patientType ?? booking.patientType
+                      );
+                      return (
+                        <tr
+                          key={booking.id}
+                          className={patientRecordId ? "dentistAppointmentRowClickable" : undefined}
+                          tabIndex={patientRecordId ? 0 : undefined}
+                          onClick={(event) => handleDentistAppointmentRowClick(event, patientRecordId)}
+                          onKeyDown={(event) => handleDentistAppointmentRowKeyDown(event, patientRecordId)}
+                        >
+                          {!completedOnly ? (
+                            <td data-label="Type of Patient">
+                              <span className={`typeBadge ${patientType === "Ortho" ? "ortho" : "regular"}`}>
+                                {patientType}
+                              </span>
+                            </td>
+                          ) : (
+                            <td data-label="#">{index + 1}</td>
+                          )}
+                          <td data-label="Patient">
+                            {patientRecordId ? (
+                              <button
+                                className="dentistPatientNameButton"
+                                type="button"
+                                onClick={() => openPatientRecord(patientRecordId)}
+                              >
+                                {linkedPatient?.name || booking.fullName || "Patient"}
+                              </button>
+                            ) : (
+                              <span className="dentistPatientNameUnavailable">
+                                {booking.fullName || "Patient"}
+                              </span>
+                            )}
+                          </td>
+                          <td data-label="Service">{getBookingServiceLabel(booking)}</td>
+                          <td data-label="Date & time">
+                            <span className="dentistRecordDate">
+                              {booking.date ? formatDateLabel(booking.date) : "Date unavailable"}
+                            </span>
+                            <small className="dentistRecordTime">
+                              {booking.time ? formatTimeLabel(booking.time) : "Time unavailable"}
+                            </small>
+                          </td>
+                          {!completedOnly ? (
+                            <td data-label="Action" onClick={(event) => event.stopPropagation()}>
+                              <div
+                                className="dentistTreatmentMenu"
+                                ref={openPatientActionsId === booking.id ? dentistActionMenuRef : null}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <button
+                                  className="dentistTreatmentMenuTrigger"
+                                  type="button"
+                                  aria-label={`Actions for ${booking.patient?.name || booking.fullName || "patient"}`}
+                                  aria-haspopup="menu"
+                                  aria-expanded={openPatientActionsId === booking.id}
+                                  disabled={Boolean(processingTreatmentId)}
+                                  onClick={() => setOpenPatientActionsId((current) =>
+                                    current === booking.id ? "" : booking.id
+                                  )}
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle cx="12" cy="5" r="1.7" />
+                                    <circle cx="12" cy="12" r="1.7" />
+                                    <circle cx="12" cy="19" r="1.7" />
+                                  </svg>
+                                </button>
+                                {openPatientActionsId === booking.id ? (
+                                  <div className="dentistTreatmentMenuDropdown" role="menu">
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      disabled={
+                                        Boolean(processingTreatmentId) ||
+                                        booking.status !== "approved" ||
+                                        !booking.checkedInAt
+                                      }
+                                      onClick={() => requestTreatmentCompletion(
+                                        booking.patient || { name: booking.fullName },
+                                        booking
+                                      )}
+                                    >
+                                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                                        <path d="m4 10 4 4 8-8" />
+                                      </svg>
+                                      <span>
+                                        {processingTreatmentId === booking.id
+                                          ? "Updating..."
+                                          : "Mark as Completed"}
+                                      </span>
+                                    </button>
+                                    {booking.status === "pending_payment" ? (
+                                      <small className="dentistTreatmentMenuHint">Awaiting payment verification</small>
+                                    ) : !booking.checkedInAt ? (
+                                      <small className="dentistTreatmentMenuHint">Available after patient check-in</small>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              completedOnly ? (
+                <div className="dentistCompletedEmptyState">
+                  <EmptyState
+                    compact
+                    title="No completed treatments"
+                    message="Completed treatments assigned to you will appear here."
+                  />
+                </div>
+              ) : (
+                <EmptyState
+                  compact
+                  title="No assigned patients"
+                  message="Patients with active appointments assigned to you will appear here."
+                />
+              )
+            )}
+          </section>
+        </div>
+      ) : null}
+
       {/* ---------------- Patient list ---------------- */}
-      {!patientId ? (
+      {!patientId && !isDentist ? (
       <div className="patientListPage">
         <section className="panel patientListPanel">
           <div className="panelHead patientPanelHead">
-            <div className="patientPanelIntro">
-              <h2 className="panelTitle">Patient Records</h2>
-              <p className="panelSub">Select a patient to open their record.</p>
-              <span className="countLabel">{filteredPatientCards.length} records</span>
-            </div>
             <div className="patientToolbar">
-              <div className="topSearchBar">
-                <svg className="topSearchIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <div className="topSearchBar adminSearchField">
+                <svg className="topSearchIcon adminSearchIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="7" />
                   <path d="m20 20-3.5-3.5" />
                 </svg>
@@ -1249,7 +1810,6 @@ export default function Patients() {
                   </button>
                 ) : null}
               </div>
-
               <div className="patientTypeFilter">
                 <select
                   className="input typeSelect"
@@ -1275,6 +1835,7 @@ export default function Patients() {
             <SkeletonList count={3} />
           ) : filteredPatientCards.length ? (
             <div className="patientTableWrap">
+              <div className="patientTableCount">{filteredPatientCards.length} records</div>
               <table className="patientTable">
                 <thead>
                   <tr>
@@ -1283,11 +1844,14 @@ export default function Patients() {
                     <th>Type of Patient</th>
                     <th>Age</th>
                     <th>Contact Number</th>
+                    {isDentist ? <th>Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPatientCards.map((patient) => {
                     const type = normalizePatientType(patient.patientType);
+                    const eligibleAppointments = patient.eligibleDentistAppointments || [];
+                    const actionsOpen = openPatientActionsId === patient.id;
                     return (
                       <tr
                         key={patient.id}
@@ -1310,6 +1874,62 @@ export default function Patients() {
                         </td>
                         <td data-label="Age">{patient.age || "-"}</td>
                         <td data-label="Contact Number">{patient.phone || "No number"}</td>
+                        {isDentist ? (
+                          <td
+                            className="patientActionsCell"
+                            data-label="Actions"
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                          >
+                            <button
+                              className="patientActionsTrigger"
+                              type="button"
+                              aria-label={`Actions for ${patient.name || "patient"}`}
+                              aria-haspopup="menu"
+                              aria-expanded={actionsOpen}
+                              onClick={() => setOpenPatientActionsId((current) =>
+                                current === patient.id ? "" : patient.id
+                              )}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="5" cy="12" r="1.5" />
+                                <circle cx="12" cy="12" r="1.5" />
+                                <circle cx="19" cy="12" r="1.5" />
+                              </svg>
+                            </button>
+                            {actionsOpen ? (
+                              <div className="patientActionsMenu" role="menu">
+                                {eligibleAppointments.length ? eligibleAppointments.map((booking) => (
+                                  <button
+                                    key={booking.id}
+                                    type="button"
+                                    role="menuitem"
+                                    className="patientActionMenuItem"
+                                    disabled={Boolean(processingTreatmentId)}
+                                    onClick={() => requestTreatmentCompletion(patient, booking)}
+                                  >
+                                    <span>Mark as Completed</span>
+                                    <small>
+                                      {booking.date ? formatDateLabel(booking.date) : "Date unavailable"}
+                                      {" · "}{formatTimeLabel(booking.time)}
+                                      {" · "}{getBookingServiceLabel(booking)}
+                                    </small>
+                                  </button>
+                                )) : (
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="patientActionMenuItem"
+                                    disabled
+                                  >
+                                    Mark as Completed
+                                    <small>No approved assigned appointment available</small>
+                                  </button>
+                                )}
+                              </div>
+                            ) : null}
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })}
@@ -1334,8 +1954,11 @@ export default function Patients() {
       {patientId ? (
         <main className="patientDetailsPage">
           <div className="recordPage">
-            <button type="button" className="backLink" onClick={closePatientRecord}>
-              Back to Patients
+            <button type="button" className="backLink paymentsBackLink appBackAction" onClick={closePatientRecord}>
+              <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
+                <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10h9" />
+              </svg>
+              Back
             </button>
           {loadingPatients && !selectedPatient ? (
             <SkeletonList count={2} />
@@ -1351,14 +1974,17 @@ export default function Patients() {
                   <h1 className="recordName">{selectedPatient.name || "Unnamed patient"}</h1>
                   <div className="recordBadges">
                     <span className={`typeBadge ${normalizePatientType(selectedPatient.patientType) === "Ortho" ? "ortho" : "regular"}`}>
-                      {normalizePatientType(selectedPatient.patientType)}
+                      {normalizePatientType(selectedPatient.patientType)} patient
                     </span>
                     <span className={`statusPill ${getStatusClass(patientStatus)}`}>{patientStatus}</span>
                   </div>
                 </div>
                 {canEditPatientProfile && !isEditing ? (
-                  <button type="button" className="btn btnPrimary" onClick={startEditing}>
-                    Edit Patient
+                  <button type="button" className="btn btnPrimary patientEditButton" onClick={startEditing}>
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="m12.9 3.1 4 4M3 17l3.7-.8L16.7 6.2a1.7 1.7 0 0 0-2.4-2.4L4.3 13.8 3 17Z" />
+                    </svg>
+                    Edit patient
                   </button>
                 ) : null}
               </header>
@@ -1413,6 +2039,22 @@ export default function Patients() {
                           ))}
                         </select>
                       </label>
+                      {draft.patientType === "Ortho" ? (
+                        <label className="field">
+                          <span className="fieldLabel">Type of Braces</span>
+                          <select
+                            className="input"
+                            value={draft.bracesType}
+                            onChange={(e) => updateDraft("bracesType", e.target.value)}
+                            required
+                          >
+                            <option value="">Select type of braces</option>
+                            {PATIENT_BRACES_TYPES.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                       <label className="field">
                         <span className="fieldLabel">Contact number</span>
                         <input className="input" value={draft.phone} onChange={(e) => updateDraft("phone", e.target.value)} />
@@ -1433,6 +2075,10 @@ export default function Patients() {
                     </form>
                   ) : (
                     <dl className="pdlList">
+                      <div className="pdlRow">
+                        <dt>Name</dt>
+                        <dd>{selectedPatient.name || "Not provided"}</dd>
+                      </div>
                       <div className="pdlRow">
                         <dt>Age</dt>
                         <dd>{selectedPatient.age || "Not provided"}</dd>
@@ -1472,33 +2118,46 @@ export default function Patients() {
                     <div>
                       <h2 className="panelTitle">Dental Chart</h2>
                       <p className="panelSub">
-                        {canEditDentalChart
-                          ? "Select one or more teeth, then add notes and conditions."
-                          : "You can review the chart and existing dentist notes. Editing is limited to dentists and admins."}
+                        {isEditingDentalChart
+                          ? "Select teeth and add one pending procedure per tooth."
+                          : "Review the dental chart and saved procedure history."}
                       </p>
                     </div>
-                    <span className="countLabel">{canEditDentalChart ? "Editable" : "Read only"}</span>
+                    {canEditDentalChart ? (
+                      isEditingDentalChart ? (
+                        <span className="countLabel">Edit mode</span>
+                      ) : (
+                        <button className="btn btnSecondary" type="button" onClick={startEditingDentalChart}>
+                          Edit Chart
+                        </button>
+                      )
+                    ) : (
+                      <span className="countLabel">View only</span>
+                    )}
                   </div>
 
                   {selectedPatient.uid ? (
+                    <>
                     <div className="chartLayout">
                       <div className="chartCol">
                         <div className="toothViewer">
                           <div className="toothChartFrame">
-                            <div className="toothImageSurface" aria-label="Select a tooth marker to choose one or more teeth">
+                            <div
+                              className="toothImageSurface"
+                              aria-label={isEditingDentalChart ? "Select a tooth for its procedure" : "Dental chart in view mode"}
+                              onClick={isEditingDentalChart ? handleChartSurfaceClick : undefined}
+                            >
                               <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
                               <div className="toothViewerOverlay">
                                 {TOOTH_IDS.map((tooth) => (
                                   <button
                                     key={tooth}
                                     type="button"
-                                    className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""} ${focusedTooth === tooth ? "focused" : ""} ${chartDraft.teeth?.[tooth]?.trim() ? "hasNote" : ""}`}
+                                    className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""}`}
+                                    data-tooth-id={tooth}
                                     style={{ top: TOOTH_MARKERS[tooth]?.top, left: TOOTH_MARKERS[tooth]?.left }}
-                                    onClick={() => toggleToothSelection(tooth)}
-                                    onMouseEnter={() => setHoveredTooth(tooth)}
-                                    onMouseLeave={() => setHoveredTooth("")}
-                                    onFocus={() => setHoveredTooth(tooth)}
-                                    onBlur={() => setHoveredTooth("")}
+                                    aria-disabled={!isEditingDentalChart}
+                                    tabIndex={isEditingDentalChart ? 0 : -1}
                                     aria-pressed={selectedTeeth.includes(tooth)}
                                     aria-label={`Tooth ${tooth} ${TOOTH_LABELS[tooth]}`}
                                   />
@@ -1506,126 +2165,163 @@ export default function Patients() {
                               </div>
                             </div>
                           </div>
-                          {focusedTooth ? (
-                            <div className="toothViewerLegend">
-                              <span>{selectedTeeth.length > 1 ? "Focused tooth" : "Selected tooth"}</span>
-                              <strong>{focusedTooth}</strong>
-                              <small>{TOOTH_LABELS[focusedTooth]}</small>
+                        </div>
+                        {isEditingDentalChart ? (
+                          <section className="dentistEditorSection" aria-labelledby="pendingProcedureTitle">
+                            <div className="blockHead">
+                              <h3 className="blockTitle" id="pendingProcedureTitle">Pending Procedures</h3>
+                              <span className="countLabel">{pendingChartProcedures.length}</span>
                             </div>
-                          ) : null}
-                        </div>
-
-                        <div className="toothSelectedChips">
-                          {selectedTeeth.map((tooth) => (
-                            <button key={tooth} type="button" className={`toothSelectedChip ${focusedTooth === tooth ? "active" : ""}`} onClick={() => setSelectedTeeth([tooth])}>
-                              Tooth {tooth}
-                            </button>
-                          ))}
-                        </div>
+                            {pendingChartProcedures.length ? (
+                              <div className="patientTableWrap">
+                                <table className="patientTable">
+                                  <thead>
+                                    <tr>
+                                      <th>Tooth Number</th>
+                                      <th>Procedure</th>
+                                      <th>Procedure Date</th>
+                                      <th>Procedure Notes</th>
+                                      <th>Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {pendingChartProcedures.map((entry) => {
+                                      const tooth = entry.toothNumbers[0];
+                                      return (
+                                        <tr key={entry.createdAt} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
+                                          <td data-label="Tooth Number">{tooth}</td>
+                                          <td data-label="Procedure">{entry.title}</td>
+                                          <td data-label="Procedure Date">{entry.targetDate}</td>
+                                          <td data-label="Procedure Notes">{entry.instructions || "—"}</td>
+                                          <td data-label="Actions">
+                                            <div className="itemActions">
+                                              <button className="btn btnSmall btnSecondary" type="button" onClick={() => focusChartTooth(tooth)}>
+                                                Edit
+                                              </button>
+                                              <button className="btn btnSmall btnDanger" type="button" onClick={() => removePendingChartProcedure(tooth)}>
+                                                Remove
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="emptyBlock">
+                                <strong>No pending procedures</strong>
+                                <p>Add a procedure for a selected tooth to see it here.</p>
+                              </div>
+                            )}
+                          </section>
+                        ) : null}
                       </div>
 
                       <div className="chartForm">
-                        {selectedTeeth.length ? (
-                          <div className="infoBlock">
-                            <span className="detailLabel">{selectedTeeth.length > 1 ? "Selected teeth" : "Selected tooth"}</span>
-                            <p><strong>{selectedTeeth.join(", ")}</strong></p>
-                            <p>{selectedTeeth.length === 1 ? TOOTH_LABELS[selectedTeeth[0]] : "These teeth are updated together with the same note."}</p>
-                            {selectedTeeth.length > 1 ? (
-                              <div className="selectedToothNotesList">
-                                {selectedToothEntries.map(({ tooth, label, note }) => (
-                                  <div key={tooth} className="selectedToothNoteItem">
-                                    <strong>Tooth {tooth}</strong>
-                                    <span>{label}: {chartDraft.toothConditions?.[tooth] || "healthy"}</span>
-                                    <p>{note || "No note saved for this tooth yet."}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p>{selectedToothComment || "No note saved for the selected tooth yet."}</p>
-                            )}
+                        {isEditingDentalChart ? (
+                          <div className="formActions">
+                            <button className="btn btnSuccess" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
+                              {savingDentalChart ? "Saving..." : "Save Changes"}
+                            </button>
+                            <button className="btn btnSecondary" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
+                              Cancel
+                            </button>
                           </div>
                         ) : null}
-
-                        {canEditDentalChart ? (
+                        {isEditingDentalChart ? (
                           <>
-                            {selectedTeeth.length ? (
-                              <>
-                                <label className="field">
-                                  <span className="fieldLabel">{selectedTeeth.length > 1 ? "Shared note for selected teeth" : "Tooth note"}</span>
-                                  <textarea
-                                    className="input"
-                                    rows={4}
-                                    value={selectedToothComment}
-                                    onChange={(e) =>
-                                      setChartDraft((current) => ({
-                                        ...current,
-                                        uid: selectedPatient.uid,
-                                        teeth: {
-                                          ...(current.teeth || {}),
-                                          ...selectedTeeth.reduce((accumulator, tooth) => {
-                                            accumulator[tooth] = e.target.value;
-                                            return accumulator;
-                                          }, {}),
-                                        },
-                                      }))
-                                    }
-                                  />
-                                </label>
-
-                                <label className="field">
-                                  <span className="fieldLabel">Condition</span>
-                                  <select
-                                    className="input"
-                                    value={selectedToothCondition}
-                                    onChange={(e) =>
-                                      setChartDraft((current) => ({
-                                        ...current,
-                                        uid: selectedPatient.uid,
-                                        toothConditions: {
-                                          ...(current.toothConditions || {}),
-                                          ...selectedTeeth.reduce((accumulator, tooth) => {
-                                            accumulator[tooth] = e.target.value;
-                                            return accumulator;
-                                          }, {}),
-                                        },
-                                      }))
-                                    }
-                                  >
-                                    <option value="healthy">Healthy</option>
-                                    <option value="observation">For Observation</option>
-                                    <option value="treated">Treated</option>
-                                    <option value="missing">Missing</option>
-                                    <option value="decayed">Decayed</option>
-                                    <option value="extraction_needed">Extraction Needed</option>
-                                  </select>
-                                </label>
-                              </>
-                            ) : null}
-
-                            <label className="field">
-                              <span className="fieldLabel">General dentist notes</span>
-                              <textarea
-                                className="input"
-                                rows={5}
-                                value={chartDraft.generalNotes || ""}
-                                onChange={(e) => setChartDraft((current) => ({ ...current, uid: selectedPatient.uid, generalNotes: e.target.value }))}
-                              />
-                            </label>
-
-                            <div className="formActions">
-                              <button className="btn btnSuccess" type="button" onClick={saveDentalChart}>
-                                Save Dental Chart Notes
-                              </button>
+                            <div className="infoBlock">
+                              <span className="detailLabel">Selected Tooth and Procedure</span>
+                              <div className="field">
+                                <span className="fieldLabel">Selected Tooth</span>
+                                <p className="itemMeta">
+                                  <strong>{selectedChartTooth || "Select a tooth"}</strong>
+                                  {selectedChartTooth ? ` · ${TOOTH_LABELS[selectedChartTooth]}` : ""}
+                                </p>
+                              </div>
+                              <label className="field">
+                                <span className="fieldLabel">Procedure</span>
+                                <select
+                                  className="input"
+                                  required
+                                  value={chartProcedureDraft.title}
+                                  onChange={(event) => setChartProcedureDraft((current) => ({ ...current, title: event.target.value }))}
+                                >
+                                  <option value="">Select a procedure</option>
+                                  {DENTAL_CHART_PROCEDURES.map((procedure) => (
+                                    <option key={procedure} value={procedure}>{procedure}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="field">
+                                <span className="fieldLabel">Procedure Date</span>
+                                <input
+                                  className="input"
+                                  type="date"
+                                  required
+                                  value={chartProcedureDraft.targetDate}
+                                  onChange={(event) => setChartProcedureDraft((current) => ({ ...current, targetDate: event.target.value }))}
+                                />
+                              </label>
+                              <label className="field">
+                                <span className="fieldLabel">Procedure Notes (optional)</span>
+                                <textarea
+                                  className="input"
+                                  rows={3}
+                                  value={chartProcedureDraft.instructions}
+                                  onChange={(event) => setChartProcedureDraft((current) => ({ ...current, instructions: event.target.value }))}
+                                />
+                              </label>
+                              <div className="formActions">
+                                <button className="btn btnSuccess" type="button" onClick={addOrUpdateChartProcedure}>
+                                  Add Procedure
+                                </button>
+                              </div>
                             </div>
                           </>
                         ) : (
-                          <div className="infoBlock">
-                            <span className="detailLabel">General dentist notes</span>
-                            <p>{chartDraft.generalNotes || "No general dentist notes saved yet."}</p>
-                          </div>
+                          <p className="itemMeta">Select Edit Chart to add or update procedures.</p>
                         )}
+                        <section className="dentistEditorSection" aria-labelledby="procedureHistoryTitle">
+                          <div className="blockHead">
+                            <h3 className="blockTitle" id="procedureHistoryTitle">Procedure History</h3>
+                            <span className="countLabel">{savedProcedureHistory.length}</span>
+                          </div>
+                          {savedProcedureHistory.length ? (
+                            <div className="patientTableWrap">
+                              <table className="patientTable">
+                                <thead>
+                                  <tr>
+                                    <th>Tooth Number</th>
+                                    <th>Procedure</th>
+                                    <th>Procedure Date</th>
+                                    <th>Procedure Notes</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {savedProcedureHistory.map((entry, index) => (
+                                    <tr key={`${entry.createdAt || entry.title}-${index}`}>
+                                      <td data-label="Tooth Number">{entry.toothNumbers?.join(", ") || "—"}</td>
+                                      <td data-label="Procedure">{entry.title || "Procedure"}</td>
+                                      <td data-label="Procedure Date">{entry.targetDate || "—"}</td>
+                                      <td data-label="Procedure Notes">{entry.instructions || "—"}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="emptyBlock">
+                              <strong>No procedures recorded</strong>
+                              <p>Saved procedures will appear here.</p>
+                            </div>
+                          )}
+                        </section>
                       </div>
                     </div>
+                    </>
                   ) : (
                     <EmptyState
                       compact
@@ -1658,8 +2354,16 @@ export default function Patients() {
                       <div className="planForm">
                         <h3 className="blockTitle">Add procedure</h3>
                         <label className="field">
-                          <span className="fieldLabel">Procedure or treatment title</span>
-                          <input className="input" value={treatmentDraft.title} onChange={(e) => setTreatmentDraft((current) => ({ ...current, title: e.target.value }))} />
+                          <span className="fieldLabel">Procedure</span>
+                          <select className="input" value={treatmentDraft.title} onChange={(e) => setTreatmentDraft((current) => ({ ...current, title: e.target.value }))}>
+                            <option value="">Select a procedure</option>
+                            {PUBLIC_SERVICE_CATALOG.map((procedure) => (
+                              <option key={procedure.name} value={procedure.name}>{procedure.name}</option>
+                            ))}
+                            {[...new Set((selectedPatient.treatmentPlans || []).map((plan) => plan.title).filter((title) => title && !PUBLIC_SERVICE_CATALOG.some((procedure) => procedure.name === title)))].map((title) => (
+                              <option key={title} value={title}>{title}</option>
+                            ))}
+                          </select>
                         </label>
                         <div className="twoCol">
                           <label className="field">
@@ -1939,23 +2643,10 @@ export default function Patients() {
               ) : null}
 
               <footer className="recordFooter">
-                <button
-                  type="button"
-                  className="btn btnWarning"
-                  onClick={() =>
-                    openConfirm({
-                      title: "Archive this patient?",
-                      message:
-                        "The patient will be removed from the active patient list. Their appointments, dental chart, and treatment history are kept.",
-                      confirmLabel: "Archive Patient",
-                      tone: "archive",
-                      action: () => archiveFromRecord(selectedPatient),
-                    })
-                  }
-                >
-                  Archive
-                </button>
-                <button type="button" className="btn btnInfo" onClick={handleDownloadPdf} disabled={pdfBusy}>
+                <button type="button" className="btn btnInfo patientDownloadAction" onClick={handleDownloadPdf} disabled={pdfBusy}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 12.5v4h13v-4" />
+                  </svg>
                   {pdfBusy ? "Preparing PDF" : "Download PDF"}
                 </button>
               </footer>
@@ -2015,6 +2706,22 @@ export default function Patients() {
                   ))}
                 </select>
               </label>
+              {addDraft.patientType === "Ortho" ? (
+                <label className="field">
+                  <span className="fieldLabel">Type of Braces</span>
+                  <select
+                    className="input"
+                    value={addDraft.bracesType}
+                    onChange={(e) => updateAddDraft("bracesType", e.target.value)}
+                    required
+                  >
+                    <option value="">Select type of braces</option>
+                    {PATIENT_BRACES_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label className="field">
                 <span className="fieldLabel">Preferred dentist (optional)</span>
                 <select className="input" value={addDraft.preferredDentist} onChange={(e) => updateAddDraft("preferredDentist", e.target.value)}>

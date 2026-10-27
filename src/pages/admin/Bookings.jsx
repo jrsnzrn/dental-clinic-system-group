@@ -9,6 +9,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
@@ -19,10 +20,6 @@ import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/s
 
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
 const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
-const ARCHIVE_BOOKING = httpsCallable(functions, "archiveBooking");
-const APPROVE_RESCHEDULE = httpsCallable(functions, "approveReschedule");
-const DECLINE_RESCHEDULE = httpsCallable(functions, "declineReschedule");
-const ADJUST_BOOKING_END_TIME = httpsCallable(functions, "adjustBookingEndTime");
 
 const BOOKING_FILTERS = {
   calendar: { label: "All", emptyText: "No appointments match the current filters." },
@@ -45,12 +42,10 @@ const BOOKING_FILTERS = {
 const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "completed", "cancelled"];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const BOOKING_SORT_OPTIONS = [
-  { value: "newest", label: "Newest" },
-  { value: "oldest", label: "Oldest" },
-  { value: "name-asc", label: "A–Z" },
-  { value: "name-desc", label: "Z–A" },
-  { value: "date-asc", label: "Earliest" },
-  { value: "date-desc", label: "Latest" },
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "appointment-asc", label: "Earliest appointment" },
+  { value: "appointment-desc", label: "Latest appointment" },
 ];
 
 function timestampMillis(value) {
@@ -69,11 +64,38 @@ function timestampMillis(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formatPaymentAmount(value) {
+  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(value) || 0);
+}
+
 function compareOptionalValues(left, right, direction = 1) {
   if (left == null && right == null) return 0;
   if (left == null) return 1;
   if (right == null) return -1;
   return (left < right ? -1 : left > right ? 1 : 0) * direction;
+}
+
+function appointmentMillis(booking) {
+  const appointmentTimestamp = timestampMillis(booking.appointmentAt);
+  if (appointmentTimestamp != null) return appointmentTimestamp;
+
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(booking.date || ""));
+  const time = /^(\d{1,2}):(\d{2})$/.exec(String(booking.time || ""));
+  if (!date || !time) return null;
+
+  const [, year, month, day] = date.map(Number);
+  const [, hour, minute] = time.map(Number);
+  if (hour > 23 || minute > 59) return null;
+
+  const appointmentDate = new Date(year, month - 1, day, hour, minute);
+  if (
+    appointmentDate.getFullYear() !== year ||
+    appointmentDate.getMonth() !== month - 1 ||
+    appointmentDate.getDate() !== day
+  ) {
+    return null;
+  }
+  return appointmentDate.getTime();
 }
 
 function compareBookings(left, right, sortBy) {
@@ -84,19 +106,11 @@ function compareBookings(left, right, sortBy) {
       timestampMillis(right.createdAt),
       sortBy === "newest" ? -1 : 1
     );
-  } else if (sortBy === "name-asc" || sortBy === "name-desc") {
-    const leftName = String(left.fullName || "").trim().toLocaleLowerCase();
-    const rightName = String(right.fullName || "").trim().toLocaleLowerCase();
-    comparison = compareOptionalValues(
-      leftName || null,
-      rightName || null,
-      sortBy === "name-asc" ? 1 : -1
-    );
   } else {
     comparison = compareOptionalValues(
-      String(left.date || "") || null,
-      String(right.date || "") || null,
-      sortBy === "date-asc" ? 1 : -1
+      appointmentMillis(left),
+      appointmentMillis(right),
+      sortBy === "appointment-asc" ? 1 : -1
     );
   }
   return comparison || String(left.id || "").localeCompare(String(right.id || ""));
@@ -144,12 +158,20 @@ function getBookingDateTimeLabel(booking) {
   return `${formatDateLabel(booking.date)} - ${formatTimeLabel(booking.time)}`;
 }
 
-function BookingRow({ booking, onOpen }) {
+function getBookingServices(booking) {
+  const services = Array.isArray(booking?.services) && booking.services.length
+    ? booking.services
+    : String(booking?.service || "").split(",");
+  return services.map((service) => String(service).trim()).filter(Boolean).join(", ") || "Not set";
+}
+
+function BookingRow({ booking, onOpen, highlighted }) {
   const reschedule = booking.rescheduleRequest;
 
   return (
     <tr
-      className="bookingRow clickable"
+      id={`booking-row-${booking.id}`}
+      className={`bookingRow clickable${highlighted ? " notificationHighlight" : ""}`}
       tabIndex={0}
       onClick={() => onOpen(booking.id)}
       onKeyDown={(e) => {
@@ -161,17 +183,23 @@ function BookingRow({ booking, onOpen }) {
     >
       <td className="bookingNameCell" data-label="Patient">
         <strong>{booking.fullName || "No name"}</strong>
-        <small>{booking.id}</small>
       </td>
       <td data-label="Service">{booking.service || "Not set"}</td>
       <td data-label="Dentist">{booking.selectedDentist || "Not assigned"}</td>
       <td data-label="Date & time">
-        <strong>{booking.date ? formatDateLabel(booking.date) : "Not set"}</strong>
+        <span>{booking.date ? formatDateLabel(booking.date) : "Not set"}</span>
         <small>{formatTimeLabel(booking.time)}</small>
       </td>
       <td data-label="Status">
-        <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
-        {reschedule?.status === "pending" ? <span className="statusPill attention">reschedule</span> : null}
+        <span className={`bookingTableStatus bookingTableStatus-${booking.status || "pending"}`}>
+          {booking.status || "pending"}
+        </span>
+        {booking.status === "approved" && booking.checkedInAt ? (
+          <span className="bookingTableStatus bookingTableStatus-approved">Checked in</span>
+        ) : null}
+        {reschedule?.status === "pending" ? (
+          <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
+        ) : null}
       </td>
     </tr>
   );
@@ -184,15 +212,38 @@ function BookingDetailDrawer({
   onApprove,
   onCheckIn,
   onCancel,
-  onComplete,
-  onArchive,
-  onApproveReschedule,
-  onDeclineReschedule,
   onReschedule,
-  onAdjustEndTime,
+  actionError,
 }) {
   const reschedule = booking?.rescheduleRequest;
   const status = booking?.status || "pending";
+  const [paymentDetails, setPaymentDetails] = useState(null);
+  const currentPaymentDetails = paymentDetails?.bookingId === booking?.id ? paymentDetails : null;
+  const paymentSummaries = currentPaymentDetails?.summaries || [];
+  const paymentError = currentPaymentDetails?.error || "";
+  const paymentLoading = open && status === "completed" && !currentPaymentDetails;
+
+  useEffect(() => {
+    if (!open || status !== "completed" || !booking?.id) return undefined;
+    const summariesQuery = query(
+      collection(db, "paymentTreatmentSummaries"),
+      where("appointmentId", "==", booking.id)
+    );
+    return onSnapshot(summariesQuery, (snapshot) => {
+      setPaymentDetails({
+        bookingId: booking.id,
+        summaries: snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })),
+        error: "",
+      });
+    }, (error) => {
+      console.error("Appointment payment details could not load:", error);
+      setPaymentDetails({
+        bookingId: booking.id,
+        summaries: [],
+        error: "Payment details are unavailable right now.",
+      });
+    });
+  }, [booking?.id, open, status]);
 
   return (
     <>
@@ -200,13 +251,14 @@ function BookingDetailDrawer({
       <div className={`patientDrawer bookingDetailsModal ${open ? "open" : ""}`} role="dialog" aria-modal="true">
         {booking ? (
           <div className="patientDrawerInner">
-            <div className="patientDrawerHeader">
-              <div>
+            <div className="patientDrawerHeader bookingDetailsHeader">
+              <div className="bookingDetailsHeading">
                 <span className="heroEyebrow">Booking details</span>
-                <h3>{booking.fullName || "No name"}</h3>
-                <div className="patientRecordPeek">
-                  <span>{booking.service || "No service"}</span>
-                  <span className={`statusPill ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
+                <div className="bookingDetailsTitleRow">
+                  <h3>{booking.fullName || "No name"}</h3>
+                  <span className="bookingDetailsStatus">
+                    {status.replace(/_/g, " ")}
+                  </span>
                 </div>
               </div>
               <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
@@ -215,14 +267,19 @@ function BookingDetailDrawer({
             </div>
 
             <div className="patientDrawerBody">
+              {actionError ? <div className="formError" role="alert">{actionError}</div> : null}
               <dl className="detailList">
                 <div className="detailRow">
                   <dt>Appointment</dt>
-                  <dd>{getBookingDateTimeLabel(booking)}</dd>
+                  <dd>{booking.date ? formatDateLabel(booking.date) : "Not set"}</dd>
                 </div>
                 <div className="detailRow">
                   <dt>Time</dt>
                   <dd>{getBookingTimeRange(booking)}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Service</dt>
+                  <dd>{getBookingServices(booking)}</dd>
                 </div>
                 <div className="detailRow">
                   <dt>Dentist</dt>
@@ -230,7 +287,15 @@ function BookingDetailDrawer({
                 </div>
                 <div className="detailRow">
                   <dt>Patient</dt>
-                  <dd>{booking.age || "-"} • {booking.patientType || "Regular Patient"}</dd>
+                  <dd>{booking.fullName || "No name"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Age</dt>
+                  <dd>{booking.age || "-"}</dd>
+                </div>
+                <div className="detailRow">
+                  <dt>Type of Patient</dt>
+                  <dd>{booking.patientType || "Regular Patient"}</dd>
                 </div>
                 <div className="detailRow">
                   <dt>Phone</dt>
@@ -249,10 +314,36 @@ function BookingDetailDrawer({
                   <dd>{formatTimestamp(booking.createdAt)}</dd>
                 </div>
                 <div className="detailRow">
-                  <dt>Checked in</dt>
-                  <dd>{formatTimestamp(booking.checkedInAt)}</dd>
+                  <dt>Arrival</dt>
+                  <dd>{booking.checkedInAt ? `Checked in · ${formatTimestamp(booking.checkedInAt)}` : "Not checked in"}</dd>
                 </div>
               </dl>
+
+              {status === "completed" ? (
+                <div className="drawerNote">
+                  <span className="drawerNoteLabel">Payment details</span>
+                  {paymentLoading ? <p>Loading payment details…</p> : null}
+                  {paymentError ? <p role="status">{paymentError}</p> : null}
+                  {!paymentLoading && !paymentError && paymentSummaries.length ? (
+                    <dl className="appointmentPaymentDetails">
+                      {paymentSummaries.map((summary) => {
+                        const totalCost = Number(summary.totalCost) || 0;
+                        const amountPaid = Number(summary.amountPaid) || 0;
+                        return (
+                          <div className="detailRow" key={summary.id}>
+                            <dt>{summary.procedureName || summary.treatmentName || "Treatment"}</dt>
+                            <dd>
+                              {formatPaymentAmount(amountPaid)} paid of {formatPaymentAmount(totalCost)}
+                              {" · "}{amountPaid >= totalCost ? "Fully paid" : "Balance due"}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  ) : null}
+                  {!paymentLoading && !paymentError && !paymentSummaries.length ? <p>No linked payment details.</p> : null}
+                </div>
+              ) : null}
 
               {booking.notes ? (
                 <div className="drawerNote">
@@ -273,62 +364,42 @@ function BookingDetailDrawer({
                     {reschedule.reason ? ` • ${reschedule.reason}` : ""}
                   </p>
 
-                  {reschedule.status === "pending" ? (
-                    <div className="inlineActionRow">
-                      <button className="btn btnShine" type="button" onClick={onApproveReschedule}>
-                        Approve Reschedule
-                      </button>
-                      <button className="btn secondary btnSoft" type="button" onClick={onDeclineReschedule}>
-                        Decline Request
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
             </div>
 
-            <div className="actionColumn actionColumnFriendly">
-          
-              {status === "pending" ? (
-                <>
-                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onAdjustEndTime}>
-                    Extend appointment
-                  </button>
-                  <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove}>
-                    Approve
-                  </button>
-                  <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
-                    Cancel Booking
-                  </button>
-                </>
-              ) : null}
+            {["pending", "approved"].includes(status) ? (
+              <div className="actionColumn actionColumnFriendly">
+                {status === "pending" ? (
+                  <>
+                    <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove}>
+                      Approve
+                    </button>
+                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
+                      Cancel
+                    </button>
+                  </>
+                ) : null}
 
-              {status === "approved" ? (
-                <>
-                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onAdjustEndTime}>
-                    Extend appointment
-                  </button>
-                  <button className="btn btnShine patientActionBtn" type="button" onClick={onCheckIn}>
-                    {booking.checkedInAt ? "Clear Check-in" : "Mark Check-in"}
-                  </button>
-                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
-                    Reschedule
-                  </button>
-                  <button className="btn btnShine patientActionBtn" type="button" onClick={onComplete}>Mark Completed</button>
-                </>
-              ) : null}
-
-              {status === "cancelled" ? (
-                <>
-                  <button className="btn btnShine patientActionBtn" type="button" onClick={onReschedule}>
-                    Reschedule
-                  </button>
-                  <button className="btn archiveButton patientActionBtn" type="button" onClick={onArchive}>
-                    Move to Archive
-                  </button>
-                </>
-              ) : null}
-            </div>
+                {status === "approved" ? (
+                  booking.checkedInAt ? (
+                    <div className="bookingCheckInIndicator" role="status">Checked in</div>
+                  ) : (
+                    <>
+                      <button className="btn btnShine patientActionBtn" type="button" onClick={onCheckIn}>
+                        Mark as Check-in
+                      </button>
+                      <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
+                        Reschedule
+                      </button>
+                      <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
+                        Cancel
+                      </button>
+                    </>
+                  )
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -436,89 +507,6 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
   );
 }
 
-function AdjustBookingEndTimeModal({ open, booking, onClose, onSave }) {
-  const currentEndTime = booking?.estimatedEndTime
-    || minutesToTime(timeToMinutes(booking?.time) + Number(booking?.estimatedDurationMinutes || 60));
-  const [endTime, setEndTime] = useState(currentEndTime);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event) => event.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  async function submit() {
-    if (!endTime || timeToMinutes(endTime) <= timeToMinutes(currentEndTime)) {
-      setFormError("Choose an end time later than the current appointment end.");
-      return;
-    }
-    setSaving(true);
-    setFormError("");
-    try {
-      await onSave(booking, endTime);
-    } catch (error) {
-      console.error(error);
-      setFormError(error?.message || "The appointment end time could not be extended.");
-      setSaving(false);
-    }
-  }
-
-  return (
-    <>
-      <div className={`patientDrawerOverlay rescheduleOverlay ${open ? "open" : ""}`} onClick={onClose} />
-      <div className={`patientDrawer rescheduleModal ${open ? "open" : ""}`} role="dialog" aria-modal="true" aria-labelledby="adjust-end-time-title">
-        {booking ? (
-          <div className="patientDrawerInner">
-            <div className="patientDrawerHeader">
-              <div>
-                <span className="heroEyebrow">Appointment timing</span>
-                <h3 id="adjust-end-time-title">Extend appointment</h3>
-                <div className="patientRecordPeek">
-                  <span>{booking.fullName || "No name"}</span>
-                  <span>Current end: {formatTimeLabel(currentEndTime)}</span>
-                </div>
-              </div>
-              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
-                ×
-              </button>
-            </div>
-
-            <div className="rescheduleFields">
-              <label>
-                New end time
-                <input
-                  type="time"
-                  step="900"
-                  min={currentEndTime}
-                  value={endTime}
-                  onChange={(event) => setEndTime(event.target.value)}
-                />
-              </label>
-            </div>
-            <p className="rescheduleHint">
-              The appointment date and start time will not change. The new end time must fit the dentist&apos;s schedule and not overlap another appointment.
-            </p>
-
-            {formError ? <div className="formError" role="alert">{formError}</div> : null}
-
-            <div className="actionColumn actionColumnFriendly">
-              <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving}>
-                {saving ? "Saving..." : "Save end time"}
-              </button>
-              <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </>
-  );
-}
-
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
@@ -535,11 +523,13 @@ export default function Bookings() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [rescheduleId, setRescheduleId] = useState(null);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
-  const [endTimeBookingId, setEndTimeBookingId] = useState(null);
-  const [endTimeModalOpen, setEndTimeModalOpen] = useState(false);
   const { status = "pending" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedBookingId = searchParams.get("bookingId");
+  const requestedHighlightIds = searchParams.getAll("highlightId");
+  const requestedHighlightKey = requestedHighlightIds.join("\u0000");
+  const requestedDate = searchParams.get("date") || "";
+  const [highlightedBookingIds, setHighlightedBookingIds] = useState([]);
 
   useEffect(() => {
     const q = query(collection(db, "bookings"), orderBy("appointmentAt", "asc"));
@@ -561,41 +551,53 @@ export default function Bookings() {
     return () => unsub();
   }, []);
 
+  // Resolve deep-link state after the Firestore booking snapshot is available.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!requestedBookingId || loadingBookings) return;
+    if ((!requestedBookingId && !requestedHighlightKey && !requestedDate) || loadingBookings) return;
 
-    const target = bookings.find(
-      (booking) => booking.id === requestedBookingId && booking.archiveStatus !== "Archived"
+    const activeIds = new Set(
+      bookings
+        .filter((booking) => booking.archiveStatus !== "Archived")
+        .map((booking) => booking.id)
     );
+    const highlightIds = requestedHighlightKey
+      ? requestedHighlightKey.split("\u0000").filter((id) => activeIds.has(id))
+      : requestedBookingId && activeIds.has(requestedBookingId)
+        ? [requestedBookingId]
+        : [];
+    const target = requestedBookingId
+      ? bookings.find((booking) => booking.id === requestedBookingId && activeIds.has(booking.id))
+      : null;
+
+    if (requestedDate) {
+      setSelectedDate(/^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : "");
+    }
+
     if (target) {
       setActionError("");
       setSelectedBookingId(target.id);
       setDrawerOpen(true);
+    } else if ((requestedBookingId || requestedHighlightKey) && !highlightIds.length) {
+      setActionError("The referenced appointments could not be found or are no longer available.");
     } else {
-      setActionError("That appointment could not be found or is no longer available.");
+      setActionError("");
     }
+    setHighlightedBookingIds(highlightIds);
 
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("bookingId");
+      next.delete("highlightId");
+      next.delete("date");
       return next;
     }, { replace: true });
-  }, [bookings, loadingBookings, requestedBookingId, setSearchParams]);
+  }, [bookings, loadingBookings, requestedBookingId, requestedHighlightKey, requestedDate, setSearchParams]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const activeBookings = useMemo(
     () => bookings.filter((booking) => booking.archiveStatus !== "Archived"),
     [bookings]
-  );
-
-  const groupedBookings = useMemo(
-    () => ({
-      pending: activeBookings.filter((booking) => (booking.status || "pending") === "pending"),
-      approved: activeBookings.filter((booking) => booking.status === "approved"),
-      cancelled: activeBookings.filter((booking) => booking.status === "cancelled"),
-      completed: activeBookings.filter((booking) => booking.status === "completed"),
-      "no-show": activeBookings.filter((booking) => booking.status === "no-show"),
-    }),
-    [activeBookings]
   );
 
   const calendarDays = useMemo(() => getMonthCalendarDays(calendarMonth), [calendarMonth]);
@@ -606,18 +608,6 @@ export default function Bookings() {
     }, new Map()),
     [activeBookings]
   );
-  const bookingCounts = useMemo(
-    () => ({
-      calendar: activeBookings.length,
-      pending: groupedBookings.pending.length,
-      approved: groupedBookings.approved.length,
-      completed: groupedBookings.completed.length,
-      cancelled: groupedBookings.cancelled.length,
-      "no-show": groupedBookings["no-show"].length,
-    }),
-    [activeBookings.length, groupedBookings]
-  );
-
   // Live version of the selected booking, so the popup updates after an action
   const selectedBooking = useMemo(
     () => bookings.find((b) => b.id === selectedBookingId) || null,
@@ -637,11 +627,6 @@ export default function Bookings() {
     () => bookings.find((b) => b.id === rescheduleId) || null,
     [bookings, rescheduleId]
   );
-  const endTimeBooking = useMemo(
-    () => bookings.find((booking) => booking.id === endTimeBookingId) || null,
-    [bookings, endTimeBookingId]
-  );
-
   function openReschedule(id) {
     setDrawerOpen(false);
     setRescheduleId(id);
@@ -649,21 +634,6 @@ export default function Bookings() {
   }
   function closeReschedule() {
     setRescheduleOpen(false);
-  }
-
-  function openEndTimeModal(id) {
-    setDrawerOpen(false);
-    setEndTimeBookingId(id);
-    setEndTimeModalOpen(true);
-  }
-
-  function closeEndTimeModal() {
-    setEndTimeModalOpen(false);
-  }
-
-  async function saveEndTime(booking, endTime) {
-    await ADJUST_BOOKING_END_TIME({ bookingId: booking.id, endTime });
-    closeEndTimeModal();
   }
 
   async function saveReschedule(booking, date, time) {
@@ -719,20 +689,8 @@ export default function Bookings() {
     await SET_BOOKING_STATUS({ bookingId: id, status: nextStatus });
   }
 
-  async function toggleArchive(id) {
-    await ARCHIVE_BOOKING({ bookingId: id });
-  }
-
   async function toggleCheckIn(booking) {
     await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
-  }
-
-  async function declineReschedule(booking) {
-    await DECLINE_RESCHEDULE({ bookingId: booking.id });
-  }
-
-  async function approveReschedule(booking) {
-    await APPROVE_RESCHEDULE({ bookingId: booking.id });
   }
 
   const activeConfig = BOOKING_FILTERS[status];
@@ -751,6 +709,17 @@ export default function Bookings() {
   );
   const selectedDateCount = selectedDate ? calendarCounts.get(selectedDate) || 0 : 0;
 
+  useEffect(() => {
+    if (!highlightedBookingIds.length) return undefined;
+
+    document.getElementById(`booking-row-${highlightedBookingIds[0]}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    const timeoutId = window.setTimeout(() => setHighlightedBookingIds([]), 7000);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeItems, highlightedBookingIds]);
+
   if (!BOOKING_FILTERS[status]) {
     return <Navigate to="/admin/bookings/pending" replace />;
   }
@@ -768,13 +737,6 @@ export default function Bookings() {
 
   return (
     <div className="container adminSurface bookingManagementPage">
-      <header className="adminPageHeader bookingManagementHeader">
-        <div>
-          <h1>Bookings</h1>
-          <p>Manage clinic appointments, schedules, and patient check-ins.</p>
-        </div>
-      </header>
-
       {actionError ? (
         <div className="formError bookingActionError" role="alert">
           {actionError}
@@ -784,12 +746,16 @@ export default function Bookings() {
       <div className="bookingManagementGrid">
         <section className="bookingListPanel" aria-label="Appointment list">
           <div className="bookingToolbar">
-            <label className="bookingSearch">
+            <label className="bookingSearch adminSearchField">
+              <svg className="adminSearchIcon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
               <input
                 className="input"
                 type="text"
                 aria-label="Search appointments by patient name, patient ID, appointment ID, or service"
-                placeholder="Search patient, patient ID, appointment ID, or service"
+                placeholder="Search patient, ID, or service"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -827,9 +793,13 @@ export default function Bookings() {
                 className={({ isActive }) => `bookingStatusFilter${isActive ? " active" : ""}`}
               >
                 <span>{BOOKING_FILTERS[filter].label}</span>
-                <span className="bookingFilterCount">{bookingCounts[filter]}</span>
               </NavLink>
             ))}
+            {!loadingBookings ? (
+              <span className="bookingStatusTotal" aria-label={`${activeItems.length} appointments`}>
+                {activeItems.length}
+              </span>
+            ) : null}
           </nav>
 
           {selectedDate ? (
@@ -855,7 +825,12 @@ export default function Bookings() {
                 </thead>
                 <tbody>
                   {activeItems.map((booking) => (
-                    <BookingRow key={booking.id} booking={booking} onOpen={openBooking} />
+                    <BookingRow
+                      key={booking.id}
+                      booking={booking}
+                      onOpen={openBooking}
+                      highlighted={highlightedBookingIds.includes(booking.id)}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -866,11 +841,6 @@ export default function Bookings() {
               message={activeConfig.emptyText}
             />
           )}
-          {!loadingBookings ? (
-            <p className="bookingResultCount" role="status">
-              {activeItems.length} appointment{activeItems.length === 1 ? "" : "s"}
-            </p>
-          ) : null}
         </section>
 
         <aside className="bookingCalendarPanel" aria-label="Monthly appointment calendar">
@@ -933,7 +903,6 @@ export default function Bookings() {
                   <strong>All dates</strong>
                   <span>Select a day to filter appointments</span>
                 </div>
-                <span className="bookingMonthTotal">{activeBookings.length} total</span>
               </>
             )}
           </div>
@@ -943,6 +912,7 @@ export default function Bookings() {
       <BookingDetailDrawer
         open={drawerOpen}
         booking={selectedBooking}
+        actionError={actionError}
         onClose={closeDrawer}
         onApprove={() =>
           selectedBooking &&
@@ -952,25 +922,10 @@ export default function Bookings() {
           })
         }
         onReschedule={() => selectedBooking && openReschedule(selectedBooking.id)}
-        onAdjustEndTime={() => selectedBooking && openEndTimeModal(selectedBooking.id)}
-        onApproveReschedule={() =>
-          selectedBooking && runBookingAction(() => approveReschedule(selectedBooking))
-        }
-        onDeclineReschedule={() =>
-          selectedBooking && runBookingAction(() => declineReschedule(selectedBooking))
-        }
         onCheckIn={() => {
           const b = selectedBooking;
-          if (!b) return;
-          closeDrawer();
-          openConfirm({
-            title: b.checkedInAt ? "Clear check-in?" : "Mark patient as checked in?",
-            message: b.checkedInAt
-              ? "This will remove the current check-in timestamp from the booking."
-              : "This will mark the patient as checked in for this appointment.",
-            confirmLabel: b.checkedInAt ? "Clear Check-in" : "Mark Check-in",
-            action: () => toggleCheckIn(b),
-          });
+          if (!b || b.checkedInAt) return;
+          runBookingAction(() => toggleCheckIn(b));
         }}
         onCancel={() => {
           const b = selectedBooking;
@@ -978,35 +933,13 @@ export default function Bookings() {
           closeDrawer();
           openConfirm({
             title: "Cancel this booking?",
-            message: "This booking will move to the cancelled section and no longer appear as active.",
-            confirmLabel: "Cancel Booking",
+            message: "This booking will remain in your records and appear in the Cancelled tab.",
+            confirmLabel: "Cancel",
             tone: "danger",
             action: () => setStatus(b.id, "cancelled"),
           });
         }}
-        onComplete={() => selectedBooking && runBookingAction(async () => { await setStatus(selectedBooking.id, "completed"); closeDrawer(); })}
-        onArchive={() => {
-          const b = selectedBooking;
-          if (!b) return;
-          closeDrawer();
-          openConfirm({
-            title: "Move this booking to archive?",
-            message: "Archived bookings are removed from the active booking board but can still be restored later.",
-            confirmLabel: "Move to Archive",
-            tone: "archive",
-            action: () => toggleArchive(b.id),
-          });
-        }}
       />
-
-      {endTimeModalOpen ? (
-        <AdjustBookingEndTimeModal
-          open={endTimeModalOpen}
-          booking={endTimeBooking}
-          onClose={closeEndTimeModal}
-          onSave={saveEndTime}
-        />
-      ) : null}
 
       <RescheduleModal
         open={rescheduleOpen}

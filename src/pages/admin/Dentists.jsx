@@ -16,7 +16,6 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import {
   DAY_ORDER,
   createDefaultSchedule,
-  formatTimeLabel,
   getDentistScheduleStatus,
   normalizeScheduleExceptions,
   normalizeSchedule,
@@ -327,20 +326,6 @@ export default function Dentists() {
     [dentists]
   );
 
-  async function archiveDentist(dentistId) {
-    await updateDoc(doc(db, "dentists", dentistId), {
-      archiveStatus: "Archived",
-    });
-
-    const dentist = dentists.find((entry) => entry.id === dentistId);
-    await logAdminAction({
-      action: "archive_dentist",
-      targetType: "dentist",
-      targetId: dentistId,
-      targetLabel: dentist?.name || "Dentist",
-    });
-  }
-
   async function handleConfirmAction() {
     if (!confirmState?.action) return;
     const action = confirmState.action;
@@ -364,19 +349,8 @@ export default function Dentists() {
 
   return (
     <div className="container adminSurface dentistManagementPage">
-      <header className="adminPageHeader dentistManagementHeader">
-        <div>
-          <h1>Dentists</h1>
-          <p>Manage dentist profiles, availability, and linked staff accounts.</p>
-        </div>
-      </header>
-
       <section className="card adminRecordsCard dentistRecordsCard">
         <div className="cardHeader dentistRecordsHeader">
-          <div>
-            <h3 className="title">Dentist Records</h3>
-            <p className="sub">Click a dentist to review details, adjust the weekly schedule, and manage exceptions.</p>
-          </div>
           <div className="dentistRecordsActions">
             <span className="badge">{visibleDentists.length} records</span>
             <button className="btn dentistAddButton" type="button" onClick={() => setAddModalOpen(true)}>
@@ -540,31 +514,6 @@ export default function Dentists() {
                     ×
                   </button>
                 </div>
-
-                <section className="detailNote dentistSchedulePreview">
-                  <span className="detailLabel">Weekly schedule</span>
-                  <div className="weekSummary">
-                    {DAY_ORDER.map((day) => {
-                      const slot = openSchedule[day.key];
-                      return (
-                        <div
-                          key={day.key}
-                          className={`weekDay ${slot.active ? "on" : "off"} ${day.key === todayKey ? "today" : ""}`}
-                        >
-                          <span className="weekDayName">{day.label.slice(0, 3)}</span>
-                          {slot.active ? (
-                            <>
-                              <span className="weekDayTime">{formatTimeLabel(slot.start)}</span>
-                              <span className="weekDayTime">{formatTimeLabel(slot.end)}</span>
-                            </>
-                          ) : (
-                            <span className="weekDayOff">Off</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
 
                 <details className="dentistExceptions">
                   <summary>
@@ -758,24 +707,6 @@ export default function Dentists() {
                   </div>
                 </section>
 
-                <div className="actionColumn actionColumnFriendly">
-                  <button
-                    className="btn patientActionBtn archiveButton"
-                    type="button"
-                    onClick={() => setConfirmState({
-                      title: "Archive this dentist?",
-                      message: `${openDentist.name} will be removed from the active dentist list.`,
-                      confirmLabel: "Archive Dentist",
-                      tone: "archive",
-                      action: async () => {
-                        await archiveDentist(openDentist.id);
-                        setExpandedDentistId("");
-                      },
-                    })}
-                  >
-                    Archive Dentist
-                  </button>
-                </div>
               </div>
             </>,
             document.body

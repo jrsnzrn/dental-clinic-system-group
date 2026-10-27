@@ -12,8 +12,8 @@ import {
 import EmptyState from "../../components/EmptyState";
 import { db } from "../../firebase";
 import {
+  CLINIC_SERVICE_IMAGE_OPTIONS,
   formatClosureLabel,
-  getActiveServices,
   getClinicServiceImage,
   getLocalClinicServiceImage,
   normalizeClosure,
@@ -106,7 +106,6 @@ export default function ServicesAdmin() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [serviceModalOpen, savingService]);
 
-  const activeServices = useMemo(() => getActiveServices(services), [services]);
   const normalizedServices = useMemo(
     () => services.map((service) => ({ ...service, ...normalizeService(service) })),
     [services]
@@ -129,6 +128,12 @@ export default function ServicesAdmin() {
       return matchesStatus && (!normalizedSearch || searchContent.includes(normalizedSearch));
     });
   }, [normalizedServices, search, statusFilter]);
+  const selectedBuiltinImage = CLINIC_SERVICE_IMAGE_OPTIONS.find((option) =>
+    serviceDraft.image === `local:${option.key}`
+    || (editingServiceId && getClinicServiceImage(serviceDraft) === option.image)
+  );
+  const imageSelectionValue = selectedBuiltinImage?.key
+    || (editingServiceId && serviceDraft.image ? "preserve" : "");
 
   function openAddService() {
     setEditingServiceId("");
@@ -146,7 +151,7 @@ export default function ServicesAdmin() {
       durationMinutes: normalized.durationMinutes,
       startingRate: normalized.startingRate,
       category: normalized.category || "General",
-      image: normalized.image,
+      image: String(service.image ?? ""),
       active: normalized.active,
     });
     setServiceError("");
@@ -185,7 +190,7 @@ export default function ServicesAdmin() {
           durationMinutes: payload.durationMinutes,
           startingRate: payload.startingRate,
           category: payload.category,
-          image: payload.image,
+          image: serviceDraft.image,
           active: payload.active,
         });
         await logAdminAction({
@@ -203,6 +208,7 @@ export default function ServicesAdmin() {
       } else {
         const created = await addDoc(collection(db, "clinicServices"), {
           ...payload,
+          image: serviceDraft.image,
           createdAt: serverTimestamp(),
         });
         await logAdminAction({
@@ -229,21 +235,27 @@ export default function ServicesAdmin() {
   }
 
   async function toggleService(service) {
+    const nextActive = !normalizeService(service).active;
+    const actionLabel = nextActive ? "activate" : "deactivate";
+    if (!window.confirm(`Are you sure you want to ${actionLabel} "${service.name}"?`)) return;
+
     setBusyServiceId(service.id);
+    setServiceError("");
     try {
       await updateDoc(doc(db, "clinicServices", service.id), {
-        active: service.active === false,
+        active: nextActive,
       });
       await logAdminAction({
         action: "toggle_clinic_service",
         targetType: "clinic_service",
         targetId: service.id,
         targetLabel: service.name,
-        details: { active: service.active === false },
+        details: { active: nextActive },
       });
+      setServiceDraft((current) => ({ ...current, active: nextActive }));
     } catch (error) {
       console.error("Could not update clinic service status:", error);
-      setServiceLoadError("The service status could not be updated. Check your access and try again.");
+      setServiceError("The service status could not be updated. Check your access and try again.");
     } finally {
       setBusyServiceId("");
     }
@@ -301,45 +313,22 @@ export default function ServicesAdmin() {
 
   return (
     <div className="container adminSurface servicesAdminPage">
-      <header className="adminPageHeader servicesAdminHeader">
-        <div>
-          <h1>Services</h1>
-          <p>Manage dental treatments, pricing, images, and availability.</p>
-        </div>
-        <div className="servicesAdminStats" aria-label="Service statistics">
-          <div className="servicesAdminStat">
-            <span>Total Services</span>
-            <strong>{services.length}</strong>
-          </div>
-          <div className="servicesAdminStat">
-            <span>Active Services</span>
-            <strong>{activeServices.length}</strong>
-          </div>
-          <div className="servicesAdminStat">
-            <span>Inactive Services</span>
-            <strong>{services.length - activeServices.length}</strong>
-          </div>
-        </div>
-      </header>
+      <label className="servicesAdminTopSearch adminSearchField">
+        <svg className="adminSearchIcon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search services"
+          aria-label="Search services"
+        />
+      </label>
 
-      <section className="servicesAdminSection" aria-labelledby="service-list-heading">
-        <div className="servicesAdminSectionHeading">
-          <div>
-            <h2 id="service-list-heading">Service list</h2>
-            <p>Manage the existing clinic service records.</p>
-          </div>
-        </div>
-
+      <section className="servicesAdminSection" aria-label="Services">
         <div className="servicesAdminToolbar">
-          <label className="servicesAdminSearch">
-            <span className="servicesAdminVisuallyHidden">Search services</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search services"
-            />
-          </label>
           <div className="servicesAdminFilters" aria-label="Filter services by status">
             {["all", "active", "inactive"].map((filter) => (
               <button
@@ -368,7 +357,20 @@ export default function ServicesAdmin() {
         ) : !serviceLoadError ? (
           <ul className="servicesAdminList">
             {filteredServices.map((service) => (
-              <li className="servicesAdminRow" key={service.id}>
+              <li
+                className="servicesAdminRow"
+                key={service.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Edit ${service.name}`}
+                onClick={() => editService(service)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    editService(service);
+                  }
+                }}
+              >
                 <div className="servicesAdminThumbnail">
                   <img
                     src={getClinicServiceImage(service)}
@@ -393,19 +395,6 @@ export default function ServicesAdmin() {
                     {service.durationMinutes > 0 ? <span>{service.durationMinutes} min</span> : null}
                     {service.category ? <span>{service.category}</span> : null}
                   </div>
-                </div>
-                <div className="servicesAdminRowActions">
-                  <button type="button" className="servicesAdminTextButton" onClick={() => editService(service)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="servicesAdminTextButton"
-                    onClick={() => toggleService(service)}
-                    disabled={busyServiceId === service.id}
-                  >
-                    {busyServiceId === service.id ? "Saving…" : service.active ? "Deactivate" : "Activate"}
-                  </button>
                 </div>
               </li>
             ))}
@@ -541,6 +530,32 @@ export default function ServicesAdmin() {
                     onChange={(event) => setServiceDraft((current) => ({ ...current, description: event.target.value }))}
                   />
                 </label>
+                <label>
+                  <span>Service Image</span>
+                  <select
+                    required={!editingServiceId}
+                    value={imageSelectionValue}
+                    onChange={(event) => {
+                      const option = CLINIC_SERVICE_IMAGE_OPTIONS.find((entry) => entry.key === event.target.value);
+                      if (option) {
+                        setServiceDraft((current) => ({ ...current, image: `local:${option.key}` }));
+                      }
+                    }}
+                  >
+                    {!imageSelectionValue ? <option value="">Select a service image</option> : null}
+                    {imageSelectionValue === "preserve" ? (
+                      <option value="preserve">Keep current image</option>
+                    ) : null}
+                    {CLINIC_SERVICE_IMAGE_OPTIONS.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label
+                          .replace("Oral surgery", "Oral Surgery")
+                          .replace("Root canal", "Root Canal")
+                          .replace("Teeth whitening", "Teeth Whitening")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="servicesAdminFormGrid">
                   <label>
                     <span>Starting rate <span className="servicesAdminOptional">(custom text allowed)</span></span>
@@ -572,32 +587,10 @@ export default function ServicesAdmin() {
                       onChange={(event) => setServiceDraft((current) => ({ ...current, category: event.target.value }))}
                     />
                   </label>
-                  <label>
-                    <span>Image URL <span className="servicesAdminOptional">(optional)</span></span>
-                    <input
-                      type="url"
-                      value={serviceDraft.image}
-                      onChange={(event) => setServiceDraft((current) => ({ ...current, image: event.target.value }))}
-                      placeholder="https://…"
-                    />
-                  </label>
                 </div>
-                <p className="servicesAdminFormHint">
-                  Enter a direct image URL to use a custom image. Existing image URLs are preserved when editing; blank URLs use the service’s local image mapping.
-                </p>
-                {editingServiceId && (
-                  <label className="servicesAdminActiveControl">
-                    <input
-                      type="checkbox"
-                      checked={serviceDraft.active}
-                      onChange={(event) => setServiceDraft((current) => ({ ...current, active: event.target.checked }))}
-                    />
-                    <span>Service is active and available for new bookings</span>
-                  </label>
-                )}
-                {serviceDraft.image ? (
+                {editingServiceId || serviceDraft.image ? (
                   <div className="servicesAdminEditPreview">
-                    <span>Current image preview</span>
+                    <span>Selected image preview</span>
                     <img
                       src={getClinicServiceImage(serviceDraft)}
                       alt={`${serviceDraft.name || "Service"} preview`}
@@ -610,12 +603,33 @@ export default function ServicesAdmin() {
                 ) : null}
               </div>
               <footer className="servicesAdminModalFooter">
-                <button type="button" className="servicesAdminCancelButton" onClick={closeServiceModal} disabled={savingService}>
-                  Cancel
-                </button>
-                <button type="submit" className="servicesAdminAddButton" disabled={savingService}>
-                  {savingService ? "Saving…" : editingServiceId ? "Save changes" : "Add service"}
-                </button>
+                <div className="servicesAdminModalFooterLeft">
+                  {editingServiceId ? (
+                    <button
+                      type="button"
+                      className="servicesAdminTextButton servicesAdminModalStatusAction"
+                      onClick={() => {
+                        const service = services.find((entry) => entry.id === editingServiceId);
+                        if (service) void toggleService(service);
+                      }}
+                      disabled={busyServiceId === editingServiceId || savingService}
+                    >
+                      {busyServiceId === editingServiceId
+                        ? "Saving…"
+                        : serviceDraft.active
+                          ? "Deactivate"
+                          : "Activate"}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="servicesAdminModalFooterRight">
+                  <button type="button" className="servicesAdminCancelButton" onClick={closeServiceModal} disabled={savingService}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="servicesAdminAddButton" disabled={savingService}>
+                    {savingService ? "Saving…" : editingServiceId ? "Save changes" : "Add service"}
+                  </button>
+                </div>
               </footer>
             </form>
           </section>

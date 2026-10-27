@@ -30,6 +30,13 @@ const STAFF_MFA_REQUEST_MAX_CALLS = 5;
 const STAFF_MFA_VERIFY_MIN_INTERVAL_MS = 1000;
 const STAFF_MFA_VERIFY_WINDOW_MS = 15 * 60 * 1000;
 const STAFF_MFA_VERIFY_MAX_CALLS = 10;
+const STAFF_EMAIL_VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
+const STAFF_EMAIL_VERIFICATION_REQUEST_COOLDOWN_MS = 60 * 1000;
+const STAFF_EMAIL_VERIFICATION_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+const STAFF_EMAIL_VERIFICATION_REQUEST_MAX_CALLS = 5;
+const STAFF_EMAIL_VERIFICATION_VERIFY_MIN_INTERVAL_MS = 1500;
+const STAFF_EMAIL_VERIFICATION_VERIFY_WINDOW_MS = 15 * 60 * 1000;
+const STAFF_EMAIL_VERIFICATION_VERIFY_MAX_CALLS = 8;
 const STAFF_RESET_CODE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_CLINIC_SERVICES = [
   {
@@ -432,6 +439,32 @@ function isStoredBookingInPast(booking = {}) {
   return window.date === manilaNow.date && window.startMinutes < manilaNow.minutes;
 }
 
+function getAppointmentProcedureSummaryId(patientId, treatmentId) {
+  return `${patientId.length}_${patientId}${treatmentId}`;
+}
+
+function getAppointmentProcedureTreatmentId(bookingId, procedureName) {
+  const procedureKey = crypto
+    .createHash("sha256")
+    .update(normalizeText(procedureName))
+    .digest("hex")
+    .slice(0, 24);
+  return `appointment_${bookingId}_${procedureKey}`;
+}
+
+function getAppointmentServiceAmount(service = {}) {
+  for (const value of [service.amount, service.price, service.cost, service.totalCost]) {
+    const amount = Number(value);
+    if (Number.isFinite(amount) && amount > 0) return amount;
+  }
+
+  const startingRate = String(service.startingRate || "").trim();
+  const rate = /^(?:PHP\s*)?([\d,]+(?:\.\d{1,2})?)(?:\s+starting)?$/i.exec(startingRate);
+  if (!rate) return 0;
+  const amount = Number(rate[1].replaceAll(",", ""));
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
 async function getStaffContextFromRequest(request, allowedRoles = []) {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Please sign in with a staff account.");
@@ -486,6 +519,23 @@ function hashMfaCode(code, salt) {
     .createHash("sha256")
     .update(`${salt}:${code}`)
     .digest("hex");
+}
+
+function hashStaffEmailVerificationCode(code, salt) {
+  return crypto
+    .createHmac("sha256", gmailAppPassword.value())
+    .update(`staff-email-verification:${salt}:${code}`)
+    .digest("hex");
+}
+
+function timingSafeHashMatches(expectedHash, actualHash) {
+  if (!/^[a-f0-9]{64}$/i.test(expectedHash) || !/^[a-f0-9]{64}$/i.test(actualHash)) {
+    return false;
+  }
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedHash, "hex"),
+    Buffer.from(actualHash, "hex")
+  );
 }
 
 function createStaffMfaEmailHtml({ staffName, staffRole, code }) {
@@ -2209,7 +2259,7 @@ exports.setBookingStatus = onCall(
       throw new HttpsError("invalid-argument", "Booking ID is required.");
     }
 
-    if (!["pending", "approved", "cancelled", "completed", "no-show"].includes(nextStatus)) {
+    if (!["pending", "approved", "cancelled", "no-show"].includes(nextStatus)) {
       throw new HttpsError("invalid-argument", "Unsupported booking status.");
     }
 
@@ -2224,8 +2274,11 @@ exports.setBookingStatus = onCall(
       }
 
       const booking = { id: bookingSnap.id, ...bookingSnap.data() };
-      if (["completed", "no-show"].includes(nextStatus) && !isStoredBookingInPast(booking)) {
-        throw new HttpsError("failed-precondition", "An appointment can be marked completed or no-show only after its scheduled time has passed.");
+      if (booking.status === "completed") {
+        throw new HttpsError("failed-precondition", "A completed appointment cannot be reopened.");
+      }
+      if (nextStatus === "no-show" && !isStoredBookingInPast(booking)) {
+        throw new HttpsError("failed-precondition", "An appointment can be marked no-show only after its scheduled time has passed.");
       }
       const updatePayload = {
         status: nextStatus,
@@ -2236,7 +2289,7 @@ exports.setBookingStatus = onCall(
         updatePayload.approvedAt = now;
       }
 
-      if (["cancelled", "completed", "no-show"].includes(nextStatus)) {
+      if (["cancelled", "no-show"].includes(nextStatus)) {
         const { lockRefs, lockSnaps } = await getLockSnapshots(transaction, booking);
         deleteOwnedLocks(transaction, lockRefs, lockSnaps, bookingId);
       } else {
@@ -2280,6 +2333,8 @@ exports.setBookingStatus = onCall(
         service: updatedBooking?.service || "",
         date: updatedBooking?.date || "",
         time: updatedBooking?.time || "",
+        performedProcedureCount: updatedBooking?.completedProcedures?.length || 0,
+        completedTreatmentTotal: updatedBooking?.completedTreatmentTotal || 0,
       },
     });
 
@@ -2288,6 +2343,336 @@ exports.setBookingStatus = onCall(
     }
 
     return { success: true, bookingId, status: nextStatus };
+  }
+);
+
+exports.markDentistTreatmentComplete = onCall(
+  {},
+  async (request) => {
+    const staff = await getStaffContextFromRequest(request, ["dentist"]);
+    const bookingId = String(request.data?.bookingId || "").trim();
+    if (!bookingId) throw new HttpsError("invalid-argument", "Booking ID is required.");
+
+    const dentistSnapshot = await db.collection("dentists").get();
+    const assignedDentist = dentistSnapshot.docs
+      .map((entry) => ({ id: entry.id, ...entry.data() }))
+      .find((dentist) =>
+        dentist.linkedStaffUid === staff.uid ||
+        (staff.email && normalizeText(dentist.linkedStaffEmail) === normalizeText(staff.email))
+      );
+    if (!assignedDentist) {
+      throw new HttpsError("permission-denied", "This staff account is not linked to a dentist profile.");
+    }
+
+    let result = { success: true, bookingId, status: "" };
+    let updatedBooking = null;
+    await db.runTransaction(async (transaction) => {
+      const bookingRef = db.collection("bookings").doc(bookingId);
+      const bookingSnapshot = await transaction.get(bookingRef);
+      if (!bookingSnapshot.exists) throw new HttpsError("not-found", "Appointment could not be found.");
+
+      const booking = { id: bookingSnapshot.id, ...bookingSnapshot.data() };
+      const isAssigned = booking.dentistId
+        ? booking.dentistId === assignedDentist.id
+        : normalizeText(booking.selectedDentist) === normalizeText(assignedDentist.name);
+      if (!isAssigned) {
+        throw new HttpsError("permission-denied", "This appointment is assigned to another dentist.");
+      }
+      if (booking.status === "pending_payment") {
+        result = { ...result, status: "pending_payment", alreadySentToPayments: true };
+        return;
+      }
+      if (booking.status !== "approved" || !booking.checkedInAt) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only an approved, checked-in appointment can be sent to Payments."
+        );
+      }
+
+      const updatePayload = {
+        status: "pending_payment",
+        statusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        treatmentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      transaction.update(bookingRef, updatePayload);
+      updatedBooking = { ...booking, ...updatePayload };
+      result = { ...result, status: "pending_payment" };
+    });
+
+    if (updatedBooking) {
+      await writeStaffAuditLog(staff, {
+        action: "send_dentist_treatment_to_payments",
+        targetType: "booking",
+        targetId: bookingId,
+        targetLabel: getBookingTargetLabel(updatedBooking),
+        details: {
+          service: updatedBooking.service || "",
+          date: updatedBooking.date || "",
+          time: updatedBooking.time || "",
+          status: updatedBooking.status,
+          completedTreatmentTotal: updatedBooking.completedTreatmentTotal || 0,
+        },
+      });
+    }
+    return result;
+  }
+);
+
+exports.recordBookingProcedures = onCall(
+  {},
+  async (request) => {
+    const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const bookingId = String(request.data?.bookingId || "").trim();
+    const requestedProcedures = Array.isArray(request.data?.performedProcedures)
+      ? request.data.performedProcedures
+      : [];
+
+    if (!bookingId || !requestedProcedures.length) {
+      throw new HttpsError("invalid-argument", "Booking ID and at least one performed procedure are required.");
+    }
+
+    let updatedBooking = null;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    await db.runTransaction(async (transaction) => {
+      const bookingRef = db.collection("bookings").doc(bookingId);
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) throw new HttpsError("not-found", "Booking could not be found.");
+
+      const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      if (booking.status !== "approved") {
+        throw new HttpsError("failed-precondition", "Performed procedures can only be recorded for approved appointments.");
+      }
+      const bookedServices = Array.isArray(booking.services) && booking.services.length
+        ? booking.services
+        : String(booking.service || "").split(",");
+      const servicesByName = new Map(
+        bookedServices.map((service) => String(service || "").trim())
+          .filter(Boolean)
+          .map((service) => [normalizeText(service), service])
+      );
+      const seenNames = new Set();
+      const procedures = requestedProcedures.map((procedure) => {
+        const name = String(procedure?.name || "").trim();
+        const normalizedName = normalizeText(name);
+        const charge = Number(procedure?.charge);
+        if (
+          !normalizedName ||
+          !servicesByName.has(normalizedName) ||
+          seenNames.has(normalizedName) ||
+          !Number.isFinite(charge) ||
+          charge <= 0 ||
+          charge > 1000000000
+        ) {
+          throw new HttpsError("invalid-argument", "Each performed procedure must match a booked service and have a unique positive charge.");
+        }
+        seenNames.add(normalizedName);
+        return { name: servicesByName.get(normalizedName), charge };
+      });
+
+      const patientQuery = booking.uid
+        ? db.collection("patients").where("uid", "==", booking.uid)
+        : null;
+      const patientQuerySnap = patientQuery ? await transaction.get(patientQuery) : null;
+      const patientDoc = patientQuerySnap?.docs[0] || null;
+      const patient = patientDoc?.data() || {};
+      const patientId = booking.patientProfileId || booking.uid || patientDoc?.id || booking.id;
+      const previousProcedures = Array.isArray(booking.completedProcedures) ? booking.completedProcedures : [];
+      const treatmentIds = new Map(
+        [...previousProcedures, ...procedures].map((procedure) => {
+          const name = String(procedure?.name || "").trim();
+          return [getAppointmentProcedureTreatmentId(bookingId, name), { ...procedure, name }];
+        })
+      );
+      const summaryEntries = [...treatmentIds].map(([treatmentId, procedure]) => ({
+        treatmentId,
+        procedure,
+        ref: db.collection("paymentTreatmentSummaries").doc(
+          getAppointmentProcedureSummaryId(patientId, treatmentId)
+        ),
+      }));
+      const summarySnaps = await Promise.all(summaryEntries.map(({ ref }) => transaction.get(ref)));
+      const paymentQueries = summaryEntries.map(({ treatmentId }) =>
+        db.collection("payments").where("treatmentId", "==", treatmentId)
+      );
+      const paymentSnapshots = await Promise.all(paymentQueries.map((paymentQuery) => transaction.get(paymentQuery)));
+      const ledgerPaidByTreatment = new Map();
+      paymentSnapshots.forEach((snapshot, index) => {
+        const paid = snapshot.docs.reduce((total, paymentDoc) => {
+          const payment = paymentDoc.data();
+          if (payment.appointmentId && payment.appointmentId !== bookingId) return total;
+          return total + Math.max(0, Number(payment.amount ?? payment.paid) || 0);
+        }, 0);
+        ledgerPaidByTreatment.set(summaryEntries[index].treatmentId, paid);
+      });
+      const activeTreatmentIds = new Set(procedures.map((procedure) =>
+        getAppointmentProcedureTreatmentId(bookingId, procedure.name)
+      ));
+      summaryEntries.forEach(({ treatmentId }, index) => {
+        const summary = summarySnaps[index].exists ? summarySnaps[index].data() : null;
+        const amountPaid = Math.max(
+          Number(summary?.amountPaid || 0),
+          ledgerPaidByTreatment.get(treatmentId) || 0
+        );
+        if (!activeTreatmentIds.has(treatmentId) && amountPaid > 0) {
+          throw new HttpsError("failed-precondition", "A procedure with recorded payments cannot be removed.");
+        }
+      });
+      procedures.forEach((procedure) => {
+        const treatmentId = getAppointmentProcedureTreatmentId(bookingId, procedure.name);
+        const index = summaryEntries.findIndex((entry) => entry.treatmentId === treatmentId);
+        const summary = index >= 0 && summarySnaps[index].exists ? summarySnaps[index].data() : null;
+        const amountPaid = Math.max(
+          Number(summary?.amountPaid || 0),
+          ledgerPaidByTreatment.get(treatmentId) || 0
+        );
+        if (amountPaid > procedure.charge) {
+          throw new HttpsError("failed-precondition", "The procedure charge cannot be lower than the amount already paid.");
+        }
+      });
+
+      const patientType = String(patient.patientType || booking.patientType || "").toLowerCase().includes("ortho")
+        ? "Ortho"
+        : "Regular";
+      const activeProcedures = new Map(procedures.map((procedure) => [
+        getAppointmentProcedureTreatmentId(bookingId, procedure.name),
+        procedure,
+      ]));
+      summaryEntries.forEach(({ treatmentId, ref }, index) => {
+        const summarySnap = summarySnaps[index];
+        if (!activeProcedures.has(treatmentId)) {
+          if (summarySnap.exists) transaction.delete(ref);
+          return;
+        }
+        const procedure = activeProcedures.get(treatmentId);
+        const summary = summarySnap.exists ? summarySnap.data() : {};
+        const amountPaid = Math.max(
+          Number(summary.amountPaid || 0),
+          ledgerPaidByTreatment.get(treatmentId) || 0
+        );
+        transaction.set(ref, {
+          patientId,
+          uid: booking.uid || "",
+          patientName: String(patient.name || booking.fullName || "").trim(),
+          patientEmail: String(patient.email || booking.email || "").trim(),
+          patientType,
+          treatmentId,
+          appointmentId: bookingId,
+          appointmentDate: booking.date || "",
+          appointmentTime: booking.time || "",
+          selectedDentist: booking.selectedDentist || "",
+          treatmentName: procedure.name,
+          procedureName: procedure.name,
+          totalCost: procedure.charge,
+          amountPaid,
+          remainingBalance: Math.max(0, procedure.charge - amountPaid),
+          status: amountPaid >= procedure.charge
+            ? "Paid"
+            : amountPaid > 0
+              ? "Partially Paid"
+              : "Pending",
+          createdAt: summary.createdAt || now,
+          updatedAt: now,
+        });
+      });
+
+      const updatePayload = {
+        completedProcedures: procedures,
+        completedTreatmentTotal: procedures.reduce((total, procedure) => total + procedure.charge, 0),
+        proceduresRecordedAt: now,
+        proceduresRecordedBy: staff.uid,
+      };
+      transaction.update(bookingRef, updatePayload);
+      updatedBooking = { ...booking, ...updatePayload };
+    });
+
+    await writeStaffAuditLog(staff, {
+      action: "record_booking_procedures",
+      targetType: "booking",
+      targetId: bookingId,
+      targetLabel: getBookingTargetLabel(updatedBooking),
+      details: {
+        performedProcedureCount: updatedBooking?.completedProcedures?.length || 0,
+        completedTreatmentTotal: updatedBooking?.completedTreatmentTotal || 0,
+      },
+    });
+
+    return { success: true, bookingId };
+  }
+);
+
+exports.completePaidAppointment = onCall(
+  {},
+  async (request) => {
+    const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const bookingId = String(request.data?.bookingId || "").trim();
+    if (!bookingId) throw new HttpsError("invalid-argument", "Booking ID is required.");
+
+    let result = { success: true, bookingId, completed: false };
+    let updatedBooking = null;
+    await db.runTransaction(async (transaction) => {
+      const bookingRef = db.collection("bookings").doc(bookingId);
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) throw new HttpsError("not-found", "Booking could not be found.");
+      const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      if (booking.status === "completed") {
+        result = { ...result, completed: true, alreadyCompleted: true };
+        return;
+      }
+      if (!["approved", "pending_payment"].includes(booking.status)) return;
+
+      const summariesQuery = db.collection("paymentTreatmentSummaries")
+        .where("appointmentId", "==", bookingId);
+      const summariesSnapshot = await transaction.get(summariesQuery);
+      const summaries = summariesSnapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      if (!summaries.length || summaries.some((summary) =>
+        !summary.treatmentId || !Number.isFinite(Number(summary.totalCost)) || Number(summary.totalCost) <= 0
+      )) return;
+
+      const paymentQueries = [...new Set(summaries.map((summary) => summary.treatmentId))]
+        .map((treatmentId) => db.collection("payments").where("treatmentId", "==", treatmentId));
+      const paymentSnapshots = await Promise.all(paymentQueries.map((paymentQuery) => transaction.get(paymentQuery)));
+      const paymentsByTreatment = new Map();
+      paymentSnapshots.forEach((snapshot) => snapshot.docs.forEach((paymentDoc) => {
+        const payment = paymentDoc.data();
+        const treatmentId = String(payment.treatmentId || "");
+        if (payment.appointmentId !== bookingId) return;
+        paymentsByTreatment.set(
+          treatmentId,
+          (paymentsByTreatment.get(treatmentId) || 0) + Math.max(0, Number(payment.amount ?? payment.paid) || 0)
+        );
+      }));
+
+      const fullySettled = summaries.every((summary) => {
+        const totalCost = Number(summary.totalCost);
+        const ledgerPaid = paymentsByTreatment.get(summary.treatmentId) || 0;
+        return ledgerPaid + 0.005 >= totalCost;
+      });
+      if (!fullySettled) return;
+
+      const { lockRefs, lockSnaps } = await getLockSnapshots(transaction, booking);
+      deleteOwnedLocks(transaction, lockRefs, lockSnaps, bookingId);
+      transaction.update(bookingRef, {
+        status: "completed",
+        statusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      updatedBooking = { ...booking, status: "completed" };
+      result = { ...result, completed: true };
+    });
+
+    if (updatedBooking) {
+      await writeStaffAuditLog(staff, {
+        action: "complete_paid_booking",
+        targetType: "booking",
+        targetId: bookingId,
+        targetLabel: getBookingTargetLabel(updatedBooking),
+        details: {
+          performedProcedureCount: updatedBooking.completedProcedures?.length || 0,
+          completedTreatmentTotal: updatedBooking.completedTreatmentTotal || 0,
+        },
+      });
+    }
+    return result;
   }
 );
 
@@ -2303,6 +2688,8 @@ exports.toggleBookingCheckIn = onCall(
 
     let updatedBooking = null;
     let checkedIn = false;
+    let alreadyCheckedIn = false;
+    let createdPaymentSummaries = 0;
 
     await db.runTransaction(async (transaction) => {
       const bookingRef = db.collection("bookings").doc(bookingId);
@@ -2312,12 +2699,94 @@ exports.toggleBookingCheckIn = onCall(
       }
 
       const booking = { id: bookingSnap.id, ...bookingSnap.data() };
-      checkedIn = !booking.checkedInAt;
-      const nextCheckedInAt = checkedIn ? admin.firestore.Timestamp.now() : null;
+      if (booking.status !== "approved") {
+        throw new HttpsError("failed-precondition", "Only approved appointments can be checked in.");
+      }
 
-      transaction.update(bookingRef, {
-        checkedInAt: nextCheckedInAt,
-        statusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      alreadyCheckedIn = Boolean(booking.checkedInAt);
+      checkedIn = true;
+      const nextCheckedInAt = booking.checkedInAt || admin.firestore.Timestamp.now();
+      const serviceNames = getBookingServices(booking);
+      const serviceNamesByKey = new Map(serviceNames.map((name) => [normalizeText(name), name]));
+      const clinicServicesSnapshot = await transaction.get(db.collection("clinicServices"));
+      const clinicServicesByKey = new Map(
+        clinicServicesSnapshot.docs.map((entry) => {
+          const service = entry.data();
+          return [normalizeText(service.name), service];
+        })
+      );
+      const patientQuery = booking.uid
+        ? db.collection("patients").where("uid", "==", booking.uid)
+        : null;
+      const patientSnapshot = patientQuery ? await transaction.get(patientQuery) : null;
+      const patientDoc = patientSnapshot?.docs[0] || null;
+      const patient = patientDoc?.data() || {};
+      const patientId = booking.patientProfileId || booking.uid || patientDoc?.id || booking.id;
+      const patientType = String(patient.patientType || booking.patientType || "").toLowerCase().includes("ortho")
+        ? "Ortho"
+        : "Regular";
+      const summaryEntries = [...serviceNamesByKey.values()].map((name) => {
+        const treatmentId = getAppointmentProcedureTreatmentId(bookingId, name);
+        return {
+          name,
+          treatmentId,
+          service: clinicServicesByKey.get(normalizeText(name)) || {},
+          ref: db.collection("paymentTreatmentSummaries").doc(
+            getAppointmentProcedureSummaryId(patientId, treatmentId)
+          ),
+        };
+      });
+      const summarySnapshots = await Promise.all(
+        summaryEntries.map(({ ref }) => transaction.get(ref))
+      );
+      const missingSummaryEntries = summaryEntries.filter((_, index) => !summarySnapshots[index].exists);
+      const paymentSnapshots = await Promise.all(missingSummaryEntries.map(({ treatmentId }) =>
+        transaction.get(db.collection("payments").where("treatmentId", "==", treatmentId))
+      ));
+      createdPaymentSummaries = missingSummaryEntries.length;
+
+      if (!alreadyCheckedIn) {
+        transaction.update(bookingRef, {
+          checkedInAt: nextCheckedInAt,
+          statusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      missingSummaryEntries.forEach(({ name, treatmentId, service, ref }, index) => {
+        const linkedPayments = paymentSnapshots[index].docs.filter((entry) =>
+          entry.data().appointmentId === bookingId
+        );
+        const amountPaid = linkedPayments.reduce((sum, entry) =>
+          sum + Math.max(0, Number(entry.data().amount ?? entry.data().paid) || 0), 0);
+        const totalCost = getAppointmentServiceAmount(service) ||
+          linkedPayments.reduce((maximum, entry) => Math.max(
+            maximum,
+            Number(entry.data().totalCost ?? entry.data().cost ?? entry.data().total) || 0
+          ), 0);
+
+        transaction.set(ref, {
+          patientId,
+          uid: booking.uid || "",
+          patientName: String(patient.name || booking.fullName || "").trim(),
+          patientEmail: String(patient.email || booking.email || "").trim(),
+          patientType,
+          treatmentId,
+          appointmentId: bookingId,
+          appointmentDate: booking.date || "",
+          appointmentTime: booking.time || "",
+          selectedDentist: booking.selectedDentist || "",
+          treatmentName: name,
+          procedureName: name,
+          totalCost,
+          amountPaid,
+          remainingBalance: Math.max(0, totalCost - amountPaid),
+          status: amountPaid >= totalCost && totalCost > 0
+            ? "Paid"
+            : amountPaid > 0
+              ? "Partially Paid"
+              : "Pending",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
       });
 
       updatedBooking = {
@@ -2326,22 +2795,25 @@ exports.toggleBookingCheckIn = onCall(
       };
     });
 
-    await writeStaffAuditLog(staff, {
-      action: checkedIn ? "mark_booking_check_in" : "clear_booking_check_in",
-      targetType: "booking",
-      targetId: bookingId,
-      targetLabel: getBookingTargetLabel(updatedBooking),
-      details: {
-        date: updatedBooking?.date || "",
-        time: updatedBooking?.time || "",
-      },
-    });
+    if (!alreadyCheckedIn) {
+      await writeStaffAuditLog(staff, {
+        action: "mark_booking_check_in",
+        targetType: "booking",
+        targetId: bookingId,
+        targetLabel: getBookingTargetLabel(updatedBooking),
+        details: {
+          date: updatedBooking?.date || "",
+          time: updatedBooking?.time || "",
+          createdPaymentSummaries,
+        },
+      });
+    }
 
     if (updatedBooking?.status === "approved") {
       await syncPatientRecordFromBookingServer(updatedBooking);
     }
 
-    return { success: true, bookingId, checkedIn };
+    return { success: true, bookingId, checkedIn, alreadyCheckedIn };
   }
 );
 
@@ -2365,6 +2837,13 @@ exports.archiveBooking = onCall(
       }
 
       booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      if (String(booking.status || "").trim().toLowerCase() !== "completed") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only completed appointments can be archived."
+        );
+      }
+
       const { lockRefs, lockSnaps } = await getLockSnapshots(transaction, booking);
       deleteOwnedLocks(transaction, lockRefs, lockSnaps, bookingId);
 
@@ -2621,6 +3100,246 @@ exports.resetStaffPasswordWithCode = onCall(async (request) => {
   catch (error) { console.error("Staff password reset failed", error); throw new HttpsError("internal", "Could not update the password. Request a new code and try again."); }
   return { success: true };
 });
+
+exports.requestStaffEmailVerificationCode = onCall(
+  {
+    secrets: [gmailEmail, gmailAppPassword],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Please sign in first.");
+    }
+
+    const uid = request.auth.uid;
+    const requestLimitRef = db.collection("rateLimits").doc(
+      `staff_email_verification_request_${uid}`
+    );
+    const requestNow = Date.now();
+    await db.runTransaction(async (transaction) => {
+      const limitSnap = await transaction.get(requestLimitRef);
+      const limit = limitSnap.data() || {};
+      const lastCalledAt = limit.lastCalledAt?.toMillis?.() || 0;
+      const windowStartedAt = limit.windowStartedAt?.toMillis?.() || requestNow;
+      const sameWindow = requestNow - windowStartedAt < STAFF_EMAIL_VERIFICATION_REQUEST_WINDOW_MS;
+      const nextCount = sameWindow ? Number(limit.count || 0) + 1 : 1;
+      const retryAfterSeconds = Math.ceil(
+        (STAFF_EMAIL_VERIFICATION_REQUEST_COOLDOWN_MS - (requestNow - lastCalledAt)) / 1000
+      );
+
+      if (retryAfterSeconds > 0) {
+        throw new HttpsError(
+          "resource-exhausted",
+          `Please wait ${retryAfterSeconds} seconds before requesting another verification code.`,
+          { retryAfterSeconds }
+        );
+      }
+      if (sameWindow && nextCount > STAFF_EMAIL_VERIFICATION_REQUEST_MAX_CALLS) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "Too many verification code requests. Please try again later."
+        );
+      }
+
+      transaction.set(requestLimitRef, {
+        scope: "staff_email_verification_request",
+        uid,
+        count: nextCount,
+        windowStartedAt: admin.firestore.Timestamp.fromMillis(
+          sameWindow ? windowStartedAt : requestNow
+        ),
+        lastCalledAt: admin.firestore.Timestamp.fromMillis(requestNow),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    const ipKey = crypto.createHash("sha256")
+      .update(String(request.rawRequest?.ip || "unknown"))
+      .digest("hex");
+    await assertRateLimit({
+      uid: ipKey,
+      scope: "staff_email_verification_request_ip",
+      minIntervalMs: 1000,
+      windowMs: STAFF_EMAIL_VERIFICATION_REQUEST_WINDOW_MS,
+      maxCalls: 20,
+      rateLimitMessage: "Too many verification code requests. Please try again later.",
+    });
+
+    const [staffSnap, userRecord] = await Promise.all([
+      db.collection("admins").doc(uid).get(),
+      auth.getUser(uid),
+    ]);
+
+    if (!staffSnap.exists || userRecord.disabled) {
+      throw new HttpsError("permission-denied", "This staff account cannot verify email.");
+    }
+    const staff = staffSnap.data() || {};
+    if (staff.disabled) {
+      throw new HttpsError("permission-denied", "This staff account is disabled.");
+    }
+    if (userRecord.emailVerified) {
+      return { alreadyVerified: true };
+    }
+
+    const recipientEmail = String(userRecord.email || "").trim().toLowerCase();
+    const staffEmail = String(staff.email || "").trim().toLowerCase();
+    if (!recipientEmail || (staffEmail && staffEmail !== recipientEmail)) {
+      throw new HttpsError("failed-precondition", "The staff email does not match the registered sign-in email.");
+    }
+
+    const code = String(crypto.randomInt(100000, 1000000));
+    const salt = crypto.randomBytes(16).toString("hex");
+    const challengeRef = db.collection("staffEmailVerificationChallenges").doc(uid);
+    let mailer;
+    try {
+      mailer = createTransporter();
+    } catch (error) {
+      console.error(
+        "Staff email verification sender configuration failed:",
+        error?.code || error?.name || "unknown"
+      );
+      throw new HttpsError(
+        "failed-precondition",
+        "Email verification delivery is not configured. Contact an administrator."
+      );
+    }
+
+    await challengeRef.set({
+      uid,
+      email: recipientEmail,
+      codeHash: hashStaffEmailVerificationCode(code, salt),
+      salt,
+      expiresAt: admin.firestore.Timestamp.fromMillis(
+        Date.now() + STAFF_EMAIL_VERIFICATION_CODE_TTL_MS
+      ),
+      usedAt: null,
+      attemptCount: 0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    try {
+      await mailer.transporter.sendMail({
+        from: mailer.senderEmail,
+        to: recipientEmail,
+        subject: "TopDent email verification code",
+        text: `Your TopDent email verification code is ${code}. It expires in 10 minutes. If you did not request this code, you can ignore this email.`,
+        html: createEmailShell({
+          eyebrow: "TopDent Staff Verification",
+          title: "Verify your email",
+          intro: "Enter this one-time code to verify the email address on your TopDent staff account.",
+          detailsHtml: `<p style="margin:0;color:#0f172a;font-size:32px;font-weight:800;letter-spacing:.18em;text-align:center">${code}</p><p style="margin:12px 0 0;color:#475569;font-size:13px;text-align:center">This code expires in 10 minutes.</p>`,
+          closing: "If you did not request this code, you can ignore this email.",
+        }),
+      });
+    } catch (error) {
+      await challengeRef.set({
+        usedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.error(
+        "Staff email verification code delivery failed:",
+        error?.code || "unknown",
+        error?.responseCode || "unknown"
+      );
+      throw new HttpsError("internal", "Could not send a verification code. Please try again later.");
+    }
+
+    return {
+      alreadyVerified: false,
+      emailHint: recipientEmail.replace(/^(.{2}).*(@.*)$/, "$1***$2"),
+      expiresInSeconds: Math.floor(STAFF_EMAIL_VERIFICATION_CODE_TTL_MS / 1000),
+      resendAfterSeconds: Math.floor(STAFF_EMAIL_VERIFICATION_REQUEST_COOLDOWN_MS / 1000),
+    };
+  }
+);
+
+exports.verifyStaffEmailVerificationCode = onCall(
+  {
+    secrets: [gmailAppPassword],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Please sign in first.");
+    }
+
+    const uid = request.auth.uid;
+    const code = String(request.data?.code || "").trim();
+    if (!/^\d{6}$/.test(code)) {
+      throw new HttpsError("invalid-argument", "Enter the 6-digit verification code.");
+    }
+
+    await assertRateLimit({
+      uid,
+      scope: "staff_email_verification_verify",
+      minIntervalMs: STAFF_EMAIL_VERIFICATION_VERIFY_MIN_INTERVAL_MS,
+      windowMs: STAFF_EMAIL_VERIFICATION_VERIFY_WINDOW_MS,
+      maxCalls: STAFF_EMAIL_VERIFICATION_VERIFY_MAX_CALLS,
+      rateLimitMessage: "Too many code attempts. Please wait before trying again.",
+    });
+
+    const [staffSnap, userRecord] = await Promise.all([
+      db.collection("admins").doc(uid).get(),
+      auth.getUser(uid),
+    ]);
+    if (!staffSnap.exists || staffSnap.data()?.disabled || userRecord.disabled) {
+      throw new HttpsError("permission-denied", "This staff account cannot verify email.");
+    }
+    if (userRecord.emailVerified) {
+      return { success: true, alreadyVerified: true };
+    }
+
+    const currentEmail = String(userRecord.email || "").trim().toLowerCase();
+    const staffEmail = String(staffSnap.data()?.email || "").trim().toLowerCase();
+    if (!currentEmail || (staffEmail && staffEmail !== currentEmail)) {
+      throw new HttpsError("failed-precondition", "The staff email does not match the registered sign-in email.");
+    }
+    const challengeRef = db.collection("staffEmailVerificationChallenges").doc(uid);
+    const result = await db.runTransaction(async (transaction) => {
+      const challengeSnap = await transaction.get(challengeRef);
+      if (!challengeSnap.exists) {
+        throw new HttpsError("not-found", "Verification code was not found. Request a new code.");
+      }
+
+      const challenge = challengeSnap.data() || {};
+      if (challenge.uid !== uid || challenge.email !== currentEmail) {
+        throw new HttpsError("permission-denied", "This verification code is not valid for this account.");
+      }
+      if (challenge.usedAt) {
+        throw new HttpsError("failed-precondition", "This verification code was already used. Request a new code.");
+      }
+      if (!challenge.expiresAt?.toMillis || challenge.expiresAt.toMillis() <= Date.now()) {
+        throw new HttpsError("deadline-exceeded", "This verification code expired. Request a new code.");
+      }
+      if (Number(challenge.attemptCount || 0) >= 5) {
+        throw new HttpsError("resource-exhausted", "Too many incorrect codes. Request a new code.");
+      }
+
+      const submittedHash = hashStaffEmailVerificationCode(code, challenge.salt || "");
+      if (!timingSafeHashMatches(challenge.codeHash || "", submittedHash)) {
+        transaction.update(challengeRef, {
+          attemptCount: admin.firestore.FieldValue.increment(1),
+          lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { valid: false };
+      }
+
+      transaction.update(challengeRef, {
+        usedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { valid: true, email: challenge.email };
+    });
+
+    if (!result.valid) {
+      throw new HttpsError("invalid-argument", "Verification code is incorrect.");
+    }
+
+    const currentUserRecord = await auth.getUser(uid);
+    if (String(currentUserRecord.email || "").trim().toLowerCase() !== result.email) {
+      throw new HttpsError("failed-precondition", "The registered email changed. Request a new verification code.");
+    }
+
+    await auth.updateUser(uid, { emailVerified: true });
+    return { success: true };
+  }
+);
 
 exports.requestStaffMfaCode = onCall(
   {

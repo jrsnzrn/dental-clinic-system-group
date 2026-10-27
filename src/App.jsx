@@ -17,11 +17,13 @@ import MyDentalRecord from "./pages/MyDentalRecord";
 import About from "./pages/About";
 
 import Login from "./pages/admin/Login";
+import EmailVerification from "./pages/admin/EmailVerification";
 import Mfa from "./pages/admin/Mfa";
 import Dashboard from "./pages/admin/Dashboard";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
 import Braces from "./pages/admin/Braces";
+import Payments from "./pages/admin/Payments";
 import Dentists from "./pages/admin/Dentists";
 import ServicesAdmin from "./pages/admin/ServicesAdmin";
 import Accounts from "./pages/admin/Accounts";
@@ -213,22 +215,28 @@ export default function App() {
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [adminRole, setAdminRole] = useState("");
   const [theme, setTheme] = useState(getInitialTheme);
+  const [dentistSearch, setDentistSearch] = useState("");
+  const [dentistPatientTypeFilter, setDentistPatientTypeFilter] = useState("All");
+  const [archiveSearch, setArchiveSearch] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      setLoadingAuth(false);
-
       if (!u) {
+        setUser(null);
+        setLoadingAuth(false);
         setIsAdmin(false);
         setAdminRole("");
         setCheckingAdmin(false);
         return;
       }
 
+      setUser(u);
       setCheckingAdmin(true);
       try {
-        const snap = await getDoc(doc(db, "admins", u.uid));
+        await u.reload();
+        const freshUser = auth.currentUser || u;
+        setUser(freshUser);
+        const snap = await getDoc(doc(db, "admins", freshUser.uid));
         if (snap.exists()) {
           const profile = getAdminProfile(snap.data());
           if (profile.disabled) {
@@ -247,6 +255,7 @@ export default function App() {
         setIsAdmin(false);
         setAdminRole("");
       } finally {
+        setLoadingAuth(false);
         setCheckingAdmin(false);
       }
     });
@@ -278,6 +287,12 @@ export default function App() {
           adminRole={adminRole}
           theme={theme}
           onThemeChange={setTheme}
+          dentistSearch={dentistSearch}
+          onDentistSearchChange={setDentistSearch}
+          dentistPatientTypeFilter={dentistPatientTypeFilter}
+          onDentistPatientTypeFilterChange={setDentistPatientTypeFilter}
+          archiveSearch={archiveSearch}
+          onArchiveSearchChange={setArchiveSearch}
         />
 
         <div className={`appMain ${isAdmin ? "adminAppMain" : ""}`}>
@@ -294,6 +309,7 @@ export default function App() {
 
             <Route path="/admin/login" element={isAdmin ? adminRedirect : <Login />} />
             <Route path="/admin/forgot-password" element={<ForgotPassword />} />
+            <Route path="/admin/verify-email" element={<EmailVerification />} />
             <Route path="/admin/mfa" element={<Mfa />} />
 
             <Route
@@ -315,7 +331,24 @@ export default function App() {
                     user={user}
                     allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST, ROLES.DENTIST]}
                   >
-                    <Patients />
+                    <Patients
+                      dentistSearch={dentistSearch}
+                      dentistPatientTypeFilter={dentistPatientTypeFilter}
+                    />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="completed"
+                element={
+                  <ProtectedRoute
+                    user={user}
+                    allowedRoles={[ROLES.DENTIST]}
+                  >
+                    <Patients
+                      completedOnly
+                      dentistSearch={dentistSearch}
+                    />
                   </ProtectedRoute>
                 }
               />
@@ -341,6 +374,17 @@ export default function App() {
                     allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
                   >
                     <Braces />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="payments"
+                element={
+                  <ProtectedRoute
+                    user={user}
+                    allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
+                  >
+                    <Payments />
                   </ProtectedRoute>
                 }
               />
@@ -391,7 +435,7 @@ export default function App() {
                 }
               />
               <Route path="archive">
-                <Route index element={<Navigate to="patients" replace />} />
+                <Route index element={<Navigate to={adminRole === ROLES.ADMIN ? "all" : "bookings"} replace />} />
                 <Route
                   path=":section"
                   element={
@@ -399,7 +443,10 @@ export default function App() {
                       user={user}
                       allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
                     >
-                      <Archive />
+                      <Archive
+                        adminRole={adminRole}
+                        search={archiveSearch}
+                      />
                     </ProtectedRoute>
                   }
                 />

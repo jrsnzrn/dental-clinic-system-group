@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   collection,
@@ -12,8 +12,14 @@ import {
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
 import { normalizeName } from "../../utils/appointments";
+import {
+  BRACES_TYPES,
+  DEFAULT_BRACES_REFERENCE_PRICES,
+  normalizeBracesReferencePrices,
+  normalizeBracesType,
+} from "../../utils/bracesPricing";
 import {
   buildBracesAccount,
   computeInstallmentAmount,
@@ -26,6 +32,8 @@ import {
   PLAN_FREQUENCIES,
 } from "../../utils/braces";
 import { logAdminAction } from "../../utils/audit";
+import { recordBracesPayment } from "../../utils/paymentTransactions";
+import { ROLES } from "../../utils/rbac";
 import { formatDateLabel, formatTimeLabel } from "../../utils/schedule";
 
 function getEmptyAccountDraft() {
@@ -82,8 +90,15 @@ export default function Braces() {
   const [loading, setLoading] = useState(true);
   const [savingAccount, setSavingAccount] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const paymentSubmissionLock = useRef(false);
+  const [paymentError, setPaymentError] = useState("");
   const [savingAdjustment, setSavingAdjustment] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [referencePrices, setReferencePrices] = useState(DEFAULT_BRACES_REFERENCE_PRICES);
+  const [referencePriceDraft, setReferencePriceDraft] = useState(DEFAULT_BRACES_REFERENCE_PRICES);
+  const [referencePriceError, setReferencePriceError] = useState("");
+  const [savingReferencePrices, setSavingReferencePrices] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -124,6 +139,37 @@ export default function Braces() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function loadPriceReferences() {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      try {
+        const [adminSnapshot, referenceSnapshot] = await Promise.all([
+          getDoc(doc(db, "admins", currentUser.uid)),
+          getDoc(doc(db, "bracesPricing", "reference")),
+        ]);
+        if (!active) return;
+        const role = String(adminSnapshot.data()?.role || "").trim().toLowerCase();
+        setIsAdmin(adminSnapshot.exists() && role === ROLES.ADMIN);
+        if (referenceSnapshot.exists()) {
+          const next = normalizeBracesReferencePrices(referenceSnapshot.data().prices || {});
+          setReferencePrices(next);
+          setReferencePriceDraft(next);
+        }
+      } catch (error) {
+        console.error("Braces reference prices could not be loaded:", error);
+        if (active) setReferencePriceError("Reference prices could not be loaded. Check your access and try again.");
+      }
+    }
+    loadPriceReferences();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedReferencePrice = referencePrices[normalizeBracesType(accountDraft.bracesType)];
 
   const patientCards = useMemo(() => {
     return patients
@@ -195,7 +241,7 @@ export default function Braces() {
       setAccountDraft({
         totalCost: String(selectedPatient.bracesAccount.listedCost || selectedPatient.bracesAccount.totalCost || ""),
         discountAmount: String(selectedPatient.bracesAccount.discountAmount || ""),
-        bracesType: selectedPatient.bracesAccount.bracesType || "Metal",
+        bracesType: normalizeBracesType(selectedPatient.bracesAccount.bracesType),
         downPaymentExpected: String(selectedPatient.bracesAccount.downPaymentExpected || ""),
         planCycles: String(selectedPatient.bracesAccount.planCycles || selectedPatient.bracesAccount.planMonths || ""),
         planFrequency: selectedPatient.bracesAccount.planFrequency || "Monthly",
@@ -253,6 +299,23 @@ export default function Braces() {
     e.preventDefault();
     if (!selectedPatient) return;
 
+    const listedCost = Number(accountDraft.totalCost || 0);
+    const discountAmount = Number(accountDraft.discountAmount || 0);
+    const downPaymentExpected = Number(accountDraft.downPaymentExpected || 0);
+    if (!Number.isFinite(listedCost) || listedCost <= 0) {
+      setPaymentError("Enter the agreed braces treatment cost.");
+      return;
+    }
+    if (!Number.isFinite(discountAmount) || discountAmount < 0 || discountAmount > listedCost) {
+      setPaymentError("The discount must be between zero and the agreed treatment cost.");
+      return;
+    }
+    if (!Number.isFinite(downPaymentExpected) || downPaymentExpected < 0 || downPaymentExpected > listedCost - discountAmount) {
+      setPaymentError("The down payment cannot exceed the agreed treatment cost after discount.");
+      return;
+    }
+
+    setPaymentError("");
     setSavingAccount(true);
     try {
       const docRef = doc(db, "bracesAccounts", selectedPatient.id);
@@ -263,11 +326,11 @@ export default function Braces() {
         patientName: selectedPatient.name || "",
         patientEmail: selectedPatient.email || "",
         patientPhone: selectedPatient.phone || "",
-        listedCost: Number(accountDraft.totalCost || 0),
-        discountAmount: Math.min(Number(accountDraft.totalCost || 0), Number(accountDraft.discountAmount || 0)),
-        totalCost: Math.max(0, Number(accountDraft.totalCost || 0) - Number(accountDraft.discountAmount || 0)),
-        bracesType: accountDraft.bracesType || "Metal",
-        downPaymentExpected: Number(accountDraft.downPaymentExpected || 0),
+        listedCost,
+        discountAmount,
+        totalCost: listedCost - discountAmount,
+        bracesType: normalizeBracesType(accountDraft.bracesType),
+        downPaymentExpected,
         installmentAmount: computedInstallmentAmount,
         monthlyAmount: computedInstallmentAmount,
         planCycles: Number(accountDraft.planCycles || 0),
@@ -314,52 +377,83 @@ export default function Braces() {
       });
 
       await load();
+    } catch (error) {
+      console.error("Braces treatment price could not be saved:", error);
+      setPaymentError(error.message || "Braces treatment price could not be saved. Check your access and try again.");
     } finally {
       setSavingAccount(false);
     }
   }
 
+  async function saveReferencePrices(event) {
+    event.preventDefault();
+    setReferencePriceError("");
+    const nextPrices = normalizeBracesReferencePrices(referencePriceDraft);
+    const invalidPrices = BRACES_TYPES.some((type) => {
+      const price = nextPrices[type];
+      return price.downPayment < 0 || price.totalMin <= 0 ||
+        price.totalMax < price.totalMin || price.downPayment > price.totalMax;
+    });
+    if (invalidPrices) {
+      setReferencePriceError("Each reference down payment must be non-negative, and the total range must be valid.");
+      return;
+    }
+
+    setSavingReferencePrices(true);
+    try {
+      await setDoc(doc(db, "bracesPricing", "reference"), {
+        prices: nextPrices,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setReferencePrices(nextPrices);
+      setReferencePriceDraft(nextPrices);
+      await logAdminAction({
+        action: "update_braces_reference_prices",
+        targetType: "braces_pricing",
+        targetId: "reference",
+        targetLabel: "Braces reference price list",
+        details: { prices: nextPrices },
+      });
+    } catch (error) {
+      console.error("Braces reference prices could not be saved:", error);
+      setReferencePriceError("Reference prices could not be saved. Check your access and try again.");
+    } finally {
+      setSavingReferencePrices(false);
+    }
+  }
+
+  function updateReferencePrice(type, field, value) {
+    setReferencePriceDraft((current) => ({
+      ...current,
+      [type]: {
+        ...current[type],
+        [field]: value === "" ? "" : Number(value),
+      },
+    }));
+  }
+
   async function logPayment() {
     if (!selectedPatient?.bracesAccount) return;
     if (!Number(paymentDraft.amount || 0)) return;
+    if (paymentSubmissionLock.current) return;
 
+    setPaymentError("");
+    paymentSubmissionLock.current = true;
     setSavingPayment(true);
     try {
-      const paymentPayload = {
-        accountId: selectedPatient.id,
-        patientId: selectedPatient.id,
-        uid: selectedPatient.uid || "",
-        patientName: selectedPatient.name || "",
+      const paymentId = await recordBracesPayment({
+        patient: selectedPatient,
+        accountId: selectedPatient.bracesAccount.id || selectedPatient.id,
         amount: Number(paymentDraft.amount || 0),
         paymentDate: paymentDraft.paymentDate || "",
         method: paymentDraft.method || "Cash",
         notes: paymentDraft.notes.trim(),
-        createdAt: serverTimestamp(),
-      };
-
-      await addDoc(collection(db, "bracesPayments"), paymentPayload);
-
-      const nextPayments = [...(selectedPatient.bracesPayments || []), paymentPayload];
-      const computed = buildBracesAccount(selectedPatient.bracesAccount, nextPayments);
-
-      await setDoc(
-        doc(db, "bracesAccounts", selectedPatient.id),
-        {
-          amountPaid: computed.amountPaid,
-          remainingBalance: computed.remainingBalance,
-          expectedPaidByNow: computed.expectedPaidByNow,
-          paymentState: computed.paymentState,
-          progressPercent: computed.progressPercent,
-          lastPaymentAt: paymentDraft.paymentDate || "",
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      });
 
       await logAdminAction({
         action: "log_braces_payment",
         targetType: "braces_payment",
-        targetId: selectedPatient.id,
+        targetId: paymentId,
         targetLabel: selectedPatient.name || selectedPatient.email || "Braces payment",
         details: {
           amount: Number(paymentDraft.amount || 0),
@@ -370,7 +464,11 @@ export default function Braces() {
 
       setPaymentDraft(getEmptyPaymentDraft());
       await load();
+    } catch (error) {
+      console.error("Braces payment could not be saved:", error);
+      setPaymentError(error.message || "Braces payment could not be saved. Check your access and try again.");
     } finally {
+      paymentSubmissionLock.current = false;
       setSavingPayment(false);
     }
   }
@@ -450,6 +548,79 @@ export default function Braces() {
 
   return (
     <div className="container adminSurface">
+      <section className="bracesReferenceCard" aria-labelledby="bracesReferenceTitle">
+        <div className="bracesReferenceHeader">
+          <div>
+            <h2 id="bracesReferenceTitle">Braces reference prices</h2>
+            <p>Reference amounts only. Set each patient&apos;s agreed price in their treatment plan.</p>
+          </div>
+          {isAdmin ? <span className="badge">Administrator editable</span> : null}
+        </div>
+        {referencePriceError ? <div className="formError" role="alert">{referencePriceError}</div> : null}
+        {isAdmin ? (
+          <form className="bracesReferenceGrid" onSubmit={saveReferencePrices}>
+            {BRACES_TYPES.map((type) => (
+              <fieldset className="bracesReferenceItem" key={type}>
+                <legend>{type}</legend>
+                <label>
+                  <span>Reference down payment (PHP)</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={referencePriceDraft[type].downPayment}
+                    onChange={(event) => updateReferencePrice(type, "downPayment", event.target.value)}
+                  />
+                </label>
+                <div className="bracesReferenceRange">
+                  <label>
+                    <span>Reference total min (PHP)</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={referencePriceDraft[type].totalMin}
+                      onChange={(event) => updateReferencePrice(type, "totalMin", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Reference total max (PHP)</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={referencePriceDraft[type].totalMax}
+                      onChange={(event) => updateReferencePrice(type, "totalMax", event.target.value)}
+                    />
+                  </label>
+                </div>
+              </fieldset>
+            ))}
+            <div className="bracesReferenceActions">
+              <button type="submit" className="btn btnPrimary" disabled={savingReferencePrices}>
+                {savingReferencePrices ? "Saving reference prices..." : "Save reference prices"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="bracesReferenceGrid">
+            {BRACES_TYPES.map((type) => {
+              const price = referencePrices[type];
+              return (
+                <article className="bracesReferenceItem" key={type}>
+                  <h3>{type}</h3>
+                  <p>Down payment: <strong>{formatCurrency(price.downPayment)}</strong></p>
+                  <p>Total range: <strong>{formatCurrency(price.totalMin)}–{formatCurrency(price.totalMax)}</strong></p>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <div className="statsGrid adminStats">
         <div className="statCard accentTeal">
           <span className="statLabel">Active accounts</span>
@@ -479,9 +650,9 @@ export default function Braces() {
         </div>
 
         <div className="patientToolbar">
-          <div className="topSearchBar">
+          <div className="topSearchBar adminSearchField">
             <svg
-              className="topSearchIcon"
+              className="topSearchIcon adminSearchIcon"
               width="18"
               height="18"
               viewBox="0 0 24 24"
@@ -594,22 +765,25 @@ export default function Braces() {
                 <form className="form" onSubmit={saveAccount}>
                   <div className="bookingFlowGrid">
                     <label className="bookingFieldCard">
-                      <span className="detailLabel">Total treatment cost</span>
+                      <span className="detailLabel">Agreed total treatment cost (PHP)</span>
                       <input
                         className="input bookingInputSpecial"
                         type="number"
-                        min="0"
+                        min="0.01"
+                        step="0.01"
                         placeholder="e.g. 45000"
                         value={accountDraft.totalCost}
                         onChange={(e) => setAccountDraft((current) => ({ ...current, totalCost: e.target.value }))}
                       />
                     </label>
                     <label className="bookingFieldCard">
-                      <span className="detailLabel">Expected down payment</span>
+                      <span className="detailLabel">Agreed down payment (PHP)</span>
                       <input
                         className="input bookingInputSpecial"
                         type="number"
                         min="0"
+                        max={Math.max(0, Number(accountDraft.totalCost || 0) - Number(accountDraft.discountAmount || 0))}
+                        step="0.01"
                         placeholder="e.g. 5000"
                         value={accountDraft.downPaymentExpected}
                         onChange={(e) => setAccountDraft((current) => ({ ...current, downPaymentExpected: e.target.value }))}
@@ -617,14 +791,20 @@ export default function Braces() {
                     </label>
                     <label className="bookingFieldCard">
                       <span className="detailLabel">Braces type</span>
-                      <select className="input bookingInputSpecial" value={accountDraft.bracesType} onChange={(e) => setAccountDraft((current) => ({ ...current, bracesType: e.target.value }))}>
-                        {["Metal", "Ceramic", "Sapphire", "Self ligating"].map((type) => <option key={type}>{type}</option>)}
+                      <select className="input bookingInputSpecial" value={normalizeBracesType(accountDraft.bracesType)} onChange={(e) => setAccountDraft((current) => ({ ...current, bracesType: e.target.value }))}>
+                        {BRACES_TYPES.map((type) => <option key={type}>{type}</option>)}
                       </select>
                     </label>
                     <label className="bookingFieldCard">
                       <span className="detailLabel">Manual discount (PHP)</span>
                       <input className="input bookingInputSpecial" type="number" min="0" max={accountDraft.totalCost || undefined} placeholder="0" value={accountDraft.discountAmount} onChange={(e) => setAccountDraft((current) => ({ ...current, discountAmount: e.target.value }))} />
                     </label>
+                  </div>
+
+                  <div className="bracesReferenceHint" role="status">
+                    <strong>{normalizeBracesType(accountDraft.bracesType)} reference:</strong>
+                    <span>Down payment {formatCurrency(selectedReferencePrice.downPayment)} · total {formatCurrency(selectedReferencePrice.totalMin)}–{formatCurrency(selectedReferencePrice.totalMax)}</span>
+                    <small>Guidance only. Enter the final agreed amounts for this patient; later reference updates will not change this treatment plan.</small>
                   </div>
 
                   <div className="bookingFlowGrid">
@@ -711,6 +891,7 @@ export default function Braces() {
                     onChange={(e) => setAccountDraft((current) => ({ ...current, notes: e.target.value }))}
                   />
 
+                  {paymentError ? <div className="formError" role="alert">{paymentError}</div> : null}
                   <button className="btn btnShine bookingPrimaryBtn" disabled={savingAccount}>
                     {savingAccount ? "Saving braces plan..." : selectedPatient.bracesAccount ? "Update Braces Plan" : "Create Braces Plan"}
                   </button>
@@ -825,6 +1006,7 @@ export default function Braces() {
                         </label>
                       </div>
 
+                      {paymentError ? <div className="formError" role="alert">{paymentError}</div> : null}
                       <button
                         type="button"
                         className="btn btnShine bookingPrimaryBtn"

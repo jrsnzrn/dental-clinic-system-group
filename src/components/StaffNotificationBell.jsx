@@ -40,6 +40,7 @@ function normalizeBooking(entry) {
     time: data.time || "",
     added: toISO(data.createdAt) || toISO(data.date),
     status: String(data.status || "pending").toLowerCase().replace(" ", "-"),
+    archiveStatus: data.archiveStatus || "",
   };
 }
 
@@ -90,7 +91,7 @@ export default function StaffNotificationBell({ adminRole }) {
             id: `pending:${booking.id}`,
             bookingId: booking.id,
             title: `New appointment: ${booking.name}`,
-            sub: `${formatDate(booking.date)}${booking.time ? `, ${booking.time}` : ""} · Booking ${booking.id}`,
+            sub: `${formatDate(booking.date)}${booking.time ? `, ${booking.time}` : ""}`,
           });
         });
 
@@ -100,25 +101,31 @@ export default function StaffNotificationBell({ adminRole }) {
         .forEach((booking) => {
           items.push({
             id: `cancelled:${booking.id}`,
+            bookingId: booking.id,
             title: `${booking.name} cancelled`,
             sub: `${booking.service || "No service"} · ${formatDate(booking.date)}`,
           });
         });
     }
 
-    const todayCount = bookings.filter(
-      (booking) => booking.date === today && !["cancelled", "no-show"].includes(booking.status)
-    ).length;
-    if (todayCount) {
+    const todayBookings = bookings.filter(
+      (booking) =>
+        booking.date === today &&
+        booking.archiveStatus !== "Archived" &&
+        !["cancelled", "no-show"].includes(booking.status)
+    );
+    if (todayBookings.length) {
       items.unshift({
-        id: `today:${today}:${todayCount}`,
-        title: `${todayCount} appointment${todayCount > 1 ? "s" : ""} today`,
+        id: `today:${today}:${todayBookings.length}`,
+        bookingIds: todayBookings.map((booking) => booking.id),
+        date: today,
+        title: `${todayBookings.length} appointment${todayBookings.length > 1 ? "s" : ""} today`,
         sub: "Open bookings to see the schedule",
       });
     }
 
     return items;
-  }, [adminRole, bookings, canAccessBookings, today]);
+  }, [bookings, canAccessBookings, today]);
 
   const unread = notifications.filter((item) => !readIds.has(item.id)).length;
 
@@ -134,7 +141,18 @@ export default function StaffNotificationBell({ adminRole }) {
   function openNotification(item) {
     saveReadIds(new Set([...readIds, item.id]));
     if (item.bookingId && canAccessBookings) {
-      navigate(`/admin/bookings/calendar?bookingId=${encodeURIComponent(item.bookingId)}`);
+      const params = new URLSearchParams({
+        bookingId: item.bookingId,
+        highlightId: item.bookingId,
+      });
+      navigate(`/admin/bookings/calendar?${params.toString()}`);
+      return;
+    }
+    if (item.bookingIds?.length && canAccessBookings) {
+      const params = new URLSearchParams({ date: item.date || "" });
+      item.bookingIds.forEach((bookingId) => params.append("highlightId", bookingId));
+      if (item.bookingIds.length === 1) params.set("bookingId", item.bookingIds[0]);
+      navigate(`/admin/bookings/calendar?${params.toString()}`);
       return;
     }
     navigate(adminRole === ROLES.DENTIST ? "/admin/patients" : "/admin/bookings");

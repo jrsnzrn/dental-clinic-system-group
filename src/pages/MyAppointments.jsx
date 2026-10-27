@@ -97,7 +97,8 @@ function getNextBookableDates(count = 10) {
 }
 
 function AppointmentCard({ booking, isViewing, onViewSummary, onStartReschedule, onStartCancellation }) {
-  const isCompleted = Boolean(booking.checkedInAt);
+  const isCompleted = ["pending_payment", "completed"].includes(booking.status);
+  const isCheckedIn = Boolean(booking.checkedInAt);
   const appointmentTimeRange = getBookingTimeRange(booking);
   const canRequestChanges =
     !isCompleted &&
@@ -115,9 +116,10 @@ function AppointmentCard({ booking, isViewing, onViewSummary, onStartReschedule,
             </p>
           </div>
           <div className="statusStack">
-            <span className={`statusPill ${isCompleted ? "approved" : booking.status || "pending"}`}>
-              {isCompleted ? "completed" : booking.status || "pending"}
+            <span className={`statusPill ${booking.status || "pending"}`}>
+              {booking.status || "pending"}
             </span>
+            {isCheckedIn ? <span className="statusPill approved">Checked in</span> : null}
           </div>
         </div>
 
@@ -136,7 +138,7 @@ function AppointmentCard({ booking, isViewing, onViewSummary, onStartReschedule,
           </div>
           <div className="detailBox luxeBox">
             <span className="detailLabel">Check-in</span>
-            <strong>{isCompleted ? formatTimestamp(booking.checkedInAt) : "Waiting for visit"}</strong>
+            <strong>{isCheckedIn ? formatTimestamp(booking.checkedInAt) : "Waiting for visit"}</strong>
           </div>
         </div>
 
@@ -191,10 +193,11 @@ function AppointmentCard({ booking, isViewing, onViewSummary, onStartReschedule,
 
 function buildStatusGroups(bookings) {
   return {
-    pending: bookings.filter((booking) => booking.status === "pending" && !booking.checkedInAt),
-    approved: bookings.filter((booking) => booking.status === "approved" && !booking.checkedInAt),
-    completed: bookings.filter((booking) => booking.checkedInAt),
-    cancelled: bookings.filter((booking) => booking.status === "cancelled" && !booking.checkedInAt),
+    pending: bookings.filter((booking) => booking.status === "pending"),
+    approved: bookings.filter((booking) => booking.status === "approved"),
+    pendingPayment: bookings.filter((booking) => booking.status === "pending_payment"),
+    completed: bookings.filter((booking) => booking.status === "completed"),
+    cancelled: bookings.filter((booking) => booking.status === "cancelled"),
   };
 }
 
@@ -336,11 +339,9 @@ export default function MyAppointments() {
   const summaryDaySchedule = summaryBooking
     ? getDentistDaySchedule(summaryDentist, summaryBooking.date)
     : null;
-  const summaryStatus = summaryBooking?.checkedInAt
-    ? "Completed"
-    : summaryBooking?.status
-      ? summaryBooking.status.charAt(0).toUpperCase() + summaryBooking.status.slice(1)
-      : "Pending";
+  const summaryStatus = summaryBooking?.status
+    ? summaryBooking.status.charAt(0).toUpperCase() + summaryBooking.status.slice(1)
+    : "Pending";
   const patientName =
     patientProfile?.fullName ||
     [patientProfile?.firstName, patientProfile?.lastName].filter(Boolean).join(" ") ||
@@ -368,6 +369,10 @@ export default function MyAppointments() {
     editingBookingId && requestMode === "reschedule" && rescheduleDraft.requestedDate
       ? rescheduleDraft.requestedDate
       : summaryBooking?.date || "";
+  const appointmentDates = useMemo(
+    () => new Set(bookings.map((booking) => booking.date).filter(Boolean)),
+    [bookings]
+  );
 
   const calendarCells = useMemo(() => {
     const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
@@ -393,13 +398,14 @@ export default function MyAppointments() {
         dayNumber: day.getDate(),
         isCurrentMonth,
         isSelected: iso === highlightedDate,
+        hasAppointments: appointmentDates.has(iso),
         isPast: iso < todayStr,
         isSunday: isSunday(iso),
         closure,
         isAvailable: isCurrentMonth && iso >= todayStr && !isSunday(iso) && !closure && hasDentist,
       };
     });
-  }, [calendarMonth, clinicClosures, dentists, highlightedDate, summaryDentist, todayStr]);
+  }, [appointmentDates, calendarMonth, clinicClosures, dentists, highlightedDate, summaryDentist, todayStr]);
 
   const calendarMonthLabel = calendarMonth.toLocaleDateString("en-US", {
     month: "long",
@@ -874,7 +880,7 @@ export default function MyAppointments() {
                     <button
                       key={cell.iso}
                       type="button"
-                      className={`bookingCalendarDay ${cell.isSelected ? "active" : ""} ${!cell.isCurrentMonth ? "muted" : ""} ${cell.isAvailable ? "available" : "blocked"}`}
+                      className={`bookingCalendarDay ${cell.isSelected ? "active" : ""} ${cell.hasAppointments ? "hasAppointments" : ""} ${!cell.isCurrentMonth ? "muted" : ""} ${cell.isAvailable ? "available" : "blocked"}`}
                       onClick={() => chooseCalendarDate(cell)}
                       disabled={!cell.isAvailable}
                       title={getCalendarCellLabel(cell)}
@@ -901,6 +907,7 @@ export default function MyAppointments() {
         {[
           ["Pending", groupedBookings.pending, "Appointments waiting for clinic approval."],
           ["Approved", groupedBookings.approved, "Confirmed appointments ready for your visit."],
+          ["Pending Payment", groupedBookings.pendingPayment, "Treatment is finished and payment is pending."],
           ["Completed", groupedBookings.completed, "Appointments already checked in and completed."],
           ["Cancelled", groupedBookings.cancelled, "Appointments cancelled by the clinic or patient flow."],
         ].map(([title, list, subtitle]) => (
