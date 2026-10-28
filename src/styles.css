@@ -11282,6 +11282,7 @@ html body .patientListPage .typeBadge.ortho {
 }
 
 html[data-dashboard="true"][data-theme="dark"] .adminAppMain .adminSurface .addPatientModal,
+html[data-dashboard="true"][data-theme="dark"] .adminAppMain .adminSurface .servicesAdminModal,
 html[data-dashboard="true"][data-theme="dark"] .adminAppMain .acctDialog,
 html[data-dashboard="true"][data-theme="dark"] .adminAppMain .confirmModalCard,
 html[data-dashboard="true"][data-theme="dark"] .patientDrawer,
@@ -11643,13 +11644,14 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
 
 .servicesAdminModalOverlay {
   position: fixed;
-  z-index: 1200;
+  z-index: 1300;
   inset: 0;
+  isolation: isolate;
   display: grid;
   place-items: center;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.48);
+  background: rgba(0, 0, 0, 0.58);
 }
 
 .servicesAdminModal {
@@ -11657,6 +11659,7 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
   width: min(620px, 100%);
   max-height: min(760px, calc(100vh - 40px));
   max-height: min(760px, calc(100dvh - 40px));
+  min-height: 0;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -11668,6 +11671,7 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
 
 .servicesAdminModalHeader {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
@@ -11699,16 +11703,40 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
 
 .servicesAdminForm {
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .servicesAdminFormBody {
   display: grid;
+  flex: 1 1 auto;
   min-height: 0;
+  align-content: start;
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 20px;
+  scrollbar-color: rgba(var(--accent-rgb), 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.servicesAdminFormBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.servicesAdminFormBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.servicesAdminFormBody::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.32);
+}
+
+.servicesAdminFormBody::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb), 0.55);
 }
 
 .servicesAdminFormGrid {
@@ -11736,6 +11764,7 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
 
 .servicesAdminModalFooter {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
