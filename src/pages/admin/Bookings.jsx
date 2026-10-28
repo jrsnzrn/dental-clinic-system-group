@@ -36,11 +36,10 @@ const BOOKING_FILTERS = {
     label: "Cancelled",
     emptyText: "No cancelled bookings.",
   },
-  completed: { label: "Completed", emptyText: "No completed appointments recorded." },
   "no-show": { label: "No-show", emptyText: "No no-show appointments recorded." },
 };
 
-const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "completed", "cancelled"];
+const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "cancelled"];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const BOOKING_SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -809,7 +808,7 @@ export default function Bookings() {
     await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
   }
 
-  const activeConfig = BOOKING_FILTERS[status];
+  const activeConfig = BOOKING_FILTERS[status] || BOOKING_FILTERS.calendar;
   const searchTerm = search.trim().toLocaleLowerCase();
   const activeItems = useMemo(
     () => activeBookings

@@ -45,6 +45,9 @@ function isFullyPaid(row) {
 }
 
 function paymentStatusLabel(row, patientType = row?.patientType) {
+  if (row?.source === "Appointment" && row.paymentReady === false) {
+    return row.paymentQueueLabel || "Awaiting treatment";
+  }
   if (isFullyPaid(row || {})) return "Completed";
   if (patientType !== "Ortho" && toAmount(row?.amountPaid) <= 0) return "Pending";
   return "Ongoing";
@@ -163,6 +166,8 @@ function makeRegularPaymentRows(payments, patients, bookings, summaries) {
         method: transaction.method || transaction.paymentMethod || "",
         notes: transaction.notes || "",
         treatmentId: group.treatmentId,
+        paymentReady: !group.appointmentId || ["pending_payment", "completed"].includes(String(booking?.status || "").toLowerCase()),
+        paymentQueueLabel: booking?.status === "pending_payment" ? "Treatment details missing" : "Awaiting treatment",
       });
     });
   });
@@ -284,6 +289,14 @@ function makeBracesPaymentRows(payments, accounts, patients) {
 
 function makeUnpaidRegularRows(summaries, payments, patients, bookings) {
   return summaries
+    .filter((summary) => {
+      if (!summary.appointmentId) return true;
+      const booking = bookings.find((entry) => entry.id === summary.appointmentId);
+      // Appointment treatments enter this queue when the assigned dentist
+      // marks treatment complete and sends the appointment to Payments.
+      // Keep legacy treatment rows with no matching booking visible for reconciliation.
+      return !booking || ["pending_payment", "completed"].includes(String(booking.status || "").toLowerCase());
+    })
     .filter((summary) => !payments.some((payment) =>
       payment.treatmentId === summary.treatmentId &&
       ((payment.patientId && payment.patientId === summary.patientId) ||
@@ -323,6 +336,73 @@ function makeUnpaidRegularRows(summaries, payments, patients, bookings) {
         method: "",
         notes: "",
         treatmentId: summary.treatmentId,
+        paymentReady: !summary.appointmentId || (
+          Boolean(booking?.checkedInAt) &&
+          ["pending_payment", "completed"].includes(String(booking?.status || "").toLowerCase()) &&
+          Boolean(String(summary.treatmentName || "").trim())
+        ),
+        paymentQueueLabel: booking?.status === "pending_payment" ? "Awaiting charges" : "Awaiting treatment",
+      };
+    });
+}
+
+function makeApprovedAppointmentRows(bookings, payments, summaries, patients) {
+  const appointmentsWithPaymentDetails = new Set([
+    ...summaries.map((summary) => summary.appointmentId).filter(Boolean),
+    ...payments.map((payment) => payment.appointmentId).filter(Boolean),
+  ]);
+
+  return bookings
+    .filter((booking) =>
+      String(booking.status || "").toLowerCase() === "pending_payment" &&
+      booking.archiveStatus !== "Archived" &&
+      !appointmentsWithPaymentDetails.has(booking.id)
+    )
+    .map((booking) => {
+      const patient = patients.find((entry) =>
+        (booking.patientProfileId && entry.id === booking.patientProfileId) ||
+        (booking.uid && entry.uid === booking.uid)
+      ) || null;
+      const patientType = String(patient?.patientType || booking.patientType || "").toLowerCase().includes("ortho")
+        ? "Ortho"
+        : "Regular";
+      const treatmentName = (booking.services || [booking.service]).filter(Boolean).join(", ") || "Dental treatment";
+      return {
+        id: `approved-appointment-${booking.id}`,
+        sourceId: booking.id,
+        source: "Appointment",
+        hasTransaction: false,
+        patientId: patient?.id || booking.patientProfileId || booking.uid || booking.id,
+        patientRecord: patient || {
+          id: booking.patientProfileId || booking.uid || booking.id,
+          uid: booking.uid || "",
+          name: booking.fullName || "Patient",
+          email: booking.email || "",
+          patientType,
+        },
+        patientName: patient?.name || booking.fullName || "Patient",
+        patientType,
+        patientEmail: patient?.email || booking.email || "",
+        treatmentName,
+        appointmentId: booking.id,
+        appointmentDate: booking.date || "",
+        appointmentTime: booking.time || "",
+        selectedDentist: booking.selectedDentist || "",
+        bracesType: patient?.bracesType || "",
+        planLabel: "Appointment treatment",
+        totalCost: 0,
+        amountPaid: 0,
+        balance: 0,
+        status: "Awaiting treatment",
+        paymentQueueLabel: String(booking.status || "").toLowerCase() === "pending_payment"
+          ? "Treatment details missing"
+          : "Awaiting treatment",
+        paymentReady: false,
+        amount: 0,
+        paymentDate: "",
+        method: "",
+        notes: "",
+        treatmentId: `appointment-${booking.id}`,
       };
     });
 }
@@ -425,6 +505,7 @@ export default function Payments() {
     () => [
       ...makeRegularPaymentRows(regularPayments, patients, bookings, regularTreatmentSummaries),
       ...makeUnpaidRegularRows(regularTreatmentSummaries, regularPayments, patients, bookings),
+      ...makeApprovedAppointmentRows(bookings, regularPayments, regularTreatmentSummaries, patients),
     ],
     [regularPayments, regularTreatmentSummaries, patients, bookings]
   );
@@ -477,7 +558,7 @@ export default function Payments() {
     [patientHistory, selectedPaymentRowId, selectedTreatmentId]
   );
   const selectedPatientType = selectedPaymentRow
-    ? selectedPaymentRow.source === "Ortho" ? "Ortho" : "Regular"
+    ? selectedPaymentRow.patientType === "Ortho" || selectedPaymentRow.source === "Ortho" ? "Ortho" : "Regular"
     : String(selectedPatientRecord?.patientType || "")
       .toLowerCase()
       .includes("ortho")
@@ -498,6 +579,11 @@ export default function Payments() {
       : null,
     [bracesPayments, detailBracesAccount, selectedPatientRecord]
   );
+  const isBracesInstallment = selectedPaymentRow?.source === "Ortho" && selectedPatientType === "Ortho";
+  const canEditAppointmentCharge = selectedPaymentRow?.source !== "Appointment" || selectedPaymentRow.paymentReady === true;
+  const hasValidAppointmentCharge = selectedPaymentRow?.source !== "Appointment" ||
+    (selectedPaymentRow.paymentReady === true && Number(detailDraft.totalCost) > 0);
+  const canRecordSelectedPayment = selectedPaymentRow?.source !== "Appointment" || hasValidAppointmentCharge;
   const selectedPatientTransactions = useMemo(() => {
     if (!selectedPatientRecord) return [];
     return [
@@ -526,7 +612,7 @@ export default function Payments() {
     const matchingRows = filteredRows.filter((row) => {
       if (paymentTab === "Completed") return isFullyPaid(row);
       if (row.patientType !== paymentTab) return false;
-      if (paymentTab === "Ortho" && row.source !== "Ortho") return false;
+      if (paymentTab === "Ortho" && !["Ortho", "Appointment"].includes(row.source)) return false;
       return true;
     });
     const uniqueRows = new Map();
@@ -574,6 +660,10 @@ export default function Payments() {
     event.preventDefault();
     if (submissionLockRef.current || !selectedPatientRecord) return;
     setDetailError("");
+    if (!canRecordSelectedPayment) {
+      setDetailError("Payment can be recorded after the dentist marks the treatment as completed and sends it to Payments, and a valid charge is available.");
+      return;
+    }
     const totalCost = Number(detailDraft.totalCost);
     const amount = detailDraft.amount === "" ? 0 : Number(detailDraft.amount);
     if (!Number.isFinite(totalCost) || totalCost <= 0) {
@@ -590,7 +680,7 @@ export default function Payments() {
     try {
       let savedId;
       let completionWarning = "";
-      if (selectedPatientType === "Ortho") {
+      if (isBracesInstallment) {
         if (!detailBracesAccount?.id) {
           throw new Error("No existing braces account is linked to this patient.");
         }
@@ -618,7 +708,7 @@ export default function Payments() {
           uid: selectedPatientRecord.uid || "",
           patientName: selectedPatientRecord.name || "",
           patientEmail: selectedPatientRecord.email || "",
-          patientType: "Regular",
+          patientType: selectedPatientType,
           treatmentId: selectedPaymentRow.treatmentId,
           appointmentId: selectedPaymentRow.appointmentId || "",
           treatmentName: detailDraft.treatmentName.trim(),
@@ -690,7 +780,7 @@ export default function Payments() {
                 </span>
               </div>
               <p>
-                {selectedPatientType === "Ortho"
+                {isBracesInstallment
                   ? [
                       "Braces plan",
                       selectedPaymentRow?.bracesType || selectedPatientRecord.bracesType || "",
@@ -711,7 +801,7 @@ export default function Payments() {
             </div>
             <div className="paymentsDetailsBalance">
               <span>Outstanding balance</span>
-              <strong>{formatCurrency(selectedPaymentRow?.balance || 0)}</strong>
+              <strong>{selectedPaymentRow?.totalCost > 0 ? formatCurrency(selectedPaymentRow.balance) : "—"}</strong>
             </div>
           </header>
 
@@ -724,6 +814,14 @@ export default function Payments() {
             </div>
           ) : null}
           {detailError ? <div className="formError" role="alert">{detailError}</div> : null}
+          {!canRecordSelectedPayment ? (
+            <p className="paymentsDetailNote" role="status">
+              This appointment is in the payment queue, but payment entry is disabled until its treatment details and charge are ready.
+            </p>
+          ) : null}
+          {selectedPaymentRow?.source === "Appointment" && selectedPaymentRow.paymentReady && Number(detailDraft.totalCost) <= 0 ? (
+            <p className="paymentsDetailNote" role="status">Treatment is ready. Enter a valid final charge before recording payment.</p>
+          ) : null}
 
           <div className="paymentsDetailsContent">
             <section className="paymentsDetailsFormSection" aria-label="Record a payment">
@@ -738,6 +836,7 @@ export default function Payments() {
                       min="0.01"
                       step="0.01"
                       value={detailDraft.totalCost}
+                      disabled={!canEditAppointmentCharge}
                       onChange={(event) => setDetailDraft((current) => ({ ...current, totalCost: event.target.value }))}
                       required
                     />
@@ -749,10 +848,11 @@ export default function Payments() {
                       type="number"
                       min="0"
                       step="0.01"
-                      max={selectedPatientType === "Ortho"
+                      max={isBracesInstallment
                         ? Math.max(0, Number(detailDraft.totalCost) - (detailBracesSummary?.amountPaid || 0))
                         : Math.max(0, Number(detailDraft.totalCost) - (selectedPaymentRow?.amountPaid || 0))}
                       value={detailDraft.amount}
+                      disabled={!canRecordSelectedPayment}
                       onChange={(event) => setDetailDraft((current) => ({ ...current, amount: event.target.value }))}
                     />
                   </label>
@@ -762,6 +862,7 @@ export default function Payments() {
                       className="input"
                       type="date"
                       value={detailDraft.paymentDate}
+                      disabled={!canRecordSelectedPayment}
                       onChange={(event) => setDetailDraft((current) => ({ ...current, paymentDate: event.target.value }))}
                       required
                     />
@@ -771,6 +872,7 @@ export default function Payments() {
                     <select
                       className="input"
                       value={detailDraft.method}
+                      disabled={!canRecordSelectedPayment}
                       onChange={(event) => setDetailDraft((current) => ({ ...current, method: event.target.value }))}
                     >
                       {DETAIL_PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
@@ -778,7 +880,7 @@ export default function Payments() {
                   </label>
                 </div>
                 <footer className="paymentsDetailsActions">
-                  <button type="submit" className="btn btnPrimary" disabled={savingDetails}>
+                  <button type="submit" className="btn btnPrimary" disabled={savingDetails || !canRecordSelectedPayment}>
                     {savingDetails ? "Saving..." : "Save changes"}
                   </button>
                   <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails}>Cancel</button>
@@ -794,7 +896,7 @@ export default function Payments() {
                   <tbody>
                     {selectedPatientTransactions
                       .filter((transaction) =>
-                        selectedPatientType === "Ortho"
+                        isBracesInstallment
                           ? transaction.ledgerSource === "Braces installment"
                           : transaction.ledgerSource === "Payment" &&
                             (!selectedTreatmentId || transaction.treatmentId === selectedTreatmentId)
@@ -809,7 +911,7 @@ export default function Payments() {
                   </tbody>
                 </table>
                 {!selectedPatientTransactions.some((transaction) =>
-                  selectedPatientType === "Ortho"
+                  isBracesInstallment
                     ? transaction.ledgerSource === "Braces installment"
                     : transaction.ledgerSource === "Payment" &&
                       (!selectedTreatmentId || transaction.treatmentId === selectedTreatmentId)
@@ -905,15 +1007,15 @@ export default function Payments() {
                     {paymentTab === "Ortho" ? (
                       <>
                         <td data-label="Type of Braces">{row.bracesType || "—"}</td>
-                        <td data-label="Plan">{row.planLabel || "—"}</td>
-                        <td data-label="Balance">{formatCurrency(row.balance)}</td>
+                        <td data-label="Plan">{row.source === "Appointment" ? row.treatmentName : row.planLabel || "—"}</td>
+                        <td data-label="Balance">{row.totalCost > 0 ? formatCurrency(row.balance) : "—"}</td>
                         <td data-label="Method">{row.method || "—"}</td>
                         <td data-label="Status">{paymentStatusLabel(row, "Ortho")}</td>
                       </>
                     ) : paymentTab === "Regular" ? (
                       <>
                         <td data-label="Treatment">{row.treatmentName || "—"}</td>
-                        <td data-label="Balance">{formatCurrency(row.balance)}</td>
+                        <td data-label="Balance">{row.totalCost > 0 ? formatCurrency(row.balance) : "—"}</td>
                         <td data-label="Method">{row.method || "—"}</td>
                         <td data-label="Status">{paymentStatusLabel(row, "Regular")}</td>
                       </>
@@ -941,7 +1043,6 @@ export default function Payments() {
             message={allRows.length ? "Adjust your search to see payment records." : "Recorded regular payments and braces installments will appear here."}
           />
         )}
-        {!loading ? <p className="paymentsResultCount" role="status">Showing {tabRows.length} of {allRows.length} payment accounts</p> : null}
       </section>
       )}
 

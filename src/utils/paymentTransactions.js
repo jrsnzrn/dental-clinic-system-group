@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDocs,
   query,
   runTransaction,
   serverTimestamp,
@@ -46,9 +47,6 @@ export async function createRegularTreatment(payment) {
       patientType: payment.patientType === "Ortho" ? "Ortho" : "Regular",
       treatmentId,
       appointmentId: payment.appointmentId || "",
-      appointmentDate: payment.appointmentDate || "",
-      appointmentTime: payment.appointmentTime || "",
-      selectedDentist: payment.selectedDentist || "",
       treatmentName: payment.treatmentName || "",
       totalCost,
       amountPaid: 0,
@@ -92,21 +90,36 @@ export async function recordRegularPayment(payment) {
     collection(db, "payments"),
     where("treatmentId", "==", treatmentId)
   );
-
-  await runTransaction(db, async (transaction) => {
-    const [defaultSummarySnapshot, summariesSnapshot, paymentsSnapshot] = await Promise.all([
-      transaction.get(summaryRef),
-      transaction.get(treatmentSummariesQuery),
-      transaction.get(treatmentPaymentsQuery),
-    ]);
-    const matchingSummary = summariesSnapshot.docs.find((entry) => {
+  // The Web SDK transaction API accepts document references, not Query objects.
+  // Discover candidate documents first, then re-read their references inside the
+  // transaction so balance calculations use current document contents.
+  const [summariesSnapshot, paymentsSnapshot] = await Promise.all([
+    getDocs(treatmentSummariesQuery),
+    getDocs(treatmentPaymentsQuery),
+  ]);
+  const matchingSummary = summariesSnapshot.docs.find((entry) => {
+    const data = entry.data();
+    return data.patientId === patientId || (payment.uid && data.uid === payment.uid);
+  });
+  const targetSummaryRef = matchingSummary?.ref || summaryRef;
+  const relatedPaymentRefs = paymentsSnapshot.docs
+    .filter((entry) => {
       const data = entry.data();
       return data.patientId === patientId || (payment.uid && data.uid === payment.uid);
-    });
-    const targetSummaryRef = matchingSummary?.ref || summaryRef;
-    const summarySnapshot = matchingSummary || defaultSummarySnapshot;
-    const relatedPayments = paymentsSnapshot.docs.filter((entry) => {
-      const data = entry.data();
+    })
+    .map((entry) => entry.ref);
+  const summaryRefs = [...new Map([summaryRef, targetSummaryRef].map((ref) => [ref.path, ref])).values()];
+
+  await runTransaction(db, async (transaction) => {
+    const [summarySnapshots, paymentSnapshots] = await Promise.all([
+      Promise.all(summaryRefs.map((ref) => transaction.get(ref))),
+      Promise.all(relatedPaymentRefs.map((ref) => transaction.get(ref))),
+    ]);
+    const summaryByPath = new Map(summarySnapshots.map((snapshot) => [snapshot.ref.path, snapshot]));
+    const summarySnapshot = summaryByPath.get(targetSummaryRef.path);
+    const relatedPayments = paymentSnapshots.filter((snapshot) => {
+      if (!snapshot.exists()) return false;
+      const data = snapshot.data();
       return data.patientId === patientId || (payment.uid && data.uid === payment.uid);
     });
     const ledgerTotal = relatedPayments.reduce(
@@ -131,11 +144,6 @@ export async function recordRegularPayment(payment) {
     }
 
     const nextAmountPaid = amountPaid + amount;
-    const paymentStatus = nextAmountPaid + 0.005 >= totalCost
-      ? "Paid"
-      : nextAmountPaid > 0
-        ? "Partially Paid"
-        : "Pending";
     const now = serverTimestamp();
     const patientType = payment.patientType === "Ortho" ? "Ortho" : "Regular";
     if (amount > 0) {
@@ -149,7 +157,6 @@ export async function recordRegularPayment(payment) {
       });
     }
     transaction.set(targetSummaryRef, {
-      ...(summarySnapshot.exists() ? summarySnapshot.data() : {}),
       patientId,
       uid: payment.uid || "",
       patientName: payment.patientName || summarySnapshot.data()?.patientName || "",
@@ -157,14 +164,11 @@ export async function recordRegularPayment(payment) {
       patientType,
       treatmentId,
       appointmentId: payment.appointmentId || summarySnapshot.data()?.appointmentId || "",
-      appointmentDate: payment.appointmentDate || summarySnapshot.data()?.appointmentDate || "",
-      appointmentTime: payment.appointmentTime || summarySnapshot.data()?.appointmentTime || "",
-      selectedDentist: payment.selectedDentist || summarySnapshot.data()?.selectedDentist || "",
       treatmentName: payment.treatmentName || summarySnapshot.data()?.treatmentName || "",
+      procedureName: summarySnapshot.data()?.procedureName || payment.treatmentName || "",
       totalCost,
       amountPaid: nextAmountPaid,
       remainingBalance: Math.max(0, totalCost - nextAmountPaid),
-      status: paymentStatus,
       updatedAt: now,
       ...(summarySnapshot.exists() ? {} : { createdAt: now }),
     });
@@ -199,6 +203,10 @@ export async function recordBracesPayment({
       query(collection(db, "bracesPayments"), where("uid", "==", patient.uid))
     );
   }
+  const paymentQuerySnapshots = await Promise.all(paymentQueries.map((paymentQuery) => getDocs(paymentQuery)));
+  const paymentRefs = [...new Map(
+    paymentQuerySnapshots.flatMap((snapshot) => snapshot.docs.map((entry) => [entry.ref.path, entry.ref]))
+  ).values()];
 
   await runTransaction(db, async (transaction) => {
     const accountSnapshot = await transaction.get(accountRef);
@@ -206,12 +214,10 @@ export async function recordBracesPayment({
       throw new Error("The braces account could not be found.");
     }
 
-    const paymentSnapshots = await Promise.all(
-      paymentQueries.map((paymentQuery) => transaction.get(paymentQuery))
-    );
+    const paymentSnapshots = await Promise.all(paymentRefs.map((ref) => transaction.get(ref)));
     const ledger = new Map();
     paymentSnapshots.forEach((snapshot) => {
-      snapshot.docs.forEach((entry) => ledger.set(entry.id, { id: entry.id, ...entry.data() }));
+      if (snapshot.exists()) ledger.set(snapshot.id, { id: snapshot.id, ...snapshot.data() });
     });
     const existingPayments = [...ledger.values()];
     const account = { id: accountSnapshot.id, ...accountSnapshot.data() };
