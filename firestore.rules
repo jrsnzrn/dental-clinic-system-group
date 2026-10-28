@@ -8,7 +8,8 @@ service cloud.firestore {
 
     function isStaff() {
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        staffDoc().data.disabled != true;
     }
 
     function staffDoc() {
@@ -39,6 +40,12 @@ service cloud.firestore {
       return isStaff() &&
         role() is string &&
         (role().matches("(?i)^admin$") || role().matches("(?i)^receptionist$"));
+    }
+
+    function dentistOwnsBooking() {
+      return isDentist() && resource.data.dentistId is string &&
+        exists(/databases/$(database)/documents/dentists/$(resource.data.dentistId)) &&
+        get(/databases/$(database)/documents/dentists/$(resource.data.dentistId)).data.linkedStaffUid == request.auth.uid;
     }
 
     function isAnyStaffRole() {
@@ -102,7 +109,11 @@ service cloud.firestore {
     }
 
     match /patientProfiles/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAnyStaffRole());
+      allow read: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isAdminOrReceptionist() ||
+        (isDentist() && resource.data.authorizedDentistUids is list && resource.data.authorizedDentistUids.hasAny([request.auth.uid]))
+      );
 
       allow create: if
         (isSignedIn() && request.auth.uid == uid && patientProfileCreateKeysAreSafe(uid)) ||
@@ -116,7 +127,8 @@ service cloud.firestore {
     }
 
     match /patients/{id} {
-      allow read: if isAnyStaffRole();
+      allow read: if isAdminOrReceptionist() ||
+        (isDentist() && resource.data.authorizedDentistUids is list && resource.data.authorizedDentistUids.hasAny([request.auth.uid]));
       allow create: if isAdminOrReceptionist();
       allow delete: if isAdmin();
       allow update: if isAdmin() ||
@@ -128,7 +140,7 @@ service cloud.firestore {
       allow create: if false;
 
       allow read: if
-        isAnyStaffRole() ||
+        isAdminOrReceptionist() || dentistOwnsBooking() ||
         (isSignedIn() && resource.data.uid == request.auth.uid);
 
       allow update: if
@@ -164,15 +176,22 @@ service cloud.firestore {
     match /dentalCharts/{uid} {
       allow read: if isSignedIn() && (
         request.auth.uid == uid ||
-        isAnyStaffRole()
+        isAdminOrReceptionist() ||
+        (isDentist() && resource.data.authorizedDentistUids is list && resource.data.authorizedDentistUids.hasAny([request.auth.uid]))
       );
 
-      allow create, update: if isAdmin() || isDentist();
+      allow create: if isAdmin() ||
+        (isDentist() && request.resource.data.authorizedDentistUids is list &&
+          request.resource.data.authorizedDentistUids.hasAny([request.auth.uid]));
+      allow update: if isAdmin() ||
+        (isDentist() &&
+          resource.data.authorizedDentistUids is list && resource.data.authorizedDentistUids.hasAny([request.auth.uid]) &&
+          request.resource.data.authorizedDentistUids == resource.data.authorizedDentistUids);
       allow delete: if isAdmin();
     }
 
     match /auditLogs/{id} {
-      allow read: if isAnyStaffRole();
+      allow read: if isAdminOrReceptionist();
       allow create: if false;
       allow update, delete: if false;
     }
@@ -191,7 +210,7 @@ service cloud.firestore {
 
     match /bracesAccounts/{id} {
       allow read: if isSignedIn() && (
-        isAnyStaffRole() ||
+        isAdminOrReceptionist() ||
         resource.data.uid == request.auth.uid
       );
 
@@ -209,7 +228,7 @@ service cloud.firestore {
 
     match /bracesPayments/{id} {
       allow read: if isSignedIn() && (
-        isAnyStaffRole() ||
+        isAdminOrReceptionist() ||
         resource.data.uid == request.auth.uid
       );
 
@@ -281,7 +300,7 @@ service cloud.firestore {
 
     match /bracesAdjustments/{id} {
       allow read: if isSignedIn() && (
-        isAnyStaffRole() ||
+        isAdminOrReceptionist() ||
         resource.data.uid == request.auth.uid
       );
 

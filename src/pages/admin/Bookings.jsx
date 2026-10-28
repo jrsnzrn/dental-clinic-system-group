@@ -20,6 +20,7 @@ import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/s
 
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
 const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
+const REASSIGN_BOOKING_DENTIST = httpsCallable(functions, "reassignBookingDentist");
 
 const BOOKING_FILTERS = {
   calendar: { label: "All", emptyText: "No appointments match the current filters." },
@@ -213,6 +214,7 @@ function BookingDetailDrawer({
   onCheckIn,
   onCancel,
   onReschedule,
+  onReassign,
   actionError,
 }) {
   const reschedule = booking?.rescheduleRequest;
@@ -319,6 +321,20 @@ function BookingDetailDrawer({
                 </div>
               </dl>
 
+            {Array.isArray(booking.dentistAssignmentHistory) && booking.dentistAssignmentHistory.length ? (
+              <div className="drawerNote">
+                <span className="drawerNoteLabel">Dentist assignment history</span>
+                {booking.dentistAssignmentHistory.map((entry, index) => (
+                  <p key={`${entry.changedAt?.seconds || entry.changedByUid || "change"}-${index}`}>
+                    {entry.fromDentistName || "Unassigned"} → {entry.toDentistName || "Unassigned"}
+                    {entry.reason ? ` · ${entry.reason}` : ""}
+                    {entry.changedByName ? ` · changed by ${entry.changedByName}` : ""}
+                    {entry.changedAt ? ` · ${formatTimestamp(entry.changedAt)}` : ""}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+
               {status === "completed" ? (
                 <div className="drawerNote">
                   <span className="drawerNoteLabel">Payment details</span>
@@ -397,6 +413,12 @@ function BookingDetailDrawer({
                       </button>
                     </>
                   )
+                ) : null}
+
+                {!booking.checkedInAt ? (
+                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign}>
+                    Reassign dentist
+                  </button>
                 ) : null}
               </div>
             ) : null}
@@ -507,8 +529,73 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
   );
 }
 
+function ReassignDentistModal({ open, booking, dentists, onClose, onSave }) {
+  const [dentistId, setDentistId] = useState("");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const eligibleDentists = dentists.filter((dentist) => dentist.id !== booking?.dentistId && dentist.linkedStaffUid);
+
+  async function submit() {
+    if (!dentistId) return setFormError("Choose the covering dentist.");
+    if (!reason.trim()) return setFormError("Enter why this appointment is being reassigned.");
+    setSaving(true);
+    setFormError("");
+    try {
+      await onSave(booking, dentistId, reason.trim());
+    } catch (error) {
+      setFormError(error?.message || "The appointment could not be reassigned.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className={`patientDrawerOverlay rescheduleOverlay ${open ? "open" : ""}`} onClick={onClose} />
+      <div className={`patientDrawer rescheduleModal ${open ? "open" : ""}`} role="dialog" aria-modal="true" aria-label="Reassign appointment dentist">
+        {booking ? (
+          <div className="patientDrawerInner">
+            <div className="patientDrawerHeader">
+              <div>
+                <span className="heroEyebrow">Appointment coverage</span>
+                <h3>{booking.fullName || "Patient appointment"}</h3>
+                <div className="patientRecordPeek"><span>Currently assigned to {booking.selectedDentist || "no dentist"}</span></div>
+              </div>
+              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">×</button>
+            </div>
+            <div className="rescheduleFields">
+              <label>
+                Covering dentist
+                <select value={dentistId} onChange={(event) => setDentistId(event.target.value)}>
+                  <option value="">Choose a dentist</option>
+                  {eligibleDentists.map((dentist) => (
+                    <option key={dentist.id} value={dentist.id}>{dentist.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Reason for reassignment
+                <textarea value={reason} maxLength={500} rows={3} onChange={(event) => setReason(event.target.value)} placeholder="For example: original dentist unavailable" />
+              </label>
+            </div>
+            <p className="rescheduleHint">The original assignment and this change will be kept in the appointment history.</p>
+            {formError ? <div className="formError" role="alert">{formError}</div> : null}
+            <div className="actionColumn actionColumnFriendly">
+              <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving || !eligibleDentists.length}>
+                {saving ? "Saving..." : "Reassign appointment"}
+              </button>
+              <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>Cancel</button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
@@ -523,6 +610,8 @@ export default function Bookings() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [rescheduleId, setRescheduleId] = useState(null);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassignId, setReassignId] = useState(null);
   const { status = "pending" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedBookingId = searchParams.get("bookingId");
@@ -550,6 +639,16 @@ export default function Bookings() {
 
     return () => unsub();
   }, []);
+
+  useEffect(() => onSnapshot(collection(db, "dentists"), (snapshot) => {
+    setDentists(snapshot.docs
+      .map((entry) => ({ id: entry.id, ...entry.data() }))
+      .filter((dentist) => dentist.archiveStatus !== "Archived" && dentist.active !== false)
+      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""))));
+  }, (readError) => {
+    console.error("Dentists could not load for appointment coverage:", readError);
+    setActionError("The dentist list could not be loaded. Please try again.");
+  }), []);
 
   // Resolve deep-link state after the Firestore booking snapshot is available.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -627,6 +726,10 @@ export default function Bookings() {
     () => bookings.find((b) => b.id === rescheduleId) || null,
     [bookings, rescheduleId]
   );
+  const reassignBooking = useMemo(
+    () => bookings.find((booking) => booking.id === reassignId) || null,
+    [bookings, reassignId]
+  );
   function openReschedule(id) {
     setDrawerOpen(false);
     setRescheduleId(id);
@@ -634,6 +737,19 @@ export default function Bookings() {
   }
   function closeReschedule() {
     setRescheduleOpen(false);
+  }
+  function openReassign(id) {
+    setDrawerOpen(false);
+    setReassignId(id);
+    setReassignOpen(true);
+  }
+  function closeReassign() {
+    setReassignOpen(false);
+  }
+
+  async function saveReassignment(booking, dentistId, reason) {
+    await REASSIGN_BOOKING_DENTIST({ bookingId: booking.id, dentistId, reason });
+    closeReassign();
   }
 
   async function saveReschedule(booking, date, time) {
@@ -922,6 +1038,7 @@ export default function Bookings() {
           })
         }
         onReschedule={() => selectedBooking && openReschedule(selectedBooking.id)}
+        onReassign={() => selectedBooking && openReassign(selectedBooking.id)}
         onCheckIn={() => {
           const b = selectedBooking;
           if (!b || b.checkedInAt) return;
@@ -940,6 +1057,16 @@ export default function Bookings() {
           });
         }}
       />
+
+      {reassignOpen ? (
+        <ReassignDentistModal
+          open={reassignOpen}
+          booking={reassignBooking}
+          dentists={dentists}
+          onClose={closeReassign}
+          onSave={saveReassignment}
+        />
+      ) : null}
 
       <RescheduleModal
         open={rescheduleOpen}

@@ -605,13 +605,57 @@ async function syncPatientRecordFromBookingServer(bookingData = {}) {
 
   if (match) {
     await match.ref.set(payload, { merge: true });
-    return;
+  } else {
+    await db.collection("patients").add({
+      ...payload,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
-  await db.collection("patients").add({
-    ...payload,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  if (bookingData.uid) await syncDentistPatientAccess(bookingData.uid);
+}
+
+async function syncDentistPatientAccess(patientUid) {
+  const uid = String(patientUid || "").trim();
+  if (!uid) return;
+
+  const bookingsSnap = await db.collection("bookings").where("uid", "==", uid).get();
+  const eligibleBookings = bookingsSnap.docs
+    .map((entry) => ({ id: entry.id, ...entry.data() }))
+    .filter((booking) => booking.archiveStatus !== "Archived" && !["cancelled", "no-show"].includes(String(booking.status || "").toLowerCase()));
+  const dentistIds = [...new Set(eligibleBookings.map((booking) => String(booking.dentistId || "").trim()).filter(Boolean))];
+  const dentistSnapshots = await Promise.all(dentistIds.map((dentistId) => db.collection("dentists").doc(dentistId).get()));
+  const linkedDentists = dentistSnapshots
+    .filter((entry) => entry.exists)
+    .map((entry) => ({ id: entry.id, ...entry.data() }))
+    .filter((dentist) => dentist.archiveStatus !== "Archived" && dentist.active !== false && dentist.linkedStaffUid)
+    .map((dentist) => ({ id: dentist.id, staffUid: String(dentist.linkedStaffUid).trim(), name: dentist.name || "" }));
+  const allowedUids = [...new Set(linkedDentists.map((dentist) => dentist.staffUid))];
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const batches = [];
+  let batch = db.batch();
+  let writes = 0;
+  const queueWrite = (operation) => {
+    operation(batch);
+    writes += 1;
+    if (writes >= 450) {
+      batches.push(batch.commit());
+      batch = db.batch();
+      writes = 0;
+    }
+  };
+
+  const [patientRecords, profileSnap, chartSnap] = await Promise.all([
+    db.collection("patients").where("uid", "==", uid).get(),
+    db.collection("patientProfiles").doc(uid).get(),
+    db.collection("dentalCharts").doc(uid).get(),
+  ]);
+  patientRecords.docs.forEach((entry) => queueWrite((target) => target.set(entry.ref, { authorizedDentistUids: allowedUids }, { merge: true })));
+  if (profileSnap.exists) queueWrite((target) => target.set(profileSnap.ref, { authorizedDentistUids: allowedUids }, { merge: true }));
+  if (chartSnap.exists) queueWrite((target) => target.set(chartSnap.ref, { authorizedDentistUids: allowedUids }, { merge: true }));
+
+  if (writes) batches.push(batch.commit());
+  await Promise.all(batches);
 }
 
 async function getLockSnapshots(transaction, booking, overrides = {}) {
@@ -2200,6 +2244,7 @@ exports.createBooking = onCall(
         patientType,
         selectedDentist,
         dentistId: dentist.id,
+        dentistStaffUid: String(dentist.linkedStaffUid || "").trim(),
         service,
         services: selectedServices,
         serviceCount: selectedServices.length,
@@ -2340,11 +2385,200 @@ exports.setBookingStatus = onCall(
 
     if (nextStatus === "approved" && updatedBooking) {
       await syncPatientRecordFromBookingServer(updatedBooking);
+    } else if (updatedBooking?.uid) {
+      await syncDentistPatientAccess(updatedBooking.uid);
     }
 
     return { success: true, bookingId, status: nextStatus };
   }
 );
+
+exports.reassignBookingDentist = onCall(
+  {},
+  async (request) => {
+    const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const bookingId = String(request.data?.bookingId || "").trim();
+    const dentistId = String(request.data?.dentistId || "").trim();
+    const reason = String(request.data?.reason || "").trim().slice(0, 500);
+
+    if (!bookingId || !dentistId || !reason) {
+      throw new HttpsError("invalid-argument", "Appointment, covering dentist, and reason are required.");
+    }
+
+    const now = admin.firestore.Timestamp.now();
+    let updatedBooking = null;
+    let assignmentChange = null;
+    await db.runTransaction(async (transaction) => {
+      const bookingRef = db.collection("bookings").doc(bookingId);
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) throw new HttpsError("not-found", "Appointment could not be found.");
+
+      const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      if (!["pending", "approved"].includes(String(booking.status || "pending").toLowerCase())) {
+        throw new HttpsError("failed-precondition", "Only pending or approved appointments can be reassigned.");
+      }
+      if (booking.checkedInAt) {
+        throw new HttpsError("failed-precondition", "A checked-in appointment cannot be reassigned.");
+      }
+      if (booking.dentistId === dentistId) {
+        updatedBooking = booking;
+        return;
+      }
+
+      const newDentistRef = db.collection("dentists").doc(dentistId);
+      const newDentistSnap = await transaction.get(newDentistRef);
+      if (!newDentistSnap.exists) throw new HttpsError("not-found", "The selected dentist could not be found.");
+      const newDentist = { id: newDentistSnap.id, ...newDentistSnap.data() };
+      if (newDentist.archiveStatus === "Archived" || newDentist.active === false) {
+        throw new HttpsError("failed-precondition", "The selected dentist is not active.");
+      }
+      const newDentistStaffUid = String(newDentist.linkedStaffUid || "").trim();
+      if (!newDentistStaffUid) {
+        throw new HttpsError("failed-precondition", "Link this dentist to an active dentist staff account before assigning appointments.");
+      }
+      const dentistStaffSnap = await transaction.get(db.collection("admins").doc(newDentistStaffUid));
+      const dentistStaff = dentistStaffSnap.data() || {};
+      if (!dentistStaffSnap.exists || dentistStaff.disabled || String(dentistStaff.role || "").toLowerCase() !== "dentist") {
+        throw new HttpsError("failed-precondition", "The selected dentist staff account is missing, disabled, or has the wrong role.");
+      }
+
+      const oldDentistId = String(booking.dentistId || "").trim();
+      const oldLockRefs = getStoredBookingLockIds(booking).map((lockId) => db.collection("bookingSlotLocks").doc(lockId));
+      const oldLockSnaps = await Promise.all(oldLockRefs.map((ref) => transaction.get(ref)));
+      const updateBooking = {
+        ...booking,
+        dentistId: newDentist.id,
+        selectedDentist: String(newDentist.name || "").trim(),
+      };
+      const slot = await validateStaffBookingSlot(transaction, {
+        bookingId,
+        booking: updateBooking,
+        nextDate: booking.date,
+        nextTime: booking.time,
+      });
+
+      const history = Array.isArray(booking.dentistAssignmentHistory) ? booking.dentistAssignmentHistory : [];
+      const change = {
+        fromDentistId: oldDentistId,
+        fromDentistName: String(booking.selectedDentist || "").trim(),
+        toDentistId: newDentist.id,
+        toDentistName: String(newDentist.name || "").trim(),
+        reason,
+        changedByUid: staff.uid,
+        changedByName: staff.name,
+        changedAt: now,
+      };
+      assignmentChange = change;
+      const firstAssignment = booking.originalDentistId
+        ? {}
+        : {
+            originalDentistId: oldDentistId,
+            originalSelectedDentist: String(booking.selectedDentist || "").trim(),
+          };
+
+      oldLockRefs.forEach((ref, index) => {
+        if (oldLockSnaps[index].exists && oldLockSnaps[index].data()?.bookingId === bookingId) {
+          transaction.delete(ref);
+        }
+      });
+      slot.lockRefs.forEach((ref) => transaction.set(ref, {
+        bookingId,
+        dentistId: slot.window.dentistId,
+        date: slot.window.date,
+        time: slot.window.time,
+        startMinutes: slot.window.startMinutes,
+        endMinutes: slot.window.endMinutes,
+        uid: booking.uid || "",
+        updatedAt: now,
+      }));
+
+      transaction.update(bookingRef, {
+        dentistId: newDentist.id,
+        selectedDentist: String(newDentist.name || "").trim(),
+        dentistStaffUid: String(newDentist.linkedStaffUid || "").trim(),
+        ...firstAssignment,
+        dentistAssignmentHistory: [...history, change],
+        dentistAssignmentUpdatedAt: now,
+        dentistAssignmentUpdatedBy: staff.uid,
+      });
+      const auditRef = db.collection("auditLogs").doc();
+      transaction.set(auditRef, {
+        actorUid: staff.uid,
+        actorName: staff.name,
+        actorEmail: staff.email,
+        actorRole: staff.role,
+        action: "reassign_booking_dentist",
+        targetType: "booking",
+        targetId: bookingId,
+        targetLabel: getBookingTargetLabel(booking),
+        details: {
+          fromDentistId: change.fromDentistId,
+          fromDentistName: change.fromDentistName,
+          toDentistId: change.toDentistId,
+          toDentistName: change.toDentistName,
+          reason,
+          date: booking.date || "",
+          time: booking.time || "",
+        },
+        createdAt: now,
+      });
+      updatedBooking = {
+        ...booking,
+        ...updateBooking,
+        dentistStaffUid: newDentistStaffUid,
+        ...firstAssignment,
+        dentistAssignmentHistory: [...history, change],
+      };
+    });
+
+    if (updatedBooking?.uid) {
+      if (assignmentChange) await syncPatientRecordFromBookingServer(updatedBooking);
+      else await syncDentistPatientAccess(updatedBooking.uid);
+    }
+
+    return { success: true, bookingId, dentistId, dentistName: updatedBooking?.selectedDentist || "" };
+  }
+);
+
+exports.syncDentistPatientAccess = onCall({}, async (request) => {
+  const staff = await getStaffContextFromRequest(request, ["dentist"]);
+  const dentistSnap = await db.collection("dentists").where("linkedStaffUid", "==", staff.uid).limit(1).get();
+  if (dentistSnap.empty) {
+    throw new HttpsError("permission-denied", "Link this staff account to a dentist profile before opening assigned patient records.");
+  }
+  const dentistId = dentistSnap.docs[0].id;
+  const assignedBookings = await db.collection("bookings").where("dentistId", "==", dentistId).get();
+  const patientUids = [...new Set(assignedBookings.docs
+    .map((entry) => entry.data() || {})
+    .filter((booking) => booking.archiveStatus !== "Archived" && !["cancelled", "no-show"].includes(String(booking.status || "").toLowerCase()))
+    .map((booking) => String(booking.uid || "").trim())
+    .filter(Boolean))];
+  const needsSync = await Promise.all(patientUids.map(async (patientUid) => {
+    const profileSnap = await db.collection("patientProfiles").doc(patientUid).get();
+    return !profileSnap.exists || !Array.isArray(profileSnap.data()?.authorizedDentistUids) ||
+      !profileSnap.data().authorizedDentistUids.includes(staff.uid);
+  }));
+  const patientUidsNeedingSync = patientUids.filter((patientUid, index) => needsSync[index]);
+  await Promise.all(patientUidsNeedingSync.map((uid) => syncDentistPatientAccess(uid)));
+  return { success: true, syncedPatients: patientUidsNeedingSync.length };
+});
+
+exports.syncDentistPatientAccessAfterProfileChange = onDocumentUpdated("dentists/{dentistId}", async (event) => {
+  const before = event.data?.before?.data() || {};
+  const after = event.data?.after?.data() || {};
+  if (
+    before.linkedStaffUid === after.linkedStaffUid &&
+    before.archiveStatus === after.archiveStatus &&
+    before.active === after.active
+  ) return;
+
+  const assignedBookings = await db.collection("bookings").where("dentistId", "==", event.params.dentistId).get();
+  const patientUids = [...new Set(assignedBookings.docs
+    .map((entry) => entry.data()?.uid)
+    .map((uid) => String(uid || "").trim())
+    .filter(Boolean))];
+  await Promise.all(patientUids.map((uid) => syncDentistPatientAccess(uid)));
+});
 
 exports.markDentistTreatmentComplete = onCall(
   {},
@@ -2865,6 +3099,8 @@ exports.archiveBooking = onCall(
       },
     });
 
+    if (booking?.uid) await syncDentistPatientAccess(booking.uid);
+
     return { success: true, bookingId };
   }
 );
@@ -2933,6 +3169,8 @@ exports.restoreBooking = onCall(
         date: booking?.date || "",
       },
     });
+
+    if (booking?.uid) await syncDentistPatientAccess(booking.uid);
 
     return { success: true, bookingId };
   }

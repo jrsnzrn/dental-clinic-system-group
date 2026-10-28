@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { useLocation, useNavigate } from "react-router-dom";
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import { ROLES } from "../utils/rbac";
 
 const READ_KEY = "topdentOverviewRead";
@@ -62,21 +62,49 @@ export default function StaffNotificationBell({ adminRole }) {
   const [readIds, setReadIds] = useState(getStoredReadIds);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, "bookings"),
-      (snapshot) => {
+    let cancelled = false;
+    let unsubscribe = () => {};
+
+    async function watchBookings() {
+      let bookingsQuery = collection(db, "bookings");
+      if (adminRole === ROLES.DENTIST) {
+        const user = auth.currentUser;
+        if (!user) {
+          setBookings([]);
+          setLoading(false);
+          return;
+        }
+        const dentists = await getDocs(query(collection(db, "dentists"), where("linkedStaffUid", "==", user.uid)));
+        const linkedDentist = dentists.docs[0];
+        if (!linkedDentist) {
+          setBookings([]);
+          setLoading(false);
+          return;
+        }
+        bookingsQuery = query(collection(db, "bookings"), where("dentistId", "==", linkedDentist.id));
+      }
+      if (cancelled) return;
+      unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
         setBookings(snapshot.docs.map(normalizeBooking));
         setError("");
         setLoading(false);
-      },
-      (snapshotError) => {
+      }, (snapshotError) => {
         console.error("Staff notifications could not load bookings:", snapshotError);
         setError("Notifications could not be loaded.");
         setLoading(false);
-      }
-    );
-    return unsubscribe;
-  }, []);
+      });
+    }
+
+    watchBookings().catch((snapshotError) => {
+      console.error("Staff notifications could not load bookings:", snapshotError);
+      setError("Notifications could not be loaded.");
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [adminRole]);
 
   const today = `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}-${pad(new Date().getDate())}`;
   const notifications = useMemo(() => {

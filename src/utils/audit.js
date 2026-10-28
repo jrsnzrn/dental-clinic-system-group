@@ -34,6 +34,7 @@ export async function logAdminAction({
 
 const ACTION_LABELS = {
   update_booking_status: "Updated booking status",
+  reassign_booking_dentist: "Reassigned appointment dentist",
   archive_booking: "Archived booking",
   clear_booking_check_in: "Cleared patient check-in",
   mark_booking_check_in: "Marked patient as checked in",

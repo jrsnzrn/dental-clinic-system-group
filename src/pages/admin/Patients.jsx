@@ -6,12 +6,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../../firebase";
@@ -51,6 +53,7 @@ const TYPE_FILTERS = ["All", ...PATIENT_TYPES];
 const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crowns", "Root canal"];
 const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
 const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTreatmentComplete");
+const SYNC_DENTIST_PATIENT_ACCESS = httpsCallable(functions, "syncDentistPatientAccess");
 
 const PATIENT_VIEWS = {
   DETAILS: "details",
@@ -598,18 +601,72 @@ export default function Patients({
   const [treatmentDraft, setTreatmentDraft] = useState(emptyTreatmentDraft());
   const [careDraft, setCareDraft] = useState(emptyCareDraft());
   const [activePatientView, setActivePatientView] = useState(PATIENT_VIEWS.DETAILS);
-  const [currentDentistIdentity, setCurrentDentistIdentity] = useState({
-    uid: "",
-    email: "",
-  });
+  const [currentDentistIdentity, setCurrentDentistIdentity] = useState({ uid: "" });
   const dentistActionMenuRef = useRef(null);
+  const dentistWorkspaceListeners = useRef([]);
 
-  async function load() {
-    const [patientsResult, bookingsResult, dentistsResult] = await Promise.allSettled([
-      getDocs(query(collection(db, "patients"), orderBy("createdAt", "desc"))),
-      getDocs(collection(db, "bookings")),
-      getDocs(collection(db, "dentists")),
-    ]);
+  function clearDentistWorkspaceListeners() {
+    dentistWorkspaceListeners.current.forEach((unsubscribe) => unsubscribe());
+    dentistWorkspaceListeners.current = [];
+  }
+
+  async function load(role = adminRole, staffUid = currentDentistIdentity.uid) {
+    const dentistsResult = await getDocs(collection(db, "dentists"));
+    const nextDentistProfiles = dentistsResult.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+    let patientsResult;
+    let bookingsResult;
+
+    if (role === ROLES.DENTIST) {
+      clearDentistWorkspaceListeners();
+      const linkedDentist = nextDentistProfiles.find((dentist) => dentist.linkedStaffUid === staffUid);
+      if (linkedDentist?.id) {
+        await SYNC_DENTIST_PATIENT_ACCESS();
+        let readyCount = 0;
+        const markReady = () => {
+          readyCount += 1;
+          if (readyCount >= 2) setLoadingPatients(false);
+        };
+        const patientUnsubscribe = onSnapshot(
+          query(collection(db, "patients"), where("authorizedDentistUids", "array-contains", staffUid)),
+          (snapshot) => {
+            setPatients(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+            markReady();
+          },
+          (error) => {
+            console.error("Assigned patient records could not load:", error);
+            setPatients([]);
+            setLoadingPatients(false);
+          }
+        );
+        const bookingUnsubscribe = onSnapshot(
+          query(collection(db, "bookings"), where("dentistId", "==", linkedDentist.id)),
+          (snapshot) => {
+            setBookings(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+            markReady();
+          },
+          (error) => {
+            console.error("Assigned appointments could not load:", error);
+            setBookings([]);
+            setLoadingPatients(false);
+          }
+        );
+        dentistWorkspaceListeners.current = [patientUnsubscribe, bookingUnsubscribe];
+        setDentistProfiles(nextDentistProfiles);
+        return;
+      } else {
+        setPatients([]);
+        setBookings([]);
+        setDentistProfiles(nextDentistProfiles);
+        setLoadingPatients(false);
+        return;
+      }
+    } else {
+      clearDentistWorkspaceListeners();
+      [patientsResult, bookingsResult] = await Promise.allSettled([
+        getDocs(query(collection(db, "patients"), orderBy("createdAt", "desc"))),
+        getDocs(collection(db, "bookings")),
+      ]);
+    }
 
     const patientList =
       patientsResult.status === "fulfilled"
@@ -619,14 +676,6 @@ export default function Patients({
       bookingsResult.status === "fulfilled"
         ? bookingsResult.value.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
         : [];
-    const nextDentistProfiles =
-      dentistsResult.status === "fulfilled"
-        ? dentistsResult.value.docs.map((entry) => ({
-            id: entry.id,
-            ...entry.data(),
-          }))
-        : [];
-
     setPatients(patientList);
     setBookings(bookingList);
     setDentistProfiles(nextDentistProfiles);
@@ -634,38 +683,45 @@ export default function Patients({
     setLoadingPatients(false);
   }
 
+  // The signed-in role and identity are resolved once at mount; later workspace refreshes call load directly.
   useEffect(() => {
+    let active = true;
     async function loadAdminRole() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
-      setCurrentDentistIdentity({
-        uid: currentUser.uid,
-        email: String(currentUser.email || "").trim().toLowerCase(),
-      });
+      setCurrentDentistIdentity({ uid: currentUser.uid });
 
       const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
-      if (adminSnap.exists()) {
+      if (active && adminSnap.exists()) {
         const role = getAdminProfile(adminSnap.data()).role;
         setAdminRole(role);
-        await load();
+        try {
+          await load(role, currentUser.uid);
+        } catch (error) {
+          console.error("The patient workspace could not load:", error);
+          if (active) {
+            setLoadingPatients(false);
+            setNotice({ type: "error", text: "The patient workspace could not load. Please try again." });
+          }
+        }
       }
     }
 
     loadAdminRole();
+    return () => {
+      active = false;
+      clearDentistWorkspaceListeners();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const linkedDentistProfile = useMemo(() => {
     if (adminRole !== ROLES.DENTIST) return null;
 
     return (
-      dentistProfiles.find((dentist) => dentist.linkedStaffUid === currentDentistIdentity.uid) ||
-      dentistProfiles.find(
-        (dentist) =>
-          String(dentist.linkedStaffEmail || "").trim().toLowerCase() === currentDentistIdentity.email
-      ) ||
-      null
+      dentistProfiles.find((dentist) => dentist.linkedStaffUid === currentDentistIdentity.uid) || null
     );
-  }, [adminRole, currentDentistIdentity.email, currentDentistIdentity.uid, dentistProfiles]);
+  }, [adminRole, currentDentistIdentity.uid, dentistProfiles]);
 
   const patientCards = useMemo(() => {
     const filteredBookings = bookings;
@@ -1235,6 +1291,7 @@ export default function Patients({
           uid: selectedPatient.uid,
           patientName: selectedPatient.name || "",
           patientEmail: selectedPatient.email || "",
+          authorizedDentistUids: selectedPatient.authorizedDentistUids || [],
           patientTreatmentPlans: nextHistory,
         }, { merge: true });
       });
@@ -1347,6 +1404,7 @@ export default function Patients({
         uid: selectedPatient.uid,
         patientName: selectedPatient.name || "",
         patientEmail: selectedPatient.email || "",
+        authorizedDentistUids: selectedPatient.authorizedDentistUids || [],
         patientTreatmentPlans: [
           ...getPatientVisibleTreatmentPlans(treatmentPlans),
           ...chartOnlyProcedures,
