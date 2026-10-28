@@ -2285,28 +2285,84 @@ section > .innerWrap > p,
   font-size: clamp(2rem, 4.5vw, 3.25rem);
 }
 
+.svxCarousel {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 18px;
+  width: 100%;
+}
+
+.svxCarouselArrow {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0 0 3px;
+  border: 1px solid #e6dbc5;
+  border-radius: 50%;
+  background: #f5eddf;
+  color: #2b2410;
+  font: 500 25px/1 var(--font-body);
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease, opacity 180ms ease;
+}
+
+.svxCarouselArrow:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.svxCarouselArrow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.svxCarouselArrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .svxTrack {
   display: flex;
+  grid-column: 2;
+  align-items: stretch;
+  min-width: 0;
   gap: 20px;
-  padding: 6px 2px 22px;
+  padding: 6px 2px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
 }
 
 .svxTrack::-webkit-scrollbar {
-  height: 8px;
+  display: none;
 }
 
-.svxTrack::-webkit-scrollbar-thumb {
+.svxScrollIndicator {
+  position: relative;
+  grid-column: 2;
+  height: 3px;
+  overflow: hidden;
   border-radius: 999px;
-  background: var(--line);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.svxScrollIndicatorThumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--accent);
 }
 
 .svxCard {
-  flex: 0 0 min(340px, 82vw);
+  flex: 0 0 calc((100% - 40px) / 3);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -2408,6 +2464,28 @@ section > .innerWrap > p,
 @media (max-width: 860px) {
   .svxPage {
     padding: 40px 20px 72px;
+  }
+
+  .svxCard {
+    flex-basis: calc((100% - 20px) / 2);
+  }
+}
+
+@media (max-width: 560px) {
+  .svxCarousel {
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    column-gap: 8px;
+    row-gap: 14px;
+  }
+
+  .svxCarouselArrow {
+    width: 34px;
+    height: 34px;
+    font-size: 22px;
+  }
+
+  .svxCard {
+    flex-basis: 100%;
   }
 }
 

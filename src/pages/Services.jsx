@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import CursorAura from "../components/CursorAura";
 import { db } from "../firebase";
@@ -396,10 +396,68 @@ export default function Services() {
   const items = useMemo(() => mergeServices(managedServices), [managedServices]);
 
   const [index, setIndex] = useState(0);
+  const [carouselState, setCarouselState] = useState({
+    canScroll: false,
+    progress: 0,
+    thumbWidth: 100,
+  });
+  const carouselRef = useRef(null);
 
   const total = items.length;
   const safeIndex = Math.min(index, total - 1);
   const selected = items[safeIndex];
+
+  useEffect(() => {
+    const track = carouselRef.current;
+    if (!track) return undefined;
+
+    const updateCarouselState = () => {
+      const maxScroll = track.scrollWidth - track.clientWidth;
+      const canScroll = maxScroll > 6;
+      const progress = canScroll ? track.scrollLeft / maxScroll : 0;
+      setCarouselState({
+        canScroll,
+        progress,
+        thumbWidth: canScroll ? (track.clientWidth / track.scrollWidth) * 100 : 100,
+      });
+    };
+
+    updateCarouselState();
+    track.addEventListener("scroll", updateCarouselState, { passive: true });
+    window.addEventListener("resize", updateCarouselState);
+
+    return () => {
+      track.removeEventListener("scroll", updateCarouselState);
+      window.removeEventListener("resize", updateCarouselState);
+    };
+  }, [total]);
+
+  function scrollServices(direction) {
+    const track = carouselRef.current;
+    const firstCard = track?.querySelector(".svxCard");
+    if (!track || !firstCard || total < 2) return;
+
+    setIndex((currentIndex) => (currentIndex + direction + total) % total);
+
+    if (!carouselState.canScroll) return;
+
+    const gap = Number.parseFloat(window.getComputedStyle(track).columnGap) || 0;
+    const maxScroll = track.scrollWidth - track.clientWidth;
+    const atStart = track.scrollLeft <= 1;
+    const atEnd = track.scrollLeft >= maxScroll - 1;
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+
+    if (direction < 0 && atStart) {
+      track.scrollTo({ left: maxScroll, behavior });
+    } else if (direction > 0 && atEnd) {
+      track.scrollTo({ left: 0, behavior });
+    } else {
+      track.scrollBy({
+        left: direction * (firstCard.getBoundingClientRect().width + gap),
+        behavior,
+      });
+    }
+  }
 
   // lets the mascot know which service is on screen
   useEffect(() => {
@@ -410,6 +468,13 @@ export default function Services() {
     );
   }, [safeIndex, selected?.name]);
 
+  const indicatorProgress = carouselState.canScroll
+    ? carouselState.progress
+    : total > 1 ? safeIndex / (total - 1) : 0;
+  const indicatorThumbWidth = carouselState.canScroll
+    ? carouselState.thumbWidth
+    : 100 / Math.max(total, 1);
+
   return (
     <div className="svxPage">
       <CursorAura />
@@ -418,16 +483,52 @@ export default function Services() {
         <h1 className="svxTitle">Dental care for every smile</h1>
       </header>
 
-      <div className="svxTrack">
-        {items.map((item, i) => (
-          <ServiceCard
-            key={item.name}
-            service={item}
-            isActive={i === safeIndex}
-            isDemonic={isDemonic}
-            onSelect={() => setIndex(i)}
+      <div className="svxCarousel">
+        <button
+          className="svxCarouselArrow"
+          type="button"
+          aria-label="Scroll to previous services"
+          onClick={() => scrollServices(-1)}
+          disabled={total < 2}
+        >
+          <span aria-hidden="true">&lt;</span>
+        </button>
+        <div className="svxTrack" ref={carouselRef}>
+          {items.map((item, i) => (
+            <ServiceCard
+              key={item.name}
+              service={item}
+              isActive={i === safeIndex}
+              isDemonic={isDemonic}
+              onSelect={() => setIndex(i)}
+            />
+          ))}
+        </div>
+        <button
+          className="svxCarouselArrow"
+          type="button"
+          aria-label="Scroll to next services"
+          onClick={() => scrollServices(1)}
+          disabled={total < 2}
+        >
+          <span aria-hidden="true">&gt;</span>
+        </button>
+        <div
+          className="svxScrollIndicator"
+          role="progressbar"
+          aria-label="Services carousel position"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(indicatorProgress * 100)}
+        >
+          <span
+            className="svxScrollIndicatorThumb"
+            style={{
+              width: `${indicatorThumbWidth}%`,
+              left: `${indicatorProgress * (100 - indicatorThumbWidth)}%`,
+            }}
           />
-        ))}
+        </div>
       </div>
     </div>
   );
