@@ -12,8 +12,8 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
+import { Link, useNavigate } from "react-router-dom";
 import { auth, db, functions } from "../firebase";
-import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
 import {
@@ -70,6 +70,15 @@ function getEmptyProfile(email = "") {
   };
 }
 
+function isValidPatientAge(value) {
+  const age = Number(String(value ?? "").trim());
+  return Number.isInteger(age) && age >= 1;
+}
+
+function hasProfileText(value) {
+  return String(value ?? "").trim().length > 0;
+}
+
 function generateUpcomingDates(startDate, count = 12) {
   const dates = [];
   const cursor = new Date(startDate);
@@ -86,13 +95,16 @@ function generateUpcomingDates(startDate, count = 12) {
 }
 
 export default function Book() {
+  const navigate = useNavigate();
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);
   const [patientProfile, setPatientProfile] = useState(null);
+  const [patientProfileUid, setPatientProfileUid] = useState("");
   const [profileDraft, setProfileDraft] = useState(getEmptyProfile());
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingDentists, setLoadingDentists] = useState(true);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const [selectedServices, setSelectedServices] = useState(["Cleaning"]);
   const [clinicServices, setClinicServices] = useState([]);
@@ -117,9 +129,11 @@ export default function Book() {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
-  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [bookingStep, setBookingStep] = useState("info");
+  const [submittedAppointment, setSubmittedAppointment] = useState(null);
   const [availabilityRefreshVersion, setAvailabilityRefreshVersion] = useState(0);
   const availabilityRefreshTimer = useRef(null);
+  const profileLoadRequest = useRef(0);
 
   useEffect(() => () => {
     if (availabilityRefreshTimer.current) {
@@ -151,31 +165,39 @@ export default function Book() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
+      const requestId = profileLoadRequest.current + 1;
+      profileLoadRequest.current = requestId;
       setUser(u);
       setAuthReady(true);
       setSuccess("");
       setError("");
+      setPatientProfile(null);
+      setPatientProfileUid("");
+      setProfileDraft(getEmptyProfile(u?.email || ""));
+      setEditingProfile(Boolean(u));
+      setSavingProfile(false);
+      setLoadingProfile(Boolean(u));
+      setBookingStep("info");
+      setSubmittedAppointment(null);
+      setBookingConfirmation(null);
 
       if (!u) {
-        setPatientProfile(null);
-        setProfileDraft(getEmptyProfile());
-        setEditingProfile(false);
+        setLoadingProfile(false);
         setRecentlySubmitted(false);
         setAgreedToPrivacyConsent(false);
         setSlotOptions([]);
         setBlockedRanges([]);
         setDuplicateWarning(false);
         setAvailabilityError("");
-        setBookingConfirmation(null);
-        setSuccessModalOpen(false);
         setSelectedDentistId("");
         return;
       }
 
-      setLoadingProfile(true);
       try {
         const profileRef = doc(db, "patientProfiles", u.uid);
         const snap = await getDoc(profileRef);
+
+        if (requestId !== profileLoadRequest.current || auth.currentUser?.uid !== u.uid) return;
 
         if (snap.exists()) {
           const data = snap.data();
@@ -196,6 +218,7 @@ export default function Book() {
             email: data.email || u.email || "",
           };
           setPatientProfile(nextProfile);
+          setPatientProfileUid(u.uid);
           setProfileDraft(nextProfile);
           setEditingProfile(false);
         } else {
@@ -205,14 +228,20 @@ export default function Book() {
           setEditingProfile(true);
         }
       } catch (profileError) {
+        if (requestId !== profileLoadRequest.current || auth.currentUser?.uid !== u.uid) return;
         console.error(profileError);
         setError("Could not load your patient profile. Please try again.");
       } finally {
-        setLoadingProfile(false);
+        if (requestId === profileLoadRequest.current && auth.currentUser?.uid === u.uid) {
+          setLoadingProfile(false);
+        }
       }
     });
 
-    return () => unsub();
+    return () => {
+      profileLoadRequest.current += 1;
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -376,6 +405,7 @@ export default function Book() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
+      navigate("/my-appointments", { replace: true });
     } catch (e) {
       console.error(e);
       setError("Google sign-in failed. Try again.");
@@ -387,23 +417,24 @@ export default function Book() {
     setError("");
     setSuccess("");
 
+    if (savingProfile || loadingProfile) return;
     if (!user) {
       setError("Please sign in first.");
       return;
     }
-    if (!profileDraft.firstName.trim()) {
+    if (!hasProfileText(profileDraft.firstName)) {
       setError("Please enter the first name.");
       return;
     }
-    if (!profileDraft.lastName.trim()) {
+    if (!hasProfileText(profileDraft.lastName)) {
       setError("Please enter the last name.");
       return;
     }
-    if (!String(profileDraft.age).trim()) {
-      setError("Please enter your age.");
+    if (!isValidPatientAge(profileDraft.age)) {
+      setError("Please enter a valid age of 1 or older.");
       return;
     }
-    if (!profileDraft.phone.trim()) {
+    if (!hasProfileText(profileDraft.phone)) {
       setError("Please enter your phone number.");
       return;
     }
@@ -428,8 +459,11 @@ export default function Book() {
           createdAt: serverTimestamp(),
         };
 
+    setSavingProfile(true);
     try {
       await setDoc(doc(db, "patientProfiles", user.uid), nextProfile, { merge: true });
+
+      if (auth.currentUser?.uid !== user.uid) return;
 
       const savedProfile = {
         firstName: baseProfile.firstName,
@@ -443,12 +477,17 @@ export default function Book() {
       };
 
       setPatientProfile(savedProfile);
+      setPatientProfileUid(user.uid);
       setProfileDraft(savedProfile);
       setEditingProfile(false);
       setSuccess("Profile saved. You can now book appointments with your saved patient details.");
     } catch (profileError) {
       console.error(profileError);
-      setError("Could not save your profile. Check your Firestore rules for patientProfiles.");
+      if (auth.currentUser?.uid === user.uid) {
+        setError("Could not save your profile. Check your Firestore rules for patientProfiles.");
+      }
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -461,13 +500,10 @@ export default function Book() {
       setError("Please sign in with Google to book an appointment.");
       return;
     }
-    if (!patientProfile && !editingProfile) {
+    if (!profileReady) {
       setError("Please complete your patient profile before booking.");
       return;
     }
-    if (!patientProfile?.firstName || !patientProfile?.lastName) return setError("Please complete your patient profile first.");
-    if (!patientProfile?.age) return setError("Please complete your patient profile first.");
-    if (!patientProfile?.phone) return setError("Please complete your patient profile first.");
     if (!date) return setError("Please choose a date.");
     if (date < todayStr) return setError("You cannot book before today.");
     if (isSunday(date)) return setError("Clinic is closed on Sundays. Please choose Monday to Saturday.");
@@ -507,7 +543,24 @@ export default function Book() {
       hasDuplicateWarning: duplicateWarning,
       promotion: selectedPromotion,
     });
+    setBookingStep("review");
   }
+
+  function returnToInfo() {
+    setError("");
+    setBookingStep("info");
+  }
+
+  useEffect(() => {
+    if (bookingStep !== "review") return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !saving) returnToInfo();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [bookingStep, saving]);
 
   async function confirmBookingSubmission() {
     if (!bookingConfirmation || !user || !patientProfile || !selectedDentistRecord) return;
@@ -526,6 +579,22 @@ export default function Book() {
         privacyConsentAccepted: true,
       });
 
+      setSubmittedAppointment({
+        patient: { ...patientProfile },
+        services: service,
+        serviceDetails: selectedServices.map((name) => {
+          const serviceOption = activeServiceOptions.find((option) => option.name === name);
+          return {
+            name,
+            startingRate: serviceOption?.startingRate || "",
+          };
+        }),
+        promotion: bookingConfirmation.promotion?.title || "",
+        dentist: selectedDentistRecord.name,
+        date,
+        timeRange: bookingConfirmation.requestedTimeRange,
+        notes: notes.trim(),
+      });
       const reservedStartMinutes = timeToMinutes(time);
       const reservedEndMinutes = bookingConfirmation.requestedEnd;
       const bookedRange = `${formatTimeLabel(time)}-${formatTimeLabel(minutesToTime(reservedEndMinutes))}`;
@@ -552,7 +621,7 @@ export default function Book() {
       setNotes("");
       setAgreedToPrivacyConsent(false);
       setSuccess("Booking submitted successfully. Your request is now waiting for admin approval.");
-      setSuccessModalOpen(true);
+      setBookingStep("confirmation");
       setRecentlySubmitted(true);
     } catch (bookingError) {
       console.error(bookingError);
@@ -570,7 +639,18 @@ export default function Book() {
     }
   }
 
-  const profileReady = Boolean(patientProfile && !editingProfile);
+  const profileReady = Boolean(
+    user
+    && patientProfile
+    && patientProfileUid === user.uid
+    && hasProfileText(patientProfile.firstName)
+    && hasProfileText(patientProfile.lastName)
+    && isValidPatientAge(patientProfile.age)
+    && hasProfileText(patientProfile.phone)
+    && !editingProfile
+    && !loadingProfile
+    && !savingProfile
+  );
 
   useEffect(() => {
     if (!recentlySubmitted) return;
@@ -636,28 +716,12 @@ export default function Book() {
     <>
     <div className="container bookingPage">
       <div className="hero bookingHero">
-        <div className="bookingHeroGlow" />
         <div className="bookingHeroGrid">
           <div>
-            <span className="heroEyebrow">Smart Booking Flow</span>
             <h1>Book an Appointment</h1>
             <p>
-              Sign in with Google, create your patient profile once, and keep every future appointment connected to one clean patient history.
+              Choose your services, dentist, and a time that works for you.
             </p>
-          </div>
-          <div className="bookingHeroSummary">
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Profile status</span>
-              <strong>{profileReady ? "Ready to book" : "Sign-up required"}</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Clinic schedule</span>
-              <strong>{selectedClosure ? selectedClosure.label : "Mon-Sat • 9:00 AM - 6:00 PM"}</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Booking identity</span>
-              <strong>{patientProfile?.fullName || user?.email || "Google account required"}</strong>
-            </div>
           </div>
         </div>
       </div>
@@ -693,7 +757,7 @@ export default function Book() {
             <span className="mascotCurseCollectibleStar" />
           </button>
 
-          {success ? (
+          {success && !profileReady ? (
             <div className="successBanner">
               <strong>{success}</strong>
               <span>Your appointment request is now in the pending queue and ready for admin review.</span>
@@ -702,15 +766,15 @@ export default function Book() {
 
           {loadingProfile ? <SkeletonList count={1} /> : null}
 
-          {!loadingProfile && (editingProfile || !patientProfile) ? (
-            <form className="form" onSubmit={saveProfile} style={{ marginTop: 12 }} data-mascot-target="book-profile">
+          {!loadingProfile && !profileReady ? (
+            <form className="form bookingProfileForm" onSubmit={saveProfile} style={{ marginTop: 12 }} data-mascot-target="book-profile">
               <input
                 className="input"
                 placeholder="First name"
                 data-mascot-target="book-name"
                 value={profileDraft.firstName}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, firstName: e.target.value }))}
-                disabled={saving || loadingProfile}
+                disabled={savingProfile || loadingProfile}
               />
 
               <input
@@ -718,7 +782,7 @@ export default function Book() {
                 placeholder="Middle name"
                 value={profileDraft.middleName}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, middleName: e.target.value }))}
-                disabled={saving || loadingProfile}
+                disabled={savingProfile || loadingProfile}
               />
 
               <input
@@ -726,7 +790,7 @@ export default function Book() {
                 placeholder="Last name"
                 value={profileDraft.lastName}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, lastName: e.target.value }))}
-                disabled={saving || loadingProfile}
+                disabled={savingProfile || loadingProfile}
               />
 
               <input
@@ -736,7 +800,7 @@ export default function Book() {
                 placeholder="Age"
                 value={profileDraft.age}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, age: e.target.value }))}
-                disabled={saving || loadingProfile}
+                disabled={savingProfile || loadingProfile}
               />
 
               <input
@@ -744,7 +808,7 @@ export default function Book() {
                 placeholder="Phone number"
                 value={profileDraft.phone}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, phone: e.target.value }))}
-                disabled={saving || loadingProfile}
+                disabled={savingProfile || loadingProfile}
               />
 
               <input className="input" value={user.email || profileDraft.email} disabled />
@@ -755,233 +819,305 @@ export default function Book() {
                 <span className="bookingFieldHint">Assigned by clinic staff after your profile is reviewed.</span>
               </label>
 
-              <button className="btn btnShine bookingPrimaryBtn" disabled={saving || loadingProfile} data-mascot-target="book-profile-save">
-                {loadingProfile ? "Loading..." : "Save Patient Profile"}
+              <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile} data-mascot-target="book-profile-save">
+                {savingProfile ? "Saving..." : loadingProfile ? "Loading..." : "Save Patient Profile"}
               </button>
             </form>
           ) : null}
 
           {profileReady ? (
-            <>
-              <div className="editorPreview" style={{ marginTop: 12 }}>
-                <div>
-                  <span className="detailLabel">Signed-in patient</span>
-                  <strong className="detailTitle">{patientProfile.fullName}</strong>
-                  <p className="detailSubtitle">
-                    Age {patientProfile.age || "-"} • Clinic-assigned type: {patientProfile.patientType} • {patientProfile.phone} • {patientProfile.email}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="btn secondary btnSoft bookingSecondaryBtn"
-                  onClick={() => setEditingProfile(true)}
-                >
-                  Update Profile
-                </button>
-              </div>
-
-              <form className="form bookingAppointmentForm" onSubmit={submit} style={{ marginTop: 12 }}>
-                <div className="bookingFieldCard bookingServiceSelector" data-mascot-target="book-service">
-                  <div className="bookingFieldHeader">
-                    <div className="bookingServiceHeaderText">
-                      <span className="detailLabel">Choose services</span>
-                      <p className="bookingFieldHint">Select one or more services for this appointment.</p>
-                    </div>
-                    <strong className="bookingServiceCount">
-                      {selectedServices.length} selected
-                    </strong>
-                  </div>
-
-                  <div className="bookingServiceOptionGrid">
-                    {activeServiceOptions.map((option) => {
-                      const active = selectedServices.includes(option.name);
-
-                      return (
-                        <button
-                          key={option.name}
-                          type="button"
-                          className={`bookingServiceOption ${active ? "active" : ""}`}
-                          onClick={() => toggleService(option.name)}
-                          disabled={!user || saving}
-                          aria-pressed={active}
-                        >
-                          <span>{option.name}</span>
-                          <strong>Book</strong>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {availablePromotions.length > 0 ? <label className="bookingFieldCard">
-                  <span className="detailLabel">Promotion (optional)</span>
-                  <select className="input bookingInputSpecial" value={promotionId} onChange={(e) => setPromotionId(e.target.value)} disabled={!user || saving}>
-                    <option value="">No promotion</option>
-                    {availablePromotions.map((promotion) => <option key={promotion.id} value={promotion.id}>{promotion.title} · {promotion.discountType === "percentage" ? `${promotion.discountValue}% off` : `₱${promotion.discountValue} off`}</option>)}
-                  </select>
-                  {selectedPromotion?.description && <span className="bookingFieldHint">{selectedPromotion.description}</span>}
-                </label> : null}
-
-                <div className="bookingDatePanel" data-mascot-target="book-date">
-                  <div className="bookingDatePanelHeader">
-                    <div>
-                      <span className="detailLabel">Choose appointment day</span>
-                      <strong className="detailTitle">{formatDateLabel(date)}</strong>
-                      <p className="detailSubtitle">
-                        Use the arrows to browse suggested clinic days.
-                      </p>
-                    </div>
-                    <div className="bookingDateHighlight">
-                      <span>Clinic days</span>
-                      <strong>{selectedClosure ? selectedClosure.label : "Monday to Saturday"}</strong>
-                    </div>
-                  </div>
-
-                  <div className="bookingDateNavigator">
-                    <button
-                      type="button"
-                      className="bookingDateNavButton"
-                      onClick={() => moveSuggestedDates(-7)}
-                      disabled={!user || saving || datePageStart <= todayStr}
-                      aria-label="Previous suggested appointment days"
-                    >
-                      <span>Prev</span>
-                    </button>
-
-                    <div className="bookingDateScroller">
-                      {upcomingDates.map((optionDate) => {
-                        const optionDay = new Date(`${optionDate}T00:00:00`);
-                        const isSelected = optionDate === date;
-
-                        return (
-                          <button
-                            key={optionDate}
-                            type="button"
-                            className={`bookingDateChip ${isSelected ? "active" : ""}`}
-                            onClick={() => setDate(optionDate)}
-                            disabled={!user || saving}
-                          >
-                            <span className="bookingDateChipDay">
-                              {optionDay.toLocaleDateString("en-US", { weekday: "short" })}
-                            </span>
-                            <strong>{optionDay.toLocaleDateString("en-US", { day: "2-digit" })}</strong>
-                            <span className="bookingDateChipMonth">
-                              {optionDay.toLocaleDateString("en-US", { month: "short" })}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="bookingDateNavButton"
-                      onClick={() => moveSuggestedDates(7)}
-                      disabled={!user || saving}
-                      aria-label="Next suggested appointment days"
-                    >
-                      <span>Next</span>
-                    </button>
-                  </div>
-                </div>
-
-                {date && isSunday(date) ? (
-                  <div className="error">Closed on Sundays. Choose Monday to Saturday.</div>
-                ) : null}
-                {selectedClosure ? (
-                  <div className="error">{selectedClosure.label} blocks booking on this date. Please choose another day.</div>
-                ) : null}
-                {duplicateWarning ? (
-                  <div className="detailNote historyPanel reschedulePanel attention">
-                    <span className="detailLabel">Duplicate booking warning</span>
-                    <p>
-                      You already have another booking for one of the selected services on <strong>{formatDateLabel(date)}</strong>. The clinic may review duplicate requests more carefully.
-                    </p>
-                  </div>
-                ) : null}
-                {availabilityError ? <div className="error">{availabilityError}</div> : null}
-
-                <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard" data-mascot-target="book-dentist">
-                    <span className="detailLabel">Available dentist</span>
-                    <div className="bookingSelectShell">
-                      <select
-                        className="input bookingInputSpecial"
-                        value={selectedDentistId}
-                        onChange={(e) => setSelectedDentistId(e.target.value)}
-                        disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
-                      >
-                        {availableDentists.length ? (
-                          availableDentists.map((dentist) => (
-                            <option key={dentist.id} value={dentist.id}>
-                              {dentist.name}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">No dentist available on this day</option>
-                        )}
-                      </select>
-                    </div>
-                  </label>
-
-                  <label className="bookingFieldCard" data-mascot-target="book-time">
-                    <span className="detailLabel">Choose time slot</span>
-                    <div className="bookingSelectShell">
-                      <select
-                        className="input bookingInputSpecial"
-                        value={time}
-                        onChange={(e) => setTime(e.target.value)}
-                        disabled={!user || saving || loadingAvailability || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
-                      >
-                        {slotOptions.length ? (
-                          slotOptions.map((slot) => (
-                            <option key={slot.value} value={slot.value} disabled={slot.disabled}>
-                              {slot.disabled
-                                ? `${slot.label} (${slot.disabledReason})`
-                                : slot.label}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">No available times today</option>
-                        )}
-                      </select>
-                    </div>
-                    <span className="bookingFieldHint">
-                      {loadingAvailability
-                        ? "Loading live slot availability..."
-                        : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
-                    </span>
-                  </label>
-                </div>
-
-                {!loadingDentists && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
-                  <EmptyState
-                    compact
-                    title="No dentist available on this day"
-                    message="Try another clinic day or choose a different date so the booking can continue."
-                  />
-                ) : null}
-
-                {!loadingDentists && selectedDentistId && !availableSlots.length && !isSunday(date) ? (
-                  <EmptyState
-                    compact
-                    title="No available time slots"
-                    message="This dentist has no open slots left on the selected day. Pick another date or another dentist."
-                  />
-                ) : null}
-
-                {blockedRanges.length ? (
-                  <div className="detailNote historyPanel">
-                    <span className="detailLabel">Taken times for {selectedDentist || "this dentist"}</span>
-                    <div className="inlineActionRow" style={{ marginTop: 10 }}>
-                      {blockedRanges.map((range, index) => (
-                        <span key={`${range.start}-${range.end}-${index}`} className="statusPill active">
-                          {formatTimeLabel(range.start)} - {formatTimeLabel(range.end)}
-                        </span>
+            bookingStep === "confirmation" && submittedAppointment ? (
+              <section className="bookingScreen bookingConfirmationScreen" aria-live="polite">
+                <h3>Appointment request submitted</h3>
+                <p className="bookingConfirmationMessage">
+                  Your request is waiting for admin approval. The clinic will review these details and update its status.
+                </p>
+                <div className="bookingConfirmationDetails">
+                  <section className="bookingReviewSection">
+                    <h4>Patient information</h4>
+                    <dl className="bookingReviewDetails">
+                      <div><dt>Name</dt><dd>{submittedAppointment.patient.fullName}</dd></div>
+                      <div><dt>Age and patient type</dt><dd>{submittedAppointment.patient.age} · {submittedAppointment.patient.patientType}</dd></div>
+                      <div><dt>Phone</dt><dd>{submittedAppointment.patient.phone}</dd></div>
+                      <div><dt>Email</dt><dd>{submittedAppointment.patient.email}</dd></div>
+                    </dl>
+                  </section>
+                  <section className="bookingReviewSection">
+                    <h4>Services</h4>
+                    <ul className="bookingReviewServiceList">
+                      {submittedAppointment.serviceDetails.map((item) => (
+                        <li key={item.name}>
+                          <span>{item.name}</span>
+                          <strong>{item.startingRate || "Pricing not set"}</strong>
+                        </li>
                       ))}
+                    </ul>
+                  </section>
+                  <section className="bookingReviewSection">
+                    <h4>Appointment schedule</h4>
+                    <dl className="bookingReviewDetails">
+                      <div><dt>Dentist</dt><dd>{submittedAppointment.dentist}</dd></div>
+                      <div><dt>Date and time</dt><dd>{formatDateLabel(submittedAppointment.date)} · {submittedAppointment.timeRange}</dd></div>
+                    </dl>
+                  </section>
+                  <section className="bookingReviewSection">
+                    <h4>Promotion</h4>
+                    <p>{submittedAppointment.promotion || "None"}</p>
+                  </section>
+                  <section className="bookingReviewSection">
+                    <h4>Notes</h4>
+                    <p>{submittedAppointment.notes || "None"}</p>
+                  </section>
+                </div>
+                <Link className="btn btnShine bookingPrimaryBtn" to="/my-appointments">
+                  View my appointments
+                </Link>
+              </section>
+            ) : (
+              <form className="form bookingAppointmentForm" onSubmit={submit}>
+                <div className="bookingScreenHeader">
+                  <h4>Patient and appointment details</h4>
+                  <p>Choose your services and a time that works for you.</p>
+                </div>
+                <div className="bookingInfoGrid">
+                  <section className="bookingInfoSection bookingInfoServices">
+                    <div className="editorPreview bookingPatientSummary">
+                      <div>
+                        <span className="detailLabel">Signed-in patient</span>
+                        <strong className="detailTitle">{patientProfile.fullName}</strong>
+                        <p className="detailSubtitle">
+                          Age {patientProfile.age || "-"} • Clinic-assigned type: {patientProfile.patientType} • {patientProfile.phone} • {patientProfile.email}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn secondary btnSoft bookingSecondaryBtn"
+                        onClick={() => setEditingProfile(true)}
+                      >
+                        Update Profile
+                      </button>
                     </div>
-                  </div>
-                ) : null}
+
+                    <div className="bookingFieldCard bookingServiceSelector" data-mascot-target="book-service">
+                      <div className="bookingFieldHeader">
+                        <div className="bookingServiceHeaderText">
+                          <span className="detailLabel">Choose services</span>
+                          <p className="bookingFieldHint">Select one or more services for this appointment.</p>
+                        </div>
+                        <strong className="bookingServiceCount">
+                          {selectedServices.length} selected
+                        </strong>
+                      </div>
+
+                      <div className="bookingServiceOptionGrid">
+                        {activeServiceOptions.map((option) => {
+                          const active = selectedServices.includes(option.name);
+
+                          return (
+                            <button
+                              key={option.name}
+                              type="button"
+                              className={`bookingServiceOption ${active ? "active" : ""}`}
+                              onClick={() => toggleService(option.name)}
+                              disabled={!user || saving}
+                              aria-pressed={active}
+                            >
+                              <span>{option.name}</span>
+                              <strong>{option.startingRate || "Pricing not set"}</strong>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {availablePromotions.length > 0 ? (
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Promotion (optional)</span>
+                        <select
+                          className="input bookingInputSpecial"
+                          value={promotionId}
+                          onChange={(e) => setPromotionId(e.target.value)}
+                          disabled={!user || saving}
+                        >
+                          <option value="">No promotion</option>
+                          {availablePromotions.map((promotion) => (
+                            <option key={promotion.id} value={promotion.id}>
+                              {promotion.title} · {promotion.discountType === "percentage"
+                                ? `${promotion.discountValue}% off`
+                                : `₱${promotion.discountValue} off`}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedPromotion?.description ? (
+                          <span className="bookingFieldHint">{selectedPromotion.description}</span>
+                        ) : null}
+                      </label>
+                    ) : null}
+                  </section>
+
+                  <section className="bookingInfoSection bookingInfoSchedule">
+                    <div className="bookingDatePanel" data-mascot-target="book-date">
+                      <div className="bookingDatePanelHeader">
+                        <div>
+                          <span className="detailLabel">Choose appointment day</span>
+                          <strong className="detailTitle">{formatDateLabel(date)}</strong>
+                          <p className="detailSubtitle">
+                            Use the arrows to browse suggested clinic days.
+                          </p>
+                        </div>
+                        <div className="bookingDateHighlight">
+                          <span>Clinic days</span>
+                          <strong>{selectedClosure ? selectedClosure.label : "Monday to Saturday"}</strong>
+                        </div>
+                      </div>
+
+                      <div className="bookingDateNavigator">
+                        <button
+                          type="button"
+                          className="bookingDateNavButton"
+                          onClick={() => moveSuggestedDates(-7)}
+                          disabled={!user || saving || datePageStart <= todayStr}
+                          aria-label="Previous suggested appointment days"
+                        >
+                          <span>Prev</span>
+                        </button>
+
+                        <div className="bookingDateScroller">
+                          {upcomingDates.map((optionDate) => {
+                            const optionDay = new Date(`${optionDate}T00:00:00`);
+                            const isSelected = optionDate === date;
+
+                            return (
+                              <button
+                                key={optionDate}
+                                type="button"
+                                className={`bookingDateChip ${isSelected ? "active" : ""}`}
+                                onClick={() => setDate(optionDate)}
+                                disabled={!user || saving}
+                              >
+                                <span className="bookingDateChipDay">
+                                  {optionDay.toLocaleDateString("en-US", { weekday: "short" })}
+                                </span>
+                                <strong>{optionDay.toLocaleDateString("en-US", { day: "2-digit" })}</strong>
+                                <span className="bookingDateChipMonth">
+                                  {optionDay.toLocaleDateString("en-US", { month: "short" })}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="bookingDateNavButton"
+                          onClick={() => moveSuggestedDates(7)}
+                          disabled={!user || saving}
+                          aria-label="Next suggested appointment days"
+                        >
+                          <span>Next</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {date && isSunday(date) ? (
+                      <div className="error">Closed on Sundays. Choose Monday to Saturday.</div>
+                    ) : null}
+                    {selectedClosure ? (
+                      <div className="error">{selectedClosure.label} blocks booking on this date. Please choose another day.</div>
+                    ) : null}
+                    {duplicateWarning ? (
+                      <div className="detailNote historyPanel reschedulePanel attention">
+                        <span className="detailLabel">Duplicate booking warning</span>
+                        <p>
+                          You already have another booking for one of the selected services on <strong>{formatDateLabel(date)}</strong>. The clinic may review duplicate requests more carefully.
+                        </p>
+                      </div>
+                    ) : null}
+                    {availabilityError ? <div className="error">{availabilityError}</div> : null}
+
+                    <div className="bookingFlowGrid">
+                      <label className="bookingFieldCard" data-mascot-target="book-dentist">
+                        <span className="detailLabel">Available dentist</span>
+                        <div className="bookingSelectShell">
+                          <select
+                            className="input bookingInputSpecial"
+                            value={selectedDentistId}
+                            onChange={(e) => setSelectedDentistId(e.target.value)}
+                            disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
+                          >
+                            {availableDentists.length ? (
+                              availableDentists.map((dentist) => (
+                                <option key={dentist.id} value={dentist.id}>
+                                  {dentist.name}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">No dentist available on this day</option>
+                            )}
+                          </select>
+                        </div>
+                      </label>
+
+                      <label className="bookingFieldCard" data-mascot-target="book-time">
+                        <span className="detailLabel">Choose time slot</span>
+                        <div className="bookingSelectShell">
+                          <select
+                            className="input bookingInputSpecial"
+                            value={time}
+                            onChange={(e) => setTime(e.target.value)}
+                            disabled={!user || saving || loadingAvailability || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
+                          >
+                            {slotOptions.length ? (
+                              slotOptions.map((slot) => (
+                                <option key={slot.value} value={slot.value} disabled={slot.disabled}>
+                                  {slot.disabled
+                                    ? `${slot.label} (${slot.disabledReason})`
+                                    : slot.label}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">No available times today</option>
+                            )}
+                          </select>
+                        </div>
+                        <span className="bookingFieldHint">
+                          {loadingAvailability
+                            ? "Loading live slot availability..."
+                            : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
+                        </span>
+                      </label>
+                    </div>
+
+                    {!loadingDentists && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
+                      <EmptyState
+                        compact
+                        title="No dentist available on this day"
+                        message="Try another clinic day or choose a different date so the booking can continue."
+                      />
+                    ) : null}
+
+                    {!loadingDentists && selectedDentistId && !availableSlots.length && !isSunday(date) ? (
+                      <EmptyState
+                        compact
+                        title="No available time slots"
+                        message="This dentist has no open slots left on the selected day. Pick another date or another dentist."
+                      />
+                    ) : null}
+
+                    {blockedRanges.length ? (
+                      <div className="detailNote historyPanel">
+                        <span className="detailLabel">Taken times for {selectedDentist || "this dentist"}</span>
+                        <div className="inlineActionRow" style={{ marginTop: 10 }}>
+                          {blockedRanges.map((range, index) => (
+                            <span key={`${range.start}-${range.end}-${index}`} className="statusPill active">
+                              {formatTimeLabel(range.start)} - {formatTimeLabel(range.end)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </section>
+                </div>
 
                 <div className="bookingMiniSummary">
                   <div className="bookingMiniSummaryCard">
@@ -1022,70 +1158,133 @@ export default function Book() {
                 </label>
 
                 <button
+                  type="submit"
                   className="btn btnShine bookingPrimaryBtn"
                   data-mascot-target="book-submit"
                   disabled={!user || saving || loadingAvailability || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
                 >
-                  {saving ? "Submitting..." : recentlySubmitted ? "Booking Submitted" : "Submit Booking"}
+                  Review Appointment Details
                 </button>
+
+                {bookingStep === "review" && bookingConfirmation ? (
+                  <div
+                    className="bookingReviewOverlay"
+                    onMouseDown={(event) => {
+                      if (event.target === event.currentTarget && !saving) returnToInfo();
+                    }}
+                  >
+                    <section
+                      className="bookingReviewModal"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="bookingReviewTitle"
+                    >
+                      <header className="bookingReviewModalHeader">
+                        <h3 id="bookingReviewTitle">Review Appointment Details</h3>
+                        <button
+                          type="button"
+                          className="bookingReviewClose"
+                          aria-label="Close review"
+                          onClick={returnToInfo}
+                          disabled={saving}
+                        >
+                          ×
+                        </button>
+                      </header>
+
+                      <div className="bookingReviewModalContent">
+                        <section className="bookingReviewModalSection">
+                          <h4>Patient Information</h4>
+                          <dl className="bookingReviewModalRows">
+                            <div><dt>Full name</dt><dd>{patientProfile.fullName}</dd></div>
+                            <div><dt>Age</dt><dd>{patientProfile.age || "—"}</dd></div>
+                            <div><dt>Email</dt><dd>{patientProfile.email || user.email || "—"}</dd></div>
+                            <div><dt>Contact number</dt><dd>{patientProfile.phone || "—"}</dd></div>
+                            <div><dt>Patient type</dt><dd>{patientProfile.patientType || "—"}</dd></div>
+                          </dl>
+                        </section>
+
+                        <section className="bookingReviewModalSection">
+                          <h4>Selected Service/s</h4>
+                          <ul className="bookingReviewModalServices">
+                            {selectedServices.map((name) => {
+                              const serviceOption = activeServiceOptions.find((option) => option.name === name);
+                              return (
+                                <li key={name}>
+                                  <span>{name}</span>
+                                  <strong>{serviceOption?.startingRate || "Pricing not set"}</strong>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </section>
+
+                        <section className="bookingReviewModalSection">
+                          <h4>Preferred Dentist</h4>
+                          <dl className="bookingReviewModalRows">
+                            <div><dt>Dentist</dt><dd>{selectedDentist || "—"}</dd></div>
+                          </dl>
+                        </section>
+
+                        <section className="bookingReviewModalSection">
+                          <h4>Appointment Schedule</h4>
+                          <dl className="bookingReviewModalRows">
+                            <div><dt>Date</dt><dd>{formatDateLabel(date)}</dd></div>
+                            <div><dt>Time</dt><dd>{bookingConfirmation.requestedTimeRange || selectedTimeRange}</dd></div>
+                            <div>
+                              <dt>Clinic days</dt>
+                              <dd>{selectedClosure ? selectedClosure.label : "Monday to Saturday"}</dd>
+                            </div>
+                          </dl>
+                          {bookingConfirmation.hasDuplicateWarning ? (
+                            <p className="bookingReviewModalWarning">
+                              A previous booking for one of these services exists on this day. The clinic may review this request more carefully.
+                            </p>
+                          ) : null}
+                        </section>
+
+                        <section className="bookingReviewModalSection">
+                          <h4>Promotion</h4>
+                          <dl className="bookingReviewModalRows">
+                            <div>
+                              <dt>Selected promotion</dt>
+                              <dd>{bookingConfirmation.promotion?.title || "No promotion"}</dd>
+                            </div>
+                          </dl>
+                        </section>
+                      </div>
+
+                      {error ? <div className="error" role="alert">{error}</div> : null}
+
+                      <footer className="bookingReviewModalActions">
+                        <button
+                          type="button"
+                          className="btn secondary btnSoft bookingSecondaryBtn"
+                          onClick={returnToInfo}
+                          disabled={saving}
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btnShine bookingPrimaryBtn"
+                          onClick={confirmBookingSubmission}
+                          disabled={!bookingConfirmation || saving}
+                        >
+                          {saving ? "Confirming..." : "Confirm Booking"}
+                        </button>
+                      </footer>
+                    </section>
+                  </div>
+                ) : null}
               </form>
-            </>
+            )
           ) : null}
 
-          {error ? <div className="error">{error}</div> : null}
+          {error && bookingStep !== "review" ? <div className="error">{error}</div> : null}
         </div>
       </div>
     </div>
-    <ConfirmDialog
-      open={Boolean(bookingConfirmation)}
-      title="Submit booking request?"
-      message={
-        bookingConfirmation
-          ? `Patient: ${patientProfile?.fullName || "Patient"} | Services: ${service}${bookingConfirmation.promotion ? ` | Promotion: ${bookingConfirmation.promotion.title}` : ""} | Dentist: ${selectedDentist || "Selected dentist"} | Date: ${formatDateLabel(date)} | Time: ${bookingConfirmation.requestedTimeRange}.${bookingConfirmation.hasDuplicateWarning ? " You already have another booking for one of these services on this day, so the clinic may review this request more carefully." : ""}`
-          : ""
-      }
-      confirmLabel={saving ? "Submitting..." : "Submit Booking"}
-      cancelLabel="Review Details"
-      onClose={() => {
-        if (!saving) setBookingConfirmation(null);
-      }}
-      onConfirm={saving ? undefined : confirmBookingSubmission}
-    />
-    {successModalOpen ? (
-      <div className="modalOverlay" onClick={() => setSuccessModalOpen(false)}>
-        <div className="modalCard bookingSuccessModal" onClick={(e) => e.stopPropagation()}>
-          <div className="modalHeader">
-            <div className="modalTitleGroup">
-              <span className="modalToneLabel">Booking sent</span>
-              <h3>Appointment request submitted</h3>
-            </div>
-            <button
-              className="modalClose"
-              type="button"
-              onClick={() => setSuccessModalOpen(false)}
-              aria-label="Close booking success dialog"
-            >
-              x
-            </button>
-          </div>
-          <div className="bookingSuccessBody">
-            <div>
-              <strong>Your request is waiting for admin approval.</strong>
-              <p>The clinic can now review the appointment details and update its status from the admin dashboard.</p>
-            </div>
-            <div className="bookingSuccessDetails">
-              <span>{formatDateLabel(date)}</span>
-              <span>{selectedTimeRange || "Selected time"}</span>
-              <span>{selectedDentist || "Selected dentist"}</span>
-              <span>{service || "Selected services"}</span>
-            </div>
-            <button className="btn btnShine" type="button" onClick={() => setSuccessModalOpen(false)}>
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : null}
     </>
   );
 }

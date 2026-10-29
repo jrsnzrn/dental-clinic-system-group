@@ -5,13 +5,14 @@ import { auth, db } from "../../firebase";
 import { getAuditActionLabel } from "../../utils/audit";
 import { formatCurrency } from "../../utils/braces";
 import { ROLES } from "../../utils/rbac";
+import { fetchStaffAccounts } from "../../utils/staffAccounts";
 
 const ROUTES = {
   patients: "/admin/patients",
   bookings: "/admin/bookings",
   payments: "/admin/payments",
   dentists: "/admin/dentists",
-  receptionists: "/admin/accounts",
+  receptionists: "/admin/accounts?role=receptionist",
 };
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const pad = (value) => String(value).padStart(2, "0");
@@ -197,6 +198,7 @@ const icons = {
 export default function Overview() {
   const [bookings, setBookings] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [payments, setPayments] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -253,13 +255,17 @@ export default function Overview() {
       }
     );
 
-    const loadSource = async (name, setter, sourceName = name) => {
+    const loadSource = async (name, setter, sourceName = name, loadRecords) => {
       try {
-        const snapshot = name === "auditLogs"
-          ? await getDocs(query(collection(db, name), orderBy("createdAt", "desc"), limit(8)))
-          : await getDocs(collection(db, name));
+        const snapshot = loadRecords
+          ? await loadRecords()
+          : name === "auditLogs"
+            ? await getDocs(query(collection(db, name), orderBy("createdAt", "desc"), limit(8)))
+            : await getDocs(collection(db, name));
         if (!active) return;
-        const records = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+        const records = Array.isArray(snapshot)
+          ? snapshot
+          : snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
         setter(records);
         setSourceErrors((current) => {
           const next = { ...current };
@@ -318,7 +324,8 @@ export default function Overview() {
 
     const sourceLoads = Promise.all([
       loadSource("patients", setPatients),
-      loadSource("admins", setAccounts, "staff accounts"),
+      loadSource("dentists", setDentists),
+      loadSource("admins", setAccounts, "staff accounts", fetchStaffAccounts),
       loadSource("auditLogs", setActivities, "recent activity"),
     ]);
     void Promise.all([sourceLoads, paymentsLoaded, bookingsLoaded]).finally(() => {
@@ -342,11 +349,11 @@ export default function Overview() {
   const activeAccounts = useMemo(() => accounts.filter((account) =>
     account.archiveStatus !== "Archived"
   ), [accounts]);
+  const visibleDentists = useMemo(() => dentists.filter((dentist) =>
+    dentist.archiveStatus !== "Archived"
+  ), [dentists]);
   const receptionists = useMemo(() => activeAccounts.filter((account) =>
     account.role === ROLES.RECEPTIONIST
-  ), [activeAccounts]);
-  const dentistAccounts = useMemo(() => activeAccounts.filter((account) =>
-    account.role === ROLES.DENTIST
   ), [activeAccounts]);
   const paymentsUnavailable = Boolean(sourceErrors.payments || sourceErrors.bracesPayments);
 
@@ -401,7 +408,7 @@ export default function Overview() {
       </div>
 
       <div className="overviewStats overviewStatsPeople">
-        <PeopleCard label="Dentists" count={loading ? "…" : sourceErrors["staff accounts"] ? "—" : dentistAccounts.length} people={dentistAccounts} to={ROUTES.dentists} tone="pink" loading={loading} error={Boolean(sourceErrors["staff accounts"])} />
+        <PeopleCard label="Dentists" count={loading ? "…" : sourceErrors.dentists ? "—" : visibleDentists.length} people={visibleDentists} to={ROUTES.dentists} tone="pink" loading={loading} error={Boolean(sourceErrors.dentists)} />
         <PeopleCard label="Receptionists" count={loading ? "…" : sourceErrors["staff accounts"] ? "—" : receptionists.length} people={receptionists} to={ROUTES.receptionists} tone="purple" loading={loading} error={Boolean(sourceErrors["staff accounts"])} />
       </div>
 

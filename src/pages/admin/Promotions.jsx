@@ -101,9 +101,6 @@ export default function Promotions() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Only one seasonal promotion is managed: the newest one.
-  const current = promotions[0] || null;
-
   const load = useCallback(async () => {
     const [promoSnap, serviceSnap] = await Promise.all([
       getDocs(query(collection(db, "promotions"), orderBy("createdAt", "desc"))),
@@ -153,8 +150,7 @@ export default function Promotions() {
     }
   }
 
-  // Only used when no promotion exists yet, so there is something to edit.
-  function openFirst() {
+  function openNew() {
     setError("");
     setEditingId("");
     setDraft(blank);
@@ -224,12 +220,6 @@ export default function Promotions() {
       if (editingId) {
         await updateDoc(doc(db, "promotions", editingId), payload);
         await logAdminAction({ action: "update_promotion", targetType: "promotion", targetId: editingId, targetLabel: payload.title });
-        // Keep a single live promotion: any older entries are hidden, not deleted.
-        await Promise.all(
-          promotions
-            .filter((item) => item.id !== editingId && item.status !== "draft")
-            .map((item) => updateDoc(doc(db, "promotions", item.id), { status: "draft", updatedAt: serverTimestamp() }))
-        );
       } else {
         const created = await addDoc(collection(db, "promotions"), { ...payload, createdAt: serverTimestamp(), usageCount: 0 });
         await logAdminAction({ action: "create_promotion", targetType: "promotion", targetId: created.id, targetLabel: payload.title });
@@ -245,11 +235,11 @@ export default function Promotions() {
 
   return (
     <section className="container adminSurface pageSection adminPage promotionsPage">
-      {!formOpen && !loading && !promotions.length ? (
+      {!formOpen && (
         <div className="promotionsPageActions">
-          <button className="btn btnPrimary" type="button" onClick={openFirst}>Set up promotion</button>
+          <button className="btn btnPrimary" type="button" onClick={openNew}>Add Promo</button>
         </div>
-      ) : null}
+      )}
 
       {error && <div className="error" role="alert">{error}</div>}
 
@@ -257,7 +247,7 @@ export default function Promotions() {
         <div className="card promoEditor">
           <div className="cardHeader">
             <div>
-              <h2>Edit promotion</h2>
+              <h2>{editingId ? "Edit promotion" : "Add promotion"}</h2>
               <p className="sub">Set the discount, eligible services, dates, and an optional poster.</p>
             </div>
           </div>
@@ -351,7 +341,9 @@ export default function Promotions() {
             </fieldset>
 
             <div className="inlineActionRow">
-              <button className="btn btnShine" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+              <button className="btn btnShine" disabled={saving}>
+                {saving ? "Saving…" : editingId ? "Save changes" : "Create promo"}
+              </button>
               <button className="btn btnGhost" type="button" onClick={closeForm} disabled={saving}>Cancel</button>
             </div>
           </form>
@@ -361,40 +353,42 @@ export default function Promotions() {
       <div className="card">
         <div className="cardHeader">
           <div>
-            <h2>Current promotion</h2>
-            <p className="sub">Status is calculated from the start and expiration dates.</p>
+            <h2>Promotions</h2>
+            <p className="sub">Manage published offers and drafts. Status is calculated from each promotion’s dates.</p>
           </div>
         </div>
 
         {loading ? (
-          <p className="sub">Loading promotion…</p>
-        ) : !current ? (
-          <p className="sub">No promotion set up yet.</p>
+          <p className="sub">Loading promotions…</p>
+        ) : !promotions.length ? (
+          <p className="sub">No promotions yet. Add a promo to get started.</p>
         ) : (
           <div className="promoList">
-            <article className="promoItem">
-              {current.imageUrl ? (
-                <img className="promoThumb" src={current.imageUrl} alt="" loading="lazy" />
-              ) : (
-                <div className="promoThumb promoThumbEmpty" aria-hidden="true">
-                  {current.discountType === "percentage" ? `${Number(current.discountValue || 0)}%` : `₱${Number(current.discountValue || 0).toLocaleString()}`}
+            {promotions.map((promotion) => (
+              <article className="promoItem" key={promotion.id}>
+                {promotion.imageUrl ? (
+                  <img className="promoThumb" src={promotion.imageUrl} alt="" loading="lazy" />
+                ) : (
+                  <div className="promoThumb promoThumbEmpty" aria-hidden="true">
+                    {promotion.discountType === "percentage" ? `${Number(promotion.discountValue || 0)}%` : `₱${Number(promotion.discountValue || 0).toLocaleString()}`}
+                  </div>
+                )}
+                <div className="promoBody">
+                  <span className="promoBadge" data-status={statusOf(promotion)}>{statusOf(promotion)}</span>
+                  <h3>{promotion.title}</h3>
+                  {promotion.description && <p className="promoDesc">{promotion.description}</p>}
+                  <ul className="promoMeta">
+                    <li>{formatDiscount(promotion)}</li>
+                    <li>{formatDate(promotion.startDate)} – {formatDate(promotion.endDate)}</li>
+                    <li>{(promotion.services || []).join(", ") || "No services"}</li>
+                    <li>{promotion.usageCount || 0} booking uses</li>
+                  </ul>
                 </div>
-              )}
-              <div className="promoBody">
-                <span className="promoBadge" data-status={statusOf(current)}>{statusOf(current)}</span>
-                <h3>{current.title}</h3>
-                {current.description && <p className="promoDesc">{current.description}</p>}
-                <ul className="promoMeta">
-                  <li>{formatDiscount(current)}</li>
-                  <li>{formatDate(current.startDate)} – {formatDate(current.endDate)}</li>
-                  <li>{(current.services || []).join(", ") || "No services"}</li>
-                  <li>{current.usageCount || 0} booking uses</li>
-                </ul>
-              </div>
-              <div className="promoActions">
-                <button className="btn btnGhost" type="button" onClick={() => edit(current)}>Edit</button>
-              </div>
-            </article>
+                <div className="promoActions">
+                  <button className="btn btnGhost" type="button" onClick={() => edit(promotion)}>Edit</button>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </div>

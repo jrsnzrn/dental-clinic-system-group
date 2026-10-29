@@ -1,36 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { useSearchParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../../firebase";
+import { functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
+import { fetchStaffAccounts } from "../../utils/staffAccounts";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
-const GET_STAFF_ACCOUNTS = httpsCallable(functions, "getStaffAccounts");
 const SET_STAFF_DISABLED = httpsCallable(functions, "setStaffAccountDisabled");
 const ARCHIVE_STAFF_ACCOUNT = httpsCallable(functions, "archiveStaffAccount");
 const SET_STAFF_MFA_REQUIRED = httpsCallable(functions, "setStaffMfaRequired");
 
 function emptyDraft() {
   return { name: "", email: "", password: "", role: ROLES.RECEPTIONIST };
-}
-
-function toIso(value) {
-  return value?.toDate ? value.toDate().toISOString() : value || null;
-}
-
-function normalizeStaffAccount(entry) {
-  return {
-    ...entry,
-    createdAt: toIso(entry.createdAt),
-    mfaVerifiedUntil: toIso(entry.mfaVerifiedUntil),
-    mfaLastVerifiedAt: toIso(entry.mfaLastVerifiedAt),
-  };
-}
-
-async function loadStaffAccountsFromFirestore() {
-  const snapshot = await getDocs(query(collection(db, "admins"), orderBy("createdAt", "desc")));
-  return snapshot.docs.map((entry) => normalizeStaffAccount({ id: entry.id, ...entry.data() }));
 }
 
 const ROLE_FILTER_OPTIONS = [
@@ -139,6 +121,7 @@ function AccountRow({
 
 
 export default function Accounts() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState(emptyDraft());
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -150,10 +133,13 @@ export default function Accounts() {
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [updatingAccountId, setUpdatingAccountId] = useState("");
   const [menuId, setMenuId] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [pendingAction, setPendingAction] = useState(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
+  const requestedRole = searchParams.get("role");
+  const roleFilter = ROLE_FILTER_OPTIONS.some((option) => option.value === requestedRole)
+    ? requestedRole
+    : "all";
 
   const labelOf = (account) => account.name || account.email || "Staff account";
 
@@ -161,15 +147,7 @@ export default function Accounts() {
     try {
       setLoadingStaff(true);
       setListError("");
-      let accounts = [];
-
-      try {
-        const result = await GET_STAFF_ACCOUNTS();
-        accounts = Array.isArray(result.data) ? result.data : [];
-      } catch (callableError) {
-        console.error("getStaffAccounts callable failed, using Firestore read fallback:", callableError);
-        accounts = await loadStaffAccountsFromFirestore();
-      }
+      const accounts = await fetchStaffAccounts();
 
       const active = accounts.filter((entry) => entry.archiveStatus !== "Archived");
       setStaffAccounts(active.filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST));
@@ -429,7 +407,12 @@ export default function Accounts() {
               className="input"
               aria-label="Filter accounts by role or status"
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
+              onChange={(event) => {
+                const nextParams = new URLSearchParams(searchParams);
+                if (event.target.value === "all") nextParams.delete("role");
+                else nextParams.set("role", event.target.value);
+                setSearchParams(nextParams);
+              }}
             >
               {ROLE_FILTER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>

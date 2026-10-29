@@ -296,6 +296,29 @@ function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole 
   );
 }
 
+async function logoutAccount() {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+}
+
+export function PatientDashboardHeader({ user, theme, onThemeChange }) {
+  return (
+    <header className="patientDashboardHeader">
+      <AccountMenu
+        user={user}
+        items={[]}
+        onLogout={logoutAccount}
+        theme={theme}
+        onThemeChange={onThemeChange}
+        accountRole="Patient"
+      />
+    </header>
+  );
+}
+
 export default function NavBar({
   isAdmin: adminFromApp = false,
   user: userFromApp = null,
@@ -367,15 +390,6 @@ export default function NavBar({
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
-
-  async function logout() {
-    try {
-      await signOut(auth);
-      setMenuOpen(false);
-    } catch (e) {
-      console.error("Logout failed:", e);
-    }
-  }
 
   const adminLinks = ADMIN_NAV_BY_ROLE[adminRole] || ADMIN_NAV_BY_ROLE[ROLES.ADMIN] || [];
   const isDentistRecordsRoute =
@@ -471,7 +485,7 @@ export default function NavBar({
               key={`${location.pathname}:${menuOpen}`}
               user={user}
               items={ADMIN_ACCOUNT_ITEMS}
-              onLogout={logout}
+              onLogout={logoutAccount}
               theme={theme}
               onThemeChange={onThemeChange}
               accountRole={ROLE_LABELS[adminRole] || "Staff"}
@@ -566,7 +580,7 @@ export default function NavBar({
               key={`${location.pathname}:${menuOpen}`}
               user={user}
               items={USER_ACCOUNT_ITEMS}
-              onLogout={logout}
+              onLogout={logoutAccount}
             />
           )}
         </div>

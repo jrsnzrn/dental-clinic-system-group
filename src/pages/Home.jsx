@@ -129,11 +129,16 @@ function formatPromoDate(value) {
 
 function PromoSection({ promotions }) {
   if (!promotions || promotions.length === 0) return null;
+  const gridClassName = promotions.length === 1
+    ? "homeOffersGrid singlePromo"
+    : promotions.length >= 3
+      ? `homeOffersGrid threePlusPromos${promotions.length > 3 ? " scrollPromos" : ""}`
+      : "homeOffersGrid";
 
   return (
     <section className="homeOffers" aria-label="Promotions">
       <div className="innerWrap">
-        <div className="homeOffersGrid">
+        <div className={gridClassName}>
           {promotions.map((item) => {
             const amount = item.discountType === "percentage" ? `${item.discountValue}%` : `₱${Number(item.discountValue || 0).toLocaleString()}`;
             const services = item.services && item.services.length ? item.services : ["Selected services"];

@@ -10,6 +10,12 @@ const AUTO_MESSAGE_COOLDOWN = 5000;
 const THEMES = ["light", "dark", "blue"];
 const TIPS_DISABLED_KEY = "topdent-mascot-tips-disabled";
 const TOUR_SEEN_KEY = "topdent-mascot-tour-seen";
+const PATIENT_DASHBOARD_PATHS = new Set([
+  "/book",
+  "/my-appointments",
+  "/my-record",
+  "/my-dental-record",
+]);
 const THEME_HINTS = {
   light: {
     text: "Back to a clean bright smile!",
@@ -605,6 +611,10 @@ export default function Mascot() {
   const [isWebsiteCursed, setIsWebsiteCursed] = useState(false);
   const [curseRecovery, setCurseRecovery] = useState({ crown: false, wand: false });
 
+  const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+  const isPatientDashboard = Boolean(
+    user && PATIENT_DASHBOARD_PATHS.has(currentPath)
+  );
   const active = useMemo(() => !location.pathname.startsWith("/admin"), [location.pathname]);
   const currentPageTourSteps = useMemo(
     () => getTourSteps(location.pathname, "current", Boolean(user)),
@@ -1103,6 +1113,8 @@ export default function Mascot() {
   }
 
   function showAssistantMessage(nextMessage, options = {}) {
+    if (isPatientDashboard) return;
+
     const {
       nextPose = "idle",
       nextMood = "calm",
@@ -1241,7 +1253,7 @@ export default function Mascot() {
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
 
-    if (isDemonMode && !isWebsiteCursed && !isTourActive) {
+    if (!isPatientDashboard && isDemonMode && !isWebsiteCursed && !isTourActive) {
       document.body.classList.add("mascotChaosMode");
       setMenuOpen(true);
     } else {
@@ -1251,12 +1263,12 @@ export default function Mascot() {
     return () => {
       document.body.classList.remove("mascotChaosMode");
     };
-  }, [isDemonMode, isTourActive, isWebsiteCursed]);
+  }, [isDemonMode, isPatientDashboard, isTourActive, isWebsiteCursed]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
 
-    if (isWebsiteCursed) {
+    if (isWebsiteCursed && !isPatientDashboard) {
       document.body.classList.add("mascotDemonicTheme");
     } else {
       document.body.classList.remove("mascotDemonicTheme");
@@ -1265,7 +1277,7 @@ export default function Mascot() {
     return () => {
       document.body.classList.remove("mascotDemonicTheme");
     };
-  }, [isWebsiteCursed]);
+  }, [isPatientDashboard, isWebsiteCursed]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -1281,6 +1293,7 @@ export default function Mascot() {
 
   useEffect(() => {
     if (!active || isTourActive || isWebsiteCursed || !isDemonMode) return undefined;
+    if (isPatientDashboard) return undefined;
 
     const intervalId = window.setInterval(() => {
       if (!canShowHint("mascot-demon-taunt", 6800)) return;
@@ -1299,10 +1312,11 @@ export default function Mascot() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [active, isDemonMode, isTourActive, isWebsiteCursed]);
+  }, [active, isDemonMode, isPatientDashboard, isTourActive, isWebsiteCursed]);
 
   useEffect(() => {
     if (!active || isTourActive || !isWebsiteCursed) return undefined;
+    if (isPatientDashboard) return undefined;
 
     const proactiveStep = () => {
       const needsWand = !curseRecovery.wand;
@@ -1357,7 +1371,7 @@ export default function Mascot() {
       window.clearTimeout(kickoff);
       window.clearInterval(intervalId);
     };
-  }, [active, curseRecovery.crown, curseRecovery.wand, isTourActive, isWebsiteCursed, location.pathname]);
+  }, [active, curseRecovery.crown, curseRecovery.wand, isPatientDashboard, isTourActive, isWebsiteCursed, location.pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -1568,6 +1582,18 @@ export default function Mascot() {
 
   useEffect(() => {
     if (!active) return undefined;
+    if (isPatientDashboard) {
+      clearTimers();
+      setIsVisible(false);
+      setMenuOpen(false);
+      setShowBubble(false);
+      clearTourState();
+      setHighlight(null);
+      setTourPosition(null);
+      setPose("idle");
+      setMood("calm");
+      return undefined;
+    }
     if (isTourActive) return undefined;
 
     setIsVisible(true);
@@ -1599,14 +1625,14 @@ export default function Mascot() {
     closeBubbleLater(2800);
 
     return () => clearTimers();
-  }, [active, isTourActive, location.pathname, user, tipsDisabled]);
+  }, [active, isPatientDashboard, isTourActive, location.pathname, user, tipsDisabled]);
 
   useEffect(() => {
     return undefined;
   }, [active, currentPageTourSteps, isTourActive, tipsDisabled]);
 
   useEffect(() => {
-    if (!active || !isVisible || typeof window === "undefined" || isTourActive || tipsDisabled) return undefined;
+    if (!active || isPatientDashboard || !isVisible || typeof window === "undefined" || isTourActive || tipsDisabled) return undefined;
 
     const cleanupFns = [];
 
@@ -1649,10 +1675,10 @@ export default function Mascot() {
       const bookingPageObserver = new MutationObserver(() => {
         const errorNode = document.querySelector(".error");
         const successNode = document.querySelector(".successBanner");
-        const successModal = document.querySelector(".bookingSuccessModal");
+        const successScreen = document.querySelector(".bookingConfirmationScreen");
         const errorText = errorNode?.textContent?.trim() || "";
 
-        if (successModal || successNode?.textContent?.includes("Booking submitted")) {
+        if (successScreen || successNode?.textContent?.includes("Booking submitted")) {
           showAssistantMessage("Nice work. Your booking request is on its way to the clinic.", {
             nextPose: "celebrate",
             nextMood: "happy",
@@ -1827,7 +1853,7 @@ export default function Mascot() {
     return () => {
       cleanupFns.forEach((cleanup) => cleanup());
     };
-  }, [active, isVisible, location.pathname, isTourActive, tipsDisabled]);
+  }, [active, isPatientDashboard, isVisible, location.pathname, isTourActive, tipsDisabled]);
 
   if (!active) return null;
 
@@ -1839,13 +1865,13 @@ export default function Mascot() {
 
   return (
     <div className={`mascotLayer theme-${theme}`}>
-      {isDemonMode && !isWebsiteCursed && !isTourActive ? (
+      {isDemonMode && !isWebsiteCursed && !isTourActive && !isPatientDashboard ? (
         <div className="mascotChaosOverlay" onClick={handleChaosBlockedInteraction}>
           <div className="mascotChaosScratches" aria-hidden="true" />
         </div>
       ) : null}
 
-      {isWebsiteCursed && !isTourActive ? (
+      {isWebsiteCursed && !isTourActive && !isPatientDashboard ? (
         <div className="mascotDemonicScene" aria-hidden="true">
           <div className="mascotBloodRain">
             {Array.from({ length: 10 }).map((_, index) => (
@@ -1856,11 +1882,11 @@ export default function Mascot() {
         </div>
       ) : null}
 
-      {isTourActive ? (
+      {isTourActive && !isPatientDashboard ? (
         <div className="mascotTourOverlay" onClick={handleTourOverlayClick} />
       ) : null}
 
-      {highlight ? (
+      {highlight && !isPatientDashboard ? (
         <>
           {!isTourActive ? <div className="mascotTargetDim" /> : null}
           <div
@@ -1888,14 +1914,14 @@ export default function Mascot() {
 
       <div
         ref={dockRef}
-        className={`mascotDock ${isVisible ? "is-open" : "is-closed"} ${isTourActive ? "is-touring" : ""} ${isWebsiteCursed ? "is-cursed" : ""} mood-${mood} pose-${pose} theme-${theme}`}
-        style={tourPosition ? { left: `${tourPosition.left}px`, top: `${tourPosition.top}px`, right: "auto", bottom: "auto" } : undefined}
+        className={`mascotDock ${isVisible && !isPatientDashboard ? "is-open" : "is-closed"} ${isTourActive && !isPatientDashboard ? "is-touring" : ""} ${isWebsiteCursed && !isPatientDashboard ? "is-cursed" : ""} mood-${mood} pose-${pose} theme-${theme}`}
+        style={tourPosition && !isPatientDashboard ? { left: `${tourPosition.left}px`, top: `${tourPosition.top}px`, right: "auto", bottom: "auto" } : undefined}
       >
-        <div className={`mascotBubble ${showBubble && isVisible ? "is-visible" : ""} ${menuOpen ? "with-menu" : ""} ${hasTallMenu ? "with-tall-menu" : ""} ${isTourActive ? "tour-open" : ""} ${bubbleShouldDropBelow ? "bubble-below" : ""}`}>
+        <div className={`mascotBubble ${showBubble && isVisible && !isPatientDashboard ? "is-visible" : ""} ${menuOpen && !isPatientDashboard ? "with-menu" : ""} ${hasTallMenu && !isPatientDashboard ? "with-tall-menu" : ""} ${isTourActive && !isPatientDashboard ? "tour-open" : ""} ${bubbleShouldDropBelow && !isPatientDashboard ? "bubble-below" : ""}`}>
           {message}
         </div>
 
-        {menuOpen ? (
+        {menuOpen && !isPatientDashboard ? (
           <div className="mascotMenu" role="menu" aria-label="Mascot helper menu">
             {isWebsiteCursed ? (
               <>
@@ -1985,6 +2011,8 @@ export default function Mascot() {
           tabIndex={0}
           aria-label={menuOpen ? "Close mascot helper menu" : "Open mascot helper menu"}
           onClick={() => {
+            if (isPatientDashboard) return;
+
             if (isWebsiteCursed) {
               setMenuOpen(true);
               setShowBubble(true);

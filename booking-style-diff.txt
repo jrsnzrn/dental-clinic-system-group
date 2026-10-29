@@ -1,0 +1,1255 @@
+﻿diff --git a/src/styles.css b/src/styles.css
+index bf42f09..3015cb5 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -51,12 +51,12 @@
+ }
+ 
+ html[data-theme="light"] {
+-  --bg: #fffcf5;
+-  --card: #ece6dc;
+-  --card2: #ebe3d0;
++  --bg: #F5F2EA;
++  --card: #FBF9F4;
++  --card2: #F0ECE3;
+   --text: #1f1a16;
+   --muted: #6a5f55;
+-  --line: #e4dac6;
++  --line: #E5E0D6;
+   --accent: #FFD60A;
+   --accent-rgb: 255, 214, 10;
+   --accent-text: #2b2410;
+@@ -65,18 +65,18 @@ html[data-theme="light"] {
+   --danger: #d12735;
+   --shadow: 0 20px 50px rgba(255, 214, 10, 0.12);
+ 
+-  --surface: #ffffff;
++  --surface: #FBF9F4;
+   --surface-border: var(--accent);
+-  --field-bg: #ffffff;
++  --field-bg: #FBF9F4;
+ 
+-  --bg-landing: #fffcf5;
+-  --bg-whyus: #fffcf5;
+-  --bg-gallery: #ece6dc;
+-  --bg-services: #fffcf5;
+-  --bg-doctors: #fffcf5;
+-  --bg-feedback: #fffcf5;
++  --bg-landing: #F5F2EA;
++  --bg-whyus: #F5F2EA;
++  --bg-gallery: #FBF9F4;
++  --bg-services: #F5F2EA;
++  --bg-doctors: #F5F2EA;
++  --bg-feedback: #F5F2EA;
+ 
+-  --bg-intro: #fffcf5;
++  --bg-intro: #F5F2EA;
+   --bg-promo: #FFD60A;
+   --text-promo: #1f1a16;
+ }
+@@ -113,7 +113,7 @@ html[data-theme="blue"] {
+ }
+ 
+ html[data-dashboard="true"][data-theme="light"] {
+-  --bg: #ffffff;
++  --bg: #F5F2EA;
+ }
+ 
+ html[data-dashboard="true"][data-theme="blue"] {
+@@ -4662,14 +4662,14 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
+ }
+ 
+ html[data-theme="light"] .adminAppMain {
+-  --bg: #ffffff;
+-  --card: #ffffff;
+-  --card2: #f7f8fa;
+-  --line: #e5e7eb;
++  --bg: #F5F2EA;
++  --card: #FBF9F4;
++  --card2: #F0ECE3;
++  --line: #E5E0D6;
+   --line-focus: rgba(var(--accent-rgb), 0.3);
+-  --surface: #ffffff;
+-  --surface-border: #e5e7eb;
+-  --field-bg: #ffffff;
++  --surface: #FBF9F4;
++  --surface-border: #E5E0D6;
++  --field-bg: #FBF9F4;
+ }
+ 
+ html[data-theme="blue"] .adminAppMain {
+@@ -7104,13 +7104,13 @@ html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--ac
+ 
+ html[data-theme="light"] .dentistModal,
+ html[data-theme="blue"] .dentistModal {
+-  --bg: #ffffff;
+-  --card: #ffffff;
+-  --card2: #f7f8fa;
+-  --line: #e5e7eb;
+-  --surface: #ffffff;
+-  --surface-border: #e5e7eb;
+-  --field-bg: #ffffff;
++  --bg: #F5F2EA;
++  --card: #FBF9F4;
++  --card2: #F0ECE3;
++  --line: #E5E0D6;
++  --surface: #FBF9F4;
++  --surface-border: #E5E0D6;
++  --field-bg: #FBF9F4;
+ }
+ 
+ .dentistModal .patientDrawerHeader {
+@@ -15834,3 +15834,1153 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
+ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .paymentsTable, .ovTable) tbody tr:last-child > td {
+   border-bottom: 0;
+ }
++
++/* Public booking flow */
++.bookingPage {
++  width: min(100%, 1080px);
++  max-width: 1080px;
++  padding: 40px 32px 64px;
++}
++
++.bookingPage .bookingHero {
++  max-width: 1040px;
++  margin: 0 auto 18px;
++  padding: 0;
++  border: 0;
++  border-radius: 0;
++}
++
++.bookingPage .bookingHeroGrid {
++  grid-template-columns: minmax(0, 1fr);
++  gap: 0;
++}
++
++.bookingPage .bookingHero h1 {
++  margin: 0 0 8px;
++  font-size: clamp(26px, 3vw, 36px);
++  font-weight: 600;
++}
++
++.bookingPage .bookingHero p {
++  font-size: 14px;
++  line-height: 1.5;
++}
++
++.bookingPage > .grid {
++  display: block;
++  max-width: 1040px;
++  margin: 0 auto !important;
++}
++
++.bookingPage .card.bookingFormCard {
++  padding: clamp(20px, 2.8vw, 28px);
++  border: 1px solid var(--line);
++  border-radius: 14px;
++  background: color-mix(in srgb, var(--bg) 94%, var(--text));
++}
++
++.bookingPage .bookingFormCard > .cardHeader {
++  align-items: center;
++  margin-bottom: 18px;
++  padding-bottom: 16px;
++  border-bottom: 1px solid var(--line);
++}
++
++.bookingPage .bookingFormCard .cardHeader .title {
++  font-size: 18px;
++  font-weight: 600;
++}
++
++.bookingPage .bookingFormCard .cardHeader .sub {
++  max-width: 640px;
++  font-size: 13px;
++}
++
++.bookingPage .bookingProfileForm {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 10px;
++}
++
++.bookingPage .bookingProfileForm input:nth-of-type(6),
++.bookingPage .bookingProfileForm > label,
++.bookingPage .bookingProfileForm > button {
++  grid-column: 1 / -1;
++}
++
++.bookingPage .bookingPatientSummary {
++  display: flex;
++  min-width: 0;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 10px 12px;
++  margin: 0 !important;
++  padding: 12px;
++  border: 1px solid var(--line);
++  border-radius: 10px;
++  background: color-mix(in srgb, var(--bg) 97%, var(--text));
++}
++
++.bookingPage .bookingPatientSummary > div {
++  min-width: 0;
++}
++
++.bookingPage .bookingPatientSummary .detailSubtitle {
++  margin: 4px 0 0;
++  font-size: 12.5px;
++  line-height: 1.45;
++  overflow-wrap: anywhere;
++}
++
++.bookingPage .bookingPatientSummary .bookingSecondaryBtn {
++  min-height: 36px;
++  flex: 0 0 auto;
++  margin-left: auto;
++  padding: 8px 11px;
++  border-radius: 8px;
++  font-size: 12px;
++}
++
++.bookingPage .bookingAppointmentForm {
++  display: grid;
++  gap: 16px;
++  margin-top: 0 !important;
++}
++
++.bookingPage .bookingInfoGrid {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  align-items: stretch;
++  gap: 18px;
++}
++
++.bookingPage .bookingInfoSection {
++  display: grid;
++  min-width: 0;
++  align-content: start;
++  gap: 14px;
++}
++
++.bookingPage .bookingServiceSelector,
++.bookingPage .bookingDatePanel {
++  min-width: 0;
++  padding: 14px;
++  border: 1px solid var(--line);
++  border-radius: 10px;
++  background: color-mix(in srgb, var(--bg) 97%, var(--text));
++}
++
++.bookingPage .bookingFieldHeader,
++.bookingPage .bookingDatePanelHeader {
++  display: flex;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 10px;
++}
++
++.bookingPage .bookingFieldHint {
++  font-size: 12px;
++  line-height: 1.45;
++}
++
++.bookingPage .bookingServiceCount {
++  flex: 0 0 auto;
++  color: var(--muted);
++  font-size: 12px;
++  font-weight: 500;
++}
++
++.bookingPage .bookingServiceOptionGrid {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  grid-auto-rows: minmax(44px, auto);
++  gap: 8px;
++  margin-top: 12px;
++}
++
++.bookingPage .bookingServiceOption {
++  display: flex;
++  min-width: 0;
++  min-height: 44px;
++  align-items: center;
++  justify-content: space-between;
++  gap: 8px;
++  padding: 8px 10px;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  background: transparent;
++  color: var(--text);
++  font: inherit;
++  font-size: 12.5px;
++  text-align: left;
++  cursor: pointer;
++}
++
++.bookingPage .bookingServiceOption span {
++  min-width: 0;
++  line-height: 1.35;
++  overflow-wrap: anywhere;
++}
++
++.bookingPage .bookingServiceOption strong {
++  color: var(--muted);
++  font-size: 10px;
++  font-weight: 500;
++}
++
++.bookingPage .bookingServiceOption.active {
++  border-color: var(--accent);
++  background: color-mix(in srgb, var(--accent) 12%, transparent);
++}
++
++.bookingPage .bookingServiceOption.active strong {
++  color: var(--accent);
++}
++
++.bookingPage .bookingServiceOption:focus-visible,
++.bookingPage .bookingDateNavButton:focus-visible,
++.bookingPage .bookingDateChip:focus-visible {
++  outline: 2px solid var(--accent);
++  outline-offset: 2px;
++}
++
++.bookingPage .bookingDatePanelHeader {
++  align-items: center;
++  margin-bottom: 12px;
++}
++
++.bookingPage .bookingDatePanel .detailTitle {
++  display: block;
++  margin-top: 4px;
++  font-size: 16px;
++}
++
++.bookingPage .bookingDatePanel .detailSubtitle {
++  margin: 3px 0 0;
++  color: var(--muted);
++  font-size: 11.5px;
++}
++
++.bookingPage .bookingDateHighlight {
++  color: var(--muted);
++  font-size: 11px;
++  text-align: right;
++}
++
++.bookingPage .bookingDateHighlight strong {
++  display: block;
++  margin-top: 3px;
++  color: var(--text);
++  font-size: 12px;
++  font-weight: 500;
++}
++
++.bookingPage .bookingDateNavigator {
++  display: grid;
++  grid-template-columns: 38px minmax(0, 1fr) 38px;
++  align-items: center;
++  gap: 6px;
++}
++
++.bookingPage .bookingDateScroller {
++  display: grid;
++  grid-auto-flow: column;
++  grid-auto-columns: minmax(36px, 1fr);
++  min-width: 0;
++  gap: 5px;
++  overflow-x: auto;
++  padding: 2px;
++  scrollbar-width: thin;
++  scrollbar-color: var(--line) transparent;
++}
++
++.bookingPage .bookingDateChip {
++  display: grid;
++  min-width: 0;
++  min-height: 58px;
++  justify-items: center;
++  align-content: center;
++  gap: 2px;
++  padding: 5px;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  background: transparent;
++  color: var(--text);
++  font: inherit;
++  cursor: pointer;
++}
++
++.bookingPage .bookingDateChip strong {
++  font-size: 15px;
++  font-weight: 600;
++}
++
++.bookingPage .bookingDateChipDay,
++.bookingPage .bookingDateChipMonth {
++  color: var(--muted);
++  font-size: 10px;
++}
++
++.bookingPage .bookingDateChip.active {
++  border-color: var(--accent);
++  background: var(--accent);
++  color: var(--accent-text);
++}
++
++.bookingPage .bookingDateChip.active :is(.bookingDateChipDay, .bookingDateChipMonth) {
++  color: inherit;
++}
++
++.bookingPage .bookingDateNavButton {
++  min-height: 36px;
++  padding: 6px 4px;
++  border: 1px solid var(--line);
++  border-radius: 7px;
++  background: transparent;
++  color: var(--text);
++  font: inherit;
++  font-size: 11px;
++  cursor: pointer;
++}
++
++.bookingPage .bookingDateNavButton:disabled {
++  opacity: 0.5;
++  cursor: default;
++}
++
++.bookingPage .bookingFlowGrid {
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  align-items: start;
++  gap: 12px;
++}
++
++.bookingPage .bookingFlowGrid .bookingFieldCard {
++  align-self: start;
++}
++
++.bookingPage .bookingAppointmentForm .input {
++  min-height: 40px;
++  padding: 9px 11px;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  background: color-mix(in srgb, var(--bg) 97%, var(--text));
++  font-size: 13px;
++}
++
++.bookingPage .bookingAppointmentForm select.bookingInputSpecial {
++  height: 40px;
++}
++
++.bookingPage .bookingAppointmentForm textarea.input {
++  width: 100%;
++  min-height: 84px;
++  resize: vertical;
++}
++
++.bookingPage .bookingMiniSummary {
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 12px;
++  padding: 12px 14px;
++  border: 1px solid var(--line);
++  border-radius: 10px;
++  background: color-mix(in srgb, var(--bg) 97%, var(--text));
++}
++
++.bookingPage .bookingMiniSummaryCard {
++  display: grid;
++  gap: 4px;
++}
++
++.bookingPage .bookingMiniSummaryCard strong {
++  color: var(--text);
++  font-size: 13px;
++  font-weight: 500;
++}
++
++.bookingPage .bookingConsentCard {
++  display: flex;
++  align-items: flex-start;
++  gap: 9px;
++  color: var(--muted);
++  font-size: 12px;
++  line-height: 1.5;
++}
++
++.bookingPage .bookingConsentCard input {
++  flex: 0 0 auto;
++  margin-top: 2px;
++  accent-color: var(--accent);
++}
++
++.bookingPage .bookingAppointmentForm > .error,
++.bookingPage .bookingInfoSection > .error {
++  margin: 0;
++  padding: 10px 12px;
++  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
++  border-radius: 8px;
++  background: color-mix(in srgb, var(--danger) 6%, transparent);
++  font-size: 12.5px;
++}
++
++.bookingPage .bookingInfoSection > .emptyEditorState {
++  padding: 14px;
++  border-color: var(--line);
++  border-radius: 8px;
++  font-size: 13px;
++}
++
++.bookingPage .bookingInfoSection > .detailNote {
++  padding: 11px 12px;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++}
++
++.bookingPage .bookingInfoSection > .detailNote p {
++  font-size: 12.5px;
++  line-height: 1.5;
++}
++
++.bookingPage .bookingPrimaryBtn {
++  min-height: 42px;
++  justify-self: start;
++  padding: 10px 18px;
++  border-radius: 8px;
++  border: 1px solid var(--accent);
++  background: var(--accent);
++  color: var(--accent-text);
++  font-size: 13px;
++}
++
++@media (max-width: 860px) {
++  .bookingPage .bookingInfoGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .bookingPage .bookingInfoSection {
++    gap: 12px;
++  }
++}
++
++@media (max-width: 520px) {
++  .bookingPage {
++    padding: 30px 14px 52px;
++  }
++
++  .bookingPage .bookingPatientSummary {
++    align-items: flex-start;
++    flex-direction: column;
++  }
++
++  .bookingPage .bookingPatientSummary .bookingSecondaryBtn {
++    margin-left: 0;
++  }
++
++  .bookingPage .bookingProfileForm,
++  .bookingPage .bookingFlowGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .bookingPage .bookingServiceOptionGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .bookingPage .bookingDatePanel {
++    padding: 11px;
++  }
++
++  .bookingPage .bookingDateNavigator {
++    grid-template-columns: 34px minmax(0, 1fr) 34px;
++    gap: 4px;
++  }
++
++  .bookingPage .bookingDateScroller {
++    grid-auto-columns: 36px;
++    gap: 4px;
++  }
++
++  .bookingPage .bookingDateHighlight {
++    max-width: 105px;
++  }
++
++  .bookingPage .bookingMiniSummary {
++    gap: 6px;
++  }
++
++  .bookingPage .bookingMiniSummaryCard strong {
++    font-size: 11px;
++  }
++
++  .bookingPage .bookingFormCard > .cardHeader {
++    align-items: flex-start;
++  }
++
++  .bookingPage .bookingMiniSummary {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
++
++.bookingPage .bookingScreenHeader {
++  display: grid;
++  gap: 5px;
++}
++
++.bookingPage .bookingScreenHeader h4 {
++  margin: 0;
++  color: var(--text);
++  font-size: 16px;
++  font-weight: 600;
++}
++
++.bookingPage .bookingScreenHeader p {
++  margin: 0;
++  color: var(--muted);
++  font-size: 13px;
++  line-height: 1.5;
++}
++
++.bookingPage .bookingReviewSection {
++  min-width: 0;
++  padding: 14px 0;
++  border-top: 1px solid var(--line);
++}
++
++.bookingPage .bookingReviewSection > h4 {
++  margin: 0;
++  color: var(--text);
++  font-size: 13px;
++  font-weight: 600;
++}
++
++.bookingPage .bookingReviewOverlay {
++  position: fixed;
++  inset: 0;
++  z-index: 1300;
++  display: grid;
++  place-items: center;
++  padding: 24px;
++  background: rgba(18, 16, 11, 0.58);
++}
++
++.bookingPage .bookingReviewModal {
++  display: flex;
++  width: min(100%, 640px);
++  max-height: min(760px, calc(100dvh - 48px));
++  flex-direction: column;
++  overflow: hidden;
++  border: 1px solid var(--line);
++  border-radius: 14px;
++  background: var(--bg);
++  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
++}
++
++.bookingPage .bookingReviewModalHeader {
++  display: flex;
++  flex: 0 0 auto;
++  align-items: center;
++  justify-content: space-between;
++  gap: 16px;
++  padding: 20px 24px 16px;
++  border-bottom: 1px solid var(--line);
++}
++
++.bookingPage .bookingReviewModalHeader h3 {
++  margin: 0;
++  color: var(--text);
++  font-family: var(--font-nav);
++  font-size: 18px;
++  font-weight: 600;
++}
++
++.bookingPage .bookingReviewClose {
++  display: grid;
++  width: 34px;
++  height: 34px;
++  flex: 0 0 auto;
++  place-items: center;
++  padding: 0;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  background: transparent;
++  color: var(--muted);
++  font: inherit;
++  font-size: 23px;
++  line-height: 1;
++  cursor: pointer;
++}
++
++.bookingPage .bookingReviewClose:hover:not(:disabled) {
++  border-color: var(--accent);
++  color: var(--text);
++}
++
++.bookingPage .bookingReviewClose:disabled {
++  cursor: default;
++  opacity: 0.55;
++}
++
++.bookingPage .bookingReviewModalContent {
++  min-height: 0;
++  overflow-y: auto;
++  padding: 2px 24px 8px;
++}
++
++.bookingPage .bookingReviewModalSection {
++  padding: 14px 0;
++  border-bottom: 1px solid var(--line);
++}
++
++.bookingPage .bookingReviewModalSection:last-child {
++  border-bottom: 0;
++}
++
++.bookingPage .bookingReviewModalSection h4 {
++  margin: 0 0 7px;
++  color: var(--text);
++  font-family: var(--font-nav);
++  font-size: 13px;
++  font-weight: 600;
++}
++
++.bookingPage .bookingReviewModalRows {
++  display: grid;
++  margin: 0;
++}
++
++.bookingPage .bookingReviewModalRows > div,
++.bookingPage .bookingReviewModalServices li {
++  display: grid;
++  grid-template-columns: minmax(120px, 0.65fr) minmax(0, 1.35fr);
++  gap: 16px;
++  padding: 7px 0;
++  border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
++}
++
++.bookingPage .bookingReviewModalRows > div:last-child,
++.bookingPage .bookingReviewModalServices li:last-child {
++  border-bottom: 0;
++}
++
++.bookingPage .bookingReviewModalRows dt {
++  color: var(--muted);
++  font-size: 12px;
++}
++
++.bookingPage .bookingReviewModalRows dd {
++  margin: 0;
++  color: var(--text);
++  font-size: 13px;
++  line-height: 1.45;
++  overflow-wrap: anywhere;
++}
++
++.bookingPage .bookingReviewModalServices {
++  display: grid;
++  margin: 0;
++  padding: 0;
++  list-style: none;
++}
++
++.bookingPage .bookingReviewModalServices li {
++  color: var(--text);
++  font-size: 13px;
++}
++
++.bookingPage .bookingReviewModalServices strong {
++  color: var(--text);
++  font-size: 13px;
++  font-weight: 500;
++  text-align: right;
++}
++
++.bookingPage .bookingReviewModalWarning {
++  margin: 10px 0 0;
++  color: var(--danger);
++  font-size: 12px;
++  line-height: 1.5;
++}
++
++.bookingPage .bookingReviewModal > .error {
++  flex: 0 0 auto;
++  margin: 0 24px 12px;
++}
++
++.bookingPage .bookingReviewModalActions {
++  display: flex;
++  flex: 0 0 auto;
++  justify-content: flex-end;
++  gap: 10px;
++  padding: 14px 24px 20px;
++  border-top: 1px solid var(--line);
++}
++
++.bookingPage .bookingReviewModalActions .bookingPrimaryBtn {
++  justify-self: auto;
++}
++
++.bookingPage .bookingReviewDetails {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  margin: 0;
++}
++
++.bookingPage .bookingReviewDetails > div {
++  min-width: 0;
++  padding: 8px 14px 8px 0;
++  border-bottom: 1px solid var(--line);
++}
++
++.bookingPage .bookingReviewDetails dt {
++  margin-bottom: 5px;
++  color: var(--muted);
++  font-size: 11px;
++}
++
++.bookingPage .bookingReviewDetails dd {
++  margin: 0;
++  color: var(--text);
++  font-size: 13px;
++  line-height: 1.5;
++  overflow-wrap: anywhere;
++}
++
++.bookingPage .bookingReviewServiceList {
++  display: grid;
++  gap: 0;
++  margin: 0;
++  padding: 0;
++  list-style: none;
++}
++
++.bookingPage .bookingReviewServiceList li {
++  display: flex;
++  min-width: 0;
++  justify-content: space-between;
++  gap: 12px;
++  padding: 9px 0;
++  border-bottom: 1px solid var(--line);
++  color: var(--text);
++  font-size: 13px;
++}
++
++.bookingPage .bookingReviewServiceList li:first-child {
++  border-top: 1px solid var(--line);
++}
++
++.bookingPage .bookingReviewServiceList strong {
++  color: var(--muted);
++  font-size: 12px;
++  font-weight: 500;
++  text-align: right;
++}
++
++.bookingPage .bookingReviewSection > p {
++  margin: 0;
++  color: var(--text);
++  font-size: 13px;
++  line-height: 1.5;
++  overflow-wrap: anywhere;
++}
++
++.bookingPage .bookingReviewActions {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 10px;
++}
++
++.bookingPage .bookingReviewActions .bookingPrimaryBtn {
++  justify-self: auto;
++}
++
++.bookingPage .bookingConfirmationScreen {
++  display: grid;
++  max-width: 760px;
++  gap: 14px;
++}
++
++.bookingPage .bookingConfirmationScreen h3 {
++  margin: 0;
++  color: var(--text);
++  font-size: clamp(20px, 2.5vw, 25px);
++  font-weight: 600;
++}
++
++.bookingPage .bookingConfirmationMessage {
++  margin: 0 0 4px;
++  color: var(--muted);
++  font-size: 13px;
++  line-height: 1.55;
++}
++
++.bookingPage .bookingConfirmationDetails {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  column-gap: 24px;
++}
++
++.bookingPage .bookingConfirmationDetails .bookingReviewSection {
++  align-self: start;
++}
++
++@media (max-width: 560px) {
++  .bookingPage .bookingReviewDetails {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .bookingPage .bookingReviewOverlay {
++    padding: 12px;
++  }
++
++  .bookingPage .bookingReviewModal {
++    max-height: calc(100dvh - 24px);
++  }
++
++  .bookingPage .bookingReviewModalHeader {
++    padding: 16px 16px 12px;
++  }
++
++  .bookingPage .bookingReviewModalContent {
++    padding-right: 16px;
++    padding-left: 16px;
++  }
++
++  .bookingPage .bookingReviewModalRows > div,
++  .bookingPage .bookingReviewModalServices li {
++    grid-template-columns: minmax(100px, 0.65fr) minmax(0, 1.35fr);
++    gap: 10px;
++  }
++
++  .bookingPage .bookingReviewModal > .error {
++    margin-right: 16px;
++    margin-left: 16px;
++  }
++
++  .bookingPage .bookingReviewModalActions {
++    padding: 12px 16px 16px;
++  }
++
++  .bookingPage .bookingConfirmationDetails {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .bookingPage .bookingReviewActions {
++    align-items: stretch;
++    flex-direction: column-reverse;
++  }
++
++  .bookingPage .bookingReviewActions button {
++    width: 100%;
++  }
++}
++
++.patientDashboardHeader {
++  position: relative;
++  z-index: 20;
++  display: flex;
++  min-height: 72px;
++  align-items: center;
++  justify-content: flex-end;
++  gap: 16px;
++  padding: 0 clamp(16px, 2.5vw, 32px);
++  border-bottom: 1px solid var(--line);
++  background: var(--bg);
++}
++
++.patientDashboardHeader .accountMenu {
++  margin-left: 0;
++}
++
++.patientDashboardMain {
++  width: 100%;
++  max-width: none;
++  min-width: 0;
++  height: 100vh;
++  height: 100dvh;
++  margin: 0;
++  padding: 0;
++  overflow: hidden;
++}
++
++.patientDashboardMain .patientDashboardLayout {
++  display: grid;
++  width: 100%;
++  max-width: none;
++  min-width: 0;
++  height: 100%;
++  min-height: 0;
++  margin: 0;
++  padding: 0;
++  grid-template-columns: 250px minmax(0, 1fr);
++  gap: 0;
++  align-items: stretch;
++}
++
++.patientDashboardMain .patientSidebar {
++  position: fixed;
++  inset: 0 auto 0 0;
++  display: flex;
++  width: 250px;
++  min-height: 0;
++  height: 100vh;
++  height: 100dvh;
++  flex-direction: column;
++  align-self: start;
++  gap: 16px;
++  padding: 28px 18px;
++  border: 0;
++  border-right: 1px solid var(--line);
++  border-radius: 0;
++  background: color-mix(in srgb, var(--bg) 96%, var(--text));
++  overflow-y: auto;
++}
++
++.patientDashboardMain .patientSidebarBrand {
++  display: flex;
++  flex: 0 0 auto;
++  align-items: center;
++  gap: 6px;
++  padding: 0 4px;
++}
++
++.patientDashboardMain .patientSidebarBrand strong,
++.patientDashboardMain .patientSidebarBrand span {
++  display: block;
++}
++
++.patientDashboardMain .patientSidebarBrand strong {
++  font-family: var(--font-nav);
++  font-size: 14.5px;
++  font-weight: 700;
++  letter-spacing: -0.01em;
++  color: var(--text);
++}
++
++.patientDashboardMain .patientSidebarBrand span {
++  margin-top: 1px;
++  color: var(--muted);
++  font-family: var(--font-mono);
++  font-size: 9.5px;
++  letter-spacing: 0.1em;
++  text-transform: uppercase;
++}
++
++.patientDashboardMain .patientSidebarNav {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  align-content: start;
++  gap: 4px;
++}
++
++.patientDashboardMain .patientSidebarLink {
++  display: flex;
++  min-width: 0;
++  min-height: 42px;
++  align-items: center;
++  padding: 9px 12px;
++  border: 1px solid transparent;
++  border-left: 3px solid transparent;
++  border-radius: 8px;
++  color: var(--muted);
++  font-family: var(--font-nav);
++  font-size: 14px;
++  font-weight: 500;
++  line-height: 1.35;
++  overflow-wrap: anywhere;
++  text-decoration: none;
++}
++
++.patientDashboardMain .patientSidebarLink:hover,
++.patientDashboardMain .patientSidebarLink:focus-visible {
++  color: var(--text);
++}
++
++.patientDashboardMain .patientSidebarLink:focus-visible {
++  outline: 2px solid var(--line-focus);
++  outline-offset: 2px;
++}
++
++.patientDashboardMain .patientSidebarLink.active {
++  border-color: var(--line);
++  border-left-color: var(--accent);
++  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
++  color: var(--text);
++  font-weight: 600;
++}
++
++.patientDashboardContent {
++  display: grid;
++  grid-column: 2;
++  min-width: 0;
++  min-height: 0;
++  height: 100%;
++  grid-template-rows: auto minmax(0, 1fr);
++  overflow-y: auto;
++  overscroll-behavior-y: contain;
++}
++
++.patientDashboardPage {
++  min-width: 0;
++  width: 100%;
++  max-width: 100%;
++}
++
++.patientDashboardPage .bookingPage {
++  width: 100% !important;
++  max-width: none !important;
++  min-width: 0;
++  padding: 24px clamp(16px, 2.5vw, 32px) 40px !important;
++}
++
++.patientDashboardPage .bookingPage > .grid {
++  width: 100%;
++  max-width: none;
++  min-width: 0;
++}
++
++.patientDashboardPage .bookingPage .bookingFormCard,
++.patientDashboardPage .bookingPage .bookingAppointmentForm,
++.patientDashboardPage .bookingPage .bookingInfoGrid,
++.patientDashboardPage .bookingPage .bookingInfoSection,
++.patientDashboardPage .bookingPage .bookingFieldCard {
++  min-width: 0;
++}
++
++.patientDashboardPage .bookingPage .bookingFormCard {
++  width: 100%;
++  max-width: 100%;
++}
++
++.patientDashboardPage .bookingPage .bookingInfoGrid {
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++}
++
++.patientDashboardPage .bookingPage .bookingServiceSelector {
++  container: booking-services / inline-size;
++}
++
++.patientDashboardPage .bookingPage .bookingServiceOptionGrid {
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++}
++
++.patientDashboardPage .bookingPage .bookingFlowGrid {
++  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
++}
++
++@container booking-services (max-width: 459px) {
++  .patientDashboardPage .bookingPage .bookingServiceOptionGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
++
++.patientDashboardPage .bookingPage .bookingDateNavigator {
++  min-width: 0;
++}
++
++.patientDashboardPage .bookingPage .bookingDateScroller {
++  grid-auto-columns: minmax(36px, 1fr);
++}
++
++@media (max-width: 1100px) {
++  .patientDashboardPage .bookingPage .bookingInfoGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
++
++@media (max-width: 760px) {
++  .patientDashboardMain {
++    height: auto;
++    min-height: 100vh;
++    overflow: visible;
++  }
++
++  .patientDashboardMain .patientDashboardLayout {
++    height: auto;
++    min-height: 100vh;
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .patientDashboardMain .patientSidebar {
++    position: relative;
++    inset: auto;
++    width: auto;
++    top: auto;
++    min-height: 0;
++    height: auto;
++    gap: 0;
++    padding: 10px 14px;
++    border-right: 0;
++    border-bottom: 1px solid var(--line);
++  }
++
++  .patientDashboardMain .patientSidebarBrand {
++    display: flex;
++    padding: 0 8px 8px;
++    border-bottom: 0;
++  }
++
++  .patientDashboardMain .patientSidebarBrand img {
++    width: 36px;
++    height: 36px;
++  }
++
++  .patientDashboardMain .patientSidebarNav {
++    display: grid;
++    grid-template-columns: repeat(3, minmax(0, 1fr));
++    gap: 5px;
++    overflow: visible;
++    padding: 0;
++  }
++
++  .patientDashboardMain .patientSidebarLink {
++    min-height: 38px;
++    min-width: 0;
++    width: 100%;
++    justify-content: center;
++    padding: 8px 5px;
++    font-size: 12px;
++    line-height: 1.25;
++    text-align: center;
++    white-space: normal;
++  }
++
++  .patientDashboardContent {
++    grid-column: 1;
++    height: auto;
++    min-height: 0;
++    overflow: visible;
++  }
++
++  .patientDashboardPage .bookingPage {
++    padding: 18px 14px 32px !important;
++  }
++
++  .patientDashboardPage .bookingPage .bookingInfoGrid,
++  .patientDashboardPage .bookingPage .bookingFlowGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .patientDashboardPage .bookingPage .bookingDateScroller {
++    grid-auto-columns: 36px;
++  }
++}
++
++@media (max-width: 420px) {
++  .patientDashboardHeader {
++    min-height: 58px;
++    padding: 0 12px;
++  }
++
++  .patientDashboardHeader .accountTrigger {
++    gap: 8px;
++  }
++
++  .patientDashboardHeader .accountName {
++    max-width: 112px;
++  }
++
++  .patientDashboardPage .bookingPage .bookingServiceOptionGrid {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}

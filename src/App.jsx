@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import NavBar from "./components/NavBar";
+import NavBar, { PatientDashboardHeader } from "./components/NavBar";
 import Footer from "./components/Footer";
 import Mascot from "./components/Mascot";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -33,10 +33,17 @@ import Promotions from "./pages/admin/Promotions";
 import Analytics from "./pages/admin/Analytics";
 import ForgotPassword from "./pages/admin/ForgotPassword";
 import { getAdminProfile, getDefaultAdminPath, ROLES } from "./utils/rbac";
+import topDentLogo from "./assets/logo.png";
 
 const THEMES = ["light", "blue", "dark"];
 const FIRST_VISIT_KEY = "topdent-has-visited";
 const PUBLIC_ANIMATION_PATHS = new Set(["/", "/about", "/services", "/contact", "/book"]);
+const PATIENT_DASHBOARD_PATHS = new Set([
+  "/book",
+  "/my-appointments",
+  "/my-record",
+  "/my-dental-record",
+]);
 
 function getInitialTheme() {
   if (typeof window === "undefined") return "light";
@@ -44,12 +51,15 @@ function getInitialTheme() {
   return THEMES.includes(savedTheme) ? savedTheme : "light";
 }
 
-function FirstVisitHomeGate({ isAdmin, children }) {
+function FirstVisitHomeGate({ user, isAdmin, children }) {
   const location = useLocation();
 
   useEffect(() => {
     const currentPath = location.pathname.replace(/\/+$/, "") || "/";
-    const isPublicRoute = !isAdmin && PUBLIC_ANIMATION_PATHS.has(currentPath);
+    const isPatientDashboard = Boolean(
+      user && !isAdmin && PATIENT_DASHBOARD_PATHS.has(currentPath)
+    );
+    const isPublicRoute = !isAdmin && !isPatientDashboard && PUBLIC_ANIMATION_PATHS.has(currentPath);
     const appMain = document.querySelector(".appMain");
     if (!appMain) return undefined;
 
@@ -190,22 +200,77 @@ function FirstVisitHomeGate({ isAdmin, children }) {
       observer.disconnect();
       mutationObserver?.disconnect();
     };
-  }, [isAdmin, location.pathname]);
+  }, [isAdmin, location.pathname, user]);
 
   if (typeof window === "undefined") return children;
 
   const hasVisited = window.localStorage.getItem(FIRST_VISIT_KEY) === "true";
   const isAdminPath = location.pathname.startsWith("/admin");
+  const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+  const isPatientDashboard = Boolean(
+    user && !isAdmin && PATIENT_DASHBOARD_PATHS.has(currentPath)
+  );
 
   if (!hasVisited) {
     window.localStorage.setItem(FIRST_VISIT_KEY, "true");
 
-    if (!isAdmin && !isAdminPath && location.pathname !== "/") {
+    if (!isAdmin && !isAdminPath && !isPatientDashboard && currentPath !== "/") {
       return <Navigate to="/" replace />;
     }
   }
 
   return children;
+}
+
+function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }) {
+  const location = useLocation();
+  const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+  const showPatientLayout = Boolean(
+    user && !isAdmin && PATIENT_DASHBOARD_PATHS.has(currentPath)
+  );
+  const patientNavigation = [
+    { to: "/book", label: "Book Appointment" },
+    { to: "/my-appointments", label: "My Appointments" },
+    { to: "/my-dental-record", label: "Dental Records" },
+  ];
+
+  return (
+    <>
+      {!showPatientLayout ? <NavBar {...navBarProps} /> : null}
+      <div className={`appMain ${isAdmin ? "adminAppMain" : ""} ${showPatientLayout ? "patientDashboardMain" : ""}`}>
+        {showPatientLayout ? (
+          <div className="patientDashboardLayout">
+            <aside className="patientSidebar" aria-label="Patient navigation">
+              <div className="patientSidebarBrand">
+                <img className="adminSidebarLogo" src={topDentLogo} alt="TopDent logo" />
+                <div>
+                  <strong>TopDent</strong>
+                  <span>Patient portal</span>
+                </div>
+              </div>
+              <nav className="patientSidebarNav">
+                {patientNavigation.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end
+                    className={({ isActive }) => `patientSidebarLink${isActive ? " active" : ""}`}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
+            </aside>
+            <main className="patientDashboardContent">
+              <PatientDashboardHeader user={user} theme={theme} onThemeChange={onThemeChange} />
+              <div className="patientDashboardPage">{children}</div>
+            </main>
+          </div>
+        ) : children}
+      </div>
+      {!showPatientLayout ? <Footer isAdmin={isAdmin} theme={theme} onThemeChange={onThemeChange} /> : null}
+    </>
+  );
 }
 
 export default function App() {
@@ -280,22 +345,26 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <FirstVisitHomeGate isAdmin={isAdmin}>
-        <NavBar
-          isAdmin={isAdmin}
+      <FirstVisitHomeGate user={user} isAdmin={isAdmin}>
+        <AppFrame
           user={user}
-          adminRole={adminRole}
+          isAdmin={isAdmin}
           theme={theme}
           onThemeChange={setTheme}
-          dentistSearch={dentistSearch}
-          onDentistSearchChange={setDentistSearch}
-          dentistPatientTypeFilter={dentistPatientTypeFilter}
-          onDentistPatientTypeFilterChange={setDentistPatientTypeFilter}
-          archiveSearch={archiveSearch}
-          onArchiveSearchChange={setArchiveSearch}
-        />
-
-        <div className={`appMain ${isAdmin ? "adminAppMain" : ""}`}>
+          navBarProps={{
+            isAdmin,
+            user,
+            adminRole,
+            theme,
+            onThemeChange: setTheme,
+            dentistSearch,
+            onDentistSearchChange: setDentistSearch,
+            dentistPatientTypeFilter,
+            onDentistPatientTypeFilterChange: setDentistPatientTypeFilter,
+            archiveSearch,
+            onArchiveSearchChange: setArchiveSearch,
+          }}
+        >
           <Routes>
             <Route path="/" element={isAdmin ? adminRedirect : <Home />} />
             <Route path="/services" element={isAdmin ? adminRedirect : <Services />} />
@@ -304,6 +373,7 @@ export default function App() {
             <Route path="/book" element={isAdmin ? adminRedirect : <Book />} />
             <Route path="/my-appointments" element={isAdmin ? adminRedirect : <MyAppointments />} />
             <Route path="/my-record" element={isAdmin ? adminRedirect : <MyDentalRecord />} />
+            <Route path="/my-dental-record" element={isAdmin ? adminRedirect : <MyDentalRecord />} />
             <Route path="/terms" element={<Navigate to="/about" replace />} />
             <Route path="/privacy-policy" element={<Navigate to="/about" replace />} />
 
@@ -456,9 +526,8 @@ export default function App() {
 
             <Route path="*" element={isAdmin ? adminRedirect : <Navigate to="/" replace />} />
           </Routes>
-        </div>
+        </AppFrame>
 
-        <Footer isAdmin={isAdmin} theme={theme} onThemeChange={setTheme} />
         <Mascot />
       </FirstVisitHomeGate>
     </BrowserRouter>
