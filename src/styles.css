@@ -5492,11 +5492,89 @@ input[type="date"].input { min-height: 48px; }
   padding: 8px 10px;
   font-size: 13px;
 }
+.patientDetailsPage .recordTab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.patientDetailsPage .patientDetailsSections {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+.patientDetailsPage .patientInformationContainer {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.patientDetailsPage .patientInfoSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.patientDetailsPage .patientInfoTitle {
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.patientDetailsPage .patientEditButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 12px;
+  color: var(--button-primary-color);
+  background: var(--button-primary-background);
+  border: 1px solid var(--button-primary-background);
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.patientDetailsPage .patientEditButton:hover:not(:disabled) {
+  color: var(--button-primary-color);
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
+}
+.patientDetailsPage .patientInfoMissing {
+  color: var(--muted);
+  font-weight: 400;
+}
+.patientDetailsPage .patientAppointmentEmpty {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.patientDetailsPage .pdlForm {
+  display: flex;
+  width: 100%;
+  max-width: 440px;
+  flex-direction: column;
+  gap: 12px;
+  align-self: center;
+  padding-top: 0;
+}
+.patientDetailsPage .pdlForm > .field {
+  width: 100%;
+}
+.patientDetailsPage .pdlActions {
+  justify-content: flex-start;
+  margin-top: 4px;
+}
 .patientDetailsPage .pdlList {
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-width: 760px;
+  width: 100%;
+  max-width: none;
 }
 .patientDetailsPage .pdlRow {
   display: grid;
@@ -5532,18 +5610,19 @@ input[type="date"].input { min-height: 48px; }
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 30px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
   color: var(--text);
   font-size: 12.5px;
   font-weight: 500;
   text-decoration: none;
 }
 .patientDetailsPage .recordFooter .patientDownloadAction:hover:not(:disabled) {
-  border: 0;
-  background: transparent;
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
   color: var(--text);
   text-decoration: none;
 }
@@ -5573,6 +5652,8 @@ input[type="date"].input { min-height: 48px; }
 @media (max-width: 640px) {
   .patientDetailsPage .recordHeader { align-items: flex-start; }
   .patientDetailsPage .recordFooter .btn { flex: 0 1 auto; }
+  .patientDetailsPage .patientInformationContainer { padding: 16px; }
+  .patientDetailsPage .patientInfoSectionHeader { align-items: flex-start; }
   .patientDetailsPage .pdlRow { grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 10px 0; }
   .confirmActions .btn { flex: 1; }
 }
@@ -5861,7 +5942,7 @@ input[type="date"].input { min-height: 48px; }
   border-color: var(--button-primary-hover-background);
 }
 
-.adminAppMain .patientDetailsPage .recordHeader > .btnPrimary,
+.adminAppMain .patientDetailsPage .patientEditButton,
 .adminAppMain .patientDetailsPage .recordFooter .btnInfo,
 .adminAppMain .patientDetailsPage .recordFooter .btnSecondary,
 .adminAppMain .patientDetailsPage .pdlActions .btnSecondary {
@@ -5870,13 +5951,13 @@ input[type="date"].input { min-height: 48px; }
   border-color: var(--button-secondary-border);
 }
 
-.adminAppMain .patientDetailsPage .recordHeader > .btnPrimary {
+.adminAppMain .patientDetailsPage .patientEditButton {
   color: var(--button-primary-color);
   background: var(--button-primary-background);
   border-color: var(--button-primary-background);
 }
 
-.adminAppMain .patientDetailsPage .recordHeader > .btnPrimary:hover:not(:disabled) {
+.adminAppMain .patientDetailsPage .patientEditButton:hover:not(:disabled) {
   background: var(--button-primary-hover-background);
   border-color: var(--button-primary-hover-background);
 }
@@ -5884,9 +5965,14 @@ input[type="date"].input { min-height: 48px; }
 .adminAppMain .patientDetailsPage .recordFooter .patientDownloadAction,
 .adminAppMain .patientDetailsPage .recordFooter .patientDownloadAction:hover:not(:disabled) {
   color: var(--text);
-  background: transparent;
-  border: 0;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
   text-decoration: none;
+}
+
+.adminAppMain .patientDetailsPage .recordFooter .patientDownloadAction:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
 }
 
 .adminAppMain .patientDetailsPage .recordFooter .btnWarning {
@@ -12576,6 +12662,29 @@ html body .patientListPage .typeBadge.ortho {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+
+.patientDetailsPage .backLink.paymentsBackLink.appBackAction {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.patientDetailsPage .backLink.paymentsBackLink.appBackAction:hover {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.patientDetailsPage .backLink.paymentsBackLink.appBackAction svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 2.4;
 }
 
 .paymentsDetailsPageHeader {

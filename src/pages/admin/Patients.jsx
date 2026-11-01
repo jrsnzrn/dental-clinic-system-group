@@ -78,6 +78,7 @@ function getEmptyDraft() {
     age: "",
     phone: "",
     email: "",
+    address: "",
     patientType: "Regular",
     bracesType: "",
     status: "Active",
@@ -95,6 +96,7 @@ function buildDraftFromPatient(patient) {
     age: patient.age || "",
     phone: patient.phone || "",
     email: patient.email || "",
+    address: patient.address || "",
     patientType: normalizePatientType(patient.patientType),
     bracesType: patient.bracesType || "",
     status: patient.status || "Active",
@@ -196,11 +198,33 @@ function getPatientCareRecommendations(recommendations = []) {
   }));
 }
 
-function getBookingServiceLabel(booking) {
+function getBookingServiceLabel(booking, emptyLabel = "Appointment") {
   const services = Array.isArray(booking.services) && booking.services.length
     ? booking.services
     : String(booking.service || "").split(",");
-  return services.map((service) => String(service || "").trim()).filter(Boolean).join(", ") || "Appointment";
+  return services.map((service) => String(service || "").trim()).filter(Boolean).join(", ") || emptyLabel;
+}
+
+function getBookingTimeRange(booking) {
+  if (!booking?.time) return "";
+  const [hours = "0", minutes = "0"] = String(booking.time).split(":");
+  const endTotalMinutes = Number(hours) * 60 + Number(minutes)
+    + Number(booking.estimatedDurationMinutes || 60);
+  const endTime = booking.estimatedEndTime
+    || `${String(Math.floor(endTotalMinutes / 60) % 24).padStart(2, "0")}:${String(endTotalMinutes % 60).padStart(2, "0")}`;
+  return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
+}
+
+function PatientInfoRow({ label, value, emptyLabel = "Not provided" }) {
+  const displayValue = String(value ?? "").trim();
+  return (
+    <div className="pdlRow">
+      <dt>{label}</dt>
+      <dd className={displayValue ? undefined : "patientInfoMissing"}>
+        {displayValue || emptyLabel}
+      </dd>
+    </div>
+  );
 }
 
 function isBookingAssignedToDentist(booking, dentist) {
@@ -226,6 +250,12 @@ function bookingMatchesPatient(booking, patient) {
     return true;
   }
   return normalizeName(booking.fullName || booking.patientKey) === normalizeName(patient.name);
+}
+
+function bookingMatchesPatientById(booking, patient) {
+  const patientIds = [patient.id, patient.uid].filter(Boolean);
+  return [booking.patientProfileId, booking.patientId, booking.uid]
+    .some((bookingPatientId) => bookingPatientId && patientIds.includes(bookingPatientId));
 }
 
 function getPatientHistory(bookings, patient, options = {}) {
@@ -842,32 +872,20 @@ export default function Patients({
     [patientCards, selectedPatientId]
   );
 
+  const latestPatientAppointment = useMemo(() => {
+    if (!selectedPatient) return null;
+    const patientBookings = bookings.filter((booking) =>
+      normalizeName(booking.archiveStatus) !== "archived" &&
+      bookingMatchesPatientById(booking, selectedPatient)
+    );
+    return getLatestBooking(patientBookings);
+  }, [bookings, selectedPatient]);
+
   const sortedTimeline = useMemo(() => {
     if (!selectedPatient) return [];
     return [...(selectedPatient.timeline || [])].sort(
       (a, b) => getTimestampMillis(a.timestamp) - getTimestampMillis(b.timestamp)
     );
-  }, [selectedPatient]);
-
-  const bookingSummary = useMemo(() => {
-    const history = selectedPatient?.allHistory || [];
-    const counts = new Map();
-    history.forEach((booking) => {
-      const name = booking.service || "Service not set";
-      counts.set(name, (counts.get(name) || 0) + 1);
-    });
-    const latest = selectedPatient?.latestOverall || null;
-
-    return {
-      total: history.length,
-      services: [...counts.entries()]
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count),
-      recent: history.slice(0, 8),
-      latestService: latest?.service || "No bookings yet",
-      lastVisit: latest?.date ? formatDateLabel(latest.date) : "No visit yet",
-      dentist: selectedPatient?.preferredDentist || latest?.selectedDentist || "No dentist yet",
-    };
   }, [selectedPatient]);
 
   useEffect(() => {
@@ -1071,11 +1089,6 @@ export default function Patients({
       setNotice({ type: "error", text: "First name and last name are required." });
       return;
     }
-    if (draft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(draft.bracesType)) {
-      setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
-      return;
-    }
-
     setSavingDetails(true);
     setNotice(null);
 
@@ -1090,6 +1103,7 @@ export default function Patients({
         age: String(draft.age).trim(),
         phone: draft.phone.trim(),
         email: draft.email.trim(),
+        address: draft.address.trim(),
         patientType: draft.patientType,
         bracesType: draft.patientType === "Ortho" ? draft.bracesType : deleteField(),
         status: draft.status,
@@ -1106,6 +1120,7 @@ export default function Patients({
             age: String(draft.age).trim(),
             phone: draft.phone.trim(),
             email: draft.email.trim(),
+            address: draft.address.trim(),
             patientType: draft.patientType,
             bracesType: draft.patientType === "Ortho" ? draft.bracesType : deleteField(),
           },
@@ -1632,8 +1647,6 @@ export default function Patients({
   const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
   const canEditPatientProfile = adminRole === ROLES.ADMIN || adminRole === ROLES.RECEPTIONIST;
 
-  const patientStatus = selectedPatient?.status || "Active";
-
   return (
     <div className={`container adminSurface${isDentist ? " dentistPatientsPage" : ""}`}>
       {notice ? (
@@ -1957,11 +1970,15 @@ export default function Patients({
       {patientId ? (
         <main className="patientDetailsPage">
           <div className="recordPage">
-            <button type="button" className="backLink paymentsBackLink appBackAction" onClick={closePatientRecord}>
-              <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
-                <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10h9" />
+            <button
+              type="button"
+              className="backLink paymentsBackLink appBackAction"
+              aria-label="Back to patients"
+              onClick={closePatientRecord}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                <path d="M9 5 4 10l5 5M4 10h9a6 6 0 0 1 0 12h-1" />
               </svg>
-              Back
             </button>
           {loadingPatients && !selectedPatient ? (
             <SkeletonList count={2} />
@@ -1972,26 +1989,6 @@ export default function Patients({
             />
           ) : (
             <>
-              <header className="recordHeader">
-                <div className="recordIdentity">
-                  <h1 className="recordName">{selectedPatient.name || "Unnamed patient"}</h1>
-                  <div className="recordBadges">
-                    <span className={`typeBadge ${normalizePatientType(selectedPatient.patientType) === "Ortho" ? "ortho" : "regular"}`}>
-                      {normalizePatientType(selectedPatient.patientType)} patient
-                    </span>
-                    <span className={`statusPill ${getStatusClass(patientStatus)}`}>{patientStatus}</span>
-                  </div>
-                </div>
-                {canEditPatientProfile && !isEditing ? (
-                  <button type="button" className="btn btnPrimary patientEditButton" onClick={startEditing}>
-                    <svg viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="m12.9 3.1 4 4M3 17l3.7-.8L16.7 6.2a1.7 1.7 0 0 0-2.4-2.4L4.3 13.8 3 17Z" />
-                    </svg>
-                    Edit patient
-                  </button>
-                ) : null}
-              </header>
-
               <div className="recordTabs" role="tablist" aria-label="Patient record sections">
                 {RECORD_TABS.map((tab) => (
                   <button
@@ -2011,107 +2008,127 @@ export default function Patients({
 
               {activePatientView === PATIENT_VIEWS.DETAILS ? (
                 <section
-                  className="pdl"
+                  className="patientDetailsSections"
                   role="tabpanel"
                   id={`panel-${PATIENT_VIEWS.DETAILS}`}
                   aria-labelledby={`tab-${PATIENT_VIEWS.DETAILS}`}
                 >
-                  {isEditing ? (
-                    <form onSubmit={savePatientDetails} className="pdlForm">
-                      <label className="field">
-                        <span className="fieldLabel">First name</span>
-                        <input className="input" value={draft.firstName} onChange={(e) => updateDraft("firstName", e.target.value)} required />
-                      </label>
-                      <label className="field">
-                        <span className="fieldLabel">Middle name</span>
-                        <input className="input" value={draft.middleName} onChange={(e) => updateDraft("middleName", e.target.value)} />
-                      </label>
-                      <label className="field">
-                        <span className="fieldLabel">Last name</span>
-                        <input className="input" value={draft.lastName} onChange={(e) => updateDraft("lastName", e.target.value)} required />
-                      </label>
-                      <label className="field">
-                        <span className="fieldLabel">Age</span>
-                        <input className="input pdlAgeInput" type="number" min="1" value={draft.age} onChange={(e) => updateDraft("age", e.target.value)} />
-                      </label>
-                      <label className="field">
-                        <span className="fieldLabel">Type of patient</span>
-                        <select className="input" value={draft.patientType} onChange={(e) => updateDraft("patientType", e.target.value)}>
-                          {PATIENT_TYPES.map((type) => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
-                      </label>
-                      {draft.patientType === "Ortho" ? (
+                  <section className="pdl patientInformationContainer">
+                    <div className="patientInfoSectionHeader">
+                      <h2 className="patientInfoTitle">Patient Information</h2>
+                      {canEditPatientProfile && !isEditing ? (
+                        <button type="button" className="btn btnPrimary patientEditButton" onClick={startEditing}>
+                          <svg viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="m12.9 3.1 4 4M3 17l3.7-.8L16.7 6.2a1.7 1.7 0 0 0-2.4-2.4L4.3 13.8 3 17Z" />
+                          </svg>
+                          Edit Patient
+                        </button>
+                      ) : null}
+                    </div>
+                    {isEditing ? (
+                      <form onSubmit={savePatientDetails} className="pdlForm">
                         <label className="field">
-                          <span className="fieldLabel">Type of Braces</span>
-                          <select
-                            className="input"
-                            value={draft.bracesType}
-                            onChange={(e) => updateDraft("bracesType", e.target.value)}
-                            required
-                          >
-                            <option value="">Select type of braces</option>
-                            {PATIENT_BRACES_TYPES.map((type) => (
+                          <span className="fieldLabel">First Name</span>
+                          <input className="input" value={draft.firstName} onChange={(e) => updateDraft("firstName", e.target.value)} required />
+                        </label>
+                        <label className="field">
+                          <span className="fieldLabel">Middle Name</span>
+                          <input className="input" value={draft.middleName} onChange={(e) => updateDraft("middleName", e.target.value)} />
+                        </label>
+                        <label className="field">
+                          <span className="fieldLabel">Last Name</span>
+                          <input className="input" value={draft.lastName} onChange={(e) => updateDraft("lastName", e.target.value)} required />
+                        </label>
+                        <label className="field">
+                          <span className="fieldLabel">Age</span>
+                          <input className="input pdlAgeInput" type="number" min="1" value={draft.age} onChange={(e) => updateDraft("age", e.target.value)} />
+                        </label>
+                        <label className="field">
+                          <span className="fieldLabel">Type of Patient</span>
+                          <select className="input" value={draft.patientType} onChange={(e) => updateDraft("patientType", e.target.value)}>
+                            {PATIENT_TYPES.map((type) => (
                               <option key={type} value={type}>{type}</option>
                             ))}
                           </select>
                         </label>
-                      ) : null}
-                      <label className="field">
-                        <span className="fieldLabel">Contact number</span>
-                        <input className="input" value={draft.phone} onChange={(e) => updateDraft("phone", e.target.value)} />
-                      </label>
-                      <label className="field pdlFull">
-                        <span className="fieldLabel">Gmail</span>
-                        <input className="input" type="email" value={draft.email} onChange={(e) => updateDraft("email", e.target.value)} />
-                      </label>
+                        <label className="field">
+                          <span className="fieldLabel">Contact Number</span>
+                          <input className="input" value={draft.phone} onChange={(e) => updateDraft("phone", e.target.value)} />
+                        </label>
+                        <label className="field">
+                          <span className="fieldLabel">Email</span>
+                          <input className="input" type="email" value={draft.email} onChange={(e) => updateDraft("email", e.target.value)} />
+                        </label>
+                        <label className="field">
+                          <span className="fieldLabel">Address</span>
+                          <input className="input" value={draft.address} onChange={(e) => updateDraft("address", e.target.value)} />
+                        </label>
 
-                      <div className="pdlActions pdlFull">
-                        <button type="submit" className="btn btnSuccess" disabled={savingDetails}>
-                          {savingDetails ? "Updating..." : "Update"}
-                        </button>
-                        <button type="button" className="btn btnSecondary" onClick={cancelEditing} disabled={savingDetails}>
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <dl className="pdlList">
-                      <div className="pdlRow">
-                        <dt>Name</dt>
-                        <dd>{selectedPatient.name || "Not provided"}</dd>
-                      </div>
-                      <div className="pdlRow">
-                        <dt>Age</dt>
-                        <dd>{selectedPatient.age || "Not provided"}</dd>
-                      </div>
-                      <div className="pdlRow">
-                        <dt>Phone</dt>
-                        <dd>{selectedPatient.phone || "Not provided"}</dd>
-                      </div>
-                      <div className="pdlRow">
-                        <dt>Email</dt>
-                        <dd>{selectedPatient.email || "Not provided"}</dd>
-                      </div>
-                      <div className="pdlRow">
-                        <dt>Dentist</dt>
-                        <dd>{bookingSummary.dentist}</dd>
-                      </div>
-                      <div className="pdlRow">
-                        <dt>Appointments</dt>
-                        <dd>{bookingSummary.total}</dd>
-                      </div>
-                      <div className="pdlRow">
-                        <dt>Last visit</dt>
-                        <dd>
-                          {bookingSummary.total
-                            ? `${bookingSummary.lastVisit} \u00b7 ${bookingSummary.latestService}`
-                            : "No visit yet"}
-                        </dd>
-                      </div>
-                    </dl>
-                  )}
+                        <div className="pdlActions">
+                          <button type="submit" className="btn btnSuccess" disabled={savingDetails}>
+                            {savingDetails ? "Saving Changes..." : "Save Changes"}
+                          </button>
+                          <button type="button" className="btn btnSecondary" onClick={cancelEditing} disabled={savingDetails}>
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <dl className="pdlList">
+                        <PatientInfoRow
+                          label="Name"
+                          value={selectedPatient.name || [
+                            selectedPatient.firstName,
+                            selectedPatient.middleName,
+                            selectedPatient.lastName,
+                          ].filter(Boolean).join(" ")}
+                        />
+                        <PatientInfoRow label="Age" value={selectedPatient.age} />
+                        <PatientInfoRow label="Type of Patient" value={selectedPatient.patientType} />
+                        <PatientInfoRow label="Phone" value={selectedPatient.phone} />
+                        <PatientInfoRow label="Email" value={selectedPatient.email} />
+                        <PatientInfoRow label="Address" value={selectedPatient.address} />
+                      </dl>
+                    )}
+                    <footer className="recordFooter">
+                      <button type="button" className="btn btnInfo patientDownloadAction" onClick={handleDownloadPdf} disabled={pdfBusy}>
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 12.5v4h13v-4" />
+                        </svg>
+                        {pdfBusy ? "Preparing PDF" : "Download PDF"}
+                      </button>
+                    </footer>
+                  </section>
+
+                  <section className="patientInformationContainer appointmentInformationContainer">
+                    <div className="patientInfoSectionHeader">
+                      <h2 className="patientInfoTitle">Appointment Information</h2>
+                    </div>
+                    {latestPatientAppointment ? (
+                      <dl className="pdlList">
+                        <PatientInfoRow
+                          label="Appointment Date"
+                          value={latestPatientAppointment.date ? formatDateLabel(latestPatientAppointment.date) : ""}
+                        />
+                        <PatientInfoRow label="Time" value={getBookingTimeRange(latestPatientAppointment)} />
+                        <PatientInfoRow label="Service" value={getBookingServiceLabel(latestPatientAppointment, "")} />
+                        <PatientInfoRow label="Dentist" value={latestPatientAppointment.selectedDentist} />
+                        <PatientInfoRow
+                          label="Booked At"
+                          value={latestPatientAppointment.createdAt ? formatTimestamp(latestPatientAppointment.createdAt) : ""}
+                        />
+                        <PatientInfoRow
+                          label="Arrival"
+                          value={latestPatientAppointment.checkedInAt
+                            ? `Checked in · ${formatTimestamp(latestPatientAppointment.checkedInAt)}`
+                            : ""}
+                          emptyLabel="Not checked in"
+                        />
+                      </dl>
+                    ) : (
+                      <p className="patientAppointmentEmpty">No appointment yet</p>
+                    )}
+                  </section>
                 </section>
               ) : null}
 
@@ -2645,14 +2662,6 @@ export default function Patients({
                 </section>
               ) : null}
 
-              <footer className="recordFooter">
-                <button type="button" className="btn btnInfo patientDownloadAction" onClick={handleDownloadPdf} disabled={pdfBusy}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 12.5v4h13v-4" />
-                  </svg>
-                  {pdfBusy ? "Preparing PDF" : "Download PDF"}
-                </button>
-              </footer>
             </>
           )}
           </div>
