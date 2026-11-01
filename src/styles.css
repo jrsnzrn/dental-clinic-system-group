@@ -15795,7 +15795,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   outline-offset: 2px;
 }
 
-.dentistTreatmentCompleteButton:disabled {
+.dentistTreatmentCompleteButton:disabled,
 .dentistTreatmentMenuTrigger:disabled {
   opacity: 0.55;
   cursor: not-allowed;
