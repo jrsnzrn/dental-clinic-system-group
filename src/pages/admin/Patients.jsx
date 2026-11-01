@@ -2031,7 +2031,7 @@ export default function Patients({
                       </label>
                       <label className="field">
                         <span className="fieldLabel">Age</span>
-                        <input className="input" type="number" min="1" value={draft.age} onChange={(e) => updateDraft("age", e.target.value)} />
+                        <input className="input pdlAgeInput" type="number" min="1" value={draft.age} onChange={(e) => updateDraft("age", e.target.value)} />
                       </label>
                       <label className="field">
                         <span className="fieldLabel">Type of patient</span>
@@ -2068,7 +2068,7 @@ export default function Patients({
 
                       <div className="pdlActions pdlFull">
                         <button type="submit" className="btn btnSuccess" disabled={savingDetails}>
-                          {savingDetails ? "Saving" : "Save changes"}
+                          {savingDetails ? "Updating..." : "Update"}
                         </button>
                         <button type="button" className="btn btnSecondary" onClick={cancelEditing} disabled={savingDetails}>
                           Cancel

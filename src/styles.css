@@ -5306,6 +5306,7 @@ input[type="date"].input { min-height: 48px; }
   box-shadow: none;
 }
 .patientDetailsPage .input { padding: 8px 12px; font-size: 14.5px; }
+.patientDetailsPage .pdlAgeInput { width: 110px; max-width: 100%; }
 .patientDetailsPage select.input,
 .patientDetailsPage input[type="date"].input { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
 .patientDetailsPage textarea.input { min-height: 64px; }
@@ -10237,6 +10238,13 @@ html[data-theme="blue"] .bookingInputSpecial {
   border-left: 4px solid var(--accent);
   border-radius: 14px;
   background: transparent;
+}
+
+.bookingPage .patientDentalNotesCard > .detailNote {
+  padding-right: 0;
+  padding-left: 0;
+  border: 0;
+  border-radius: 0;
 }
 
 .bookingPage .detailNote p {
@@ -15867,11 +15875,25 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   margin: 0 auto !important;
 }
 
+.bookingPage > .grid.dentalRecordLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 18px;
+  max-width: 1200px;
+  align-items: start;
+}
+
 .bookingPage .card.bookingFormCard {
   padding: clamp(20px, 2.8vw, 28px);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: color-mix(in srgb, var(--bg) 94%, var(--text));
+}
+
+@media (max-width: 900px) {
+  .bookingPage > .grid.dentalRecordLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .bookingPage .bookingFormCard > .cardHeader {

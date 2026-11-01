@@ -137,7 +137,7 @@ export default function MyDentalRecord() {
         </div>
       </div>
 
-      <div className="grid" style={{ marginTop: 18 }}>
+      <div className="grid dentalRecordLayout" style={{ marginTop: 18 }}>
         <div className="card bookingFormCard">
           <div className="cardHeader">
             <div>
@@ -215,11 +215,11 @@ export default function MyDentalRecord() {
           </div>
         </div>
 
-        <div className="card bookingDetailsCard">
+        <div className="card bookingDetailsCard patientDentalNotesCard">
           <div className="cardHeader">
             <div>
               <h3 className="title">Dentist Notes</h3>
-              <p className="sub">The note panel updates instantly as you explore the numbering guide and tooth chart.</p>
+              <p className="sub">The notes updates instantly as you explore the numbering guide and tooth chart.</p>
             </div>
           </div>
 
