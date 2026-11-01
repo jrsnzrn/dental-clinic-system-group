@@ -427,6 +427,7 @@ export default function Payments() {
     totalCost: "",
     amount: "",
     paymentDate: new Date().toISOString().slice(0, 10),
+    referenceNumber: "",
     method: "Cash",
   });
   const [savingDetails, setSavingDetails] = useState(false);
@@ -642,6 +643,7 @@ export default function Payments() {
       totalCost: String(row.totalCost || ""),
       amount: "",
       paymentDate: new Date().toISOString().slice(0, 10),
+      referenceNumber: "",
       method: DETAIL_PAYMENT_METHODS.includes(row.method) ? row.method : "Cash",
     });
     setDetailError("");
@@ -674,6 +676,10 @@ export default function Payments() {
       setDetailError("Enter a valid payment amount and date.");
       return;
     }
+    if (detailDraft.referenceNumber && !/^\d{13}$/.test(detailDraft.referenceNumber)) {
+      setDetailError("Reference number must contain exactly 13 digits.");
+      return;
+    }
 
     submissionLockRef.current = true;
     setSavingDetails(true);
@@ -690,6 +696,7 @@ export default function Payments() {
           totalCost,
           amount,
           paymentDate: detailDraft.paymentDate,
+          referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
         });
         await logAdminAction({
@@ -715,6 +722,7 @@ export default function Payments() {
           totalCost,
           amount,
           paymentDate: detailDraft.paymentDate,
+          referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
           allowZeroAmount: true,
         });
@@ -878,10 +886,28 @@ export default function Payments() {
                       {DETAIL_PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
                     </select>
                   </label>
+                  <label className="paymentsField">
+                    <span>Reference Number (optional)</span>
+                    <input
+                      className="input"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={13}
+                      value={detailDraft.referenceNumber}
+                      disabled={!canRecordSelectedPayment}
+                      onChange={(event) =>
+                        setDetailDraft((current) => ({
+                          ...current,
+                          referenceNumber: event.target.value.replace(/\D/g, "").slice(0, 13),
+                        }))
+                      }
+                    />
+                  </label>
                 </div>
                 <footer className="paymentsDetailsActions">
                   <button type="submit" className="btn btnPrimary" disabled={savingDetails || !canRecordSelectedPayment}>
-                    {savingDetails ? "Saving..." : "Save changes"}
+                    {savingDetails ? "Updating..." : "Update"}
                   </button>
                   <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails}>Cancel</button>
                 </footer>
@@ -892,7 +918,7 @@ export default function Payments() {
               <h2>Payment history</h2>
               <div className="paymentsInlineHistoryTableWrap">
                 <table className="paymentsInlineHistoryTable">
-                  <thead><tr><th>Date</th><th>Method</th><th>Amount</th></tr></thead>
+                  <thead><tr><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th></tr></thead>
                   <tbody>
                     {selectedPatientTransactions
                       .filter((transaction) =>
@@ -905,6 +931,7 @@ export default function Payments() {
                         <tr key={`${transaction.ledgerSource}:${transaction.id}`}>
                           <td>{paymentDateSortValue(transaction) ? formatDateLabel(paymentDateSortValue(transaction)) : "—"}</td>
                           <td>{transaction.method || transaction.paymentMethod || "—"}</td>
+                          <td>{transaction.referenceNumber || "—"}</td>
                           <td>{formatCurrency(transaction.amount ?? transaction.paid)}</td>
                         </tr>
                       ))}

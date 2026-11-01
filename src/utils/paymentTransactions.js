@@ -63,6 +63,7 @@ export async function recordRegularPayment(payment) {
   const requestedTotalCost = toAmount(payment.totalCost);
   const allowZeroAmount = payment.allowZeroAmount === true;
   const patientId = String(payment.patientId || "");
+  const referenceNumber = String(payment.referenceNumber || "").trim();
   const paymentRef = doc(collection(db, "payments"));
   const treatmentId = String(payment.treatmentId || paymentRef.id);
   const paymentData = { ...payment };
@@ -75,6 +76,9 @@ export async function recordRegularPayment(payment) {
     requestedTotalCost <= 0
   ) {
     throw new Error("A patient, treatment, positive total cost, and valid payment amount are required.");
+  }
+  if (referenceNumber && !/^\d{13}$/.test(referenceNumber)) {
+    throw new Error("The reference number must contain exactly 13 digits.");
   }
 
   const summaryRef = doc(
@@ -184,12 +188,17 @@ export async function recordBracesPayment({
   totalCost: rawTotalCost,
   bracesType,
   paymentDate,
+  referenceNumber,
   method,
   notes,
 }) {
   const amount = toAmount(rawAmount);
+  const normalizedReferenceNumber = String(referenceNumber || "").trim();
   if (!patient?.id || !accountId || Number(rawAmount) < 0 || !paymentDate) {
     throw new Error("A braces account, non-negative payment amount, and payment date are required.");
+  }
+  if (normalizedReferenceNumber && !/^\d{13}$/.test(normalizedReferenceNumber)) {
+    throw new Error("The reference number must contain exactly 13 digits.");
   }
 
   const accountRef = doc(db, "bracesAccounts", accountId);
@@ -241,6 +250,7 @@ export async function recordBracesPayment({
           patientName: patient.name || "",
           amount,
           paymentDate,
+          ...(normalizedReferenceNumber ? { referenceNumber: normalizedReferenceNumber } : {}),
           method: method || "Cash",
           notes: String(notes || "").trim(),
           createdAt: serverTimestamp(),

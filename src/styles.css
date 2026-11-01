@@ -15549,103 +15549,34 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   white-space: nowrap;
 }
 
-.dentistTreatmentMenu {
-  position: relative;
-  display: flex;
-  justify-content: center;
-}
-
-.dentistTreatmentMenuTrigger {
-  display: grid;
-  width: 34px;
-  height: 36px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
+.dentistTreatmentCompleteButton {
+  min-height: 36px;
+  padding: 7px 16px;
+  border: 1px solid #d6aa24;
+  border-radius: 999px;
+  background: #f2c94c;
+  color: #302400;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
-.dentistTreatmentMenuTrigger:hover:not(:disabled),
-.dentistTreatmentMenuTrigger[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--text) 6%, var(--surface));
+.dentistTreatmentCompleteButton:hover:not(:disabled) {
+  background: #e8ba32;
+  transform: translateY(-1px);
 }
 
-.dentistTreatmentMenuTrigger:focus-visible {
-  outline: 2px solid var(--line-focus);
+.dentistTreatmentCompleteButton:focus-visible {
+  outline: 2px solid #9a7410;
   outline-offset: 2px;
 }
 
-.dentistTreatmentMenuTrigger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.dentistTreatmentMenuTrigger svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-}
-
-.dentistTreatmentMenuDropdown {
-  position: absolute;
-  z-index: 30;
-  bottom: calc(100% + 4px);
-  right: 0;
-  min-width: 150px;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
-}
-
-.dentistTreatmentMenuDropdown button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: 36px;
-  padding: 7px 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #222222;
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
-.dentistTreatmentMenuDropdown button:hover:not(:disabled) {
-  background: #f6f6f4;
-}
-
-.dentistTreatmentMenuDropdown button:disabled {
+.dentistTreatmentCompleteButton:disabled {
   opacity: 0.62;
   cursor: not-allowed;
-}
-
-.dentistTreatmentMenuHint {
-  display: block;
-  padding: 2px 9px 5px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  line-height: 1.35;
-}
-
-.dentistTreatmentMenuDropdown svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .dentistCompletedEmptyState {

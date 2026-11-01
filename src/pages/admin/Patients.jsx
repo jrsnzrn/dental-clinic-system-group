@@ -602,7 +602,6 @@ export default function Patients({
   const [careDraft, setCareDraft] = useState(emptyCareDraft());
   const [activePatientView, setActivePatientView] = useState(PATIENT_VIEWS.DETAILS);
   const [currentDentistIdentity, setCurrentDentistIdentity] = useState({ uid: "" });
-  const dentistActionMenuRef = useRef(null);
   const dentistWorkspaceListeners = useRef([]);
 
   function clearDentistWorkspaceListeners() {
@@ -884,27 +883,6 @@ export default function Patients({
     const timer = setTimeout(() => setNotice(null), 5000);
     return () => clearTimeout(timer);
   }, [notice]);
-
-  useEffect(() => {
-    if (!openPatientActionsId || adminRole !== ROLES.DENTIST || completedOnly) return undefined;
-
-    function closeOnOutsideClick(event) {
-      if (dentistActionMenuRef.current && !dentistActionMenuRef.current.contains(event.target)) {
-        setOpenPatientActionsId("");
-      }
-    }
-
-    function closeOnEscape(event) {
-      if (event.key === "Escape") setOpenPatientActionsId("");
-    }
-
-    document.addEventListener("pointerdown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [adminRole, completedOnly, openPatientActionsId]);
 
   useEffect(() => {
     setActivePatientView(PATIENT_VIEWS.DETAILS);
@@ -1761,60 +1739,26 @@ export default function Patients({
                           </td>
                           {!completedOnly ? (
                             <td data-label="Action" onClick={(event) => event.stopPropagation()}>
-                              <div
-                                className="dentistTreatmentMenu"
-                                ref={openPatientActionsId === booking.id ? dentistActionMenuRef : null}
-                                onClick={(event) => event.stopPropagation()}
+                              <button
+                                className="dentistTreatmentCompleteButton"
+                                type="button"
+                                disabled={
+                                  Boolean(processingTreatmentId) ||
+                                  booking.status !== "approved" ||
+                                  !booking.checkedInAt
+                                }
+                                title={
+                                  !booking.checkedInAt
+                                    ? "Available after patient check-in"
+                                    : "Mark treatment as completed"
+                                }
+                                onClick={() => requestTreatmentCompletion(
+                                  booking.patient || { name: booking.fullName },
+                                  booking
+                                )}
                               >
-                                <button
-                                  className="dentistTreatmentMenuTrigger"
-                                  type="button"
-                                  aria-label={`Actions for ${booking.patient?.name || booking.fullName || "patient"}`}
-                                  aria-haspopup="menu"
-                                  aria-expanded={openPatientActionsId === booking.id}
-                                  disabled={Boolean(processingTreatmentId)}
-                                  onClick={() => setOpenPatientActionsId((current) =>
-                                    current === booking.id ? "" : booking.id
-                                  )}
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <circle cx="12" cy="5" r="1.7" />
-                                    <circle cx="12" cy="12" r="1.7" />
-                                    <circle cx="12" cy="19" r="1.7" />
-                                  </svg>
-                                </button>
-                                {openPatientActionsId === booking.id ? (
-                                  <div className="dentistTreatmentMenuDropdown" role="menu">
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      disabled={
-                                        Boolean(processingTreatmentId) ||
-                                        booking.status !== "approved" ||
-                                        !booking.checkedInAt
-                                      }
-                                      onClick={() => requestTreatmentCompletion(
-                                        booking.patient || { name: booking.fullName },
-                                        booking
-                                      )}
-                                    >
-                                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                                        <path d="m4 10 4 4 8-8" />
-                                      </svg>
-                                      <span>
-                                        {processingTreatmentId === booking.id
-                                          ? "Updating..."
-                                          : "Mark as Completed"}
-                                      </span>
-                                    </button>
-                                    {booking.status === "pending_payment" ? (
-                                      <small className="dentistTreatmentMenuHint">Awaiting payment verification</small>
-                                    ) : !booking.checkedInAt ? (
-                                      <small className="dentistTreatmentMenuHint">Available after patient check-in</small>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                              </div>
+                                {processingTreatmentId === booking.id ? "Updating..." : "Complete"}
+                              </button>
                             </td>
                           ) : null}
                         </tr>
