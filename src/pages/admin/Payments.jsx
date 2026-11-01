@@ -164,6 +164,7 @@ function makeRegularPaymentRows(payments, patients, bookings, summaries) {
         amount: toAmount(transaction.amount ?? transaction.paid),
         paymentDate: paymentDateSortValue(transaction),
         method: transaction.method || transaction.paymentMethod || "",
+        additionalServices: transaction.additionalServices || group.summary?.additionalServices || [],
         notes: transaction.notes || "",
         treatmentId: group.treatmentId,
         paymentReady: !group.appointmentId || ["pending_payment", "completed"].includes(String(booking?.status || "").toLowerCase()),
@@ -228,6 +229,7 @@ function makeBracesPaymentRows(payments, accounts, patients) {
       amount: toAmount(latestPayment?.amount),
       paymentDate: paymentDateSortValue(latestPayment || {}) || toDateValue(account.lastPaymentAt),
       method: latestPayment?.method || latestPayment?.paymentMethod || "",
+      additionalServices: account.additionalServices || latestPayment?.additionalServices || [],
       notes: "",
       treatmentId: account.id,
       account,
@@ -279,6 +281,7 @@ function makeBracesPaymentRows(payments, accounts, patients) {
       amount: toAmount(latestPayment.amount),
       paymentDate: paymentDateSortValue(latestPayment),
       method: latestPayment.method || latestPayment.paymentMethod || "",
+      additionalServices: latestPayment.additionalServices || [],
       notes: "",
       treatmentId: group.id,
       account: null,
@@ -334,6 +337,7 @@ function makeUnpaidRegularRows(summaries, payments, patients, bookings) {
         amount: 0,
         paymentDate: "",
         method: "",
+        additionalServices: summary.additionalServices || [],
         notes: "",
         treatmentId: summary.treatmentId,
         paymentReady: !summary.appointmentId || (
@@ -410,6 +414,7 @@ function makeApprovedAppointmentRows(bookings, payments, summaries, patients) {
 export default function Payments() {
   const [patients, setPatients] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [clinicServices, setClinicServices] = useState([]);
   const [regularPayments, setRegularPayments] = useState([]);
   const [regularTreatmentSummaries, setRegularTreatmentSummaries] = useState([]);
   const [bracesPayments, setBracesPayments] = useState([]);
@@ -428,6 +433,7 @@ export default function Payments() {
     amount: "",
     paymentDate: new Date().toISOString().slice(0, 10),
     referenceNumber: "",
+    additionalServices: [],
     method: "Cash",
   });
   const [savingDetails, setSavingDetails] = useState(false);
@@ -444,6 +450,7 @@ export default function Payments() {
     const waitingFor = new Set([
       "patients",
       "bookings",
+      "clinicServices",
       "payments",
       "paymentTreatmentSummaries",
       "bracesPayments",
@@ -480,6 +487,7 @@ export default function Payments() {
 
     listen("patients", setPatients);
     listen("bookings", setBookings);
+    listen("clinicServices", setClinicServices);
     listen("payments", setRegularPayments);
     listen("paymentTreatmentSummaries", setRegularTreatmentSummaries);
     listen("bracesPayments", setBracesPayments);
@@ -509,6 +517,13 @@ export default function Payments() {
       ...makeApprovedAppointmentRows(bookings, regularPayments, regularTreatmentSummaries, patients),
     ],
     [regularPayments, regularTreatmentSummaries, patients, bookings]
+  );
+  const additionalServiceOptions = useMemo(
+    () => clinicServices
+      .map((service) => String(service.name || "").trim())
+      .filter((name) => name && name.toLowerCase() !== "dental x-ray")
+      .sort((left, right) => left.localeCompare(right)),
+    [clinicServices]
   );
   const appointmentTotals = useMemo(() => {
     const treatmentsByAppointment = new Map();
@@ -644,6 +659,7 @@ export default function Payments() {
       amount: "",
       paymentDate: new Date().toISOString().slice(0, 10),
       referenceNumber: "",
+      additionalServices: Array.isArray(row.additionalServices) ? row.additionalServices : [],
       method: DETAIL_PAYMENT_METHODS.includes(row.method) ? row.method : "Cash",
     });
     setDetailError("");
@@ -698,6 +714,7 @@ export default function Payments() {
           paymentDate: detailDraft.paymentDate,
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
+          additionalServices: detailDraft.additionalServices,
         });
         await logAdminAction({
           action: amount > 0 ? "log_braces_payment" : "update_braces_account",
@@ -724,6 +741,7 @@ export default function Payments() {
           paymentDate: detailDraft.paymentDate,
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
+          additionalServices: detailDraft.additionalServices,
           allowZeroAmount: true,
         });
         if (amount > 0 && selectedPaymentRow.appointmentId) {
@@ -904,6 +922,28 @@ export default function Payments() {
                       }
                     />
                   </label>
+                  <div className="paymentsField paymentsFieldWide paymentsAdditionalServiceField">
+                    <span>Additional Service</span>
+                    <div className="paymentsAdditionalServiceOptions" role="group" aria-label="Additional Service">
+                      {additionalServiceOptions.length ? additionalServiceOptions.map((service) => (
+                        <label className="paymentsAdditionalServiceOption" key={service}>
+                          <input
+                            type="checkbox"
+                            value={service}
+                            checked={detailDraft.additionalServices.includes(service)}
+                            disabled={!canRecordSelectedPayment}
+                            onChange={(event) => setDetailDraft((current) => ({
+                              ...current,
+                              additionalServices: event.target.checked
+                                ? [...current.additionalServices, service]
+                                : current.additionalServices.filter((name) => name !== service),
+                            }))}
+                          />
+                          {service}
+                        </label>
+                      )) : <span className="paymentsAdditionalServiceEmpty">No services available.</span>}
+                    </div>
+                  </div>
                 </div>
                 <footer className="paymentsDetailsActions">
                   <button type="submit" className="btn btnPrimary" disabled={savingDetails || !canRecordSelectedPayment}>

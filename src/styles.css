@@ -12789,6 +12789,33 @@ html body .patientListPage .typeBadge.ortho {
   gap: 15px 20px;
 }
 
+.paymentsAdditionalServiceOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.paymentsDetailsFields .paymentsAdditionalServiceOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.paymentsAdditionalServiceOption input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.paymentsAdditionalServiceEmpty {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
 .paymentsDetailsFields .paymentsField span {
   color: var(--muted);
   font-size: 0.76rem;
