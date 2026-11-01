@@ -5306,7 +5306,7 @@ input[type="date"].input { min-height: 48px; }
   box-shadow: none;
 }
 .patientDetailsPage .input { padding: 8px 12px; font-size: 14.5px; }
-.patientDetailsPage .pdlAgeInput { width: 110px; max-width: 100%; }
+.patientDetailsPage .pdlAgeInput { width: 4.25em; max-width: 100%; }
 .patientDetailsPage select.input,
 .patientDetailsPage input[type="date"].input { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
 .patientDetailsPage textarea.input { min-height: 64px; }
