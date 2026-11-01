@@ -32,6 +32,10 @@ const BOOKING_FILTERS = {
     label: "Approved",
     emptyText: "No approved bookings yet.",
   },
+  "checked-in": {
+    label: "Checked-in",
+    emptyText: "No checked-in bookings yet.",
+  },
   cancelled: {
     label: "Cancelled",
     emptyText: "No cancelled bookings.",
@@ -39,7 +43,7 @@ const BOOKING_FILTERS = {
   "no-show": { label: "No-show", emptyText: "No no-show appointments recorded." },
 };
 
-const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "cancelled"];
+const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "checked-in", "cancelled"];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const BOOKING_SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -191,17 +195,28 @@ function BookingRow({ booking, onOpen, highlighted }) {
         <small>{formatTimeLabel(booking.time)}</small>
       </td>
       <td data-label="Status">
-        <span className={`bookingTableStatus bookingTableStatus-${booking.status || "pending"}`}>
-          {booking.status || "pending"}
+        <span className={`bookingTableStatus bookingTableStatus-${
+          booking.status === "approved" && booking.checkedInAt ? "checked-in" : booking.status || "pending"
+        }`}>
+          {booking.status === "approved" && booking.checkedInAt
+            ? "Checked In"
+            : booking.status || "pending"}
         </span>
-        {booking.status === "approved" && booking.checkedInAt ? (
-          <span className="bookingTableStatus bookingTableStatus-approved">Checked in</span>
-        ) : null}
         {reschedule?.status === "pending" ? (
           <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
         ) : null}
       </td>
     </tr>
+  );
+}
+
+function BookingDetailValue({ value }) {
+  const displayValue = value == null ? "" : String(value).trim();
+  const isMissing = !displayValue || ["Not set", "Not available"].includes(displayValue);
+  return (
+    <span className={isMissing ? "bookingDetailsMissing" : undefined}>
+      {isMissing ? "Not provided" : value}
+    </span>
   );
 }
 
@@ -211,6 +226,7 @@ function BookingDetailDrawer({
   onClose,
   onApprove,
   onCheckIn,
+  checkingIn,
   onCancel,
   onReschedule,
   onReassign,
@@ -218,6 +234,12 @@ function BookingDetailDrawer({
 }) {
   const reschedule = booking?.rescheduleRequest;
   const status = booking?.status || "pending";
+  const headingStatus = booking?.checkedInAt
+    ? "checked-in"
+    : status.toLowerCase().replace(/_/g, "-");
+  const headingLabel = headingStatus === "checked-in"
+    ? "CHECKED-IN"
+    : headingStatus.replace(/-/g, " ").toUpperCase();
   const [paymentDetails, setPaymentDetails] = useState(null);
   const currentPaymentDetails = paymentDetails?.bookingId === booking?.id ? paymentDetails : null;
   const paymentSummaries = currentPaymentDetails?.summaries || [];
@@ -248,19 +270,15 @@ function BookingDetailDrawer({
 
   return (
     <>
-      <div className={`patientDrawerOverlay ${open ? "open" : ""}`} onClick={onClose} />
+      <div className={`patientDrawerOverlay bookingDetailsOverlay ${open ? "open" : ""}`} onClick={onClose} />
       <div className={`patientDrawer bookingDetailsModal ${open ? "open" : ""}`} role="dialog" aria-modal="true">
         {booking ? (
           <div className="patientDrawerInner">
             <div className="patientDrawerHeader bookingDetailsHeader">
               <div className="bookingDetailsHeading">
-                <span className="heroEyebrow">Booking details</span>
-                <div className="bookingDetailsTitleRow">
-                  <h3>{booking.fullName || "No name"}</h3>
-                  <span className="bookingDetailsStatus">
-                    {status.replace(/_/g, " ")}
-                  </span>
-                </div>
+                <span className={`bookingDetailsStatus bookingDetailsStatus-${headingStatus}`}>
+                  {headingLabel}
+                </span>
               </div>
               <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
                 ×
@@ -270,53 +288,59 @@ function BookingDetailDrawer({
             <div className="patientDrawerBody">
               {actionError ? <div className="formError" role="alert">{actionError}</div> : null}
               <dl className="detailList">
+                <div className="detailRow bookingDetailsName">
+                  <dt>Name</dt>
+                  <dd><BookingDetailValue value={booking.fullName} /></dd>
+                </div>
                 <div className="detailRow">
                   <dt>Appointment</dt>
-                  <dd>{booking.date ? formatDateLabel(booking.date) : "Not set"}</dd>
+                  <dd><BookingDetailValue value={booking.date ? formatDateLabel(booking.date) : null} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Time</dt>
-                  <dd>{getBookingTimeRange(booking)}</dd>
+                  <dd><BookingDetailValue value={booking.time ? getBookingTimeRange(booking) : null} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Service</dt>
-                  <dd>{getBookingServices(booking)}</dd>
+                  <dd><BookingDetailValue value={
+                    (Array.isArray(booking.services) && booking.services.length) || booking.service
+                      ? getBookingServices(booking)
+                      : null
+                  } /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Dentist</dt>
-                  <dd>{booking.selectedDentist || "Not selected"}</dd>
-                </div>
-                <div className="detailRow">
-                  <dt>Patient</dt>
-                  <dd>{booking.fullName || "No name"}</dd>
+                  <dd><BookingDetailValue value={booking.selectedDentist} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Age</dt>
-                  <dd>{booking.age || "-"}</dd>
+                  <dd><BookingDetailValue value={booking.age} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Type of Patient</dt>
-                  <dd>{booking.patientType || "Regular Patient"}</dd>
+                  <dd><BookingDetailValue value={booking.patientType} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Phone</dt>
-                  <dd>{booking.phone || "No phone"}</dd>
+                  <dd><BookingDetailValue value={booking.phone} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Email</dt>
-                  <dd>{booking.email || "No email"}</dd>
+                  <dd><BookingDetailValue value={booking.email} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Address</dt>
-                  <dd>{booking.address || "Not provided"}</dd>
+                  <dd><BookingDetailValue value={booking.address} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Booked at</dt>
-                  <dd>{formatTimestamp(booking.createdAt)}</dd>
+                  <dd><BookingDetailValue value={booking.createdAt ? formatTimestamp(booking.createdAt) : null} /></dd>
                 </div>
                 <div className="detailRow">
                   <dt>Arrival</dt>
-                  <dd>{booking.checkedInAt ? `Checked in · ${formatTimestamp(booking.checkedInAt)}` : "Not checked in"}</dd>
+                  <dd><BookingDetailValue value={
+                    booking.checkedInAt ? `Checked in · ${formatTimestamp(booking.checkedInAt)}` : "Not checked in"
+                  } /></dd>
                 </div>
               </dl>
 
@@ -383,7 +407,7 @@ function BookingDetailDrawer({
               ) : null}
             </div>
 
-            {["pending", "approved"].includes(status) ? (
+            {status === "pending" || (status === "approved" && !booking.checkedInAt) ? (
               <div className="actionColumn actionColumnFriendly">
                 {status === "pending" ? (
                   <>
@@ -397,27 +421,25 @@ function BookingDetailDrawer({
                 ) : null}
 
                 {status === "approved" ? (
-                  booking.checkedInAt ? (
-                    <div className="bookingCheckInIndicator" role="status">Checked in</div>
-                  ) : (
-                    <>
-                      <button className="btn btnShine patientActionBtn" type="button" onClick={onCheckIn}>
-                        Mark as Check-in
-                      </button>
-                      <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
-                        Reschedule
-                      </button>
-                      <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
-                        Cancel
-                      </button>
-                    </>
-                  )
-                ) : null}
-
-                {!booking.checkedInAt ? (
-                  <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign}>
-                    Reassign dentist
-                  </button>
+                  <>
+                    <button
+                      className="btn btnShine patientActionBtn"
+                      type="button"
+                      onClick={onCheckIn}
+                      disabled={checkingIn}
+                    >
+                      {checkingIn ? "Checking in..." : "Mark as Check-in"}
+                    </button>
+                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
+                      Reschedule
+                    </button>
+                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign}>
+                      Reassign dentist
+                    </button>
+                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
+                      Cancel
+                    </button>
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -598,6 +620,7 @@ export default function Bookings() {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
+  const [checkInPendingId, setCheckInPendingId] = useState(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [selectedDate, setSelectedDate] = useState("");
@@ -805,7 +828,12 @@ export default function Bookings() {
   }
 
   async function toggleCheckIn(booking) {
-    await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
+    const result = await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
+    const checkedInAtMillis = result.data?.checkedInAt;
+    if (!Number.isFinite(checkedInAtMillis)) {
+      throw new Error("Check-in succeeded, but its recorded timestamp could not be confirmed.");
+    }
+    return Timestamp.fromMillis(checkedInAtMillis);
   }
 
   const activeConfig = BOOKING_FILTERS[status] || BOOKING_FILTERS.calendar;
@@ -813,7 +841,13 @@ export default function Bookings() {
   const activeItems = useMemo(
     () => activeBookings
       .filter((booking) => {
-        if (status !== "calendar" && (booking.status || "pending") !== status) return false;
+        if (status === "checked-in") {
+          if (booking.status !== "approved" || !booking.checkedInAt) return false;
+        } else if (status === "approved" && (booking.status !== "approved" || booking.checkedInAt)) {
+          return false;
+        } else if (status !== "calendar" && status !== "approved" && (booking.status || "pending") !== status) {
+          return false;
+        }
         if (selectedDate && booking.date !== selectedDate) return false;
         if (!searchTerm) return true;
         return [booking.fullName, booking.id, booking.uid, booking.patientProfileId, booking.service]
@@ -960,23 +994,23 @@ export default function Bookings() {
 
         <aside className="bookingCalendarPanel" aria-label="Monthly appointment calendar">
           <div className="bookingMonthHeader">
+            <button
+              className="bookingMonthNav"
+              type="button"
+              aria-label="Previous month"
+              onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4.5-5.5 5.5 5.5 5.5" /></svg>
+            </button>
             <h2>{calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2>
-            <div className="bookingMonthControls">
-              <button
-                type="button"
-                aria-label="Previous month"
-                onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                aria-label="Next month"
-                onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-              >
-                ›
-              </button>
-            </div>
+            <button
+              className="bookingMonthNav"
+              type="button"
+              aria-label="Next month"
+              onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5" /></svg>
+            </button>
           </div>
           <div className="bookingMonthGrid" role="group" aria-label="Select an appointment date">
             {WEEKDAY_LABELS.map((weekday) => (
@@ -988,17 +1022,18 @@ export default function Bookings() {
               const count = calendarCounts.get(dateKey) || 0;
               const isToday = dateKey === getLocalDateKey(new Date());
               const isSelected = dateKey === selectedDate;
+              const highlightToday = isToday && (!selectedDate || isSelected);
               return (
                 <button
                   key={dateKey}
                   type="button"
                   aria-label={`${date.toLocaleDateString(undefined, { dateStyle: "full" })}, ${count} appointment${count === 1 ? "" : "s"}`}
                   aria-pressed={isSelected}
-                  className={`bookingMonthDay${isToday ? " today" : ""}${isSelected ? " selected" : ""}${count ? " hasAppointments" : ""}`}
+                  className={`bookingMonthDay${highlightToday ? " today" : ""}${isSelected ? " selected" : ""}${count ? " hasAppointments" : ""}`}
                   onClick={() => setSelectedDate(isSelected ? "" : dateKey)}
                 >
                   <span>{date.getDate()}</span>
-                  {count ? <i aria-hidden="true" /> : null}
+                  {count && !isSelected ? <i aria-hidden="true" /> : null}
                 </button>
               );
             })}
@@ -1028,6 +1063,7 @@ export default function Bookings() {
         open={drawerOpen}
         booking={selectedBooking}
         actionError={actionError}
+        checkingIn={selectedBooking?.id === checkInPendingId}
         onClose={closeDrawer}
         onApprove={() =>
           selectedBooking &&
@@ -1040,8 +1076,20 @@ export default function Bookings() {
         onReassign={() => selectedBooking && openReassign(selectedBooking.id)}
         onCheckIn={() => {
           const b = selectedBooking;
-          if (!b || b.checkedInAt) return;
-          runBookingAction(() => toggleCheckIn(b));
+          if (!b || b.checkedInAt || checkInPendingId === b.id) return;
+          setCheckInPendingId(b.id);
+          runBookingAction(async () => {
+            try {
+              const checkedInAt = await toggleCheckIn(b);
+              setBookings((current) =>
+                current.map((booking) =>
+                  booking.id === b.id ? { ...booking, checkedInAt } : booking
+                )
+              );
+            } finally {
+              setCheckInPendingId(null);
+            }
+          });
         }}
         onCancel={() => {
           const b = selectedBooking;

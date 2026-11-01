@@ -5,6 +5,10 @@ export default function ConfirmDialog({
   confirmLabel = "Continue",
   cancelLabel = "Cancel",
   tone = "default",
+  className = "",
+  overlayClassName = "",
+  icon = null,
+  closeIcon = "x",
   onConfirm,
   onClose,
 }) {
@@ -18,15 +22,16 @@ export default function ConfirmDialog({
         : "Confirmation";
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
-      <div className={`modalCard confirmModalCard ${tone}`} onClick={(e) => e.stopPropagation()}>
+    <div className={`modalOverlay ${overlayClassName}`} onClick={onClose}>
+      <div className={`modalCard confirmModalCard ${tone} ${className}`} onClick={(e) => e.stopPropagation()}>
         <div className="modalHeader">
           <div className="modalTitleGroup">
+            {icon ? <span className="confirmModalIcon" aria-hidden="true">{icon}</span> : null}
             <span className={`modalToneLabel ${tone}`}>{toneLabel}</span>
             <h3>{title}</h3>
           </div>
           <button className="modalClose" type="button" onClick={onClose} aria-label="Close confirmation dialog">
-            x
+            {closeIcon}
           </button>
         </div>
         <div className="confirmModalBody">

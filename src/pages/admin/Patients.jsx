@@ -433,7 +433,8 @@ async function exportPatientPdf(patient) {
         <head>
           <title>${patient.name} Patient Record</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 18px; color: #1f2937; }
+            @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
+            body { font-family: "DM Sans", sans-serif; padding: 18px; color: #1f2937; }
             h1, h2 { page-break-after: avoid; }
             .header-copy { color: #475569; margin: 8px 0 0; line-height: 1.6; }
             .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }

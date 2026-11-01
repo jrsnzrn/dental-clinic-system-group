@@ -35,7 +35,7 @@ import ForgotPassword from "./pages/admin/ForgotPassword";
 import { getAdminProfile, getDefaultAdminPath, ROLES } from "./utils/rbac";
 import topDentLogo from "./assets/logo.png";
 
-const THEMES = ["light", "blue", "dark"];
+const THEMES = ["light", "blue", "dark", "system"];
 const FIRST_VISIT_KEY = "topdent-has-visited";
 const PUBLIC_ANIMATION_PATHS = new Set(["/", "/about", "/services", "/contact", "/book"]);
 const PATIENT_DASHBOARD_PATHS = new Set([
@@ -49,6 +49,11 @@ function getInitialTheme() {
   if (typeof window === "undefined") return "light";
   const savedTheme = window.localStorage.getItem("topdent-theme");
   return THEMES.includes(savedTheme) ? savedTheme : "light";
+}
+
+function getResolvedTheme(theme) {
+  if (theme !== "system") return theme;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function FirstVisitHomeGate({ user, isAdmin, children }) {
@@ -329,8 +334,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
     window.localStorage.setItem("topdent-theme", theme);
+    const applyTheme = () => {
+      document.documentElement.setAttribute("data-theme", getResolvedTheme(theme));
+    };
+
+    applyTheme();
+    if (theme !== "system") return undefined;
+
+    const systemPreference = window.matchMedia("(prefers-color-scheme: dark)");
+    systemPreference.addEventListener("change", applyTheme);
+    return () => systemPreference.removeEventListener("change", applyTheme);
   }, [theme]);
 
   useEffect(() => {

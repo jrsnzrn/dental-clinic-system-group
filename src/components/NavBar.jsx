@@ -5,6 +5,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
+import ConfirmDialog from "./ConfirmDialog";
 import StaffNotificationBell from "./StaffNotificationBell";
 
 const THEME_OPTIONS = [
@@ -40,6 +41,15 @@ const THEME_OPTIONS = [
         <circle cx="7.5" cy="10.5" r="1.5"/>
         <circle cx="11.5" cy="7.5" r="1.5"/>
         <circle cx="16.5" cy="9.5" r="1.5"/>
+      </svg>
+    )
+  },
+  {
+    id: "system",
+    icon: (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="13" rx="2"/>
+        <path d="M8 21h8M12 17v4"/>
       </svg>
     )
   },
@@ -120,8 +130,6 @@ const ACCOUNT_ICONS = {
   ),
 };
 
-const ADMIN_ACCOUNT_ITEMS = [];
-
 const USER_ACCOUNT_ITEMS = [
   { to: "/my-appointments", label: "My Appointments", desc: "View your bookings", icon: ACCOUNT_ICONS.appointments },
   { to: "/my-record", label: "My Record", desc: "View your dental record", icon: ACCOUNT_ICONS.record },
@@ -136,6 +144,21 @@ function getDisplayName(user) {
 
 function getInitial(user) {
   return getDisplayName(user).charAt(0).toUpperCase();
+}
+
+function StaffAccountInfo({ user, name, role }) {
+  const displayName = name || user?.email || user?.displayName || "Account";
+  const avatarUser = { displayName };
+
+  return (
+    <div className="staffAccountInfo" aria-label={`${displayName}, ${role}`}>
+      <AccountAvatar user={avatarUser} />
+      <span className="staffAccountMeta">
+        <span className="staffAccountName" title={displayName}>{displayName}</span>
+        <span className="staffAccountRole">{role}</span>
+      </span>
+    </div>
+  );
 }
 
 function AccountAvatar({ user, large = false }) {
@@ -249,22 +272,23 @@ function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole 
               </button>
               {appearanceOpen && (
                 <div className="accountAppearanceMenu" role="menu" aria-label="Choose appearance">
-                  {["light", "dark", "blue"].map((themeId) => {
-                    const option = THEME_OPTIONS.find((themeOption) => themeOption.id === themeId);
+                  {THEME_OPTIONS.map((option) => {
                     return (
                       <button
-                        key={themeId}
+                        key={option.id}
                         type="button"
                         className="accountAppearanceOption"
                         role="menuitemradio"
-                        aria-checked={theme === themeId}
-                        onClick={() => onThemeChange(themeId)}
+                        aria-checked={theme === option.id}
+                        onClick={() => onThemeChange(option.id)}
                       >
                         <span className="accountAppearanceOptionLabel">
                           {option.icon}
-                          {themeId.charAt(0).toUpperCase() + themeId.slice(1)} theme
+                          {option.id === "system"
+                            ? "System Setting"
+                            : `${option.id.charAt(0).toUpperCase() + option.id.slice(1)} theme`}
                         </span>
-                        {theme === themeId && (
+                        {theme === option.id && (
                           <svg className="accountAppearanceCheck" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                             <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
@@ -299,8 +323,10 @@ function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole 
 async function logoutAccount() {
   try {
     await signOut(auth);
+    return true;
   } catch (error) {
     console.error("Logout failed:", error);
+    return false;
   }
 }
 
@@ -338,6 +364,10 @@ export default function NavBar({
   const [isAdmin, setIsAdmin] = useState(adminFromApp);
   const [adminRole, setAdminRole] = useState(adminRoleFromApp);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [staffName, setStaffName] = useState("");
+  const [appearanceModalOpen, setAppearanceModalOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -348,6 +378,7 @@ export default function NavBar({
       if (!u) {
         setIsAdmin(false);
         setAdminRole("");
+        setStaffName("");
         return;
       }
 
@@ -357,14 +388,21 @@ export default function NavBar({
           const profile = getAdminProfile(snap.data());
           setIsAdmin(true);
           setAdminRole(profile.role);
+          setStaffName(
+            [profile.name, profile.fullName, profile.firstName]
+              .find((value) => typeof value === "string" && value.trim())
+              ?.trim() || ""
+          );
         } else {
           setIsAdmin(false);
           setAdminRole("");
+          setStaffName("");
         }
       } catch (err) {
         console.error("Admin check failed:", err);
         setIsAdmin(false);
         setAdminRole("");
+        setStaffName("");
       }
     });
 
@@ -390,6 +428,17 @@ export default function NavBar({
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!appearanceModalOpen) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setAppearanceModalOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [appearanceModalOpen]);
 
   const adminLinks = ADMIN_NAV_BY_ROLE[adminRole] || ADMIN_NAV_BY_ROLE[ROLES.ADMIN] || [];
   const isDentistRecordsRoute =
@@ -481,14 +530,10 @@ export default function NavBar({
               </>
             ) : null}
             <StaffNotificationBell adminRole={adminRole} />
-            <AccountMenu
-              key={`${location.pathname}:${menuOpen}`}
+            <StaffAccountInfo
               user={user}
-              items={ADMIN_ACCOUNT_ITEMS}
-              onLogout={logoutAccount}
-              theme={theme}
-              onThemeChange={onThemeChange}
-              accountRole={ROLE_LABELS[adminRole] || "Staff"}
+              name={staffName}
+              role={ROLE_LABELS[adminRole] || "Staff"}
             />
           </div>
         )}
@@ -539,9 +584,110 @@ export default function NavBar({
                 </NavLink>
               ))}
             </nav>
-
+            <div className="adminSidebarActions">
+              <div className="accountAppearance">
+                <button
+                  type="button"
+                  className="adminSidebarLink accountAppearanceTrigger"
+                  onClick={() => setAppearanceModalOpen(true)}
+                >
+                  <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
+                    {THEME_OPTIONS.find((option) => option.id === "blue").icon}
+                  </span>
+                  <span>Appearance</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                className="adminSidebarLink adminSidebarLogout"
+                data-mascot-target="nav-logout"
+                onClick={() => {
+                  setLogoutError("");
+                  setLogoutConfirmOpen(true);
+                }}
+              >
+                {ACCOUNT_ICONS.logout}
+                <span>Log Out</span>
+              </button>
+            </div>
           </div>
         </aside>
+        {appearanceModalOpen && (
+          <div
+            className="appearanceModalOverlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setAppearanceModalOpen(false);
+            }}
+          >
+            <section
+              className="appearanceModal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="appearanceModalTitle"
+            >
+              <header className="appearanceModalHeader">
+                <h2 id="appearanceModalTitle">Appearance</h2>
+                <button
+                  type="button"
+                  className="appearanceModalClose"
+                  aria-label="Close appearance settings"
+                  onClick={() => setAppearanceModalOpen(false)}
+                >
+                  ×
+                </button>
+              </header>
+              <div className="appearanceThemeOptions" role="radiogroup" aria-label="Theme">
+                {THEME_OPTIONS.map((option) => {
+                  const label = option.id === "system"
+                    ? "Use System Setting"
+                    : `${option.id.charAt(0).toUpperCase() + option.id.slice(1)}`;
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className="appearanceThemeOption"
+                      role="radio"
+                      aria-checked={theme === option.id}
+                      onClick={() => onThemeChange(option.id)}
+                    >
+                      <span className={`appearanceThemePreview ${option.id}`} aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      <span className="appearanceThemeLabel">{label}</span>
+                      <span className="appearanceThemeSelected" aria-hidden="true">
+                        {theme === option.id ? "✓" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        )}
+        <ConfirmDialog
+          open={logoutConfirmOpen}
+          title="Log Out?"
+          message={logoutError || "Are you sure you want to log out of your TopDent account?"}
+          confirmLabel="Log Out"
+          cancelLabel="Cancel"
+          tone="danger"
+          className="logoutConfirmModal"
+          overlayClassName="logoutConfirmOverlay"
+          icon={ACCOUNT_ICONS.logout}
+          closeIcon="×"
+          onConfirm={async () => {
+            const didLogout = await logoutAccount();
+            if (didLogout) setLogoutConfirmOpen(false);
+            else setLogoutError("Unable to log out. Please try again.");
+          }}
+          onClose={() => {
+            setLogoutConfirmOpen(false);
+            setLogoutError("");
+          }}
+        />
       </>
     ) : (
       <div className="nav">

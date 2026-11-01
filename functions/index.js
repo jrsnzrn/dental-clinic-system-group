@@ -3047,7 +3047,17 @@ exports.toggleBookingCheckIn = onCall(
       await syncPatientRecordFromBookingServer(updatedBooking);
     }
 
-    return { success: true, bookingId, checkedIn, alreadyCheckedIn };
+    if (!updatedBooking?.checkedInAt) {
+      throw new HttpsError("internal", "Check-in timestamp could not be confirmed.");
+    }
+
+    return {
+      success: true,
+      bookingId,
+      checkedIn,
+      alreadyCheckedIn,
+      checkedInAt: updatedBooking.checkedInAt.toMillis(),
+    };
   }
 );
 

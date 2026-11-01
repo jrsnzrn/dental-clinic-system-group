@@ -1,47 +1,77 @@
 /* ==========================================================================
    GLOBAL STYLES
    ========================================================================== */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg: #060605;
-  --card: rgba(255, 255, 255, 0.04);
-  --card2: rgba(255, 255, 255, 0.09);
-  --text: #f7f4ea;
-  --muted: #9a9488;
-  --line: rgba(255, 224, 130, 0.12);
-  --line-focus: rgba(242, 193, 78, 0.25);
-  --accent: #f2c14e;
-  --accent-rgb: 242, 193, 78;
-  --accent-text: #2b2410;
-  --accent-teal: #4fd1c5;
-  --warmth: #ff8f5e;
-  --danger: #ff5449;
-  --error: #ff5449;
-  --error-bg: rgba(255, 84, 73, 0.08);
-  --error-border: rgba(255, 84, 73, 0.4);
-  --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  --primary: #FFC94D;
+  --primary-hover: #F2B936;
+  --background: #0F1410;
+  --surface: #1B211A;
+  --secondary: #3A331E;
+  --text-primary: #E7E7E1;
+  --text-secondary: #A3A99F;
+  --border: #374237;
+  --success: #69D19B;
+  --warning: #FFD166;
+  --danger: #FF8A8A;
+  --on-danger: #0F1410;
+  --info: #83B9F2;
+  --on-primary: #24271F;
+
+  --button-primary-background: var(--primary);
+  --button-primary-hover-background: var(--primary-hover);
+  --button-primary-color: var(--on-primary);
+  --button-secondary-background: var(--secondary);
+  --button-secondary-color: var(--text-primary);
+  --button-secondary-border: var(--border);
+  --button-danger-background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  --button-danger-color: var(--danger);
+  --button-danger-border: color-mix(in srgb, var(--danger) 45%, var(--border));
+
+  --bg: var(--background);
+  --card: var(--surface);
+  --card2: var(--secondary);
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --line: var(--border);
+  --line-focus: color-mix(in srgb, var(--primary) 42%, transparent);
+  --accent: var(--primary);
+  --accent-rgb: 255, 201, 77;
+  --accent-text: var(--on-primary);
+  --on-accent: var(--accent-text);
+  --accent-teal: var(--success);
+  --warmth: var(--primary);
+  --error: var(--danger);
+  --error-bg: color-mix(in srgb, var(--danger) 12%, transparent);
+  --error-border: color-mix(in srgb, var(--danger) 48%, transparent);
+  --shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
   --maxw: 1200px;
   --blur: 32px;
 
-  --surface: transparent;
-  --surface-border: var(--accent);
-  --field-bg: var(--card);
+  --surface-border: var(--border);
+  --field-bg: var(--secondary);
 
-  --bg-landing: #000000;
-  --bg-gallery: #111110;
-  --bg-whyus: #0a0a08;
-  --bg-services: #0a0a08;
-  --bg-doctors: #0d0d0b;
-  --bg-feedback: #000000;
-  --bg-intro: #0d0d0b;
-  --bg-promo: #1a1608;
-  --text-promo: #f2c14e;
+  --bg-landing: var(--bg);
+  --bg-gallery: var(--secondary);
+  --bg-whyus: var(--background);
+  --bg-services: var(--secondary);
+  --bg-doctors: var(--background);
+  --bg-feedback: var(--secondary);
+  --bg-intro: var(--background);
+  --bg-promo: var(--secondary);
+  --text-promo: var(--text-primary);
+  --status-success: var(--success);
+  --status-warning: var(--warning);
+  --status-info: var(--info);
+  --status-violet: #B5A0F4;
+  --status-danger: var(--danger);
+  --status-attention: var(--warning);
 
-  --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-nav: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-nav: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   --ease-cinematic: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-cinematic-heavy: cubic-bezier(0.25, 1, 0.2, 1);
@@ -51,73 +81,73 @@
 }
 
 html[data-theme="light"] {
-  --bg: #F5F2EA;
-  --card: #FBF9F4;
-  --card2: #F0ECE3;
-  --text: #1f1a16;
-  --muted: #6a5f55;
-  --line: #E5E0D6;
-  --accent: #FFD60A;
-  --accent-rgb: 255, 214, 10;
-  --accent-text: #2b2410;
-  --accent-teal: #a1b5c0;
-  --warmth: #FFD60A;
-  --danger: #d12735;
-  --shadow: 0 20px 50px rgba(255, 214, 10, 0.12);
+  --primary: #FFC94D;
+  --primary-hover: #F2B936;
+  --background: #FAF9F6;
+  --surface: #FFFFFF;
+  --secondary: #FFF3D6;
+  --text-primary: #1B211A;
+  --text-secondary: #6B7280;
+  --border: #E7E1D3;
+  --success: #18764A;
+  --warning: #8A5B00;
+  --danger: #C62836;
+  --on-danger: #FFFFFF;
+  --info: #245FA0;
+  --on-primary: #27251E;
 
-  --surface: #FBF9F4;
-  --surface-border: var(--accent);
-  --field-bg: #FBF9F4;
+  --accent-rgb: 255, 201, 77;
+  --accent-text: var(--on-primary);
+  --on-accent: var(--accent-text);
+  --shadow: 0 8px 24px rgba(31, 41, 35, 0.08);
 
-  --bg-landing: #F5F2EA;
-  --bg-whyus: #F5F2EA;
-  --bg-gallery: #FBF9F4;
-  --bg-services: #F5F2EA;
-  --bg-doctors: #F5F2EA;
-  --bg-feedback: #F5F2EA;
+  --field-bg: var(--surface);
 
-  --bg-intro: #F5F2EA;
-  --bg-promo: #FFD60A;
-  --text-promo: #1f1a16;
+  --bg-landing: var(--background);
+  --bg-gallery: var(--secondary);
+  --bg-whyus: var(--background);
+  --bg-services: var(--secondary);
+  --bg-doctors: var(--background);
+  --bg-feedback: var(--secondary);
+  --bg-intro: var(--background);
+  --bg-promo: var(--primary);
+  --text-promo: var(--text-primary);
+  --status-violet: #6248A8;
 }
 
 html[data-theme="blue"] {
-  --bg: #fffcf5;
-  --card: #a8c6dc;
-  --card2: #a1b5c0;
-  --text: #1d2a35;
-  --muted: #5f7280;
-  --line: #a8c6dc;
-  --accent: #4a7fa3;
-  --accent-rgb: 74, 127, 163;
-  --accent-text: #ffffff;
-  --accent-teal: #a1b5c0;
-  --warmth: #ebe3d0;
-  --danger: #d12735;
-  --shadow: 0 20px 50px rgba(74, 127, 163, 0.1);
+  --primary: #6EACDA;
+  --primary-hover: #5598CB;
+  --background: #F4F8FD;
+  --surface: #FFFFFF;
+  --secondary: #DDE6F3;
+  --text-primary: #1B2B3A;
+  --text-secondary: #64748B;
+  --border: #CBD5E1;
+  --success: #18764A;
+  --warning: #8A5B00;
+  --danger: #B42332;
+  --on-danger: #FFFFFF;
+  --info: #245FA0;
+  --on-primary: #15334A;
 
-  --surface: #ffffff;
-  --surface-border: var(--accent);
-  --field-bg: #ffffff;
+  --accent-rgb: 110, 172, 218;
+  --accent-text: var(--on-primary);
+  --on-accent: var(--accent-text);
+  --shadow: 0 8px 24px rgba(32, 63, 86, 0.08);
 
-  --bg-landing: #fffcf5;
-  --bg-services: #fffcf5;
-  --bg-whyus: #fffcf5;
-  --bg-gallery: #a8c6dc;
-  --bg-doctors: #fffcf5;
-  --bg-feedback: #fffcf5;
+  --field-bg: var(--surface);
 
-  --bg-intro: #fffcf5;
-  --bg-promo: #a8c6dc;
-  --text-promo: #1d2a35;
-}
-
-html[data-dashboard="true"][data-theme="light"] {
-  --bg: #F5F2EA;
-}
-
-html[data-dashboard="true"][data-theme="blue"] {
-  --bg: #f8fafc;
+  --bg-landing: var(--background);
+  --bg-gallery: var(--secondary);
+  --bg-whyus: var(--background);
+  --bg-services: var(--secondary);
+  --bg-doctors: var(--background);
+  --bg-feedback: var(--secondary);
+  --bg-intro: var(--background);
+  --bg-promo: var(--secondary);
+  --text-promo: var(--text-primary);
+  --status-violet: #6248A8;
 }
 
 * {
@@ -132,8 +162,9 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--background);
   font-family: var(--font-body);
+  font-weight: 400;
   color: var(--text);
   position: relative;
   transition: background-color 0.6s var(--ease-cinematic), color 0.6s var(--ease-cinematic);
@@ -150,8 +181,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  font-weight: 700;
+  letter-spacing: normal;
 }
 
 button,
@@ -179,14 +210,11 @@ input, textarea, select {
   top: 0;
   z-index: 1000;
   width: 100%;
-  background: rgba(6, 6, 5, 0.7);
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
-
-html[data-theme="light"] .nav { background: rgba(251, 246, 236, 0.9); }
-html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
 
 .navPromoBanner {
   width: 100%;
@@ -249,7 +277,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   font-weight: 500;
   color: var(--muted);
   padding: 8px 4px;
-  background: transparent;
+  background: var(--surface);
   white-space: nowrap;
 }
 
@@ -282,7 +310,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   justify-content: center;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: transparent;
+  background: var(--surface);
   color: var(--muted);
   cursor: pointer;
 }
@@ -301,7 +329,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: #0284c7;
+  background: var(--accent);
 }
 
 .themeChip:focus-visible {
@@ -337,7 +365,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   padding: 6px 16px;
   border: 1px solid var(--line);
   color: var(--text);
-  background: transparent;
+  background: var(--surface);
 }
 
 .btn {
@@ -356,7 +384,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   border-radius: 8px;
   transition: background-color 0.3s var(--ease-cinematic), border-color 0.3s var(--ease-cinematic), color 0.3s var(--ease-cinematic);
 }
-.btn:hover { background: var(--accent); border-color: var(--accent); color: #2b2410; }
+.btn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .btn:active { transform: scale(0.97); }
 
 .input, .inputPlain, select.input {
@@ -379,7 +407,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
   position: relative;
   padding: 64px 0 40px;
   border-top: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -484,10 +512,10 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
 }
 
 .footerThemeSwitcher .themeChip.active {
-  border-color: #ffd60a;
+  border-color: var(--accent);
   border-radius: 50%;
-  background: #ffd60a;
-  color: #2b2410;
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .footerThemeSwitcher .themeChip:focus-visible {
@@ -610,7 +638,7 @@ html[data-theme="blue"] .nav { background: rgba(240, 247, 255, 0.85); }
 .footerSocialLink:hover,
 .footerSocialLink:focus-visible {
   color: var(--accent);
-  background: var(--bg);
+  background: var(--surface);
 }
 
 /* ==========================================================================
@@ -829,15 +857,15 @@ section > .innerWrap > p,
 }
 
 .btnPrimary16 {
-  background: var(--accent);
-  color: var(--bg);
-  border: 2px solid var(--accent);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  border: 2px solid var(--button-primary-background);
 }
 
 .btnOutline16 {
-  background: transparent;
-  color: var(--text);
-  border: 2px solid var(--line);
+  background: var(--button-secondary-background);
+  color: var(--button-secondary-color);
+  border: 2px solid var(--button-secondary-border);
 }
 
 .btnPrimary16:hover,
@@ -876,95 +904,102 @@ section > .innerWrap > p,
 /*  Special offers (promotions)                                      */
 /* ---------------------------------------------------------------- */
 .homeOffers {
-  background: var(--bg-promo);
-  padding: clamp(48px, 6vw, 76px) 0;
+  padding: clamp(40px, 5vw, 68px) 0;
+  background: var(--background);
 }
 
 .homeOffersGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 1fr;
   align-items: stretch;
-  gap: clamp(18px, 2.5vw, 30px);
-  border: none;
+  gap: clamp(16px, 2vw, 24px);
+  min-width: 0;
 }
 
 .homeOffersGrid.singlePromo {
   grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
 }
 
-.homeOffersGrid.singlePromo .homeOfferCard {
-  width: 100%;
+.homeOffersGrid.twoPromos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.homeOffersGrid.threePlusPromos {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.homeOffersGrid.scrollPromos {
-  grid-auto-flow: column;
-  grid-template-columns: none;
-  grid-auto-columns: calc(33.333333% - 20px);
+.homeOffersGrid.promoCarouselTrack {
+  display: flex;
+  flex-flow: row nowrap;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-@media (max-width: 760px) {
-  .homeOffersGrid,
-  .homeOffersGrid.threePlusPromos,
-  .homeOffersGrid.scrollPromos {
-    grid-template-columns: 1fr;
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    overflow-x: visible;
-  }
+.homeOffersGrid.promoCarouselTrack::-webkit-scrollbar {
+  display: none;
 }
 
 .homeOfferCard {
   container: promo / inline-size;
   min-width: 0;
   padding: 0;
-  cursor: default;
+}
+
+.homeOffersGrid.singlePromo > .homeOfferCard,
+.homeOffersGrid.twoPromos > .homeOfferCard {
+  min-width: 0;
+}
+
+.homeOffersGrid.promoCarouselTrack > .homeOfferCard {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
 }
 
 .homeOffers .promoBanner {
   position: relative;
-  isolation: isolate;
   display: grid;
-  grid-template-columns: minmax(0, 55%) minmax(0, 45%);
-  grid-template-rows: 1fr auto;
-  min-height: 390px;
-  height: 100%;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  min-width: 0;
+  min-height: 400px;
   overflow: hidden;
   color: var(--text);
-  background: var(--card);
+  background: var(--secondary);
   border: 1px solid var(--line);
   border-radius: 20px;
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--text) 8%, transparent);
+  box-shadow: var(--shadow);
+}
+
+.homeOffersGrid.singlePromo .promoBanner {
+  min-height: clamp(380px, 31vw, 420px);
+}
+
+.homeOffersGrid.twoPromos .promoBanner,
+.homeOffersGrid.promoCarouselTrack .promoBanner {
+  min-height: 400px;
 }
 
 .homeOffers .promoVisual {
-  position: absolute;
-  inset: 0 0 0 auto;
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
   z-index: 0;
-  width: 45%;
+  min-width: 0;
+  min-height: 100%;
   overflow: hidden;
-  background: var(--card2);
+  background: var(--secondary);
+  isolation: isolate;
   border-radius: 0 19px 19px 0;
 }
 
 .homeOffers .promoVisual::before {
-  content: "";
   position: absolute;
   z-index: 1;
-  top: -8%;
-  bottom: -8%;
-  left: -24px;
-  width: 48px;
-  background: var(--accent);
+  top: -12%;
+  bottom: -12%;
+  left: -48px;
+  width: 96px;
+  content: "";
+  background: var(--secondary);
   border-radius: 50%;
+  pointer-events: none;
 }
 
 .homeOffers .homeOfferImage {
@@ -974,31 +1009,33 @@ section > .innerWrap > p,
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .homeOffers .homeOfferDiscount {
   position: absolute;
-  z-index: 3;
-  top: 18px;
-  right: 18px;
+  z-index: 2;
+  top: 16px;
+  right: 16px;
   display: grid;
   place-content: center;
-  width: clamp(64px, 8cqw, 88px);
+  width: clamp(72px, 7vw, 88px);
   aspect-ratio: 1;
+  padding: 8px;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1rem, 2.3cqw, 1.7rem);
+  font-size: clamp(1.05rem, 2.2vw, 1.55rem);
   line-height: 1;
   text-align: center;
   color: var(--accent-text);
   background: var(--accent);
-  border: 3px solid var(--card);
+  border: 3px solid var(--surface);
   border-radius: 50%;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 16%, transparent);
+  box-shadow: var(--shadow);
 }
 
 .homeOffers .homeOfferDiscount[data-long] {
-  font-size: clamp(0.82rem, 1.8cqw, 1.3rem);
+  font-size: clamp(0.82rem, 1.7vw, 1.2rem);
 }
 
 .homeOffers .homeOfferDiscount small {
@@ -1011,176 +1048,176 @@ section > .innerWrap > p,
 }
 
 .homeOffers .homeOfferContent {
+  position: relative;
   grid-column: 1;
   grid-row: 1;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
-  padding: 28px 18px 12px 28px;
+  padding: clamp(24px, 2.8vw, 36px);
+  background: var(--secondary);
 }
 
 .homeOffers .promoLabel {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  min-height: 26px;
+  padding: 5px 10px;
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 0.7rem;
-  letter-spacing: 0.16em;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
 }
 
 .homeOffers .promoHeadline {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.35rem, 3.2cqw, 2rem);
+  font-size: clamp(1.6rem, 3.2vw, 2.55rem);
   line-height: 1.08;
   letter-spacing: -0.02em;
   text-transform: uppercase;
-  white-space: normal;
   text-wrap: balance;
   color: var(--text);
 }
 
 .homeOffers .promoHeadline span {
   color: var(--accent);
-  padding: 0 0.08em;
 }
 
 .homeOffers .promoScript {
-  position: relative;
-  display: inline-block;
   margin: 0;
-  font-family: var(--font-script, "Dancing Script", "Segoe Script", cursive);
+  font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(1rem, 2cqw, 1.45rem);
-  line-height: 1.2;
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  line-height: 1.3;
   color: var(--text);
 }
 
 .homeOffers .promoDesc {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  max-width: 40ch;
+  max-width: 48ch;
   margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.5;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.55;
   color: var(--muted);
 }
 
 .homeOffers .promoServices {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 0;
+  gap: 7px;
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
-  min-width: 0;
 }
 
 .homeOffers .promoServices li {
-  padding: 0 8px;
+  padding: 5px 9px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.68rem;
+  line-height: 1.3;
   color: var(--text);
-  font-weight: 700;
-  font-size: 0.62rem;
-  line-height: 1.4;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  border-left: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
   overflow-wrap: anywhere;
 }
 
-.homeOffers .promoServices li:first-child {
-  padding-left: 0;
-  border-left: none;
-}
-
 .homeOffers .homeOfferContent .btnPrimary16 {
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 11px 22px;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--button-primary-color);
+  background: var(--button-primary-background);
+  border: 1px solid var(--button-primary-background);
   border-radius: 999px;
+  transition: transform 0.2s var(--ease-cinematic), background-color 0.2s ease;
   cursor: pointer;
-  color: var(--accent-text);
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  transition:
-    transform 0.2s var(--ease-cinematic),
-    background-color 0.2s ease;
 }
 
 .homeOffers .homeOfferContent .btnPrimary16:hover {
-  filter: brightness(0.94);
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
 }
 
 .homeOffers .homeOfferContent .btnPrimary16:active {
   transform: scale(0.97);
 }
 
-.homeOffers .homeOfferContent .btnPrimary16:focus-visible {
+.homeOffers .homeOfferContent .btnPrimary16:focus-visible,
+.homeOffers .promoSocialLink:focus-visible,
+.homeOffers .promoPhone:focus-visible,
+.homeOffers .promoPaginationDot:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
 .homeOffers .promoFooter {
-  grid-column: 1;
-  grid-row: 2;
-  z-index: 2;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 4px;
+  padding-top: 10px;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.homeOffers .promoContact {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: 10px;
   min-width: 0;
-  padding: 8px 18px 22px 28px;
-  font-size: 0.72rem;
-  color: var(--muted);
 }
 
-.homeOffers .promoSocials {
-  display: flex;
-  gap: 8px;
-}
-
-.homeOffers .promoSocials a {
+.homeOffers .promoSocialLink {
   display: grid;
+  flex: 0 0 30px;
   place-items: center;
-  width: 28px;
+  width: 30px;
   aspect-ratio: 1;
   color: var(--text);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 50%;
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.homeOffers .promoSocials a:hover,
-.homeOffers .promoSocials a:focus-visible {
+.homeOffers .promoSocialLink:hover {
   color: var(--accent-text);
   background: var(--accent);
   border-color: var(--accent);
-  outline: none;
 }
 
-.homeOffers .promoSocials svg {
+.homeOffers .promoSocialLink svg {
   width: 50%;
   height: 50%;
 }
 
 .homeOffers .promoPhone {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   min-width: 0;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1189,98 +1226,141 @@ section > .innerWrap > p,
   overflow-wrap: anywhere;
 }
 
-.homeOffers .promoPhone svg {
-  width: 1.3em;
-  height: 1.3em;
-  color: var(--accent);
-}
-
 .homeOffers .homeOfferDates {
-  flex-basis: 100%;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   line-height: 1.4;
   color: var(--muted);
 }
 
-@container promo (max-width: 640px) {
-  .homeOffers .homeOfferDiscount {
-    top: 14px;
-    right: 14px;
-    width: 62px;
-    font-size: 1rem;
-  }
+.promoPagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  margin-top: 22px;
+}
 
-  .homeOffers .homeOfferDiscount[data-long] {
-    font-size: 0.8rem;
+.promoPaginationDot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  background: var(--line);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.promoPaginationDot.active {
+  width: 24px;
+  background: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .homeOffers .promoBanner {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
   }
 
   .homeOffers .homeOfferContent {
-    gap: 8px;
-    padding: 20px 12px 10px 18px;
+    padding: 24px;
   }
 
-  .homeOffers .promoLabel {
-    font-size: 0.62rem;
-    letter-spacing: 0.1em;
-  }
-
-  .homeOffers .promoHeadline {
-    font-size: clamp(1.2rem, 4cqw, 1.5rem);
-  }
-
-  .homeOffers .promoScript {
-    font-size: 1rem;
-  }
-
-  .homeOffers .promoDesc {
-    font-size: 0.76rem;
-  }
-
-  .homeOffers .promoServices li {
-    padding: 0 5px;
-    font-size: 0.56rem;
-    letter-spacing: 0.04em;
-  }
-
-  .homeOffers .homeOfferContent .btnPrimary16 {
-    padding: 9px 14px;
-    font-size: 0.68rem;
-  }
-
-  .homeOffers .promoFooter {
-    gap: 7px 9px;
-    padding: 8px 12px 18px 18px;
-    font-size: 0.66rem;
-  }
-
-  .homeOffers .promoSocials a {
-    width: 26px;
-  }
-
-  .homeOffers .homeOfferDates {
-    font-size: 0.64rem;
+  .homeOffersGrid.twoPromos .promoHeadline,
+  .homeOffersGrid.promoCarouselTrack .promoHeadline {
+    font-size: clamp(1.35rem, 2.5vw, 1.8rem);
   }
 }
 
 @media (max-width: 760px) {
   .homeOffers {
-    padding: 44px 0;
+    padding: 38px 0;
   }
 
-  .homeOffersGrid {
-    grid-auto-rows: auto;
+  .homeOffersGrid.twoPromos {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .homeOffers .promoBanner {
-    min-height: 360px;
+  .homeOffersGrid.promoCarouselTrack {
+    gap: 16px;
+  }
+
+  .homeOffersGrid.promoCarouselTrack > .homeOfferCard {
+    flex-basis: 100%;
+  }
+
+  .homeOffers .promoBanner,
+  .homeOffersGrid.singlePromo .promoBanner,
+  .homeOffersGrid.twoPromos .promoBanner,
+  .homeOffersGrid.promoCarouselTrack .promoBanner {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 190px auto;
+    min-height: 0;
+  }
+
+  .homeOffers .promoVisual {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 190px;
+  }
+
+  .homeOffers .promoVisual::before {
+    top: auto;
+    right: -10%;
+    bottom: -34px;
+    left: -10%;
+    width: auto;
+    height: 68px;
+    border-radius: 50%;
+  }
+
+  .homeOffers .homeOfferDiscount {
+    top: 14px;
+    right: 14px;
+    width: 72px;
+    font-size: 1.1rem;
+  }
+
+  .homeOffers .homeOfferDiscount[data-long] {
+    font-size: 0.9rem;
+  }
+
+  .homeOffers .homeOfferContent {
+    grid-column: 1;
+    grid-row: 2;
+    gap: 10px;
+    padding: 22px;
+  }
+
+  .homeOffers .promoHeadline {
+    font-size: clamp(1.5rem, 7vw, 2rem);
+  }
+
+  .homeOffers .promoDesc {
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+  }
+}
+
+@media (max-width: 420px) {
+  .homeOffers .homeOfferContent {
+    padding: 18px;
+  }
+
+  .homeOffers .promoHeadline {
+    font-size: 1.4rem;
+  }
+
+  .homeOffers .promoContact {
+    gap: 8px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .homeOffers .homeOfferContent .btnPrimary16,
-  .homeOffers .promoSocials a {
+  .homeOffers .promoSocialLink,
+  .promoPaginationDot {
     transition: none;
   }
 
@@ -1288,7 +1368,6 @@ section > .innerWrap > p,
     transform: none;
   }
 }
-
 /* ---------------------------------------------------------------- */
 /*  Why Choose Us                                                   */
 /* ---------------------------------------------------------------- */
@@ -1365,7 +1444,7 @@ section > .innerWrap > p,
 .whyUsCard {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: flex-start;
   gap: 16px;
   background: color-mix(in srgb, var(--text) 6%, var(--bg-whyus));
@@ -1624,8 +1703,8 @@ section > .innerWrap > p,
   letter-spacing: 0.05em;
   text-transform: uppercase;
   border-radius: 4px;
-  color: #2D5A52;
-  background-color: #E2F2EE;
+  color: var(--status-success);
+  background-color: color-mix(in srgb, var(--status-success) 14%, var(--surface));
 }
 
 .smileTag.before {
@@ -2128,9 +2207,9 @@ section > .innerWrap > p,
 }
 
 .homePromo .btnPrimary16 {
-  background: var(--text-promo);
-  color: var(--bg);
-  border: 1px solid var(--text-promo);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  border: 1px solid var(--button-primary-background);
 }
 
 .homePromo .btnPrimary16:hover {
@@ -2268,7 +2347,7 @@ section > .innerWrap > p,
   --svx-card-text: var(--text);
   --svx-card-border: color-mix(in srgb, var(--text) 35%, transparent);
   --svx-pill-bg: var(--accent);
-  --svx-pill-text: #ffffff;
+  --svx-pill-text: var(--accent-text);
 
   width: 100%;
   max-width: var(--maxw);
@@ -2316,10 +2395,10 @@ section > .innerWrap > p,
   height: 40px;
   place-items: center;
   padding: 0 0 3px;
-  border: 1px solid #e6dbc5;
+  border: 1px solid var(--line);
   border-radius: 50%;
-  background: #f5eddf;
-  color: #2b2410;
+  background: var(--surface);
+  color: var(--text);
   font: 500 25px/1 var(--font-body);
   cursor: pointer;
   transition: background-color 180ms ease, border-color 180ms ease, opacity 180ms ease;
@@ -2646,7 +2725,7 @@ html[data-theme="blue"] .mapFrame {
    BOOK Page
    ========================================================================== */
 /* Default = dark theme (uses your global theme variables) */
-.googleGate{max-width:380px;margin:40px auto;padding:28px 24px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.25);text-align:center}
+.googleGate{max-width:380px;margin:40px auto;padding:28px 24px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);text-align:center}
 .googleGateLogo{width:64px;height:64px;margin:0 auto 14px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);display:grid;place-items:center}
 .googleGateLogo img{width:32px;height:32px}
 .googleGateSub{color:var(--muted);font-size:14px;margin:6px 0 18px}
@@ -2658,25 +2737,6 @@ html[data-theme="blue"] .mapFrame {
 .googleGateTerms{font-size:12px;color:var(--muted)}
 .googleGateTerms a{color:var(--text);font-weight:600;text-decoration:underline}
 
-/* Light + Blue theme = white card (same as before) */
-html[data-theme="light"] .googleGate,
-html[data-theme="blue"] .googleGate{background:#fff;color:#1f1a16;border-color:#e5e5e5;box-shadow:0 8px 30px rgba(0,0,0,.08)}
-html[data-theme="light"] .googleGateLogo,
-html[data-theme="blue"] .googleGateLogo{box-shadow:0 2px 10px rgba(0,0,0,.1)}
-html[data-theme="light"] .googleGateSub,
-html[data-theme="blue"] .googleGateSub{color:#555}
-html[data-theme="light"] .googleGateBtn,
-html[data-theme="blue"] .googleGateBtn{background:#fff;color:#1f1a16;border-color:#dadce0}
-html[data-theme="light"] .googleGateDivider,
-html[data-theme="blue"] .googleGateDivider{color:#888}
-html[data-theme="light"] .googleGateDivider::before,
-html[data-theme="light"] .googleGateDivider::after,
-html[data-theme="blue"] .googleGateDivider::before,
-html[data-theme="blue"] .googleGateDivider::after{background:#e5e5e5}
-html[data-theme="light"] .googleGateTerms,
-html[data-theme="blue"] .googleGateTerms{color:#666}
-html[data-theme="light"] .googleGateTerms a,
-html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
 /* ==========================================================================
    ABOUT US PAGE
    ========================================================================== */
@@ -3308,13 +3368,14 @@ html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
 }
 .btnWide {
   width: 100%;
-  background: transparent;
-  border: 1.5px solid var(--accent);
-  color: var(--accent);
+  background: var(--button-primary-background);
+  border: 1.5px solid var(--button-primary-background);
+  color: var(--button-primary-color);
 }
 
 .btnWide:hover:not(:disabled) {
-  background: rgba(var(--accent-rgb), 0.1);
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
   opacity: 1;
 }
 
@@ -3323,19 +3384,20 @@ html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
   cursor: not-allowed;
 }
 .btnOutline {
-  background: transparent;
-  border: 1.5px solid var(--accent);
-  color: var(--accent);
+  background: var(--button-secondary-background);
+  border: 1.5px solid var(--button-secondary-border);
+  color: var(--button-secondary-color);
 }
 
 .btnOutline:hover:not(:disabled) {
-  background: rgba(var(--accent-rgb), 0.1);
+  background: var(--button-secondary-background);
+  border-color: var(--button-secondary-border);
 }
 
 .btnSolid {
-  background: var(--accent);
-  border: 1.5px solid var(--accent);
-  color: var(--accent-text);
+  background: var(--button-primary-background);
+  border: 1.5px solid var(--button-primary-background);
+  color: var(--button-primary-color);
 }
 
 .backButton {
@@ -3493,18 +3555,18 @@ html[data-theme="blue"] .googleGateTerms a{color:#1f1a16}
   padding: 0 20px;
   border: 0;
   border-radius: 10px;
-  background: var(--accent);
+  background: var(--button-primary-background);
   font-size: 14px;
   font-weight: 600;
-  color: #2b2410;
+  color: var(--button-primary-color);
   cursor: pointer;
   transition: none;
 }
-html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 .verificationCard .btn.btnWide:hover:not(:disabled) {
   filter: none;
-  opacity: 0.9;
-  background: var(--accent);
+  opacity: 1;
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
 }
 .verificationCard .btn.btnWide:disabled { opacity: 0.6; cursor: not-allowed; }
 
@@ -3747,10 +3809,10 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 }
 
 .adminSidebarLink.active {
-  color: var(--text);
+  color: var(--on-accent);
   font-weight: 600;
   border-left-color: var(--accent);
-  background: rgba(var(--accent-rgb), 0.06);
+  background: var(--primary);
 }
 
 .adminSidebarLink.active svg {
@@ -3937,8 +3999,8 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
 }
 
 .accountChevron {
@@ -4394,15 +4456,15 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
 }
 
 .ovDelta .up {
-  color: #1f9d55;
+  color: var(--status-success);
 }
 
 .ovDelta .down {
-  color: #d64545;
+  color: var(--status-danger);
 }
 
 .ovCard {
-  background: none;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 20px;
 }
@@ -4677,28 +4739,6 @@ html[data-theme="blue"] .verificationCard .btn.btnWide { color: #ffffff; }
   background: var(--bg);
 }
 
-html[data-theme="light"] .adminAppMain {
-  --bg: #F5F2EA;
-  --card: #FBF9F4;
-  --card2: #F0ECE3;
-  --line: #E5E0D6;
-  --line-focus: rgba(var(--accent-rgb), 0.3);
-  --surface: #FBF9F4;
-  --surface-border: #E5E0D6;
-  --field-bg: #FBF9F4;
-}
-
-html[data-theme="blue"] .adminAppMain {
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --card2: #f1f5f9;
-  --line: #dce4ea;
-  --line-focus: rgba(var(--accent-rgb), 0.35);
-  --surface: #ffffff;
-  --surface-border: #dce4ea;
-  --field-bg: #ffffff;
-}
-
 .adminSurface {
   width: 100%;
   max-width: var(--maxw);
@@ -4722,8 +4762,11 @@ html[data-theme="blue"] .adminAppMain {
   background: transparent;
   color: var(--text);
 }
-.notice-success { border-color: rgba(79, 209, 125, 0.55); background: transparent; }
-.notice-error { border-color: var(--danger); background: transparent; }
+.notice-success {
+  border-color: color-mix(in srgb, var(--success) 55%, transparent);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+.notice-error { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
 .noticeClose {
   border: 0;
   background: transparent;
@@ -4753,15 +4796,14 @@ html[data-theme="blue"] .adminAppMain {
 }
 .btn:hover:not(:disabled) { transform: translateY(-1px); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.btnPrimary { background: var(--accent); color: #1c1a14; }
-html[data-theme="blue"] .btnPrimary { color: #fff; }
-.btnPrimary:hover:not(:disabled) { opacity: 0.9; }
-.btnSecondary { background: transparent; color: var(--text); border-color: rgba(var(--accent-rgb), 0.45); }
-.btnSecondary:hover:not(:disabled) { border-color: var(--accent); background: transparent, 0.08; }
-.btnDanger { background: transparent; color: var(--danger); border-color: var(--danger); }
-.btnDanger:hover:not(:disabled) { background: transparent; }
-.btnDangerSolid { background: var(--danger); color: #fff; }
-.btnDangerSolid:hover:not(:disabled) { opacity: 0.9; }
+.btnPrimary { background: var(--button-primary-background); color: var(--button-primary-color); border-color: var(--button-primary-background); }
+.btnPrimary:hover:not(:disabled) { background: var(--button-primary-hover-background); border-color: var(--button-primary-hover-background); }
+.btnSecondary { background: var(--button-secondary-background); color: var(--button-secondary-color); border-color: var(--button-secondary-border); }
+.btnSecondary:hover:not(:disabled) { border-color: var(--button-secondary-border); background: var(--button-secondary-background); }
+.btnDanger,
+.btnDangerSolid { background: var(--button-danger-background); color: var(--button-danger-color); border-color: var(--button-danger-border); }
+.btnDanger:hover:not(:disabled),
+.btnDangerSolid:hover:not(:disabled) { background: var(--button-danger-background); border-color: var(--button-danger-border); }
 .btnSmall { min-height: 34px; padding: 6px 14px; font-size: 14px; }
 
 /* ---- Form controls ---- */
@@ -4805,9 +4847,8 @@ input[type="date"].input { min-height: 48px; }
 .panel {
   padding: 22px;
   border-radius: 20px;
-  background: transparent;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  backdrop-filter: blur(var(--blur));
+  background: var(--surface);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow, none);
 }
 .adminAppMain .adminSurface .panel {
@@ -4927,7 +4968,7 @@ input[type="date"].input { min-height: 48px; }
   border: 1px solid rgba(var(--accent-rgb), 0.45);
 }
 .typeBadge.regular { color: var(--muted); background: transparent; }
-.typeBadge.ortho { color: var(--text); background: transparent, 0.18; border-color: rgba(var(--accent-rgb), 0.5); }
+.typeBadge.ortho { color: var(--text); background: color-mix(in srgb, var(--primary) 18%, transparent); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
 
 .statusPill {
   display: inline-flex;
@@ -4938,27 +4979,27 @@ input[type="date"].input { min-height: 48px; }
   font-weight: 700;
   white-space: nowrap;
   color: var(--text);
-  background: transparent, 0.16;
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
   border: 1px solid rgba(var(--accent-rgb), 0.4);
 }
 .statusPill.active,
 .statusPill.approved,
 .statusPill.completed,
 .statusPill.checked-in {
-  background: transparent;
-  border-color: rgba(79, 209, 125, 0.5);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 50%, transparent);
 }
 .statusPill.in-progress,
 .statusPill.rescheduled {
-  background: transparent;
-  border-color: rgba(96, 165, 250, 0.5);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  border-color: color-mix(in srgb, var(--info) 50%, transparent);
 }
 .statusPill.archived { background: transparent; border-color: rgba(var(--accent-rgb), 0.45); color: var(--muted); }
 .statusPill.cancelled,
 .statusPill.rejected,
 .statusPill.no-show {
-  background: transparent;
-  border-color: rgba(255, 84, 73, 0.5);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
 }
 
 /* ---- Record page header & tabs ---- */
@@ -5060,7 +5101,7 @@ input[type="date"].input { min-height: 48px; }
   margin-inline: auto;
   border-radius: 18px;
   border: 1px solid rgba(var(--accent-rgb), 0.45);
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 .patientDetailsPage .toothChartFrame { width: min(100%, 600px); }
@@ -5091,7 +5132,7 @@ input[type="date"].input { min-height: 48px; }
 .toothMarker:hover,
 .toothMarker:focus-visible {
   border-color: var(--accent);
-  background: transparent, 0.12;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 .patientDetailsPage .toothMarker:hover:not(.active) {
   border-color: transparent;
@@ -5103,7 +5144,7 @@ input[type="date"].input { min-height: 48px; }
 }
 .toothMarker.hasNote {
   border-color: rgba(var(--accent-rgb), 0.5);
-  background: transparent, 0.08;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .toothMarker.focused {
   transform: translate(-50%, -50%) scale(1.15);
@@ -5111,7 +5152,7 @@ input[type="date"].input { min-height: 48px; }
 }
 .toothMarker.active {
   border-color: var(--accent);
-  background: transparent, 0.22;
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
 }
 .toothViewerLegend {
   display: flex;
@@ -5137,7 +5178,7 @@ input[type="date"].input { min-height: 48px; }
   font-size: 14px;
   cursor: pointer;
 }
-.toothSelectedChip.active { background: transparent, 0.2; border-color: var(--accent); }
+.toothSelectedChip.active { background: color-mix(in srgb, var(--primary) 20%, transparent); border-color: var(--primary); }
 .selectedToothNotesList { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .selectedToothNoteItem { padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), 0.45); background: transparent; }
 .selectedToothNoteItem strong { display: block; font-size: 14px; }
@@ -5225,11 +5266,11 @@ input[type="date"].input { min-height: 48px; }
 }
 .timelineDot.approved,
 .timelineDot.completed,
-.timelineDot.checked-in { background: #4fd17d; box-shadow: 0 0 0 1px #4fd17d; }
+.timelineDot.checked-in { background: var(--success); box-shadow: 0 0 0 1px var(--success); }
 .timelineDot.cancelled,
 .timelineDot.rejected { background: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 .timelineDot.rescheduled,
-.timelineDot.in-progress { background: #60a5fa; box-shadow: 0 0 0 1px #60a5fa; }
+.timelineDot.in-progress { background: var(--info); box-shadow: 0 0 0 1px var(--info); }
 .timelineBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .timelineTopRow { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .timelineTopRow strong { color: var(--text); font-size: 15.5px; }
@@ -5289,14 +5330,14 @@ input[type="date"].input { min-height: 48px; }
   content: none;
 }
 .patientDetailsPage .backLink.paymentsBackLink {
-  color: #171717;
+  color: var(--text);
   font-size: 13px;
   font-weight: 450;
   text-decoration: none;
 }
 .patientDetailsPage .backLink.paymentsBackLink:hover,
 .patientDetailsPage .backLink.paymentsBackLink:focus-visible {
-  color: #171717;
+  color: var(--text);
   background: transparent;
   outline: none;
   box-shadow: none;
@@ -5325,9 +5366,9 @@ input[type="date"].input { min-height: 48px; }
   gap: 7px;
   min-height: 34px;
   padding: 6px 12px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  color: var(--button-primary-color);
+  background: var(--button-primary-background);
+  border: 1px solid var(--button-primary-background);
   border-radius: 7px;
   font-size: 13px;
   font-weight: 550;
@@ -5358,14 +5399,14 @@ input[type="date"].input { min-height: 48px; }
 }
 .patientDetailsPage .btnInfo,
 .patientDetailsPage .btnSecondary {
-  color: var(--text);
-  background: var(--card);
-  border-color: var(--line);
+  color: var(--button-secondary-color);
+  background: var(--button-secondary-background);
+  border-color: var(--button-secondary-border);
 }
 .patientDetailsPage .btnDanger {
-  color: var(--danger);
-  background: var(--card);
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--button-danger-color);
+  background: var(--button-danger-background);
+  border-color: var(--button-danger-border);
 }
 .patientDetailsPage .btnTeal {
   color: var(--accent-teal);
@@ -5377,9 +5418,9 @@ input[type="date"].input { min-height: 48px; }
   opacity: 1;
 }
 .patientDetailsPage .recordHeader > .btnPrimary:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--surface);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--button-primary-color);
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
 }
 .patientDetailsPage .btnSuccess:hover:not(:disabled) {
   color: var(--text);
@@ -5398,14 +5439,14 @@ input[type="date"].input { min-height: 48px; }
 }
 .patientDetailsPage .btnInfo:hover:not(:disabled),
 .patientDetailsPage .btnSecondary:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--card);
-  border-color: var(--line);
+  color: var(--button-secondary-color);
+  background: var(--button-secondary-background);
+  border-color: var(--button-secondary-border);
 }
 .patientDetailsPage .btnDanger:hover:not(:disabled) {
-  color: var(--danger);
-  background: var(--card);
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--button-danger-color);
+  background: var(--button-danger-background);
+  border-color: var(--button-danger-border);
 }
 .patientDetailsPage .btnTeal:hover:not(:disabled) {
   color: var(--accent-teal);
@@ -5422,7 +5463,7 @@ input[type="date"].input { min-height: 48px; }
 }
 .patientDetailsPage .backLink.paymentsBackLink:hover,
 .patientDetailsPage .backLink.paymentsBackLink:focus-visible {
-  color: #171717;
+  color: var(--text);
 }
 .patientDetailsPage .recordTab.active:hover {
   color: var(--text);
@@ -5571,7 +5612,7 @@ input[type="date"].input { min-height: 48px; }
   border: 1px solid rgba(var(--accent-rgb), 0.45);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
-.confirmCard.confirm-danger { border-color: rgba(255, 84, 73, 0.5); }
+.confirmCard.confirm-danger { border-color: var(--error-border); }
 .confirmTitle { margin: 0 0 8px; font-size: 20px; color: var(--text); }
 .confirmMessage { margin: 0; font-size: 15px; line-height: 1.55; color: var(--muted); }
 .confirmActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 22px; }
@@ -5654,10 +5695,10 @@ input[type="date"].input { min-height: 48px; }
 }
 .statLabel { display: block; font-size: 12.5px; color: var(--muted); }
 .statValue { display: block; margin-top: 4px; font-size: 26px; color: var(--text); }
-.statCard.accentTeal { border-left-color: #0f8b8d; }
-.statCard.accentBlue { border-left-color: #3b6fd4; }
-.statCard.accentGold { border-left-color: #d69a1f; }
-.statCard.accentRose { border-left-color: #d64570; }
+.statCard.accentTeal { border-left-color: var(--accent-teal); }
+.statCard.accentBlue { border-left-color: var(--status-info); }
+.statCard.accentGold { border-left-color: var(--status-warning); }
+.statCard.accentRose { border-left-color: var(--status-attention); }
 
 /* Sub navigation */
 .adminSubnav { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -5684,9 +5725,9 @@ input[type="date"].input { min-height: 48px; }
 /* Card */
 .card {
   padding: 20px;
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: transparent;
+  background: var(--surface);
 }
 .cardHeader {
   display: flex;
@@ -5710,7 +5751,7 @@ input[type="date"].input { min-height: 48px; }
 .formError {
   margin-bottom: 14px;
   padding: 10px 14px;
-  border: 1px solid rgba(214, 69, 80, 0.4);
+  border: 1px solid var(--error-border);
   border-radius: 10px;
   background: transparent;
   font-size: 13.5px;
@@ -5720,26 +5761,49 @@ input[type="date"].input { min-height: 48px; }
 /* Buttons */
 .btn {
   padding: 9px 16px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--button-primary-background);
   border-radius: 10px;
-  background: var(--accent);
+  background: var(--button-primary-background);
   font: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: #fff;
+  color: var(--button-primary-color);
   cursor: pointer;
   transition: transform 0.15s var(--ease-cinematic), filter 0.2s var(--ease-cinematic), border-color 0.2s var(--ease-cinematic);
 }
 .btn:hover { filter: brightness(1.08); }
+.btn.btnPrimary:hover:not(:disabled),
+.btn.btnShine:hover:not(:disabled),
+.btn.btnSolid:hover:not(:disabled),
+.btn.btnWide:hover:not(:disabled) {
+  border-color: var(--button-primary-hover-background);
+  background: var(--button-primary-hover-background);
+  color: var(--button-primary-color);
+  filter: none;
+}
+.btn.btnDanger:hover:not(:disabled),
+.btn.btnDangerSolid:hover:not(:disabled) {
+  border-color: var(--button-danger-border);
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+  filter: none;
+}
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn.secondary,
-.btn.btnSoft { border-color: rgba(var(--accent-rgb), 0.45); background: transparent; color: var(--text); }
+.btn.btnSoft,
+.btn.btnGhost,
+.btn.btnSecondary,
+.btn.btnInfo { border-color: var(--button-secondary-border); background: var(--button-secondary-background); color: var(--button-secondary-color); }
 .btn.secondary:hover,
-.btn.btnSoft:hover { border-color: var(--accent); filter: none; }
-.btn.danger { border-color: var(--danger); background: var(--danger); color: #fff; }
-.btn.archiveButton { border-color: rgba(var(--accent-rgb), 0.45); background: transparent; color: var(--muted); }
-.btn.archiveButton:hover { border-color: var(--muted); filter: none; }
+.btn.btnSoft:hover,
+.btn.btnGhost:hover,
+.btn.btnSecondary:hover,
+.btn.btnInfo:hover { border-color: var(--button-secondary-border); background: var(--button-secondary-background); color: var(--button-secondary-color); filter: none; }
+.btn.danger,
+.btn.archiveButton { border-color: var(--button-danger-border); background: var(--button-danger-background); color: var(--button-danger-color); }
+.btn.danger:hover,
+.btn.archiveButton:hover { border-color: var(--button-danger-border); background: var(--button-danger-background); color: var(--button-danger-color); filter: none; }
 
 .adminAppMain .adminSurface .btn,
 .dentistModal .btn {
@@ -5777,31 +5841,44 @@ input[type="date"].input { min-height: 48px; }
 }
 
 .adminAppMain .adminSurface .btnPrimary,
+.adminAppMain .adminSurface .btn.btnSolid,
+.adminAppMain .adminSurface .btn.btnWide,
 .adminAppMain .adminSurface .btn.btnShine,
 .adminAppMain .adminSurface form .btn[type="submit"],
 .dentistModal .btn.btnShine {
-  color: var(--accent-text);
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  color: var(--button-primary-color);
+  background: var(--button-primary-background);
+  border: 1px solid var(--button-primary-background);
+}
+
+.adminAppMain .adminSurface .btnPrimary:hover:not(:disabled),
+.adminAppMain .adminSurface .btn.btnSolid:hover:not(:disabled),
+.adminAppMain .adminSurface .btn.btnWide:hover:not(:disabled),
+.adminAppMain .adminSurface .btn.btnShine:hover:not(:disabled),
+.adminAppMain .adminSurface form .btn[type="submit"]:hover:not(:disabled),
+.dentistModal .btn.btnShine:hover:not(:disabled) {
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
 }
 
 .adminAppMain .patientDetailsPage .recordHeader > .btnPrimary,
 .adminAppMain .patientDetailsPage .recordFooter .btnInfo,
 .adminAppMain .patientDetailsPage .recordFooter .btnSecondary,
 .adminAppMain .patientDetailsPage .pdlActions .btnSecondary {
-  color: var(--text);
-  background: var(--surface);
-  border-color: var(--line);
+  color: var(--button-secondary-color);
+  background: var(--button-secondary-background);
+  border-color: var(--button-secondary-border);
 }
 
 .adminAppMain .patientDetailsPage .recordHeader > .btnPrimary {
-  background: var(--surface);
-  border-color: var(--line);
+  color: var(--button-primary-color);
+  background: var(--button-primary-background);
+  border-color: var(--button-primary-background);
 }
 
 .adminAppMain .patientDetailsPage .recordHeader > .btnPrimary:hover:not(:disabled) {
-  background: var(--surface);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--button-primary-hover-background);
+  border-color: var(--button-primary-hover-background);
 }
 
 .adminAppMain .patientDetailsPage .recordFooter .patientDownloadAction,
@@ -5826,15 +5903,16 @@ input[type="date"].input { min-height: 48px; }
 }
 
 .adminAppMain .adminSurface .btnSecondary,
+.adminAppMain .adminSurface .btn.btnOutline,
 .adminAppMain .adminSurface .btn.btnGhost,
 .adminAppMain .adminSurface .btn.secondary,
 .adminAppMain .adminSurface .btn.btnSoft,
 .adminAppMain .adminSurface .btn.btnInfo,
 .dentistModal .btn.secondary,
 .dentistModal .btn.btnSoft {
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  color: var(--button-secondary-color);
+  background: var(--button-secondary-background);
+  border: 1px solid var(--button-secondary-border);
 }
 
 .adminAppMain .adminSurface .btnDanger,
@@ -5842,9 +5920,9 @@ input[type="date"].input { min-height: 48px; }
 .adminAppMain .adminSurface .btn.danger,
 .adminAppMain .adminSurface .btn.archiveButton,
 .dentistModal .btn.danger {
-  color: var(--danger);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  color: var(--button-danger-color);
+  background: var(--button-danger-background);
+  border: 1px solid var(--button-danger-border);
 }
 
 .adminAppMain .adminSurface .btn:focus-visible,
@@ -5874,12 +5952,12 @@ input[type="date"].input { min-height: 48px; }
   color: var(--muted);
 }
 .statusPill + .statusPill { margin-left: 6px; }
-.statusPill.pending { background: transparent; border-color: rgba(214, 154, 31, 0.4); color: #a87413; }
-.statusPill.approved { background: transparent; border-color: rgba(15, 139, 141, 0.4); color: #0b6a6c; }
-.statusPill.awaiting_payment { background: transparent; border-color: rgba(122, 92, 214, 0.4); color: #5f43b3; }
-.statusPill.completed { background: transparent; border-color: rgba(59, 111, 212, 0.4); color: #2f57ab; }
-.statusPill.cancelled { background: transparent; border-color: rgba(214, 69, 80, 0.4); color: #b3333d; }
-.statusPill.attention { background: transparent; border-color: rgba(214, 69, 112, 0.4); color: #b3345b; }
+.statusPill.pending { background: transparent; border-color: color-mix(in srgb, var(--warning) 40%, transparent); color: var(--warning); }
+.statusPill.approved { background: transparent; border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success); }
+.statusPill.awaiting_payment { background: transparent; border-color: color-mix(in srgb, var(--warning) 40%, transparent); color: var(--warning); }
+.statusPill.completed { background: transparent; border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success); }
+.statusPill.cancelled { background: transparent; border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger); }
+.statusPill.attention { background: transparent; border-color: color-mix(in srgb, var(--warning) 40%, transparent); color: var(--warning); }
 
 /* Bookings table */
 .bookingsTableWrap { overflow-x: auto; border: 1px solid rgba(var(--accent-rgb), 0.45); border-radius: 14px; }
@@ -6172,7 +6250,11 @@ input[type="date"].input { min-height: 48px; }
 }
 
 .bookingManagementPage .bookingTableStatus-approved {
-  color: color-mix(in srgb, #16834a 78%, var(--text));
+  color: color-mix(in srgb, var(--status-success) 78%, var(--text));
+}
+
+.bookingManagementPage .bookingTableStatus-checked-in {
+  color: var(--info);
 }
 
 .bookingManagementPage .bookingTableStatus-completed {
@@ -6184,68 +6266,91 @@ input[type="date"].input { min-height: 48px; }
 }
 
 .bookingCalendarPanel {
-  padding: 14px;
+  padding: 18px;
   border: 1px solid var(--booking-border);
-  border-radius: 7px;
+  border-radius: 14px;
   background: var(--surface);
 }
 
 .bookingMonthHeader {
-  display: flex;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .bookingMonthHeader h2 {
   margin: 0;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 650;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
 }
 
-.bookingMonthControls {
-  display: flex;
-  gap: 4px;
-}
-
-.bookingMonthControls button {
+.bookingMonthNav {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid var(--booking-border);
-  border-radius: 5px;
+  border-radius: 10px;
   background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 19px;
-  line-height: 1;
+  color: var(--accent);
   cursor: pointer;
-  transition: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
 }
 
-.bookingMonthControls button:hover,
-.bookingCalendarSummary button:hover,
-.bookingDateFilter button:hover,
-.bookingClearSearch:hover {
-  color: var(--text);
-  background: transparent;
+.bookingMonthNav svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bookingMonthNav:hover {
+  border-color: var(--accent);
+  background: var(--secondary);
+}
+
+.bookingMonthNav:focus-visible,
+.bookingMonthDay:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bookingMonthNav:active {
+  background: var(--secondary);
+}
+
+.bookingMonthNav:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.bookingMonthNav svg {
+  flex: 0 0 auto;
 }
 
 .bookingMonthGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 3px;
+  gap: 7px 4px;
 }
 
 .bookingWeekday {
-  padding: 4px 0 6px;
+  padding: 4px 0 8px;
   color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 650;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-align: center;
+  text-transform: uppercase;
 }
 
 .bookingDayBlank {
@@ -6255,8 +6360,8 @@ input[type="date"].input { min-height: 48px; }
 .bookingMonthDay {
   position: relative;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   min-width: 0;
   justify-self: center;
   align-self: center;
@@ -6266,36 +6371,42 @@ input[type="date"].input { min-height: 48px; }
   border-radius: 50%;
   background: transparent;
   color: var(--text);
-  font: inherit;
-  font-size: 12px;
+  font: 500 13px/1 var(--font-body);
   cursor: pointer;
-  transition: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .bookingMonthDay:hover {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--booking-border));
+  background: var(--secondary);
 }
 
-.bookingMonthDay.today {
-  border-color: var(--booking-border);
+.bookingMonthDay.today,
+.bookingMonthDay.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
-.bookingMonthDay.selected {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--booking-border));
-  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
-  color: var(--text);
+.bookingMonthDay.today:hover,
+.bookingMonthDay.selected:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .bookingMonthDay i {
   position: absolute;
   bottom: 3px;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #d5a900;
+  background: var(--accent);
+}
+
+.bookingMonthDay.selected i {
+  display: none;
 }
 
 .bookingCalendarSummary {
@@ -6303,8 +6414,8 @@ input[type="date"].input { min-height: 48px; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid var(--booking-border);
 }
 
@@ -6324,6 +6435,37 @@ input[type="date"].input { min-height: 48px; }
 .bookingCalendarSummary span {
   color: var(--muted);
   font-size: 11.5px;
+}
+
+.bookingCalendarSummary button {
+  border: 0;
+  padding: 4px 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bookingCalendarSummary button:hover {
+  color: var(--accent);
+  background: var(--secondary);
+}
+
+@media (max-width: 480px) {
+  .bookingCalendarPanel {
+    padding: 14px 12px;
+  }
+
+  .bookingMonthGrid {
+    gap: 5px 2px;
+  }
+
+  .bookingMonthDay {
+    width: 34px;
+    height: 34px;
+  }
 }
 
 @media (max-width: 1020px) {
@@ -6388,11 +6530,11 @@ input[type="date"].input { min-height: 48px; }
 .calendarLegend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
 .calendarLegendItem { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
 .calendarLegendSwatch { width: 12px; height: 12px; border-radius: 4px; background: transparent; border: 1px solid rgba(var(--accent-rgb), 0.45); }
-.calendarLegendSwatch.pending, .calendarItem.pending { background: transparent; color: #a87413; border: 1px solid currentColor; }
-.calendarLegendSwatch.approved, .calendarItem.approved { background: transparent; color: #0b6a6c; border: 1px solid currentColor; }
-.calendarLegendSwatch.awaiting_payment, .calendarItem.awaiting_payment { background: transparent; color: #5f43b3; border: 1px solid currentColor; }
-.calendarLegendSwatch.completed, .calendarItem.completed { background: transparent; color: #2f57ab; border: 1px solid currentColor; }
-.calendarLegendSwatch.cancelled, .calendarItem.cancelled { background: transparent; color: #b3333d; border: 1px solid currentColor; }
+.calendarLegendSwatch.pending, .calendarItem.pending { background: transparent; color: var(--status-warning); border: 1px solid currentColor; }
+.calendarLegendSwatch.approved, .calendarItem.approved { background: transparent; color: var(--status-success); border: 1px solid currentColor; }
+.calendarLegendSwatch.awaiting_payment, .calendarItem.awaiting_payment { background: transparent; color: var(--status-violet); border: 1px solid currentColor; }
+.calendarLegendSwatch.completed, .calendarItem.completed { background: transparent; color: var(--status-info); border: 1px solid currentColor; }
+.calendarLegendSwatch.cancelled, .calendarItem.cancelled { background: transparent; color: var(--status-danger); border: 1px solid currentColor; }
 .calendarLegendSwatch.archived, .calendarItem.archived { background: transparent; color: var(--muted); border: 1px solid currentColor; }
 
 .calendarGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
@@ -6499,11 +6641,11 @@ input[type="date"].input { min-height: 48px; }
   font-size: 12.5px;
   color: var(--muted);
 }
-.patientRecordPeek > .statusPill.pending { background: transparent; border-color: rgba(214, 154, 31, 0.4); color: #a87413; }
-.patientRecordPeek > .statusPill.approved { background: transparent; border-color: rgba(15, 139, 141, 0.4); color: #0b6a6c; }
-.patientRecordPeek > .statusPill.awaiting_payment { background: transparent; border-color: rgba(122, 92, 214, 0.4); color: #5f43b3; }
-.patientRecordPeek > .statusPill.completed { background: transparent; border-color: rgba(59, 111, 212, 0.4); color: #2f57ab; }
-.patientRecordPeek > .statusPill.cancelled { background: transparent; border-color: rgba(214, 69, 80, 0.4); color: #b3333d; }
+.patientRecordPeek > .statusPill.pending { background: transparent; border-color: color-mix(in srgb, var(--status-warning) 40%, transparent); color: var(--status-warning); }
+.patientRecordPeek > .statusPill.approved { background: transparent; border-color: color-mix(in srgb, var(--status-success) 40%, transparent); color: var(--status-success); }
+.patientRecordPeek > .statusPill.awaiting_payment { background: transparent; border-color: color-mix(in srgb, var(--status-violet) 40%, transparent); color: var(--status-violet); }
+.patientRecordPeek > .statusPill.completed { background: transparent; border-color: color-mix(in srgb, var(--status-info) 40%, transparent); color: var(--status-info); }
+.patientRecordPeek > .statusPill.cancelled { background: transparent; border-color: color-mix(in srgb, var(--status-danger) 40%, transparent); color: var(--status-danger); }
 
 .actionColumn.actionColumnFriendly { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 16px; border-top: 1px solid rgba(var(--accent-rgb), 0.45); }
 .actionColumn.actionColumnFriendly .patientActionBtn { flex: 1 1 auto; width: auto; }
@@ -6640,8 +6782,9 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   background: var(--surface);
 }
 .addPatientModal .btnSecondary:hover:not(:disabled) {
-  border-color: var(--line);
-  background: var(--surface);
+  border-color: var(--button-secondary-border);
+  background: var(--button-secondary-background);
+  color: var(--button-secondary-color);
 }
 @media (max-width: 640px) {
   .modalOverlay.addPatientModalOverlay {
@@ -6859,9 +7002,9 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
 }
 .bracesWorkspaceModal .historyRow p { color: var(--muted); }
 .bracesWorkspaceModal .bookingPrimaryBtn {
-  background: var(--accent);
-  color: var(--accent-text);
-  border: 1px solid var(--accent);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  border: 1px solid var(--button-primary-background);
   align-self: flex-start;
 }
 .bracesWorkspaceModal .bookingPrimaryBtn:hover:not(:disabled) { opacity: 1; }
@@ -6908,36 +7051,36 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
 
 .adminSurface .btn.btnShine,
 .adminSurface form .btn[type="submit"] {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-color: var(--accent);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  border-color: var(--button-primary-background);
 }
 html[data-theme="blue"] .adminSurface .btn.btnShine,
-html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--accent-text); }
+html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--button-primary-color); }
 .adminSurface .btn.secondary {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--line);
+  background: var(--button-secondary-background);
+  color: var(--button-secondary-color);
+  border: 1px solid var(--button-secondary-border);
 }
 .adminSurface .btn.secondary:hover:not(:disabled) {
-  border-color: var(--line);
-  background: var(--surface);
+  border-color: var(--button-secondary-border);
+  background: var(--button-secondary-background);
 }
 .adminSurface .btn.danger {
-  background: var(--surface);
-  color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+  border: 1px solid var(--button-danger-border);
 }
-.adminSurface .btn.danger:hover:not(:disabled) { background: var(--surface); }
+.adminSurface .btn.danger:hover:not(:disabled) { background: var(--button-danger-background); }
 .adminSurface .btn.archiveButton {
-  background: var(--surface);
-  color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+  border: 1px solid var(--button-danger-border);
 }
 .adminSurface .btn.archiveButton:hover:not(:disabled) {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
-  background: var(--surface);
+  color: var(--button-danger-color);
+  border-color: var(--button-danger-border);
+  background: var(--button-danger-background);
 }
 
 /* ---- Stat cards (Dentists / Active today) ---- */
@@ -7117,17 +7260,6 @@ html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--ac
 .addDentistDialog .btn:active {
   filter: none;
   transform: none;
-}
-
-html[data-theme="light"] .dentistModal,
-html[data-theme="blue"] .dentistModal {
-  --bg: #F5F2EA;
-  --card: #FBF9F4;
-  --card2: #F0ECE3;
-  --line: #E5E0D6;
-  --surface: #FBF9F4;
-  --surface-border: #E5E0D6;
-  --field-bg: #FBF9F4;
 }
 
 .dentistModal .patientDrawerHeader {
@@ -7509,15 +7641,15 @@ html[data-theme="blue"] .dentistModal {
 }
 
 .dentistModal .dentistEditorActions .btn.btnShine {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-text);
+  border-color: var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
 }
 
 .dentistModal .dentistEditorActions .btn.secondary {
-  border-color: var(--line);
-  background: var(--surface);
-  color: var(--text);
+  border-color: var(--button-secondary-border);
+  background: var(--button-secondary-background);
+  color: var(--button-secondary-color);
 }
 
 .dentistModal .dentistEditorActions .btn:hover,
@@ -8025,7 +8157,7 @@ html[data-theme="blue"] .dentistModal {
 }
 
 .promotionsPage .promoBadge {
-  --badge-color: #5f6c7b;
+  --badge-color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -8048,15 +8180,10 @@ html[data-theme="blue"] .dentistModal {
   background: currentColor;
 }
 
-.promotionsPage .promoBadge[data-status="Active"]    { --badge-color: var(--accent-teal); }
-.promotionsPage .promoBadge[data-status="Scheduled"] { --badge-color: #5b9cf5; }
+.promotionsPage .promoBadge[data-status="Active"]    { --badge-color: var(--status-success); }
+.promotionsPage .promoBadge[data-status="Scheduled"] { --badge-color: var(--status-info); }
 .promotionsPage .promoBadge[data-status="Expired"]   { --badge-color: var(--danger); }
 .promotionsPage .promoBadge[data-status="Draft"]     { --badge-color: var(--promo-muted); }
-
-html[data-theme="light"] .promotionsPage .promoBadge[data-status="Active"],
-html[data-theme="blue"] .promotionsPage .promoBadge[data-status="Active"]    { --badge-color: #1f8a5b; }
-html[data-theme="light"] .promotionsPage .promoBadge[data-status="Scheduled"],
-html[data-theme="blue"] .promotionsPage .promoBadge[data-status="Scheduled"] { --badge-color: #2563c9; }
 
 @media (max-width: 720px) {
   .promotionsPage .promoItem {
@@ -9786,7 +9913,7 @@ html[data-theme="blue"] .bookingInputSpecial {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #d5a900;
+  background: var(--status-warning);
   content: "";
   transform: translateX(-50%);
 }
@@ -9868,12 +9995,12 @@ html[data-theme="blue"] .bookingInputSpecial {
 }
 
 .bookingPage .detailNote.attention {
-  border-color: rgba(214, 69, 112, 0.5);
-  border-left-color: #d64570;
+  border-color: color-mix(in srgb, var(--status-attention) 50%, transparent);
+  border-left-color: var(--status-attention);
 }
 
 .bookingPage .statusPill.pending {
-  border-color: #d69a1f;
+  border-color: var(--status-warning);
 }
 
 .bookingPage .statusPill.rejected {
@@ -10116,7 +10243,7 @@ html[data-theme="blue"] .bookingInputSpecial {
   overflow: hidden;
   border: 1px solid var(--rec-stroke);
   border-radius: 18px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .bookingPage .toothReferenceImage {
@@ -10145,7 +10272,7 @@ html[data-theme="blue"] .bookingInputSpecial {
   font: inherit;
   font-size: 0;
   line-height: 1;
-  color: #1c1a14;
+  color: var(--text-primary);
   cursor: pointer;
   transition: border-color 0.25s var(--rec-ease), transform 0.25s var(--rec-ease);
 }
@@ -10416,7 +10543,7 @@ html[data-theme="blue"] .bookingInputSpecial {
 }
 
 .bookingPage .statusPill.active {
-  border-color: #4fd17d;
+  border-color: var(--status-success);
 }
 
 .bookingPage .statusPill.approved {
@@ -10747,9 +10874,9 @@ html[data-theme="blue"] .bookingInputSpecial {
 
 .adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn.danger,
 .adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn.archiveButton {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
-  background: var(--surface);
+  color: var(--button-danger-color);
+  border-color: var(--button-danger-border);
+  background: var(--button-danger-background);
 }
 
 @media (max-width: 520px) {
@@ -10768,27 +10895,41 @@ html[data-theme="blue"] .bookingInputSpecial {
 
 /* Booking Details drawer only */
 .bookingDetailsModal {
+  z-index: 1501;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(88vh, 820px);
+  max-height: min(88dvh, 820px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 40px);
-  max-height: calc(100dvh - 40px);
+  min-height: 0;
   overflow: hidden;
   background: var(--surface);
   border-color: var(--line);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+}
+
+.bookingDetailsOverlay {
+  z-index: 1500;
 }
 
 .bookingDetailsModal .patientDrawerInner {
+  flex: 1 1 auto;
+  width: 100%;
   min-height: 0;
-  max-height: inherit;
-  gap: 10px;
-  padding: 16px;
+  max-height: 100%;
+  gap: 0;
+  overflow: hidden;
+  padding: 22px 24px 18px;
 }
 
 .bookingDetailsModal .patientDrawerHeader {
   flex: 0 0 auto;
   position: relative;
   display: block;
-  padding: 0 42px 10px 0;
+  padding: 0 44px 16px 0;
+  border-bottom: 1px solid var(--line);
   border-color: var(--line);
 }
 
@@ -10796,27 +10937,30 @@ html[data-theme="blue"] .bookingInputSpecial {
   min-width: 0;
 }
 
-.bookingDetailsModal .bookingDetailsTitleRow {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.bookingDetailsModal .patientDrawerHeader h3 {
-  min-width: 0;
-  margin: 3px 0 0;
-  font-size: 18px;
-  line-height: 1.2;
-  color: var(--text);
-}
-
 .bookingDetailsModal .bookingDetailsStatus {
-  flex: 0 0 auto;
-  color: color-mix(in srgb, #16834a 78%, var(--text));
-  font-size: 13px;
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
   font-weight: 600;
-  text-transform: capitalize;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+.bookingDetailsModal .bookingDetailsStatus-approved {
+  color: var(--status-success);
+}
+
+.bookingDetailsModal .bookingDetailsStatus-checked-in {
+  color: var(--status-info);
+}
+
+.bookingDetailsModal .bookingDetailsStatus-pending {
+  color: var(--status-warning);
+}
+
+.bookingDetailsModal .bookingDetailsStatus-cancelled {
+  color: var(--status-danger);
 }
 
 .bookingDetailsModal .patientDrawerCloseBtn {
@@ -10847,15 +10991,17 @@ html[data-theme="blue"] .bookingInputSpecial {
 .bookingDetailsModal .patientDrawerBody {
   flex: 1 1 auto;
   min-height: 0;
-  gap: 10px;
+  padding: 12px 2px 4px 0;
+  gap: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .bookingDetailsModal .detailRow {
-  grid-template-columns: 125px minmax(0, 1fr);
-  gap: 10px;
-  padding: 6px 0;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  padding: 8px 0;
   border-color: var(--line);
 }
 
@@ -10869,6 +11015,15 @@ html[data-theme="blue"] .bookingInputSpecial {
   line-height: 1.35;
 }
 
+.bookingDetailsModal .detailRow.bookingDetailsName dd {
+  font-weight: 600;
+}
+
+.bookingDetailsModal .bookingDetailsMissing {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .bookingDetailsModal .appointmentPaymentDetails {
   margin-top: 6px;
 }
@@ -10877,29 +11032,29 @@ html[data-theme="blue"] .bookingInputSpecial {
   border-bottom: 0;
 }
 
-.bookingDetailsModal .bookingCheckInIndicator {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 6px 12px;
-  color: color-mix(in srgb, #16834a 78%, var(--text));
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .bookingDetailsModal .actionColumnFriendly {
   flex: 0 0 auto;
-  gap: 7px;
-  padding-top: 10px;
-  border-color: var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn {
-  min-height: 34px;
-  padding: 6px 12px;
-  border-radius: 7px;
+  flex: 0 1 calc((100% - 30px) / 4);
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 8px;
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: normal;
   transition: none;
 }
 
@@ -10908,29 +11063,49 @@ html[data-theme="blue"] .bookingInputSpecial {
   filter: none;
 }
 
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.btnShine,
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn.btnShine:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--button-primary-background);
+  border-color: var(--button-primary-background);
+  color: var(--button-primary-color);
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.secondary,
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.btnSoft {
+  background: var(--button-secondary-background);
+  border-color: var(--button-secondary-border);
+  color: var(--button-secondary-color);
+}
+
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.secondary:hover:not(:disabled),
+.bookingDetailsModal .actionColumnFriendly .patientActionBtn.btnSoft:hover:not(:disabled) {
+  background: var(--button-secondary-background);
+  border-color: var(--button-secondary-border);
+  color: var(--button-secondary-color);
 }
 
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn.danger,
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn.archiveButton {
-  background: var(--surface);
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
-  color: var(--danger);
+  background: var(--button-danger-background);
+  border-color: var(--button-danger-border);
+  color: var(--button-danger-color);
 }
 
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn.danger:hover:not(:disabled),
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn.archiveButton:hover:not(:disabled) {
-  background: var(--surface);
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
-  color: var(--danger);
+  background: var(--button-danger-background);
+  border-color: var(--button-danger-border);
+  color: var(--button-danger-color);
 }
 
 @media (max-width: 520px) {
-  .bookingDetailsModal .patientDrawerInner { padding: 14px; }
-  .bookingDetailsModal .detailRow { grid-template-columns: 110px minmax(0, 1fr); }
+  .bookingDetailsModal .patientDrawerInner { padding: 18px 16px 14px; }
+  .bookingDetailsModal .detailRow { grid-template-columns: 110px minmax(0, 1fr); gap: 10px; }
+  .bookingDetailsModal .actionColumnFriendly .patientActionBtn { flex-basis: calc((100% - 10px) / 2); }
+}
+
+@media (max-width: 380px) {
+  .bookingDetailsModal .detailRow { grid-template-columns: 1fr; gap: 2px; }
 }
 
 /* Shared staff navigation and header notifications */
@@ -10981,33 +11156,9 @@ html[data-theme="blue"] .bookingInputSpecial {
   color: var(--accent);
 }
 
-html[data-dashboard="true"][data-theme="light"] .adminSidebar {
-  background: #F6E8BA;
-}
-
-html[data-dashboard="true"][data-theme="blue"] .adminSidebar {
-  background: var(--accent);
-}
-
-html[data-dashboard="true"][data-theme="dark"] .adminSidebar {
-  background: #1B211A;
-}
-
-html[data-dashboard="true"][data-theme="light"] .adminSidebar,
-html[data-dashboard="true"][data-theme="light"] .adminSidebar * {
-  color: #2b2410;
-}
-
-html[data-dashboard="true"][data-theme="blue"] .adminSidebar,
-html[data-dashboard="true"][data-theme="blue"] .adminSidebar *,
-html[data-dashboard="true"][data-theme="dark"] .adminSidebar,
-html[data-dashboard="true"][data-theme="dark"] .adminSidebar * {
-  color: #fff;
-}
-
-html[data-dashboard="true"][data-theme="dark"] .adminSidebarLink:focus-visible {
-  border-left-color: #FFC94D;
-  outline-color: #FFC94D;
+.adminSidebar {
+  background: var(--surface);
+  color: var(--text);
 }
 
 html[data-dashboard="true"] .adminSidebarLink:hover {
@@ -11020,21 +11171,22 @@ html[data-dashboard="true"] .adminSidebarLink:hover {
 html[data-dashboard="true"] .adminSidebarLink.active,
 html[data-dashboard="true"] .adminSidebarLink.active:hover,
 html[data-dashboard="true"] .adminSidebarLink.active:focus-visible {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.14);
+  color: var(--on-accent);
+  background: var(--primary);
   border-color: transparent;
   border-left-color: transparent;
   border-radius: 8px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 html[data-dashboard="true"] .adminSidebarLink.active svg,
 html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .adminTopbar {
   gap: 12px;
+  min-width: 0;
 }
 
 .adminTopbar .accountMenu {
@@ -11052,9 +11204,10 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
   place-items: center;
   width: 40px;
   height: 40px;
+  flex: 0 0 40px;
   padding: 9px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 50%;
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -11366,8 +11519,6 @@ html body .statusPill.active,
 html body .statusPill.approved,
 html body .statusPill.completed,
 html body .statusPill.checked-in,
-html body .statusPill.in-progress,
-html body .statusPill.rescheduled,
 html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.approved,
 html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.completed,
 html body .bookingPage .statusPill.active,
@@ -11376,15 +11527,23 @@ html body .promotionsPage .promoBadge[data-status="Active"] {
   color: color-mix(in srgb, var(--accent-teal) 70%, var(--text));
 }
 
+html body .statusPill.in-progress,
+html body .statusPill.rescheduled {
+  color: var(--info);
+}
+
 html body .statusPill.pending,
 html body .statusPill.attention,
 html body .statusPill.awaiting_payment,
 html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.pending,
 html body .adminAppMain .adminSurface .patientRecordPeek > .statusPill.awaiting_payment,
 html body .bookingPage .statusPill.pending,
-html body .promotionsPage .promoBadge[data-status="Scheduled"],
+html body .promotionsPage .promoBadge[data-status="Scheduled"] {
+  color: var(--warning);
+}
+
 html body .typeBadge.ortho {
-  color: color-mix(in srgb, var(--accent) 48%, var(--text));
+  color: var(--primary);
 }
 
 html body .statusPill.cancelled,
@@ -11430,20 +11589,6 @@ html body .patientListPage .typeBadge.ortho {
 html body .patientListPage .typeBadge.ortho {
   color: color-mix(in srgb, var(--accent) 48%, var(--text));
 }
-
-html[data-dashboard="true"][data-theme="dark"] .adminAppMain .adminSurface .addPatientModal,
-html[data-dashboard="true"][data-theme="dark"] .adminAppMain .adminSurface .servicesAdminModal,
-html[data-dashboard="true"][data-theme="dark"] .adminAppMain .acctDialog,
-html[data-dashboard="true"][data-theme="dark"] .adminAppMain .confirmModalCard,
-html[data-dashboard="true"][data-theme="dark"] .patientDrawer,
-html[data-dashboard="true"][data-theme="dark"] .dentistModal {
-  --surface: color-mix(in srgb, var(--bg) 90%, var(--text));
-  --surface-border: var(--line);
-  --field-bg: color-mix(in srgb, var(--bg) 84%, var(--text));
-  --line: color-mix(in srgb, var(--text) 18%, var(--bg));
-  background-color: var(--surface);
-}
-
 
 /* Admin Services page */
 .servicesAdminPage {
@@ -12349,7 +12494,7 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #171717;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   font-weight: 450;
@@ -12360,7 +12505,7 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
 .paymentsBackLink:hover,
 .paymentsBackLink:focus-visible {
   background: transparent;
-  color: #171717;
+  color: var(--text);
   text-decoration: none;
   outline: none;
 }
@@ -12575,9 +12720,9 @@ html[data-dashboard="true"][data-theme="dark"] .dentistModal {
 }
 
 .paymentsDetailsActions .btn.secondary {
-  color: var(--text);
-  border: 1px solid var(--line);
-  background: transparent;
+  color: var(--button-secondary-color);
+  border: 1px solid var(--button-secondary-border);
+  background: var(--button-secondary-background);
 }
 
 .paymentsDetailsHistory {
@@ -13904,7 +14049,7 @@ html[data-dashboard="true"] .adminSurface .servicesAdminAddButton {
     position: fixed;
     z-index: 1001;
     top: 16px;
-    right: 248px;
+    right: 320px;
     left: calc(260px + 32px);
     flex: none;
     width: auto;
@@ -13916,7 +14061,7 @@ html[data-dashboard="true"] .adminSurface .servicesAdminAddButton {
     position: fixed;
     z-index: 1001;
     top: 16px;
-    right: 248px;
+    right: 320px;
     left: calc(260px + 32px);
     width: auto;
     max-width: none;
@@ -13927,7 +14072,7 @@ html[data-dashboard="true"] .adminSurface .servicesAdminAddButton {
     position: fixed;
     z-index: 1001;
     top: 16px;
-    right: 248px;
+    right: 320px;
     left: calc(260px + 32px);
     flex-wrap: nowrap;
     gap: 8px;
@@ -14186,7 +14331,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
     position: fixed;
     z-index: 1001;
     top: 16px;
-    right: 248px;
+    right: 320px;
     left: calc(260px + 32px);
     display: flex;
     flex-wrap: nowrap;
@@ -14449,7 +14594,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
     position: fixed;
     z-index: 1001;
     top: 16px;
-    right: 248px;
+    right: 320px;
     left: calc(260px + 32px);
     flex-wrap: nowrap;
     width: auto;
@@ -14530,7 +14675,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
     position: fixed;
     z-index: 1001;
     top: 16px;
-    right: 248px;
+    right: 320px;
     left: calc(260px + 32px);
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -14653,8 +14798,8 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   place-items: center;
   padding: 13px;
   border-radius: 16px;
-  background: #fff7d8;
-  color: #c89f00;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--status-warning);
 }
 
 .overviewDashboard .overviewWelcome h1 {
@@ -14719,23 +14864,23 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .overviewDashboard .overviewStatCard.yellow {
-  --overview-tone: #d5a900;
+  --overview-tone: var(--primary);
 }
 
 .overviewDashboard .overviewPeopleCard.pink {
-  --overview-tone: #e36b8f;
+  --overview-tone: var(--primary);
 }
 
 .overviewDashboard .overviewStatCard.green {
-  --overview-tone: #32a66a;
+  --overview-tone: var(--primary);
 }
 
 .overviewDashboard .overviewStatCard.blue {
-  --overview-tone: #438bd5;
+  --overview-tone: var(--primary);
 }
 
 .overviewDashboard .overviewPeopleCard.purple {
-  --overview-tone: #9259c8;
+  --overview-tone: var(--primary);
 }
 
 .overviewDashboard .overviewStatIcon {
@@ -14746,7 +14891,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   place-items: center;
   padding: 10px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--overview-tone) 12%, white);
+  background: color-mix(in srgb, var(--overview-tone) 12%, var(--surface));
   color: var(--overview-tone);
 }
 
@@ -14822,7 +14967,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   overflow: hidden;
   border: 2px solid var(--surface);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--overview-tone) 17%, white);
+  background: color-mix(in srgb, var(--overview-tone) 17%, var(--surface));
   color: var(--overview-tone);
   font-size: 0.72rem;
   font-weight: 700;
@@ -14927,102 +15072,170 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   display: inline-block;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #fff6d8;
-  color: #7f6400;
+  background: color-mix(in srgb, var(--status-warning) 14%, var(--surface));
+  color: var(--status-warning);
   font-size: 0.72rem;
   text-transform: capitalize;
 }
 
 .overviewDashboard .overviewStatus.approved {
-  background: #e8f7ef;
-  color: #287348;
+  background: color-mix(in srgb, var(--status-success) 14%, var(--surface));
+  color: var(--status-success);
 }
 
 .overviewDashboard .overviewStatus.completed {
-  background: #eaf2ff;
-  color: #315f9e;
+  background: color-mix(in srgb, var(--status-info) 14%, var(--surface));
+  color: var(--status-info);
 }
 
 .overviewDashboard .overviewStatus.cancelled,
 .overviewDashboard .overviewStatus.no-show {
-  background: #fbeaea;
-  color: #a14444;
+  background: color-mix(in srgb, var(--status-danger) 14%, var(--surface));
+  color: var(--status-danger);
 }
 
 .overviewDashboard .overviewCalendarHeader {
-  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.overviewDashboard .overviewCalendarHeader h2 {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .overviewDashboard .overviewCalendarHeader button {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
-  color: var(--text);
+  color: var(--accent);
   cursor: pointer;
-  font-size: 1.2rem;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.overviewDashboard .overviewCalendarHeader button:hover {
+  border-color: var(--accent);
+  background: var(--secondary);
+}
+
+.overviewDashboard .overviewCalendarHeader button:focus-visible,
+.overviewDashboard .overviewCalendarDay:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.overviewDashboard .overviewCalendarHeader button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .overviewDashboard .overviewCalendarGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px 0;
+  gap: 7px 4px;
   text-align: center;
 }
 
 .overviewDashboard .overviewWeekday {
-  padding: 5px 0 8px;
+  padding: 4px 0 8px;
   color: var(--muted);
-  font-size: 0.65rem;
-  font-weight: 650;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.overviewDashboard .overviewCalendarBlank {
+  aspect-ratio: 1;
 }
 
 .overviewDashboard .overviewCalendarDay {
   position: relative;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+  min-width: 0;
   place-items: center;
   justify-self: center;
   padding: 0;
-  border: 1.5px solid transparent;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  font: inherit;
-  font-size: 0.8rem;
+  font: 500 13px/1 var(--font-body);
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
-.overviewDashboard .overviewCalendarDay.selected {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
-  color: var(--text);
+.overviewDashboard .overviewCalendarDay:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--secondary);
 }
 
+.overviewDashboard .overviewCalendarDay.selected,
 .overviewDashboard .overviewCalendarDay.today {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
+}
+
+.overviewDashboard .overviewCalendarDay.selected:hover,
+.overviewDashboard .overviewCalendarDay.today:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .overviewDashboard .overviewCalendarDay.hasAppointments::after {
   position: absolute;
-  bottom: 2px;
+  bottom: 3px;
   left: 50%;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: #d5a900;
+  background: var(--accent);
   content: "";
   transform: translateX(-50%);
 }
 
+.overviewDashboard .overviewCalendarDay.selected.hasAppointments::after {
+  display: none;
+}
+
 .overviewDashboard .overviewCalendarDay.pastAppointment {
   font-weight: 400;
+}
+
+@media (max-width: 480px) {
+  .overviewDashboard .overviewPanel.overviewCalendar {
+    padding: 14px 12px;
+  }
+
+  .overviewDashboard .overviewCalendarGrid {
+    gap: 5px 2px;
+  }
+
+  .overviewDashboard .overviewCalendarDay {
+    width: 34px;
+    height: 34px;
+  }
 }
 
 .overviewDashboard .overviewActivityList {
@@ -15342,9 +15555,9 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .dentistHeaderSearch {
-  flex: 1 1 auto;
-  min-width: 180px;
-  max-width: none;
+  flex: 0 1 400px;
+  min-width: 0;
+  max-width: 400px;
 }
 
 .dentistHeaderSearch .input {
@@ -15583,6 +15796,53 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .dentistTreatmentCompleteButton:disabled {
+.dentistTreatmentMenuTrigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dentistTreatmentMenuTrigger svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.dentistTreatmentMenuDropdown {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 4px);
+  right: 0;
+  min-width: 150px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.dentistTreatmentMenuDropdown button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dentistTreatmentMenuDropdown button:hover:not(:disabled) {
+  background: var(--card2);
+}
+
+.dentistTreatmentMenuDropdown button:disabled {
   opacity: 0.62;
   cursor: not-allowed;
 }
@@ -15685,7 +15945,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .adminTopbar.archiveTopbar {
-  justify-content: stretch;
+  justify-content: flex-start;
   gap: 12px;
 }
 
@@ -15693,8 +15953,10 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1 1 280px;
-  min-width: 180px;
+  flex: 0 1 400px;
+  width: 100%;
+  min-width: 0;
+  max-width: 400px;
 }
 
 .archiveTopbarSearch .topSearchIcon {
@@ -15726,9 +15988,14 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   display: flex;
   align-items: center;
   flex: 0 0 190px;
+  min-width: 0;
   gap: 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.adminTopbar.archiveTopbar .staffNotification {
+  margin-left: auto;
 }
 
 .archiveTopbarFilter .input {
@@ -16267,9 +16534,9 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   justify-self: start;
   padding: 10px 18px;
   border-radius: 8px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-text);
+  border: 1px solid var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
   font-size: 13px;
 }
 
@@ -17107,5 +17374,541 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 
   .patientDashboardPage .bookingPage .bookingServiceOptionGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Keep legacy component rules aligned with the global typography scale. */
+h1 {
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+}
+
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+}
+
+label,
+[class*="label" i] {
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+}
+
+p {
+  font-weight: 400 !important;
+}
+
+nav,
+nav a,
+.patientSidebarLink {
+  font-weight: 500 !important;
+}
+
+button,
+input[type="button"],
+input[type="submit"],
+.btn,
+[class*="btn"],
+[class*="button"] {
+  font-family: var(--font-display);
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+}
+
+.panelTitle,
+.blockTitle,
+.modalTitle,
+.confirmTitle,
+.detailTitle,
+.archiveTitle,
+.svxTitle,
+.ovHeadTitle,
+.cardHeader .title {
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+}
+
+.adminSidebarInner {
+  min-height: 100%;
+}
+
+.adminSidebarActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.adminSidebarActions .accountAppearance,
+.adminSidebarActions .accountAppearanceTrigger {
+  width: 100%;
+}
+
+.adminSidebarActions .accountAppearanceTrigger {
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--font-nav);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-align: left;
+}
+
+.adminSidebarActions .accountAppearanceTrigger .accountItemText strong {
+  font-family: var(--font-nav);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.adminSidebarActions .accountAppearanceTrigger .accountItemIcon {
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+
+html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout,
+html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout:hover,
+html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout:active {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  margin: 0;
+  padding: 9px 12px;
+  gap: 12px;
+  border: 1px solid transparent !important;
+  border-left: 3px solid transparent !important;
+  border-radius: 8px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--danger) !important;
+  font-family: var(--font-nav);
+  font-size: 14px;
+  font-weight: 500 !important;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transform: none;
+  filter: none;
+}
+
+html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout svg,
+html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout span {
+  color: var(--danger) !important;
+}
+
+.staffAccountInfo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: 220px;
+  flex: 0 1 auto;
+  order: 3;
+}
+
+.staffAccountInfo .accountAvatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  font-size: 15px;
+}
+
+.staffAccountMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.staffAccountName {
+  max-width: 210px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staffAccountRole {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.staffNotification {
+  order: 2;
+}
+
+.dentistHeaderSearch,
+.archiveTopbarSearch {
+  order: 0;
+}
+
+.dentistPatientTypeFilter,
+.archiveTopbarFilter {
+  order: 1;
+}
+
+@media (max-width: 860px) {
+  .staffAccountInfo {
+    max-width: 180px;
+    gap: 7px;
+  }
+
+  .staffAccountInfo .accountAvatar {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .staffAccountName {
+    max-width: min(34vw, 130px);
+    font-size: 12px;
+  }
+
+  .staffAccountRole {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .staffAccountInfo {
+    max-width: 145px;
+  }
+
+  .staffAccountName {
+    max-width: 88px;
+  }
+}
+
+.appearanceModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 18, 22, 0.48);
+}
+
+.appearanceModal {
+  width: min(100%, 400px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.appearanceModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.appearanceModalHeader h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.appearanceModalClose {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.appearanceThemeOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appearanceThemeOption {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.appearanceThemeOption[aria-checked="true"] {
+  border-color: var(--accent);
+}
+
+.appearanceThemeOption:focus-visible,
+.appearanceModalClose:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.appearanceThemePreview {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  gap: 5px;
+  height: 48px;
+  padding: 9px;
+  border: 1px solid rgba(100, 116, 139, 0.28);
+  border-radius: 6px;
+}
+
+.appearanceThemePreview span {
+  display: block;
+  height: 5px;
+  border-radius: 2px;
+}
+
+.appearanceThemePreview span:first-child {
+  width: 42%;
+}
+
+.appearanceThemePreview span:nth-child(2) {
+  width: 24%;
+}
+
+.appearanceThemePreview span:last-child {
+  width: 15%;
+}
+
+.appearanceThemePreview.light {
+  background: #FAF9F6;
+}
+
+.appearanceThemePreview.light span {
+  background: #FFF3D6;
+}
+
+.appearanceThemePreview.light span:first-child {
+  background: #FFC94D;
+}
+
+.appearanceThemePreview.blue {
+  background: #F4F8FD;
+}
+
+.appearanceThemePreview.blue span {
+  background: #DDE6F3;
+}
+
+.appearanceThemePreview.blue span:first-child {
+  background: #6EACDA;
+}
+
+.appearanceThemePreview.dark {
+  background: #0F1410;
+}
+
+.appearanceThemePreview.dark span {
+  background: #3A331E;
+}
+
+.appearanceThemePreview.dark span:first-child {
+  background: #FFC94D;
+}
+
+.appearanceThemePreview.system {
+  background: #F4F8FD;
+}
+
+.appearanceThemePreview.system span:first-child {
+  background: #6EACDA;
+}
+
+.appearanceThemePreview.system span:nth-child(2) {
+  background: #0F1410;
+}
+
+.appearanceThemePreview.system span:last-child {
+  background: #FFC94D;
+}
+
+.appearanceThemeLabel {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.appearanceThemeSelected {
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+@media (max-width: 360px) {
+  .appearanceModal {
+    padding: 16px;
+  }
+
+  .appearanceThemeOptions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+#root .logoutConfirmOverlay {
+  z-index: 1100;
+  padding: 16px;
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+#root .logoutConfirmOverlay .confirmModalCard.logoutConfirmModal {
+  width: min(400px, 100%);
+  max-width: 400px;
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .modalHeader {
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-color: var(--line);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .modalTitleGroup {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 12px;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalIcon {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .modalToneLabel {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .modalTitleGroup h3 {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .modalClose {
+  width: 34px;
+  height: 34px;
+  border-color: var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 22px;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .modalClose:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent) 12%);
+  color: var(--text);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalBody p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalActions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalActions .btn {
+  flex: 1 1 0;
+  min-height: 42px;
+  border-radius: 9px;
+  font-size: 14px;
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalActions .btn.secondary {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
+  color: var(--text);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalActions .btn.danger {
+  border-color: var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+}
+
+#root .logoutConfirmOverlay .logoutConfirmModal .confirmModalActions .btn.danger:hover:not(:disabled) {
+  border-color: var(--button-primary-hover-background);
+  background: var(--button-primary-hover-background);
+  color: var(--button-primary-color);
+}
+
+@media (max-width: 520px) {
+  #root .logoutConfirmOverlay {
+    padding: 12px;
+  }
+
+  #root .logoutConfirmOverlay .confirmModalCard.logoutConfirmModal {
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
   }
 }

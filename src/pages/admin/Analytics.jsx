@@ -447,22 +447,28 @@ export default function Overview() {
         <div className="overviewRight">
           <section className="overviewPanel overviewCalendar" aria-label="Appointment calendar">
             <div className="overviewCalendarHeader">
-              <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="Previous month">‹</button>
+              <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="Previous month">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4.5-5.5 5.5 5.5 5.5" /></svg>
+              </button>
               <h2>{viewMonth.toLocaleDateString("en", { month: "long", year: "numeric" })}</h2>
-              <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="Next month">›</button>
+              <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="Next month">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5" /></svg>
+              </button>
             </div>
             <div className="overviewCalendarGrid">
               {WEEKDAYS.map((day) => <span className="overviewWeekday" key={day}>{day}</span>)}
               {calendarCells.map((cell, index) => {
-                if (!cell) return <span key={`blank-${index}`} />;
+                if (!cell) return <span key={`blank-${index}`} className="overviewCalendarBlank" aria-hidden="true" />;
                 const pastWithAppointments = cell < today && appointmentDates.has(cell);
                 const isToday = cell === today;
                 const hasAppointments = appointmentDates.has(cell);
+                const isSelected = cell === selectedDay;
+                const highlightToday = isToday && (!selectedDay || isSelected);
                 const className = [
                   "overviewCalendarDay",
-                  isToday ? "today" : "",
-                  cell === selectedDay ? "selected" : "",
-                  hasAppointments ? "hasAppointments" : "",
+                  highlightToday ? "today" : "",
+                  isSelected ? "selected" : "",
+                  hasAppointments && !isSelected ? "hasAppointments" : "",
                   pastWithAppointments ? "pastAppointment" : "",
                 ].filter(Boolean).join(" ");
                 return (
@@ -470,9 +476,9 @@ export default function Overview() {
                     key={cell}
                     type="button"
                     className={className}
-                    aria-pressed={cell === selectedDay}
+                    aria-pressed={isSelected}
                     aria-label={`${formatDate(cell)}${hasAppointments ? ", appointments" : ""}${isToday ? ", today" : ""}`}
-                    onClick={() => setSelectedDay(cell === selectedDay ? "" : cell)}
+                    onClick={() => setSelectedDay(isSelected ? "" : cell)}
                   >
                     {Number(cell.slice(8))}
                   </button>

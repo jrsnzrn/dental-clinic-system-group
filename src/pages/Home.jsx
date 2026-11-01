@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { NavLink } from "react-router-dom";
 import CursorAura from "../components/CursorAura";
@@ -128,69 +128,115 @@ function formatPromoDate(value) {
 }
 
 function PromoSection({ promotions }) {
+  const carouselRef = useRef(null);
+  const [activePromotionIndex, setActivePromotionIndex] = useState(0);
   if (!promotions || promotions.length === 0) return null;
-  const gridClassName = promotions.length === 1
-    ? "homeOffersGrid singlePromo"
-    : promotions.length >= 3
-      ? `homeOffersGrid threePlusPromos${promotions.length > 3 ? " scrollPromos" : ""}`
-      : "homeOffersGrid";
+  const selectedPromotionIndex = Math.min(activePromotionIndex, promotions.length - 1);
+  const isCarousel = promotions.length >= 3;
+  const gridClassName = isCarousel
+    ? "homeOffersGrid promoCarouselTrack"
+    : promotions.length === 1
+      ? "homeOffersGrid singlePromo"
+      : "homeOffersGrid twoPromos";
+
+  function scrollToPromotion(index) {
+    const track = carouselRef.current;
+    const card = track?.children[index];
+    if (!track || !card) return;
+    const trackLeft = track.getBoundingClientRect().left + track.clientLeft;
+    const cardLeft = card.getBoundingClientRect().left;
+    track.scrollTo({ left: track.scrollLeft + cardLeft - trackLeft, behavior: "smooth" });
+    setActivePromotionIndex(index);
+  }
+
+  function updateActivePromotion(event) {
+    const track = event.currentTarget;
+    const trackLeft = track.getBoundingClientRect().left + track.clientLeft;
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    Array.from(track.children).forEach((card, index) => {
+      const distance = Math.abs(card.getBoundingClientRect().left - trackLeft);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    setActivePromotionIndex(nearestIndex);
+  }
 
   return (
     <section className="homeOffers" aria-label="Promotions">
       <div className="innerWrap">
-        <div className={gridClassName}>
+        <div
+          className={gridClassName}
+          ref={isCarousel ? carouselRef : null}
+          onScroll={isCarousel ? updateActivePromotion : undefined}
+          aria-label={isCarousel ? "Promotion carousel" : undefined}
+          role={isCarousel ? "region" : undefined}
+        >
           {promotions.map((item) => {
             const amount = item.discountType === "percentage" ? `${item.discountValue}%` : `₱${Number(item.discountValue || 0).toLocaleString()}`;
             const services = item.services && item.services.length ? item.services : ["Selected services"];
+            const title = String(item.title || "Special offer");
+            const headline = String(item.headlineMain || title);
+            const headlineAccent = String(item.headlineAccent || (/brighter/i.test(title) ? "" : "Brighter"));
+            const tagline = String(item.tagline || "Your Smile's Best Deal");
 
             return (
-              <article className="homeOfferCard" key={item.id} aria-label={item.title}>
+              <article className="homeOfferCard" key={item.id} aria-label={title}>
                 <div className="promoBanner">
                   <div className="promoVisual">
-                    {item.imageUrl && <img className="homeOfferImage" src={item.imageUrl} alt={`${item.title} promotion`} loading="lazy" />}
+                    {item.imageUrl && <img className="homeOfferImage" src={item.imageUrl} alt={`${title} promotion`} loading="lazy" />}
+                    <span className="homeOfferDiscount" data-long={amount.length > 4 ? "true" : undefined}>
+                      <small>OFF</small>{amount}
+                    </span>
                   </div>
 
                   <div className="homeOfferContent">
-                    <span className="promoLabel">{item.promoLabel || "Dental Care Promo"}</span>
+                    <span className="promoLabel">{item.promoLabel || "Limited Slot"}</span>
                     <h3 className="promoHeadline">
-                      {item.headlineMain || "Smile"}{" "}
-                      <span>{item.headlineAccent || "Brighter"}</span>
+                      {headline} {headlineAccent ? <span>{headlineAccent}</span> : null}
                     </h3>
-                     <span className="homeOfferDiscount" data-long={amount.length > 4 ? "true" : undefined}>
-                    <small>Off</small>{amount}
-                  </span>
-                    <p className="promoScript">{item.tagline || "Your Smile’s Best Deal"}</p>
+                    <p className="promoScript">{tagline}</p>
                     {item.description && <p className="promoDesc">{item.description}</p>}
                     <ul className="promoServices">
                       {services.slice(0, 3).map((name) => <li key={name}>{name}</li>)}
                       {services.length > 3 && <li>+{services.length - 3} more</li>}
                     </ul>
                     <NavLink to="/book" className="btnPrimary16 promoCta">Book now</NavLink>
-                  </div>
-
-                  <div className="promoFooter">
-                    <div className="promoSocials">
-                      <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
-                      </a>
+                    <div className="promoFooter">
+                      <div className="promoContact">
+                        <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="promoSocialLink">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
+                        </a>
+                        <a className="promoPhone" href={PHONE_HREF}>{PHONE_DISPLAY}</a>
+                      </div>
+                      {(item.startDate || item.endDate) && (
+                        <span className="homeOfferDates">
+                          Valid {formatPromoDate(item.startDate) || "now"} – {formatPromoDate(item.endDate) || "while available"}
+                        </span>
+                      )}
                     </div>
-
-                    <a className="promoPhone" href={PHONE_HREF}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                      {PHONE_DISPLAY}
-                    </a>
-
-                    {(item.startDate || item.endDate) && (
-                      <span className="homeOfferDates">
-                        Valid {formatPromoDate(item.startDate) || "now"} – {formatPromoDate(item.endDate) || "while available"}
-                      </span>
-                    )}
                   </div>
                 </div>
               </article>
             );
           })}
         </div>
+        {isCarousel ? (
+          <div className="promoPagination" role="group" aria-label="Choose a promotion">
+            {promotions.map((promotion, index) => (
+              <button
+                key={promotion.id}
+                type="button"
+                className={`promoPaginationDot${index === selectedPromotionIndex ? " active" : ""}`}
+                aria-label={`Show promotion ${index + 1} of ${promotions.length}`}
+                aria-current={index === selectedPromotionIndex ? "true" : undefined}
+                onClick={() => scrollToPromotion(index)}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );
