@@ -15966,6 +15966,10 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   gap: 10px;
 }
 
+.bookingPage .bookingProfileForm .bookingAgeInput {
+  width: 110px;
+}
+
 .bookingPage .bookingProfileForm input:nth-of-type(6),
 .bookingPage .bookingProfileForm > label,
 .bookingPage .bookingProfileForm > button {
@@ -16685,6 +16689,110 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 
 .bookingPage .bookingConfirmationDetails .bookingReviewSection {
   align-self: start;
+}
+
+.bookingPage .appointmentStatusTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bookingPage .appointmentStatusTab {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.bookingPage .appointmentStatusTab:hover,
+.bookingPage .appointmentStatusTab.active {
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--text);
+}
+
+.bookingPage .appointmentStatusTab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bookingPage .appointmentStatusCount {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.1);
+  font-size: 11px;
+}
+
+.bookingPage .appointmentStatusPanel {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bookingPage .appointmentStatusPanel .detailedList > .bookingShowcase {
+  border: 0;
+  border-radius: 0;
+}
+
+.bookingPage .appointmentChangeActions {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.bookingPage .appointmentChangeButton {
+  min-height: 46px;
+  padding: 11px 26px;
+  border: 1px solid #d6aa24;
+  border-radius: 999px;
+  background: #f2c94c;
+  color: #302400;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.bookingPage .appointmentChangeButton:hover {
+  background: #e8ba32;
+  transform: translateY(-1px);
+}
+
+.bookingPage .appointmentChangeButton:focus-visible {
+  outline: 2px solid #9a7410;
+  outline-offset: 3px;
+}
+
+.bookingPage .appointmentChangeForm {
+  margin-bottom: 20px;
+}
+
+.bookingPage .appointmentChangeSelector {
+  display: grid;
+  max-width: 560px;
+  gap: 14px;
+}
+
+.bookingPage .appointmentChangeMode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 @media (max-width: 560px) {

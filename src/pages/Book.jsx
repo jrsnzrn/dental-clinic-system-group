@@ -72,7 +72,7 @@ function getEmptyProfile(email = "") {
 
 function isValidPatientAge(value) {
   const age = Number(String(value ?? "").trim());
-  return Number.isInteger(age) && age >= 1;
+  return Number.isInteger(age) && age >= 1 && age <= 99;
 }
 
 function hasProfileText(value) {
@@ -431,7 +431,7 @@ export default function Book() {
       return;
     }
     if (!isValidPatientAge(profileDraft.age)) {
-      setError("Please enter a valid age of 1 or older.");
+      setError("Please enter a valid age between 1 and 99.");
       return;
     }
     if (!hasProfileText(profileDraft.phone)) {
@@ -794,12 +794,17 @@ export default function Book() {
               />
 
               <input
-                className="input"
-                type="number"
-                min="1"
+                className="input bookingAgeInput"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={2}
                 placeholder="Age"
                 value={profileDraft.age}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, age: e.target.value }))}
+                onChange={(e) => setProfileDraft((current) => ({
+                  ...current,
+                  age: e.target.value.replace(/\D/g, "").slice(0, 2),
+                }))}
                 disabled={savingProfile || loadingProfile}
               />
 

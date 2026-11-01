@@ -14,7 +14,6 @@ export default function MyDentalRecord() {
   const [bracesAccount, setBracesAccount] = useState(null);
   const [bracesPayments, setBracesPayments] = useState([]);
   const [bracesAdjustments, setBracesAdjustments] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedTeeth, setSelectedTeeth] = useState(["11"]);
   const [hoveredTooth, setHoveredTooth] = useState("");
 
@@ -29,51 +28,45 @@ export default function MyDentalRecord() {
         setBracesAccount(null);
         setBracesPayments([]);
         setBracesAdjustments([]);
-        setLoading(false);
         return;
       }
 
-      setLoading(true);
-      try {
-        const [chartSnap, bracesAccountSnap, bracesPaymentsSnap, bracesAdjustmentsSnap] = await Promise.all([
-          getDoc(doc(db, "dentalCharts", nextUser.uid)),
-          getDocs(query(collection(db, "bracesAccounts"), where("uid", "==", nextUser.uid))),
-          getDocs(query(collection(db, "bracesPayments"), where("uid", "==", nextUser.uid))),
-          getDocs(query(collection(db, "bracesAdjustments"), where("uid", "==", nextUser.uid))),
-        ]);
+      const [chartSnap, bracesAccountSnap, bracesPaymentsSnap, bracesAdjustmentsSnap] = await Promise.all([
+        getDoc(doc(db, "dentalCharts", nextUser.uid)),
+        getDocs(query(collection(db, "bracesAccounts"), where("uid", "==", nextUser.uid))),
+        getDocs(query(collection(db, "bracesPayments"), where("uid", "==", nextUser.uid))),
+        getDocs(query(collection(db, "bracesAdjustments"), where("uid", "==", nextUser.uid))),
+      ]);
 
-        if (chartSnap.exists()) {
-          const chartData = chartSnap.data();
-          setChart({
-            uid: nextUser.uid,
-            generalNotes: chartData.generalNotes || "",
-            teeth: chartData.teeth || {},
-          });
-          setPatientTreatmentPlans(chartData.patientTreatmentPlans || []);
-          setPatientCareRecommendations(chartData.patientCareRecommendations || []);
-        } else {
-          setChart(createEmptyDentalChart(nextUser.uid));
-          setPatientTreatmentPlans([]);
-          setPatientCareRecommendations([]);
-        }
-
-        const rawAccount = bracesAccountSnap.docs[0]
-          ? { id: bracesAccountSnap.docs[0].id, ...bracesAccountSnap.docs[0].data() }
-          : null;
-        const paymentRows = bracesPaymentsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
-
-        setBracesPayments(
-          paymentRows.sort((a, b) => String(b.paymentDate || "").localeCompare(String(a.paymentDate || "")))
-        );
-        setBracesAdjustments(
-          bracesAdjustmentsSnap.docs
-            .map((entry) => ({ id: entry.id, ...entry.data() }))
-            .sort((a, b) => `${a.adjustmentDate || ""} ${a.adjustmentTime || ""}`.localeCompare(`${b.adjustmentDate || ""} ${b.adjustmentTime || ""}`))
-        );
-        setBracesAccount(rawAccount ? buildBracesAccount(rawAccount, paymentRows) : null);
-      } finally {
-        setLoading(false);
+      if (chartSnap.exists()) {
+        const chartData = chartSnap.data();
+        setChart({
+          uid: nextUser.uid,
+          generalNotes: chartData.generalNotes || "",
+          teeth: chartData.teeth || {},
+        });
+        setPatientTreatmentPlans(chartData.patientTreatmentPlans || []);
+        setPatientCareRecommendations(chartData.patientCareRecommendations || []);
+      } else {
+        setChart(createEmptyDentalChart(nextUser.uid));
+        setPatientTreatmentPlans([]);
+        setPatientCareRecommendations([]);
       }
+
+      const rawAccount = bracesAccountSnap.docs[0]
+        ? { id: bracesAccountSnap.docs[0].id, ...bracesAccountSnap.docs[0].data() }
+        : null;
+      const paymentRows = bracesPaymentsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+
+      setBracesPayments(
+        paymentRows.sort((a, b) => String(b.paymentDate || "").localeCompare(String(a.paymentDate || "")))
+      );
+      setBracesAdjustments(
+        bracesAdjustmentsSnap.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .sort((a, b) => `${a.adjustmentDate || ""} ${a.adjustmentTime || ""}`.localeCompare(`${b.adjustmentDate || ""} ${b.adjustmentTime || ""}`))
+      );
+      setBracesAccount(rawAccount ? buildBracesAccount(rawAccount, paymentRows) : null);
     });
 
     return () => unsub();
@@ -140,20 +133,6 @@ export default function MyDentalRecord() {
             <span className="heroEyebrow">Dental Record</span>
             <h1>My Dental Record</h1>
             <p>Review the dentist notes saved to your signed-in patient account, including tooth-by-tooth comments and general observations.</p>
-          </div>
-          <div className="bookingHeroSummary">
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Account</span>
-              <strong>{user.email}</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Chart status</span>
-              <strong>{loading ? "Loading..." : "Available to view"}</strong>
-            </div>
-            <div className="bookingSummaryCard">
-              <span className="detailLabel">Braces tracking</span>
-              <strong>{bracesAccount ? bracesAccount.paymentState : "No braces plan yet"}</strong>
-            </div>
           </div>
         </div>
       </div>
