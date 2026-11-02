@@ -5,6 +5,7 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import EmptyState from "../../components/EmptyState";
+import BackArrow from "../../components/BackArrow";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { db, functions } from "../../firebase";
 import { logAdminAction } from "../../utils/audit";
@@ -22,6 +23,22 @@ const COMPLETE_PAID_APPOINTMENT = httpsCallable(functions, "completePaidAppointm
 function toAmount(value) {
   const amount = Number(value);
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+function formatPatientBracesType(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const types = {
+    metal: "Metal",
+    metalbraces: "Metal",
+    ceramic: "Ceramic",
+    ceramicbraces: "Ceramic",
+    selfligating: "Self-Ligating",
+    selfligatingbraces: "Self-Ligating",
+    sapphire: "Sapphire",
+    sapphirebraces: "Sapphire",
+    sapphireplastic: "Sapphire",
+  };
+  return types[normalized] || "";
 }
 
 function toDateValue(value) {
@@ -786,16 +803,14 @@ export default function Payments() {
         <section id="paymentsDetailsPanel" className="paymentsDetailsPage" aria-label="Patient payment details">
           <a
             href="/admin/payments"
-            className="paymentsBackLink appBackAction"
+            className="paymentsBackLink appBackAction topdentBackAction"
+            aria-label="Go back"
             onClick={(event) => {
               event.preventDefault();
               closePatientDetails();
             }}
           >
-            <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
-              <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10h9" />
-            </svg>
-            Back
+            <BackArrow />
           </a>
           <header className="paymentsDetailsPageHeader">
             <div className="paymentsDetailsIdentity">
@@ -805,25 +820,16 @@ export default function Payments() {
                   {paymentStatusLabel(selectedPaymentRow, selectedPatientType)}
                 </span>
               </div>
-              <p>
-                {isBracesInstallment
-                  ? [
-                      "Braces plan",
-                      selectedPaymentRow?.bracesType || selectedPatientRecord.bracesType || "",
-                      selectedPaymentRow?.planLabel && selectedPaymentRow.planLabel !== "—"
-                        ? selectedPaymentRow.planLabel
-                        : "",
-                      detailBracesAccount?.startDate
-                        ? `started ${formatDateLabel(detailBracesAccount.startDate)}`
-                        : "",
-                    ].filter(Boolean).join(" · ")
-                  : [
-                      selectedPaymentRow?.treatmentName || "Regular treatment",
-                      selectedPaymentRow?.appointmentDate
-                        ? formatDateLabel(selectedPaymentRow.appointmentDate)
-                        : "",
-                    ].filter(Boolean).join(" · ")}
-              </p>
+              {selectedPatientType !== "Ortho" ? (
+                <p>
+                  {[
+                    selectedPaymentRow?.treatmentName || "Regular treatment",
+                    selectedPaymentRow?.appointmentDate
+                      ? formatDateLabel(selectedPaymentRow.appointmentDate)
+                      : "",
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
             </div>
             <div className="paymentsDetailsBalance">
               <span>Outstanding balance</span>
@@ -1031,7 +1037,6 @@ export default function Payments() {
                   <tr>
                     <th>Patient</th>
                     <th>Type of Braces</th>
-                    <th>Plan</th>
                     <th>Balance</th>
                     <th>Method</th>
                     <th>Status</th>
@@ -1073,8 +1078,12 @@ export default function Payments() {
                     </td>
                     {paymentTab === "Ortho" ? (
                       <>
-                        <td data-label="Type of Braces">{row.bracesType || "—"}</td>
-                        <td data-label="Plan">{row.source === "Appointment" ? row.treatmentName : row.planLabel || "—"}</td>
+                        <td data-label="Type of Braces">
+                          {formatPatientBracesType(row.patientRecord?.bracesType) ||
+                            formatPatientBracesType(row.bracesType) ||
+                            formatPatientBracesType(row.account?.bracesType) ||
+                            "—"}
+                        </td>
                         <td data-label="Balance">{row.totalCost > 0 ? formatCurrency(row.balance) : "—"}</td>
                         <td data-label="Method">{row.method || "—"}</td>
                         <td data-label="Status">{paymentStatusLabel(row, "Ortho")}</td>

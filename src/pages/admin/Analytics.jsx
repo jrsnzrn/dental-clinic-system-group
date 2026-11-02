@@ -3,6 +3,7 @@ import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query } f
 import { NavLink } from "react-router-dom";
 import { auth, db } from "../../firebase";
 import { getAuditActionLabel } from "../../utils/audit";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
 import { formatCurrency } from "../../utils/braces";
 import { ROLES } from "../../utils/rbac";
 import { fetchStaffAccounts } from "../../utils/staffAccounts";
@@ -127,7 +128,7 @@ function normalizeBooking(entry) {
     date: toISO(data.date || data.appointmentAt),
     appointmentAt: data.appointmentAt || null,
     time: data.time || "",
-    status: String(data.status || "pending").toLowerCase().replaceAll("_", " "),
+    status: data.status || "pending",
     archiveStatus: data.archiveStatus || "",
   };
 }
@@ -433,7 +434,7 @@ export default function Overview() {
                       <td>{booking.name}</td>
                       <td>{booking.service}</td>
                       <td>{getAppointmentTime(booking)}</td>
-                      <td><span className={`overviewStatus ${booking.status.replaceAll(" ", "-")}`}>{booking.status}</span></td>
+                      <td><span className={`overviewStatus ${getAppointmentStatusClass(booking.status)}`}>{formatAppointmentStatusLabel(booking.status)}</span></td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,0 +1,28 @@
+const APPOINTMENT_STATUS_LABELS = {
+  pending_payment: "Pending Payment",
+  pending: "Pending",
+  approved: "Approved",
+  checked_in: "Checked In",
+  "checked-in": "Checked In",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  no_show: "No-show",
+  "no-show": "No-show",
+};
+
+export function formatAppointmentStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (!normalized) return "Pending";
+  if (Object.prototype.hasOwnProperty.call(APPOINTMENT_STATUS_LABELS, normalized)) {
+    return APPOINTMENT_STATUS_LABELS[normalized];
+  }
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export function getAppointmentStatusClass(status) {
+  const normalized = String(status || "pending").trim().toLowerCase().replace(/[\s_]+/g, "-");
+  if (normalized === "pending-payment") return "pending";
+  return normalized || "pending";
+}

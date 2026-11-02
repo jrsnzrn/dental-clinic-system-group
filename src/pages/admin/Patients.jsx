@@ -17,6 +17,7 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../../firebase";
 import { useNavigate, useParams } from "react-router-dom";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import BackArrow from "../../components/BackArrow";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { logAdminAction } from "../../utils/audit";
@@ -28,6 +29,7 @@ import {
 } from "../../utils/braces";
 import { buildFullName, splitFullName } from "../../utils/names";
 import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, isInactivePatient, normalizeName } from "../../utils/appointments";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 import { PUBLIC_SERVICE_CATALOG } from "../../utils/clinic";
 import {
@@ -42,11 +44,14 @@ import { getAdminProfile, ROLES } from "../../utils/rbac";
 
 const PATIENT_TYPES = ["Regular", "Ortho"];
 const PATIENT_BRACES_TYPES = [
-  "Metal Braces",
-  "Ceramic Braces",
-  "Sapphire Braces",
-  "Self-Ligating Braces",
+  { value: "Metal", label: "Metal" },
+  { value: "Ceramic", label: "Ceramic" },
+  { value: "Self-Ligating", label: "Self-Ligating" },
+  { value: "Sapphire", label: "Sapphire" },
 ];
+const PATIENT_PHONE_PATTERN = /^09[0-9]{9}$/;
+const PATIENT_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PATIENT_PHONE_ERROR = "Contact number must start with 09 and contain exactly 11 digits.";
 const TYPE_FILTERS = ["All", ...PATIENT_TYPES];
 const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crowns", "Root canal"];
 const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
@@ -54,6 +59,44 @@ const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTre
 const SYNC_DENTIST_PATIENT_ACCESS = httpsCallable(functions, "syncDentistPatientAccess");
 const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
 const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
+
+function validatePatientDetails(patient) {
+  const errors = {};
+
+  if (!String(patient.firstName || "").trim() || !String(patient.lastName || "").trim()) {
+    errors.name = "Patient name is required.";
+  }
+  if (!/^[1-9][0-9]*$/.test(String(patient.age).trim())) {
+    errors.age = "Please enter a valid age.";
+  }
+  if (!PATIENT_TYPES.includes(patient.patientType)) {
+    errors.patientType = "Please select a type of patient.";
+  }
+  if (!PATIENT_PHONE_PATTERN.test(String(patient.phone || "").trim())) {
+    errors.phone = PATIENT_PHONE_ERROR;
+  }
+  const email = String(patient.email || "").trim();
+  if (!email) {
+    errors.email = "Email address is required.";
+  } else if (!PATIENT_EMAIL_PATTERN.test(email)) {
+    errors.email = "Please enter a valid email address.";
+  }
+  if (!String(patient.address || "").trim()) {
+    errors.address = "Address is required.";
+  }
+  if (
+    patient.patientType === "Ortho" &&
+    !PATIENT_BRACES_TYPES.some(({ value }) => value === patient.bracesType)
+  ) {
+    errors.bracesType = "Please select a type of braces.";
+  }
+
+  return errors;
+}
+
+function PatientFieldError({ id, message }) {
+  return message ? <span id={id} className="patientFieldError" role="alert">{message}</span> : null;
+}
 
 const PATIENT_VIEWS = {
   DETAILS: "details",
@@ -98,7 +141,7 @@ function buildDraftFromPatient(patient) {
     email: patient.email || "",
     address: patient.address || "",
     patientType: normalizePatientType(patient.patientType),
-    bracesType: patient.bracesType || "",
+    bracesType: normalizePatientBracesType(patient.bracesType),
     status: patient.status || "Active",
   };
 }
@@ -111,6 +154,7 @@ function getEmptyAddDraft() {
     age: "",
     phone: "",
     email: "",
+    address: "",
     patientType: "Regular",
     bracesType: "",
     dentistId: "",
@@ -283,10 +327,7 @@ function getTimestampMillis(value) {
 }
 
 function formatStatusLabel(status) {
-  return String(status || "")
-    .replace(/[-_]+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return formatAppointmentStatusLabel(status);
 }
 
 function getStatusClass(status) {
@@ -295,6 +336,22 @@ function getStatusClass(status) {
 
 function normalizePatientType(value) {
   return String(value || "").toLowerCase().includes("ortho") ? "Ortho" : "Regular";
+}
+
+function normalizePatientBracesType(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const aliases = {
+    metal: "Metal",
+    metalbraces: "Metal",
+    ceramic: "Ceramic",
+    ceramicbraces: "Ceramic",
+    selfligating: "Self-Ligating",
+    selfligatingbraces: "Self-Ligating",
+    sapphire: "Sapphire",
+    sapphirebraces: "Sapphire",
+    sapphireplastic: "Sapphire",
+  };
+  return aliases[normalized] || "";
 }
 
 async function exportPatientPdf(patient) {
@@ -324,7 +381,7 @@ async function exportPatientPdf(patient) {
             <td>${formatDateLabel(booking.date)}</td>
             <td>${formatTimeLabel(booking.time)}</td>
             <td>${booking.selectedDentist || "No dentist"}</td>
-            <td>${booking.status || "pending"}</td>
+            <td>${formatAppointmentStatusLabel(booking.status || "pending")}</td>
             <td>${booking.latestBookedAt ? formatTimestamp(booking.latestBookedAt) : booking.createdAt ? formatTimestamp(booking.createdAt) : "Not logged"}</td>
             <td>${booking.checkedInAt ? formatTimestamp(booking.checkedInAt) : patient.lastCheckedInAt ? formatTimestamp(patient.lastCheckedInAt) : "Not checked in"}</td>
           </tr>
@@ -612,6 +669,7 @@ export default function Patients({
   const [draft, setDraft] = useState(getEmptyDraft());
   const [isEditing, setIsEditing] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [editErrors, setEditErrors] = useState({});
   const [notice, setNotice] = useState(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -623,6 +681,7 @@ export default function Patients({
   const [walkInTimeOptions, setWalkInTimeOptions] = useState([]);
   const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
   const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
+  const [addErrors, setAddErrors] = useState({});
   const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
   const [dentistDentalCharts, setDentistDentalCharts] = useState({});
   const [selectedTeeth, setSelectedTeeth] = useState([]);
@@ -1077,6 +1136,7 @@ export default function Patients({
   function startEditing() {
     if (!selectedPatient) return;
     setNotice(null);
+    setEditErrors({});
     setDraft(buildDraftFromPatient(selectedPatient));
     setActivePatientView(PATIENT_VIEWS.DETAILS);
     setIsEditing(true);
@@ -1085,40 +1145,85 @@ export default function Patients({
   function cancelEditing() {
     if (selectedPatient) setDraft(buildDraftFromPatient(selectedPatient));
     setNotice(null);
+    setEditErrors({});
     setIsEditing(false);
   }
 
   function updateDraft(key, value) {
-    setDraft((current) => ({
-      ...current,
+    const nextDraft = {
+      ...draft,
       [key]: value,
       ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
-    }));
+    };
+    setDraft(nextDraft);
+    setEditErrors((current) => Object.keys(current).length ? validatePatientDetails(nextDraft) : current);
   }
 
   function updateAddDraft(key, value) {
-    setAddDraft((current) => ({
-      ...current,
+    const nextDraft = {
+      ...addDraft,
       [key]: value,
       ...(key === "date" || key === "dentistId" || key === "service" ? { time: "" } : {}),
       ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
-    }));
+    };
+    setAddDraft(nextDraft);
+    setAddErrors((current) => Object.keys(current).length ? validatePatientDetails(nextDraft) : current);
+  }
+
+  function handlePhoneKeyDown(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return;
+    if (!/^[0-9]$/.test(event.key)) event.preventDefault();
+  }
+
+  function handlePhonePaste(event, setErrors) {
+    const pasted = event.clipboardData.getData("text");
+    const input = event.currentTarget;
+    const selectionLength = input.selectionEnd - input.selectionStart;
+    const resultingLength = input.value.length - selectionLength + pasted.length;
+    if (!/^[0-9]*$/.test(pasted) || resultingLength > 11) {
+      event.preventDefault();
+      setErrors((current) => ({
+        ...current,
+        phone: /^[0-9]*$/.test(pasted)
+          ? PATIENT_PHONE_ERROR
+          : "Use digits only for contact number.",
+      }));
+    }
+  }
+
+  function handlePhoneChange(event, update, setErrors) {
+    const value = event.currentTarget.value;
+    if (!/^[0-9]*$/.test(value)) {
+      setErrors((current) => ({ ...current, phone: "Use digits only for contact number." }));
+      return;
+    }
+    if (value.length > 11) {
+      setErrors((current) => ({ ...current, phone: PATIENT_PHONE_ERROR }));
+      return;
+    }
+    update("phone", value);
+  }
+
+  function openAddPatient() {
+    setAddDraft(getEmptyAddDraft());
+    setAddError("");
+    setAddErrors({});
+    setAddOpen(true);
   }
 
   async function addPatient(e) {
     e.preventDefault();
-    if (addSaving || !addDraft.firstName.trim() || !addDraft.lastName.trim()) return;
+    if (addSaving) return;
+    const errors = validatePatientDetails(addDraft);
+    setAddErrors(errors);
+    if (Object.keys(errors).length) return;
     if (!walkInTimeOptions.includes(addDraft.time)) {
       setAddError("Choose an available 45-minute appointment time.");
       return;
     }
-    if (addDraft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(addDraft.bracesType)) {
-      setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
-      return;
-    }
-
     setAddSaving(true);
     setAddError("");
+    setNotice(null);
 
     try {
       const fullName = buildFullName(addDraft);
@@ -1130,6 +1235,7 @@ export default function Patients({
           age: String(addDraft.age).trim(),
           phone: addDraft.phone.trim(),
           email: addDraft.email.trim(),
+          address: addDraft.address.trim(),
           patientType: addDraft.patientType,
           bracesType: addDraft.patientType === "Ortho" ? addDraft.bracesType : "",
         },
@@ -1143,6 +1249,7 @@ export default function Patients({
 
       setAddOpen(false);
       setAddDraft(getEmptyAddDraft());
+      setAddErrors({});
       setNotice({ type: "success", text: `${fullName} and the appointment were added. The appointment is now in Bookings for approval.` });
       await load();
     } catch (error) {
@@ -1161,10 +1268,10 @@ export default function Patients({
     e.preventDefault();
     if (savingDetails || !draft.id) return;
 
-    if (!draft.firstName.trim() || !draft.lastName.trim()) {
-      setNotice({ type: "error", text: "First name and last name are required." });
-      return;
-    }
+    const errors = validatePatientDetails(draft);
+    setEditErrors(errors);
+    if (Object.keys(errors).length) return;
+
     setSavingDetails(true);
     setNotice(null);
 
@@ -1216,6 +1323,7 @@ export default function Patients({
       });
 
       await load();
+      setEditErrors({});
       setIsEditing(false);
       setNotice({ type: "success", text: "Patient details saved." });
     } catch (error) {
@@ -1403,6 +1511,20 @@ export default function Patients({
   }
 
   function cancelEditingDentalChart() {
+    const hasDraftProcedure = Boolean(
+      chartProcedureDraft.title ||
+      chartProcedureDraft.targetDate ||
+      chartProcedureDraft.instructions
+    );
+    const hasChangedSelection = [...selectedTeeth].sort().join(",")
+      !== [...chartSelectionBeforeEdit].sort().join(",");
+    if (
+      (pendingChartProcedures.length || hasDraftProcedure || hasChangedSelection) &&
+      !window.confirm("Discard your unsaved dental chart changes?")
+    ) {
+      return;
+    }
+
     setSelectedTeeth(chartSelectionBeforeEdit);
     setSelectedChartTooth(chartToothBeforeEdit);
     setPendingChartProcedures([]);
@@ -1720,12 +1842,18 @@ export default function Patients({
       (plan) => !plan.createdAt || !patientTreatmentPlanCreatedAt.has(plan.createdAt)
     ),
   ];
+  const isPendingProcedure = (plan) => ["planned", "pending", "in progress"].includes(
+    String(plan.status || "Planned").trim().toLowerCase()
+  );
+  const persistedPendingProcedures = savedProcedureHistory.filter(isPendingProcedure);
+  const displayedPendingProcedures = [...persistedPendingProcedures, ...pendingChartProcedures];
+  const recordedProcedureHistory = savedProcedureHistory.filter((plan) => !isPendingProcedure(plan));
   const isDentist = adminRole === ROLES.DENTIST;
   const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
   const canEditPatientProfile = adminRole === ROLES.ADMIN || adminRole === ROLES.RECEPTIONIST;
 
   return (
-    <div className={`container adminSurface${isDentist ? " dentistPatientsPage" : ""}`}>
+    <div className={`container adminSurface${isDentist ? " dentistPatientsPage" : !patientId ? " patientListSurface" : ""}`}>
       {notice ? (
         <div className={`notice notice-${notice.type}`} role={notice.type === "error" ? "alert" : "status"}>
           <span>{notice.text}</span>
@@ -1917,7 +2045,7 @@ export default function Patients({
               </div>
 
               {canEditPatientProfile ? (
-              <button type="button" className="btn btnPrimary" onClick={() => { setAddError(""); setAddOpen(true); }}>
+                <button type="button" className="btn btnPrimary" onClick={openAddPatient}>
                   Add New Patient
                 </button>
               ) : null}
@@ -2049,13 +2177,11 @@ export default function Patients({
           <div className="recordPage">
             <button
               type="button"
-              className="backLink paymentsBackLink appBackAction"
-              aria-label="Back to patients"
+              className="backLink paymentsBackLink appBackAction topdentBackAction"
+              aria-label="Go back"
               onClick={closePatientRecord}
             >
-              <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-                <path d="M9 5 4 10l5 5M4 10h9a6 6 0 0 1 0 12h-1" />
-              </svg>
+              <BackArrow />
             </button>
           {loadingPatients && !selectedPatient ? (
             <SkeletonList count={2} />
@@ -2103,10 +2229,17 @@ export default function Patients({
                       ) : null}
                     </div>
                     {isEditing ? (
-                      <form onSubmit={savePatientDetails} className="pdlForm">
+                      <form onSubmit={savePatientDetails} className="pdlForm" noValidate>
                         <label className="field">
                           <span className="fieldLabel">First Name</span>
-                          <input className="input" value={draft.firstName} onChange={(e) => updateDraft("firstName", e.target.value)} required />
+                          <input
+                            className="input"
+                            value={draft.firstName}
+                            onChange={(e) => updateDraft("firstName", e.target.value)}
+                            aria-invalid={Boolean(editErrors.name)}
+                            aria-describedby={editErrors.name ? "edit-patient-name-error" : undefined}
+                            required
+                          />
                         </label>
                         <label className="field">
                           <span className="fieldLabel">Middle Name</span>
@@ -2114,31 +2247,108 @@ export default function Patients({
                         </label>
                         <label className="field">
                           <span className="fieldLabel">Last Name</span>
-                          <input className="input" value={draft.lastName} onChange={(e) => updateDraft("lastName", e.target.value)} required />
+                          <input
+                            className="input"
+                            value={draft.lastName}
+                            onChange={(e) => updateDraft("lastName", e.target.value)}
+                            aria-invalid={Boolean(editErrors.name)}
+                            aria-describedby={editErrors.name ? "edit-patient-name-error" : undefined}
+                            required
+                          />
+                          <PatientFieldError id="edit-patient-name-error" message={editErrors.name} />
                         </label>
                         <label className="field">
                           <span className="fieldLabel">Age</span>
-                          <input className="input pdlAgeInput" type="number" min="1" value={draft.age} onChange={(e) => updateDraft("age", e.target.value)} />
+                          <input
+                            className="input pdlAgeInput"
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={draft.age}
+                            onChange={(e) => updateDraft("age", e.target.value)}
+                            aria-invalid={Boolean(editErrors.age)}
+                            aria-describedby={editErrors.age ? "edit-patient-age-error" : undefined}
+                            required
+                          />
+                          <PatientFieldError id="edit-patient-age-error" message={editErrors.age} />
                         </label>
                         <label className="field">
                           <span className="fieldLabel">Type of Patient</span>
-                          <select className="input" value={draft.patientType} onChange={(e) => updateDraft("patientType", e.target.value)}>
+                          <select
+                            className="input"
+                            value={draft.patientType}
+                            onChange={(e) => updateDraft("patientType", e.target.value)}
+                            aria-invalid={Boolean(editErrors.patientType)}
+                            aria-describedby={editErrors.patientType ? "edit-patient-type-error" : undefined}
+                            required
+                          >
                             {PATIENT_TYPES.map((type) => (
                               <option key={type} value={type}>{type}</option>
                             ))}
                           </select>
+                            <PatientFieldError id="edit-patient-type-error" message={editErrors.patientType} />
                         </label>
+                        {draft.patientType === "Ortho" ? (
+                          <label className="field">
+                            <span className="fieldLabel">Type of Braces</span>
+                            <select
+                              className="input"
+                              value={draft.bracesType}
+                              onChange={(e) => updateDraft("bracesType", e.target.value)}
+                              aria-invalid={Boolean(editErrors.bracesType)}
+                              aria-describedby={editErrors.bracesType ? "edit-patient-braces-error" : undefined}
+                              required
+                            >
+                              <option value="">Select type of braces</option>
+                              {PATIENT_BRACES_TYPES.map(({ value, label }) => (
+                                <option key={value} value={value}>{label}</option>
+                              ))}
+                            </select>
+                            <PatientFieldError id="edit-patient-braces-error" message={editErrors.bracesType} />
+                          </label>
+                        ) : null}
                         <label className="field">
                           <span className="fieldLabel">Contact Number</span>
-                          <input className="input" value={draft.phone} onChange={(e) => updateDraft("phone", e.target.value)} />
+                          <input
+                            className="input"
+                            type="tel"
+                            inputMode="numeric"
+                            pattern="^09[0-9]{9}$"
+                            maxLength={11}
+                            value={draft.phone}
+                            onKeyDown={handlePhoneKeyDown}
+                            onPaste={(e) => handlePhonePaste(e, setEditErrors)}
+                            onChange={(e) => handlePhoneChange(e, updateDraft, setEditErrors)}
+                            aria-invalid={Boolean(editErrors.phone)}
+                            aria-describedby={editErrors.phone ? "edit-patient-phone-error" : undefined}
+                            required
+                          />
+                          <PatientFieldError id="edit-patient-phone-error" message={editErrors.phone} />
                         </label>
                         <label className="field">
-                          <span className="fieldLabel">Email</span>
-                          <input className="input" type="email" value={draft.email} onChange={(e) => updateDraft("email", e.target.value)} />
+                          <span className="fieldLabel">Email Address</span>
+                          <input
+                            className="input"
+                            type="email"
+                            value={draft.email}
+                            onChange={(e) => updateDraft("email", e.target.value)}
+                            aria-invalid={Boolean(editErrors.email)}
+                            aria-describedby={editErrors.email ? "edit-patient-email-error" : undefined}
+                            required
+                          />
+                          <PatientFieldError id="edit-patient-email-error" message={editErrors.email} />
                         </label>
                         <label className="field">
-                          <span className="fieldLabel">Address</span>
-                          <input className="input" value={draft.address} onChange={(e) => updateDraft("address", e.target.value)} />
+                          <span className="fieldLabel">Home Address</span>
+                          <input
+                            className="input"
+                            value={draft.address}
+                            onChange={(e) => updateDraft("address", e.target.value)}
+                            aria-invalid={Boolean(editErrors.address)}
+                            aria-describedby={editErrors.address ? "edit-patient-address-error" : undefined}
+                            required
+                          />
+                          <PatientFieldError id="edit-patient-address-error" message={editErrors.address} />
                         </label>
 
                         <div className="pdlActions">
@@ -2162,6 +2372,13 @@ export default function Patients({
                         />
                         <PatientInfoRow label="Age" value={selectedPatient.age} />
                         <PatientInfoRow label="Type of Patient" value={selectedPatient.patientType} />
+                        {normalizePatientType(selectedPatient.patientType) === "Ortho" ? (
+                          <PatientInfoRow
+                            label="Type of Braces"
+                            value={normalizePatientBracesType(selectedPatient.bracesType)}
+                            emptyLabel="Not specified"
+                          />
+                        ) : null}
                         <PatientInfoRow label="Phone" value={selectedPatient.phone} />
                         <PatientInfoRow label="Email" value={selectedPatient.email} />
                         <PatientInfoRow label="Address" value={selectedPatient.address} />
@@ -2210,22 +2427,29 @@ export default function Patients({
               ) : null}
 
               {activePatientView === PATIENT_VIEWS.CHART ? (
-                <section className="panel" role="tabpanel" id={`panel-${PATIENT_VIEWS.CHART}`} aria-labelledby={`tab-${PATIENT_VIEWS.CHART}`}>
-                  <div className="panelHead">
+                <section className="panel dentalChartPanel" role="tabpanel" id={`panel-${PATIENT_VIEWS.CHART}`} aria-labelledby={`tab-${PATIENT_VIEWS.CHART}`}>
+                  <div className="panelHead dentalChartHeader">
                     <div>
                       <h2 className="panelTitle">Dental Chart</h2>
                       <p className="panelSub">
                         {isEditingDentalChart
-                          ? "Select teeth and add one pending procedure per tooth."
-                          : "Review the dental chart and saved procedure history."}
+                          ? "Select teeth and manage this patient's procedures."
+                          : "Review the dental numbering system and recorded procedures."}
                       </p>
                     </div>
                     {canEditDentalChart ? (
                       isEditingDentalChart ? (
-                        <span className="countLabel">Edit mode</span>
+                        <div className="formActions dentalChartActions">
+                          <button className="btn btnSuccess" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
+                            {savingDentalChart ? "Saving..." : "Save Changes"}
+                          </button>
+                          <button className="btn btnSecondary" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
+                            Cancel
+                          </button>
+                        </div>
                       ) : (
-                        <button className="btn btnSecondary" type="button" onClick={startEditingDentalChart}>
-                          Edit Chart
+                        <button className="btn btnPrimary" type="button" onClick={startEditingDentalChart}>
+                          Edit Mode
                         </button>
                       )
                     ) : (
@@ -2235,9 +2459,13 @@ export default function Patients({
 
                   {selectedPatient.uid ? (
                     <>
-                    <div className="chartLayout">
+                    <div className="chartLayout dentalChartLayout">
                       <div className="chartCol">
                         <div className="toothViewer">
+                          <div className="dentalChartSectionHeader">
+                            <h3 className="dentalChartSectionTitle">Dental Numbering System</h3>
+                            <span className="countLabel">FDI</span>
+                          </div>
                           <div className="toothChartFrame">
                             <div
                               className="toothImageSurface"
@@ -2253,7 +2481,7 @@ export default function Patients({
                                     className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""}`}
                                     data-tooth-id={tooth}
                                     style={{ top: TOOTH_MARKERS[tooth]?.top, left: TOOTH_MARKERS[tooth]?.left }}
-                                    aria-disabled={!isEditingDentalChart}
+                                    disabled={!isEditingDentalChart}
                                     tabIndex={isEditingDentalChart ? 0 : -1}
                                     aria-pressed={selectedTeeth.includes(tooth)}
                                     aria-label={`Tooth ${tooth} ${TOOTH_LABELS[tooth]}`}
@@ -2263,43 +2491,47 @@ export default function Patients({
                             </div>
                           </div>
                         </div>
-                        {isEditingDentalChart ? (
-                          <section className="dentistEditorSection" aria-labelledby="pendingProcedureTitle">
+                        <section className="dentistEditorSection dentalChartSection pendingProceduresSection" aria-labelledby="pendingProcedureTitle">
                             <div className="blockHead">
                               <h3 className="blockTitle" id="pendingProcedureTitle">Pending Procedures</h3>
-                              <span className="countLabel">{pendingChartProcedures.length}</span>
+                              <span className="countLabel">{displayedPendingProcedures.length}</span>
                             </div>
-                            {pendingChartProcedures.length ? (
-                              <div className="patientTableWrap">
-                                <table className="patientTable">
+                            {displayedPendingProcedures.length ? (
+                              <div className="patientTableWrap dentalChartTableWrap">
+                                <table className="patientTable dentalChartTable">
                                   <thead>
                                     <tr>
                                       <th>Tooth Number</th>
                                       <th>Procedure</th>
-                                      <th>Procedure Date</th>
-                                      <th>Procedure Notes</th>
-                                      <th>Actions</th>
+                                      <th>Scheduled Date</th>
+                                      <th>Notes</th>
+                                      {isEditingDentalChart ? <th>Actions</th> : null}
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {pendingChartProcedures.map((entry, index) => {
-                                      const tooth = entry.toothNumbers[0];
+                                    {displayedPendingProcedures.map((entry, index) => {
+                                      const tooth = entry.toothNumbers?.[0] || "—";
+                                      const isDraft = pendingChartProcedures.some((draft) => draft.createdAt === entry.createdAt);
                                       return (
-                                        <tr key={`${entry.createdAt || "pending"}-${tooth || "tooth"}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
+                                        <tr key={entry.createdAt || `${entry.title}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
                                           <td data-label="Tooth Number">{tooth}</td>
                                           <td data-label="Procedure">{entry.title}</td>
-                                          <td data-label="Procedure Date">{entry.targetDate}</td>
-                                          <td data-label="Procedure Notes">{entry.instructions || "—"}</td>
-                                          <td data-label="Actions">
-                                            <div className="itemActions">
-                                              <button className="btn btnSmall btnSecondary" type="button" onClick={() => focusChartTooth(tooth)}>
-                                                Edit
-                                              </button>
-                                              <button className="btn btnSmall btnDanger" type="button" onClick={() => removePendingChartProcedure(tooth)}>
-                                                Remove
-                                              </button>
-                                            </div>
-                                          </td>
+                                          <td data-label="Scheduled Date">{entry.targetDate}</td>
+                                          <td data-label="Notes">{entry.instructions || "—"}</td>
+                                          {isEditingDentalChart ? (
+                                            <td data-label="Actions">
+                                              {isDraft ? (
+                                                <div className="itemActions">
+                                                  <button className="btn btnSmall btnSecondary" type="button" onClick={() => focusChartTooth(tooth)}>
+                                                    Edit
+                                                  </button>
+                                                  <button className="btn btnSmall btnDanger" type="button" onClick={() => removePendingChartProcedure(tooth)}>
+                                                    Remove
+                                                  </button>
+                                                </div>
+                                              ) : "—"}
+                                            </td>
+                                          ) : null}
                                         </tr>
                                       );
                                     })}
@@ -2307,13 +2539,9 @@ export default function Patients({
                                 </table>
                               </div>
                             ) : (
-                              <div className="emptyBlock">
-                                <strong>No pending procedures</strong>
-                                <p>Add a procedure for a selected tooth to see it here.</p>
-                              </div>
+                              <p className="dentalChartEmpty">No pending procedures.</p>
                             )}
-                          </section>
-                        ) : null}
+                        </section>
                       </div>
 
                       <div className="chartForm">
@@ -2329,7 +2557,7 @@ export default function Patients({
                         ) : null}
                         {isEditingDentalChart ? (
                           <>
-                            <div className="infoBlock">
+                            <div className="infoBlock dentalChartProcedureForm">
                               <span className="detailLabel">Selected Tooth and Procedure</span>
                               <div className="field">
                                 <span className="fieldLabel">Selected Tooth</span>
@@ -2378,17 +2606,15 @@ export default function Patients({
                               </div>
                             </div>
                           </>
-                        ) : (
-                          <p className="itemMeta">Select Edit Chart to add or update procedures.</p>
-                        )}
-                        <section className="dentistEditorSection" aria-labelledby="procedureHistoryTitle">
-                          <div className="blockHead">
-                            <h3 className="blockTitle" id="procedureHistoryTitle">Procedure History</h3>
-                            <span className="countLabel">{savedProcedureHistory.length}</span>
+                        ) : null}
+                        <section className="dentistEditorSection dentalChartSection procedureHistorySection" aria-labelledby="procedureHistoryTitle">
+                          <div className="dentalChartSectionHeader">
+                            <h3 className="dentalChartSectionTitle" id="procedureHistoryTitle">Procedure History</h3>
+                            <span className="countLabel">{recordedProcedureHistory.length}</span>
                           </div>
-                          {savedProcedureHistory.length ? (
-                            <div className="patientTableWrap">
-                              <table className="patientTable">
+                          {recordedProcedureHistory.length ? (
+                            <div className="patientTableWrap dentalChartTableWrap">
+                              <table className="patientTable dentalChartTable">
                                 <thead>
                                   <tr>
                                     <th>Tooth Number</th>
@@ -2398,7 +2624,7 @@ export default function Patients({
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {savedProcedureHistory.map((entry, index) => (
+                                  {recordedProcedureHistory.map((entry, index) => (
                                     <tr key={`${entry.createdAt || entry.title}-${index}`}>
                                       <td data-label="Tooth Number">{entry.toothNumbers?.join(", ") || "—"}</td>
                                       <td data-label="Procedure">{entry.title || "Procedure"}</td>
@@ -2715,7 +2941,7 @@ export default function Patients({
                     <ol className="timelineStack">
                       {sortedTimeline.map((entry, index) => (
                         <li key={entry.id || `timeline-${index}`} className="timelineRow">
-                          <span className={`timelineDot ${getStatusClass(entry.status) || "active"}`} aria-hidden="true" />
+                          <span className={`timelineDot ${getAppointmentStatusClass(entry.status) || "active"}`} aria-hidden="true" />
                           <div className="timelineBody">
                             <div className="timelineTopRow">
                               <strong>{entry.title}</strong>
@@ -2723,7 +2949,7 @@ export default function Patients({
                             </div>
                             <p>{entry.subtitle}</p>
                             {entry.status ? (
-                              <span className={`statusPill ${getStatusClass(entry.status)}`}>{formatStatusLabel(entry.status)}</span>
+                              <span className={`statusPill ${getAppointmentStatusClass(entry.status)}`}>{formatStatusLabel(entry.status)}</span>
                             ) : null}
                           </div>
                         </li>
@@ -2754,6 +2980,7 @@ export default function Patients({
             aria-labelledby="add-patient-title"
             onClick={(e) => e.stopPropagation()}
             onSubmit={addPatient}
+            noValidate
           >
             <div className="modalHead">
               <h2 id="add-patient-title" className="modalTitle">Add Walk-In Patient & Appointment</h2>
@@ -2766,7 +2993,14 @@ export default function Patients({
               {addError ? <div className="formError walkInAppointmentError" role="alert">{addError}</div> : null}
               <label className="field">
                 <span className="fieldLabel">First name</span>
-                <input className="input" required value={addDraft.firstName} onChange={(e) => updateAddDraft("firstName", e.target.value)} />
+                <input
+                  className="input"
+                  required
+                  value={addDraft.firstName}
+                  onChange={(e) => updateAddDraft("firstName", e.target.value)}
+                  aria-invalid={Boolean(addErrors.name)}
+                  aria-describedby={addErrors.name ? "add-patient-name-error" : undefined}
+                />
               </label>
               <label className="field">
                 <span className="fieldLabel">Middle name</span>
@@ -2774,27 +3008,89 @@ export default function Patients({
               </label>
               <label className="field">
                 <span className="fieldLabel">Last name</span>
-                <input className="input" required value={addDraft.lastName} onChange={(e) => updateAddDraft("lastName", e.target.value)} />
+                <input
+                  className="input"
+                  required
+                  value={addDraft.lastName}
+                  onChange={(e) => updateAddDraft("lastName", e.target.value)}
+                  aria-invalid={Boolean(addErrors.name)}
+                  aria-describedby={addErrors.name ? "add-patient-name-error" : undefined}
+                />
+                <PatientFieldError id="add-patient-name-error" message={addErrors.name} />
               </label>
               <label className="field">
                 <span className="fieldLabel">Age</span>
-                <input className="input" type="number" min="1" required value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={addDraft.age}
+                  onChange={(e) => updateAddDraft("age", e.target.value)}
+                  aria-invalid={Boolean(addErrors.age)}
+                  aria-describedby={addErrors.age ? "add-patient-age-error" : undefined}
+                />
+                <PatientFieldError id="add-patient-age-error" message={addErrors.age} />
               </label>
               <label className="field">
                 <span className="fieldLabel">Contact number</span>
-                <input className="input" type="tel" required value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
+                <input
+                  className="input"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="^09[0-9]{9}$"
+                  maxLength={11}
+                  required
+                  value={addDraft.phone}
+                  onKeyDown={handlePhoneKeyDown}
+                  onPaste={(e) => handlePhonePaste(e, setAddErrors)}
+                  onChange={(e) => handlePhoneChange(e, updateAddDraft, setAddErrors)}
+                  aria-invalid={Boolean(addErrors.phone)}
+                  aria-describedby={addErrors.phone ? "add-patient-phone-error" : undefined}
+                />
+                <PatientFieldError id="add-patient-phone-error" message={addErrors.phone} />
               </label>
               <label className="field">
-                <span className="fieldLabel">Gmail</span>
-                <input className="input" type="email" value={addDraft.email} onChange={(e) => updateAddDraft("email", e.target.value)} />
+                <span className="fieldLabel">Email address</span>
+                <input
+                  className="input"
+                  type="email"
+                  required
+                  value={addDraft.email}
+                  onChange={(e) => updateAddDraft("email", e.target.value)}
+                  aria-invalid={Boolean(addErrors.email)}
+                  aria-describedby={addErrors.email ? "add-patient-email-error" : undefined}
+                />
+                <PatientFieldError id="add-patient-email-error" message={addErrors.email} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Home address</span>
+                <input
+                  className="input"
+                  required
+                  value={addDraft.address}
+                  onChange={(e) => updateAddDraft("address", e.target.value)}
+                  aria-invalid={Boolean(addErrors.address)}
+                  aria-describedby={addErrors.address ? "add-patient-address-error" : undefined}
+                />
+                <PatientFieldError id="add-patient-address-error" message={addErrors.address} />
               </label>
               <label className="field">
                 <span className="fieldLabel">Type of patient</span>
-                <select className="input" value={addDraft.patientType} onChange={(e) => updateAddDraft("patientType", e.target.value)}>
+                <select
+                  className="input"
+                  required
+                  value={addDraft.patientType}
+                  onChange={(e) => updateAddDraft("patientType", e.target.value)}
+                  aria-invalid={Boolean(addErrors.patientType)}
+                  aria-describedby={addErrors.patientType ? "add-patient-type-error" : undefined}
+                >
                   {PATIENT_TYPES.map((type) => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
+                <PatientFieldError id="add-patient-type-error" message={addErrors.patientType} />
               </label>
               {addDraft.patientType === "Ortho" ? (
                 <label className="field">
@@ -2803,13 +3099,16 @@ export default function Patients({
                     className="input"
                     value={addDraft.bracesType}
                     onChange={(e) => updateAddDraft("bracesType", e.target.value)}
+                    aria-invalid={Boolean(addErrors.bracesType)}
+                    aria-describedby={addErrors.bracesType ? "add-patient-braces-error" : undefined}
                     required
                   >
                     <option value="">Select type of braces</option>
-                    {PATIENT_BRACES_TYPES.map((type) => (
-                      <option key={type} value={type}>{type}</option>
+                    {PATIENT_BRACES_TYPES.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
                     ))}
                   </select>
+                  <PatientFieldError id="add-patient-braces-error" message={addErrors.bracesType} />
                 </label>
               ) : null}
               <div className="fieldGroupLabel">Appointment details</div>

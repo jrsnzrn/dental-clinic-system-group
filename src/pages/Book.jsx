@@ -16,6 +16,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { auth, db, functions } from "../firebase";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
+import BackArrow from "../components/BackArrow";
 import {
   BOOKING_SLOT_INTERVAL_MINUTES,
   getActiveClosureForDate,
@@ -1267,11 +1268,12 @@ export default function Book() {
                       <footer className="bookingReviewModalActions">
                         <button
                           type="button"
-                          className="btn secondary btnSoft bookingSecondaryBtn"
+                          className="btn secondary btnSoft bookingSecondaryBtn bookingBackAction topdentBackAction"
+                          aria-label="Go back"
                           onClick={returnToInfo}
                           disabled={saving}
                         >
-                          Back
+                          <BackArrow />
                         </button>
                         <button
                           type="button"

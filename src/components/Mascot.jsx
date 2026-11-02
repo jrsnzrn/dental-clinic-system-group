@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
+import BackArrow from "./BackArrow";
 import "./Mascot.css";
 
 const DEFAULT_MESSAGE = "Hi, I'm your little booking helper.";
@@ -1987,8 +1988,8 @@ export default function Mascot() {
               Step {Math.max(currentStepIndex + 1, 1)} of {tourSteps.length || 1}
             </div>
             <div className="mascotTourControls" aria-label="Guided tour controls">
-              <button type="button" className="mascotTourBtn" onClick={() => moveTour(-1)} disabled={currentStepIndex <= 0}>
-                Back
+              <button type="button" className="mascotTourBtn topdentBackAction" aria-label="Go back" onClick={() => moveTour(-1)} disabled={currentStepIndex <= 0}>
+                <BackArrow />
               </button>
               <button
                 type="button"
