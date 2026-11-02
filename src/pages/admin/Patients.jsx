@@ -677,14 +677,11 @@ export default function Patients({
   const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState(getEmptyAddDraft());
   const [addSaving, setAddSaving] = useState(false);
-<<<<<<< HEAD
   const [addError, setAddError] = useState("");
   const [walkInTimeOptions, setWalkInTimeOptions] = useState([]);
   const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
   const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
-=======
   const [addErrors, setAddErrors] = useState({});
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
   const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
   const [dentistDentalCharts, setDentistDentalCharts] = useState({});
   const [selectedTeeth, setSelectedTeeth] = useState([]);
@@ -1209,25 +1206,24 @@ export default function Patients({
 
   function openAddPatient() {
     setAddDraft(getEmptyAddDraft());
+    setAddError("");
     setAddErrors({});
     setAddOpen(true);
   }
 
   async function addPatient(e) {
     e.preventDefault();
-<<<<<<< HEAD
-    if (addSaving || !addDraft.firstName.trim() || !addDraft.lastName.trim()) return;
+    if (addSaving) return;
+    const errors = validatePatientDetails(addDraft);
+    setAddErrors(errors);
+    if (Object.keys(errors).length) return;
     if (!walkInTimeOptions.includes(addDraft.time)) {
       setAddError("Choose an available 45-minute appointment time.");
       return;
     }
-    if (addDraft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(addDraft.bracesType)) {
-      setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
-      return;
-    }
-
     setAddSaving(true);
     setAddError("");
+    setNotice(null);
 
     try {
       const fullName = buildFullName(addDraft);
@@ -1239,6 +1235,7 @@ export default function Patients({
           age: String(addDraft.age).trim(),
           phone: addDraft.phone.trim(),
           email: addDraft.email.trim(),
+          address: addDraft.address.trim(),
           patientType: addDraft.patientType,
           bracesType: addDraft.patientType === "Ortho" ? addDraft.bracesType : "",
         },
@@ -1248,50 +1245,12 @@ export default function Patients({
           date: addDraft.date,
           time: addDraft.time,
         },
-=======
-    if (addSaving) return;
-    const errors = validatePatientDetails(addDraft);
-    setAddErrors(errors);
-    if (Object.keys(errors).length) return;
-
-    setAddSaving(true);
-    setNotice(null);
-
-    try {
-      const fullName = buildFullName(addDraft);
-      const created = await addDoc(collection(db, "patients"), {
-        firstName: addDraft.firstName.trim(),
-        middleName: addDraft.middleName.trim(),
-        lastName: addDraft.lastName.trim(),
-        name: fullName,
-        age: String(addDraft.age).trim(),
-        phone: addDraft.phone.trim(),
-        email: addDraft.email.trim(),
-        address: addDraft.address.trim(),
-        patientType: addDraft.patientType,
-        ...(addDraft.patientType === "Ortho" ? { bracesType: addDraft.bracesType } : {}),
-        preferredDentist: addDraft.preferredDentist,
-        status: "Active",
-        createdAt: serverTimestamp(),
-      });
-
-      await logAdminAction({
-        action: "add_patient",
-        targetType: "patient",
-        targetId: created.id,
-        targetLabel: fullName,
-        details: { patientType: addDraft.patientType },
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
       });
 
       setAddOpen(false);
       setAddDraft(getEmptyAddDraft());
-<<<<<<< HEAD
-      setNotice({ type: "success", text: `${fullName} and the appointment were added. The appointment is now in Bookings for approval.` });
-=======
       setAddErrors({});
-      setNotice({ type: "success", text: `${fullName} was added to the patient list.` });
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
+      setNotice({ type: "success", text: `${fullName} and the appointment were added. The appointment is now in Bookings for approval.` });
       await load();
     } catch (error) {
       console.error(error);
@@ -2086,11 +2045,7 @@ export default function Patients({
               </div>
 
               {canEditPatientProfile ? (
-<<<<<<< HEAD
-              <button type="button" className="btn btnPrimary" onClick={() => { setAddError(""); setAddOpen(true); }}>
-=======
                 <button type="button" className="btn btnPrimary" onClick={openAddPatient}>
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
                   Add New Patient
                 </button>
               ) : null}
@@ -2554,18 +2509,11 @@ export default function Patients({
                                     </tr>
                                   </thead>
                                   <tbody>
-<<<<<<< HEAD
-                                    {pendingChartProcedures.map((entry, index) => {
-                                      const tooth = entry.toothNumbers[0];
-                                      return (
-                                        <tr key={`${entry.createdAt || "pending"}-${tooth || "tooth"}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
-=======
                                     {displayedPendingProcedures.map((entry, index) => {
                                       const tooth = entry.toothNumbers?.[0] || "—";
                                       const isDraft = pendingChartProcedures.some((draft) => draft.createdAt === entry.createdAt);
                                       return (
                                         <tr key={entry.createdAt || `${entry.title}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
                                           <td data-label="Tooth Number">{tooth}</td>
                                           <td data-label="Procedure">{entry.title}</td>
                                           <td data-label="Scheduled Date">{entry.targetDate}</td>
@@ -2598,7 +2546,6 @@ export default function Patients({
 
                       <div className="chartForm">
                         {isEditingDentalChart ? (
-<<<<<<< HEAD
                           <div className="formActions">
                             <button className="btn btnSuccess" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
                               {savingDentalChart ? "Saving..." : "Update"}
@@ -2609,8 +2556,6 @@ export default function Patients({
                           </div>
                         ) : null}
                         {isEditingDentalChart ? (
-=======
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
                           <>
                             <div className="infoBlock dentalChartProcedureForm">
                               <span className="detailLabel">Selected Tooth and Procedure</span>
@@ -2994,15 +2939,9 @@ export default function Patients({
 
                   {sortedTimeline.length ? (
                     <ol className="timelineStack">
-<<<<<<< HEAD
                       {sortedTimeline.map((entry, index) => (
                         <li key={entry.id || `timeline-${index}`} className="timelineRow">
-                          <span className={`timelineDot ${getStatusClass(entry.status) || "active"}`} aria-hidden="true" />
-=======
-                      {sortedTimeline.map((entry) => (
-                        <li key={entry.id} className="timelineRow">
                           <span className={`timelineDot ${getAppointmentStatusClass(entry.status) || "active"}`} aria-hidden="true" />
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
                           <div className="timelineBody">
                             <div className="timelineTopRow">
                               <strong>{entry.title}</strong>
@@ -3081,13 +3020,6 @@ export default function Patients({
               </label>
               <label className="field">
                 <span className="fieldLabel">Age</span>
-<<<<<<< HEAD
-                <input className="input" type="number" min="1" required value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Contact number</span>
-                <input className="input" type="tel" required value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
-=======
                 <input
                   className="input"
                   type="number"
@@ -3118,7 +3050,6 @@ export default function Patients({
                   aria-describedby={addErrors.phone ? "add-patient-phone-error" : undefined}
                 />
                 <PatientFieldError id="add-patient-phone-error" message={addErrors.phone} />
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
               </label>
               <label className="field">
                 <span className="fieldLabel">Email address</span>
