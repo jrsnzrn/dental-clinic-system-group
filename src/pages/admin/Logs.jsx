@@ -122,6 +122,9 @@ export default function Logs() {
 
   return (
     <div className="container adminSurface auditPage">
+      <header className="auditPageHeading">
+        <h1>Activity Logs</h1>
+      </header>
       <div className="auditFilterBar">
         <div className="searchWrapper adminSearchField">
           <svg className="adminSearchIcon" viewBox="0 0 24 24" aria-hidden="true">
@@ -225,7 +228,7 @@ export default function Logs() {
           </div>
         ) : (
           <div className="emptyAuditState">
-            <strong>No audit logs found</strong>
+            <strong>No activity logs found</strong>
             <p>Try resetting your active filters or query term to inspect recorded events.</p>
           </div>
         )}

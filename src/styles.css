@@ -243,6 +243,18 @@ input, textarea, select {
   height: 84px;
 }
 
+.navInner > .brand {
+  flex: 0 0 auto;
+}
+
+.navInner > .navMenuShell {
+  flex: 1 1 auto;
+}
+
+.navLinksPrimary {
+  justify-content: center;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -4158,6 +4170,87 @@ html[data-theme="blue"] .mapFrame {
 
 .accountDropdownItem.danger:hover {
   background: color-mix(in srgb, var(--danger) 7%, var(--bg));
+}
+
+.patientLoginTrigger {
+  gap: 9px;
+}
+
+.patientLoginTrigger .accountAvatar {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg));
+}
+
+.patientLoginDropdown {
+  width: min(320px, calc(100vw - 24px));
+  padding: 8px;
+}
+
+.patientLoginAction {
+  min-height: 58px;
+}
+
+.patientLoginAction:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.patientGoogleMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+  color: #4285f4;
+  font-family: Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.patientLoginError {
+  margin: 4px 10px 8px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.auditPageHeading {
+  margin: 0 0 18px;
+}
+
+.auditPageHeading h1 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 32px);
+}
+
+.addPatientModal .fieldGroupLabel {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.addPatientModal .walkInAppointmentError {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.addPatientModal .walkInAvailabilityError {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 @media (max-width: 860px) {
@@ -9219,6 +9312,60 @@ html[data-theme="blue"] .acctOverlay {
   margin: 5px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.archiveCategoryTabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 20px;
+  padding: 0 0 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.archiveCategoryTab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.archiveCategoryTab:hover,
+.archiveCategoryTab.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+}
+
+.archiveCategoryTab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.archiveCategoryCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .archiveSuccess {

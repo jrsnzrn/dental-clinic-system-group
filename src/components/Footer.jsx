@@ -1,4 +1,3 @@
-import { NavLink } from "react-router-dom";
 import bancnet from "../assets/bancnet.png";
 import gcash from "../assets/gcash.png";
 import mastercard from "../assets/mastercard.png";
@@ -75,8 +74,6 @@ export default function Footer({ isAdmin = false, theme = "dark", onThemeChange 
             ))}
           </div>
 
-          <span className="footerLabel">Clinic Access</span>
-          <NavLink to="/admin/login" className="footerLink">Login</NavLink>
         </div>
 
         {/* MIDDLE: Contact Us */}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, NavLink, useParams } from "react-router-dom";
 import {
   collection,
   doc,
@@ -23,18 +23,8 @@ const RESTORE_STAFF_ACCOUNT = httpsCallable(functions, "restoreStaffAccount");
 const ARCHIVE_FILTERS = {
   all: {
     title: "Archived Records",
-    subtitle: "Archived records across available categories.",
+    subtitle: "Archived staff accounts and bookings.",
     emptyText: "No archived records matched your search.",
-  },
-  patients: {
-    title: "Archived Patients",
-    subtitle: "Former patient records stored away from the active patient list.",
-    emptyText: "No archived patients matched your search.",
-  },
-  dentists: {
-    title: "Archived Dentists",
-    subtitle: "Dentists removed from the active scheduler and booking selection.",
-    emptyText: "No archived dentists matched your search.",
   },
   accounts: {
     title: "Archived Staff Accounts",
@@ -113,11 +103,7 @@ function groupRecordDetails(details) {
 }
 
 function getListMeta(record = {}) {
-  const archivedAt = record.archivedAt || record.archiveDate || record.archivedOn;
-  return [
-    record.email ? { label: "Email", value: record.email } : null,
-    archivedAt ? { label: "Archived", value: formatTimestamp(archivedAt) } : null,
-  ].filter(Boolean);
+  return record.email ? [{ label: "Email", value: record.email }] : [];
 }
 
 function ArchiveRow({ title, category, subtitle, meta = [], selectionMode, selected, onSelect, onOpen }) {
@@ -261,7 +247,7 @@ export default function Archive({ adminRole, search }) {
       .filter(
         (booking) =>
           isArchivedValue(booking.archiveStatus) &&
-          normalizeValue(booking.status) === "completed"
+          ["completed", "cancelled"].includes(normalizeValue(booking.status))
       )
       .filter((booking) =>
         normalizeValue(booking.fullName || booking.patientKey || booking.name).includes(term)
@@ -282,12 +268,8 @@ export default function Archive({ adminRole, search }) {
       );
   }, [accounts, term]);
 
-  if (!isAdmin && section === "patients") {
-    return <Navigate to="/admin/archive/bookings" replace />;
-  }
-
   if (!ARCHIVE_FILTERS[section]) {
-    return <Navigate to={`/admin/archive/${isAdmin ? "patients" : "bookings"}`} replace />;
+    return <Navigate to="/admin/archive/all" replace />;
   }
 
   async function restorePatient(id, refresh = true) {
@@ -369,14 +351,17 @@ export default function Archive({ adminRole, search }) {
   const current = ARCHIVE_FILTERS[section];
   const currentRows = section === "all"
     ? [
-        ...(isAdmin ? rows.patients : []),
-        ...rows.dentists,
         ...rows.accounts,
         ...rows.bookings,
       ]
     : rows[section];
   const selectedCurrentRows = currentRows.filter((row) => selectedIds.includes(row.id));
   const allCurrentRowsSelected = currentRows.length > 0 && currentRows.every((row) => selectedIds.includes(row.id));
+  const archiveCategories = [
+    { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length },
+    { section: "accounts", label: "Staff accounts", count: rows.accounts.length },
+    { section: "bookings", label: "Bookings", count: rows.bookings.length },
+  ];
 
   function toggleRowSelection(id) {
     setSelectedIds((currentIds) =>
@@ -445,6 +430,20 @@ export default function Archive({ adminRole, search }) {
         <h1>{current.title}</h1>
         <p>{current.subtitle}</p>
       </header>
+
+      <nav className="archiveCategoryTabs" aria-label="Archived record categories">
+        {archiveCategories.map((category) => (
+          <NavLink
+            key={category.section}
+            to={`/admin/archive/${category.section}`}
+            end
+            className={({ isActive }) => `archiveCategoryTab${isActive ? " active" : ""}`}
+          >
+            <span>{category.label}</span>
+            <span className="archiveCategoryCount">{category.count}</span>
+          </NavLink>
+        ))}
+      </nav>
 
       {error ? <div className="error">{error}</div> : null}
       {success ? <div className="archiveSuccess" role="status">{success}</div> : null}

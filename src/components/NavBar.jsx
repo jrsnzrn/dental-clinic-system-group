@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth, db } from "../firebase";
+import { onAuthStateChanged, signOut, signInWithPopup } from "firebase/auth";
+import { auth, db, googleProvider } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
 import ConfirmDialog from "./ConfirmDialog";
@@ -320,6 +320,82 @@ function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole 
   );
 }
 
+function PatientLoginMenu() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function closeOnOutsideClick(event) {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    }
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("touchstart", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("touchstart", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  async function loginWithGoogle() {
+    setError("");
+    setSigningIn(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setOpen(false);
+      navigate("/book", { replace: true });
+    } catch (signInError) {
+      if (signInError?.code !== "auth/popup-closed-by-user") {
+        setError("Sign-in could not be completed. Please try again.");
+      }
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  return (
+    <div className="accountMenu patientLoginMenu" ref={ref}>
+      <button
+        type="button"
+        className={`accountTrigger patientLoginTrigger${open ? " open" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          setError("");
+          setOpen((current) => !current);
+        }}
+      >
+        <AccountAvatar user={{ displayName: "P" }} />
+        <span className="accountMeta"><span className="accountName">Login</span></span>
+        <span className="accountChevron">{ACCOUNT_ICONS.chevron}</span>
+      </button>
+      <div className={`accountDropdown patientLoginDropdown${open ? " open" : ""}`} role="menu" aria-label="Patient login">
+        <div className="accountDropdownHead">
+          <AccountAvatar user={{ displayName: "P" }} large />
+          <div className="accountDropdownInfo">
+            <strong>Patient account</strong>
+            <span className="accountEmail">Sign in to manage your appointments</span>
+          </div>
+        </div>
+        <div className="accountDropdownDivider" />
+        <button className="accountDropdownItem patientLoginAction" type="button" role="menuitem" onClick={loginWithGoogle} disabled={signingIn}>
+          <span className="patientGoogleMark" aria-hidden="true">G</span>
+          <span className="accountItemText"><strong>{signingIn ? "Opening Google…" : "Sign in with Google"}</strong><small>Use your Google account</small></span>
+        </button>
+        {error ? <p className="patientLoginError" role="alert">{error}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 async function logoutAccount() {
   try {
     await signOut(auth);
@@ -369,7 +445,6 @@ export default function NavBar({
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -450,12 +525,6 @@ export default function NavBar({
   const isArchiveRoute = isAdmin && location.pathname.startsWith("/admin/archive");
   const isStaffVerificationRoute =
     location.pathname === "/admin/verify-email" || location.pathname === "/admin/mfa";
-  const archiveSection = location.pathname.split("/")[3] || "all";
-  const archiveCategory = archiveSection === "accounts"
-    ? "accounts"
-    : ["all", "patients", "dentists", "bookings"].includes(archiveSection)
-      ? archiveSection
-      : "all";
 
   if (isStaffVerificationRoute || (user && isAdmin && !user.emailVerified)) return null;
 
@@ -480,21 +549,6 @@ export default function NavBar({
                     onChange={(event) => onArchiveSearchChange(event.target.value)}
                   />
                 </div>
-                <label className="archiveTopbarFilter">
-                  <span>Sort</span>
-                  <select
-                    className="input"
-                    aria-label="Filter archived records by category"
-                    value={archiveCategory}
-                    onChange={(event) => navigate(`/admin/archive/${event.target.value}`)}
-                  >
-                    <option value="all">All</option>
-                    <option value="patients" disabled={adminRole !== ROLES.ADMIN}>Patients</option>
-                    <option value="dentists">Dentists</option>
-                    <option value="accounts">Staff</option>
-                    <option value="bookings">Bookings</option>
-                  </select>
-                </label>
               </>
             ) : null}
             {isDentistRecordsRoute ? (
@@ -575,6 +629,7 @@ export default function NavBar({
                 <NavLink
                   key={link.to}
                   to={link.to}
+                  end={link.to === "/admin/bookings"}
                   className={({ isActive }) => `adminSidebarLink ${isActive ? "active" : ""}`}
                   onClick={() => setMenuOpen(false)}
                   title={link.to === "/admin/braces" && adminRole === ROLES.RECEPTIONIST ? "Braces payment ledger" : undefined}
@@ -716,8 +771,8 @@ export default function NavBar({
               <NavLink to="/" className={navClass} onClick={() => setMenuOpen(false)}>Home</NavLink>
               <NavLink to="/services" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-services">Services</NavLink>
               <NavLink to="/contact" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-contact">Contact</NavLink>
-              <NavLink to="/book" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-book">Book</NavLink>
               <NavLink to="/about" className={navClass} onClick={() => setMenuOpen(false)}>About Us</NavLink>
+              {user ? <NavLink to="/book" className={navClass} onClick={() => setMenuOpen(false)}>Book Appointment</NavLink> : null}
             </div>
           </div>
 
@@ -729,6 +784,7 @@ export default function NavBar({
               onLogout={logoutAccount}
             />
           )}
+          {!user && <PatientLoginMenu />}
         </div>
       </div>
     )

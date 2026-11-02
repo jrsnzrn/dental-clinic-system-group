@@ -20,7 +20,7 @@ const BOOKING_AVAILABILITY_MAX_CALLS = 20;
 const BOOKING_CREATE_MIN_INTERVAL_MS = 4000;
 const BOOKING_CREATE_WINDOW_MS = 60 * 1000;
 const BOOKING_CREATE_MAX_CALLS = 6;
-const BOOKING_SLOT_INTERVAL_MINUTES = 30;
+const BOOKING_SLOT_INTERVAL_MINUTES = 45;
 const LEGACY_BOOKING_DURATION_FALLBACK_MINUTES = 60;
 const STAFF_MFA_CODE_TTL_MS = 5 * 60 * 1000;
 const STAFF_MFA_VERIFIED_MS = 12 * 60 * 60 * 1000;
@@ -189,12 +189,12 @@ function formatTimeLabel(timeStr) {
   });
 }
 
-function generateSlots() {
+function generateSlots(scheduleStart, scheduleEnd) {
   const slots = [];
-  for (let hour = 9; hour <= 17; hour += 1) {
-    for (let minute = 0; minute < 60; minute += BOOKING_SLOT_INTERVAL_MINUTES) {
-      slots.push(`${pad(hour)}:${pad(minute)}`);
-    }
+  const firstQuarterHour = Math.ceil(scheduleStart / 15) * 15;
+  const firstSlot = firstQuarterHour;
+  for (let start = firstSlot; start < scheduleEnd; start += BOOKING_SLOT_INTERVAL_MINUTES) {
+    slots.push(minutesToTime(start));
   }
   return slots;
 }
@@ -861,11 +861,7 @@ function buildAvailabilityResponse({
       };
     });
 
-  const slotOptions = generateSlots()
-    .filter((slot) => {
-      const slotStart = timeToMinutes(slot);
-      return slotStart >= scheduleStart && slotStart < scheduleEnd;
-    })
+  const slotOptions = generateSlots(scheduleStart, scheduleEnd)
     .map((slot) => {
       const slotStart = timeToMinutes(slot);
       const slotEnd = slotStart + durationMinutes;
@@ -1644,7 +1640,7 @@ exports.createStaffAccount = onCall(async (request) => {
   };
 });
 
-exports.getStaffAccounts = onCall(async (request) => {
+exports.getStaffAccounts = onCall({ invoker: "public" }, async (request) => {
   try {
     await getAdminActorContext(request, "view staff accounts");
 
@@ -2008,6 +2004,163 @@ exports.getBookingAvailability = onCall(
   });
 });
 
+exports.createStaffWalkInBooking = onCall(
+  {},
+  async (request) => {
+    const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const patientInput = request.data?.patient || {};
+    const appointment = request.data?.appointment || {};
+    const firstName = String(patientInput.firstName || "").trim();
+    const middleName = String(patientInput.middleName || "").trim();
+    const lastName = String(patientInput.lastName || "").trim();
+    const age = String(patientInput.age || "").trim();
+    const phone = String(patientInput.phone || "").trim();
+    const email = String(patientInput.email || "").trim();
+    const patientType = String(patientInput.patientType || "Regular").trim();
+    const bracesType = String(patientInput.bracesType || "").trim();
+    const dentistId = String(appointment.dentistId || "").trim();
+    const serviceName = String(appointment.service || "").trim();
+    const date = String(appointment.date || "").trim();
+    const time = String(appointment.time || "").trim();
+
+    if (!firstName || !lastName || !age || !phone || !dentistId || !serviceName || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+      throw new HttpsError("invalid-argument", "Patient details, dentist, service, date, and time are required.");
+    }
+    if (!["Regular", "Ortho"].includes(patientType)) {
+      throw new HttpsError("invalid-argument", "Choose a valid patient type.");
+    }
+    if (!/^\d{2}:\d{2}$/.test(time)) throw new HttpsError("invalid-argument", "Time must use HH:mm format.");
+
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+    const patientRef = db.collection("patients").doc();
+    const bookingRef = db.collection("bookings").doc();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    let createdBooking = null;
+
+    await db.runTransaction(async (transaction) => {
+      const serviceSnapshot = await transaction.get(db.collection("clinicServices"));
+      const serviceOptions = getBookingServiceOptions(
+        serviceSnapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
+      );
+      const selectedService = serviceOptions.find((entry) => normalizeText(entry.name) === normalizeText(serviceName));
+      if (!selectedService) throw new HttpsError("failed-precondition", "That service is no longer available.");
+
+      const durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
+      const draftBooking = {
+        id: bookingRef.id,
+        dentistId,
+        selectedDentist: "",
+        service: selectedService.name,
+        services: [selectedService.name],
+        estimatedDurationMinutes: durationMinutes,
+        date,
+        time,
+      };
+      const slot = await validateStaffBookingSlot(transaction, {
+        bookingId: bookingRef.id,
+        booking: draftBooking,
+        nextDate: date,
+        nextTime: time,
+        nextDurationMinutes: durationMinutes,
+      });
+      const walkInSchedule = getDentistDaySchedule(slot.dentist, date);
+      const walkInGridStart = Math.ceil(timeToMinutes(walkInSchedule.start) / 15) * 15;
+      if ((timeToMinutes(time) - walkInGridStart) % BOOKING_SLOT_INTERVAL_MINUTES !== 0) {
+        throw new HttpsError("invalid-argument", "Appointment time must use an available 45-minute slot.");
+      }
+      if (slot.dentist.active === false) {
+        throw new HttpsError("failed-precondition", "The selected dentist is not active.");
+      }
+      if (!slot.dentist.linkedStaffUid) {
+        throw new HttpsError("failed-precondition", "Link this dentist to a staff account before scheduling an appointment.");
+      }
+      const dentistStaffSnapshot = await transaction.get(db.collection("admins").doc(slot.dentist.linkedStaffUid));
+      const dentistStaff = dentistStaffSnapshot.data() || {};
+      if (!dentistStaffSnapshot.exists || dentistStaff.disabled || String(dentistStaff.role || "").toLowerCase() !== "dentist") {
+        throw new HttpsError("failed-precondition", "The selected dentist does not have an active dentist staff account.");
+      }
+
+      const patientData = {
+        firstName,
+        middleName,
+        lastName,
+        name: fullName,
+        age,
+        phone,
+        email,
+        patientType,
+        ...(patientType === "Ortho" && bracesType ? { bracesType } : {}),
+        preferredDentist: slot.dentist.name || "",
+        authorizedDentistUids: [slot.dentist.linkedStaffUid],
+        status: "Active",
+        createdAt: now,
+      };
+      const bookingData = {
+        patientProfileId: patientRef.id,
+        patientId: patientRef.id,
+        patientKey: fullName.toLowerCase(),
+        firstName,
+        middleName,
+        lastName,
+        fullName,
+        age,
+        phone,
+        email,
+        patientType,
+        walkIn: true,
+        selectedDentist: String(slot.dentist.name || "").trim(),
+        dentistId: slot.dentist.id,
+        dentistStaffUid: String(slot.dentist.linkedStaffUid || "").trim(),
+        service: selectedService.name,
+        services: [selectedService.name],
+        serviceCount: 1,
+        estimatedDurationMinutes: durationMinutes,
+        estimatedEndTime: slot.estimatedEndTime,
+        date,
+        time,
+        notes: "Walk-in patient appointment",
+        status: "pending",
+        checkedInAt: null,
+        appointmentAt: slot.appointmentAt,
+        createdAt: now,
+      };
+
+      transaction.set(patientRef, patientData);
+      transaction.set(bookingRef, bookingData);
+      slot.lockRefs.forEach((lockRef) => {
+        transaction.set(lockRef, {
+          bookingId: bookingRef.id,
+          dentistId: slot.dentist.id,
+          date,
+          time,
+          startMinutes: slot.window.startMinutes,
+          endMinutes: slot.window.endMinutes,
+          uid: "",
+          createdAt: now,
+        });
+      });
+      createdBooking = bookingData;
+    });
+
+    await writeStaffAuditLog(staff, {
+      action: "add_patient",
+      targetType: "patient",
+      targetId: patientRef.id,
+      targetLabel: fullName,
+      details: { patientType, walkIn: true, bookingId: bookingRef.id },
+    });
+    await writeStaffAuditLog(staff, {
+      action: "create_walk_in_booking",
+      targetType: "booking",
+      targetId: bookingRef.id,
+      targetLabel: fullName,
+      details: { service: createdBooking.service, date, time, dentist: createdBooking.selectedDentist },
+    });
+
+    return { patientId: patientRef.id, bookingId: bookingRef.id };
+  }
+);
+
 exports.createBooking = onCall(
   {
     enforceAppCheck: true,
@@ -2150,6 +2303,11 @@ exports.createBooking = onCall(
       const scheduleStart = timeToMinutes(schedule.start);
       const scheduleEnd = timeToMinutes(schedule.end);
       const manilaNow = getManilaNowContext();
+      const firstQuarterHour = Math.ceil(scheduleStart / 15) * 15;
+
+      if ((startMinutes - firstQuarterHour) % BOOKING_SLOT_INTERVAL_MINUTES !== 0) {
+        throw new HttpsError("invalid-argument", "Appointment time must use an available 45-minute slot.");
+      }
 
       if (startMinutes < scheduleStart || endMinutes > scheduleEnd) {
         throw new HttpsError("failed-precondition", "That time is outside the dentist's schedule.");
@@ -2329,6 +2487,11 @@ exports.setBookingStatus = onCall(
         status: nextStatus,
         statusUpdatedAt: now,
       };
+
+      if (booking.archiveStatus === "Archived" && nextStatus !== "cancelled") {
+        updatePayload.archiveStatus = "Active";
+        updatePayload.restoredAt = now;
+      }
 
       if (nextStatus === "approved") {
         updatePayload.approvedAt = now;
@@ -2548,19 +2711,44 @@ exports.syncDentistPatientAccess = onCall({}, async (request) => {
   }
   const dentistId = dentistSnap.docs[0].id;
   const assignedBookings = await db.collection("bookings").where("dentistId", "==", dentistId).get();
-  const patientUids = [...new Set(assignedBookings.docs
+  const eligibleBookings = assignedBookings.docs
     .map((entry) => entry.data() || {})
-    .filter((booking) => booking.archiveStatus !== "Archived" && !["cancelled", "no-show"].includes(String(booking.status || "").toLowerCase()))
+    .filter((booking) => booking.archiveStatus !== "Archived" && !["cancelled", "no-show"].includes(String(booking.status || "").toLowerCase()));
+  const patientUids = [...new Set(eligibleBookings
     .map((booking) => String(booking.uid || "").trim())
     .filter(Boolean))];
   const needsSync = await Promise.all(patientUids.map(async (patientUid) => {
-    const profileSnap = await db.collection("patientProfiles").doc(patientUid).get();
-    return !profileSnap.exists || !Array.isArray(profileSnap.data()?.authorizedDentistUids) ||
+    const [profileSnap, patientRecordsSnap] = await Promise.all([
+      db.collection("patientProfiles").doc(patientUid).get(),
+      db.collection("patients").where("uid", "==", patientUid).get(),
+    ]);
+    const profileNeedsSync = !profileSnap.exists || !Array.isArray(profileSnap.data()?.authorizedDentistUids) ||
       !profileSnap.data().authorizedDentistUids.includes(staff.uid);
+    const patientRecordNeedsSync = patientRecordsSnap.docs.some((entry) =>
+      !Array.isArray(entry.data()?.authorizedDentistUids) || !entry.data().authorizedDentistUids.includes(staff.uid)
+    );
+    return profileNeedsSync || patientRecordNeedsSync;
   }));
   const patientUidsNeedingSync = patientUids.filter((patientUid, index) => needsSync[index]);
   await Promise.all(patientUidsNeedingSync.map((uid) => syncDentistPatientAccess(uid)));
-  return { success: true, syncedPatients: patientUidsNeedingSync.length };
+
+  // Some walk-in and legacy bookings reference a patient document ID without a user UID.
+  // Grant the assigned dentist access to those patient documents as well.
+  const patientRecordIds = [...new Set(eligibleBookings
+    .flatMap((booking) => [booking.patientProfileId, booking.patientId])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean))];
+  const patientRecordSnapshots = await Promise.all(patientRecordIds.map((id) => db.collection("patients").doc(id).get()));
+  const patientRecordRepairs = patientRecordSnapshots
+    .filter((snapshot) => snapshot.exists && (!Array.isArray(snapshot.data()?.authorizedDentistUids) || !snapshot.data().authorizedDentistUids.includes(staff.uid)))
+    .map((snapshot) => snapshot.ref.set({
+      authorizedDentistUids: Array.isArray(snapshot.data()?.authorizedDentistUids)
+        ? admin.firestore.FieldValue.arrayUnion(staff.uid)
+        : [staff.uid],
+    }, { merge: true }));
+  await Promise.all(patientRecordRepairs);
+
+  return { success: true, syncedPatients: patientUidsNeedingSync.length + patientRecordRepairs.length };
 });
 
 exports.syncDentistPatientAccessAfterProfileChange = onDocumentUpdated("dentists/{dentistId}", async (event) => {
@@ -3081,10 +3269,10 @@ exports.archiveBooking = onCall(
       }
 
       booking = { id: bookingSnap.id, ...bookingSnap.data() };
-      if (String(booking.status || "").trim().toLowerCase() !== "completed") {
+      if (!["completed", "cancelled"].includes(String(booking.status || "").trim().toLowerCase())) {
         throw new HttpsError(
           "failed-precondition",
-          "Only completed appointments can be archived."
+          "Only completed or cancelled appointments can be archived."
         );
       }
 

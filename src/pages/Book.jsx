@@ -350,6 +350,7 @@ export default function Book() {
     }
 
     let cancelled = false;
+    setLoadingAvailability(true);
 
     async function loadAvailability() {
       setLoadingAvailability(true);
@@ -386,10 +387,13 @@ export default function Book() {
       }
     }
 
-    loadAvailability();
+    const requestTimer = window.setTimeout(() => {
+      loadAvailability();
+    }, 250);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(requestTimer);
     };
   }, [availabilityRefreshVersion, date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
 
@@ -521,9 +525,8 @@ export default function Book() {
     const appointmentDate = new Date(`${date}T${time}:00`);
     const requestedEnd = timeToMinutes(time) + appointmentDurationMinutes;
     const hour = appointmentDate.getHours();
-    const minute = appointmentDate.getMinutes();
     const isBeforeOpen = hour < 9;
-    const isAfterClose = hour > 17 || (hour === 17 && minute > 30);
+    const isAfterClose = requestedEnd > 18 * 60;
     if (isBeforeOpen || isAfterClose) {
       return setError("Please choose a time between 9:00 AM and 6:00 PM.");
     }

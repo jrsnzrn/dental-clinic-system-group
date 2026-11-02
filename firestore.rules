@@ -17,7 +17,9 @@ service cloud.firestore {
     }
 
     function role() {
-      return isStaff() ? staffDoc().data.role : null;
+      return isStaff() && staffDoc().data.get("role", "") is string
+        ? staffDoc().data.get("role", "").trim().lower()
+        : "";
     }
 
     function isAdmin() {

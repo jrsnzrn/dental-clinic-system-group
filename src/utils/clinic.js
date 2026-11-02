@@ -39,7 +39,7 @@ export const CLINIC_SERVICE_IMAGE_OPTIONS = [
   { key: "xray", label: "Dental X-ray", image: CLINIC_SERVICE_IMAGES.xray },
 ];
 
-export const BOOKING_SLOT_INTERVAL_MINUTES = 30;
+export const BOOKING_SLOT_INTERVAL_MINUTES = 45;
 
 export const PUBLIC_SERVICE_CATALOG = [
   { name: "Cleaning", description: "Professional cleaning for healthier gums and a fresher smile.", durationMinutes: 60, startingRate: "PHP 800 starting", active: true, category: "General" },

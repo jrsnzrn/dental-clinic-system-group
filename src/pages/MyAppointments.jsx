@@ -17,7 +17,7 @@ import {
   getClinicAvailability,
 } from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
-import { getActiveClosureForDate } from "../utils/clinic";
+import { BOOKING_SLOT_INTERVAL_MINUTES, getActiveClosureForDate } from "../utils/clinic";
 
 function pad(n) {
   return String(n).padStart(2, "0");
@@ -49,11 +49,14 @@ function getBookingTimeRange(booking) {
   return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
 }
 
-function buildSlots() {
+function buildSlots(scheduleStart, scheduleEnd, durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES) {
   const slots = [];
-  for (let h = 9; h <= 17; h += 1) {
-    slots.push(`${pad(h)}:00`);
-    slots.push(`${pad(h)}:30`);
+  const [startHour = "0", startMinute = "0"] = String(scheduleStart || "09:00").split(":");
+  const [endHour = "0", endMinute = "0"] = String(scheduleEnd || "18:00").split(":");
+  const firstSlot = Math.ceil((Number(startHour) * 60 + Number(startMinute)) / 15) * 15;
+  const end = Number(endHour) * 60 + Number(endMinute);
+  for (let start = firstSlot; start + durationMinutes <= end; start += BOOKING_SLOT_INTERVAL_MINUTES) {
+    slots.push(minutesToTime(start));
   }
   return slots;
 }
@@ -182,7 +185,6 @@ export default function MyAppointments() {
   });
   const [dentists, setDentists] = useState([]);
   const [clinicClosures, setClinicClosures] = useState([]);
-  const slotOptions = useMemo(() => buildSlots(), []);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
@@ -273,16 +275,21 @@ export default function MyAppointments() {
       const availability = getClinicAvailability(dentist, date, clinicClosures);
       if (closure || !availability.available || !availability.schedule?.active) continue;
 
-      for (const slot of slotOptions) {
-        if (slot < availability.schedule.start || slot >= availability.schedule.end) continue;
-        const conflict = bookings.some((entry) =>
-          entry.id !== booking.id &&
-          entry.archiveStatus !== "Archived" &&
-          entry.status !== "cancelled" &&
-          entry.selectedDentist === booking.selectedDentist &&
-          entry.date === date &&
-          entry.time === slot
-        );
+      const bookingDuration = Number(booking.estimatedDurationMinutes || BOOKING_SLOT_INTERVAL_MINUTES);
+      for (const slot of buildSlots(availability.schedule.start, availability.schedule.end, bookingDuration)) {
+        const conflict = bookings.some((entry) => {
+          if (
+            entry.id === booking.id ||
+            entry.archiveStatus === "Archived" ||
+            entry.status === "cancelled" ||
+            entry.selectedDentist !== booking.selectedDentist ||
+            entry.date !== date
+          ) return false;
+          const existingStart = timeToMinutes(entry.time);
+          const existingEnd = existingStart + Number(entry.estimatedDurationMinutes || BOOKING_SLOT_INTERVAL_MINUTES);
+          const candidateStart = timeToMinutes(slot);
+          return candidateStart < existingEnd && candidateStart + bookingDuration > existingStart;
+        });
         if (!conflict) {
           suggestions.push({ date, time: slot });
         }
@@ -290,7 +297,7 @@ export default function MyAppointments() {
       }
     }
     return suggestions;
-  }, [bookings, clinicClosures, dentists, editingBookingId, slotOptions]);
+  }, [bookings, clinicClosures, dentists, editingBookingId]);
 
   function startReschedule(booking) {
     setRequestMode("reschedule");

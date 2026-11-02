@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  addDoc,
   collection,
   deleteField,
   doc,
@@ -10,7 +9,6 @@ import {
   orderBy,
   query,
   runTransaction,
-  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -54,6 +52,8 @@ const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crown
 const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
 const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTreatmentComplete");
 const SYNC_DENTIST_PATIENT_ACCESS = httpsCallable(functions, "syncDentistPatientAccess");
+const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
+const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
 
 const PATIENT_VIEWS = {
   DETAILS: "details",
@@ -113,7 +113,10 @@ function getEmptyAddDraft() {
     email: "",
     patientType: "Regular",
     bracesType: "",
-    preferredDentist: "",
+    dentistId: "",
+    service: "",
+    date: "",
+    time: "",
   };
 }
 
@@ -604,6 +607,7 @@ export default function Patients({
   const [patients, setPatients] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [dentistProfiles, setDentistProfiles] = useState([]);
+  const [clinicServices, setClinicServices] = useState([]);
   const selectedPatientId = patientId;
   const [draft, setDraft] = useState(getEmptyDraft());
   const [isEditing, setIsEditing] = useState(false);
@@ -615,6 +619,10 @@ export default function Patients({
   const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState(getEmptyAddDraft());
   const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [walkInTimeOptions, setWalkInTimeOptions] = useState([]);
+  const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
+  const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
   const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
   const [selectedTeeth, setSelectedTeeth] = useState([]);
   const [chartSelectionBeforeEdit, setChartSelectionBeforeEdit] = useState([]);
@@ -635,6 +643,52 @@ export default function Patients({
   const [currentDentistIdentity, setCurrentDentistIdentity] = useState({ uid: "" });
   const dentistWorkspaceListeners = useRef([]);
 
+  useEffect(() => {
+    if (!addOpen || !addDraft.dentistId || !addDraft.date || !addDraft.service) {
+      setWalkInTimeOptions([]);
+      setWalkInAvailabilityError("");
+      setLoadingWalkInTimes(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoadingWalkInTimes(true);
+    setWalkInAvailabilityError("");
+
+    const requestTimer = window.setTimeout(() => {
+      GET_BOOKING_AVAILABILITY({
+        dentistId: addDraft.dentistId,
+        date: addDraft.date,
+        selectedServices: [addDraft.service],
+      })
+        .then((response) => {
+          if (cancelled) return;
+          const options = (Array.isArray(response.data?.slotOptions) ? response.data.slotOptions : [])
+            .filter((option) => !option.disabled)
+            .map((option) => option.value);
+          setWalkInTimeOptions(options);
+          setAddDraft((current) => ({
+            ...current,
+            time: options.includes(current.time) ? current.time : options[0] || "",
+          }));
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error("Walk-in appointment availability could not load:", error);
+          setWalkInTimeOptions([]);
+          setWalkInAvailabilityError("Could not load available times. Please try again.");
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingWalkInTimes(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(requestTimer);
+    };
+  }, [addOpen, addDraft.date, addDraft.dentistId, addDraft.service]);
+
   function clearDentistWorkspaceListeners() {
     dentistWorkspaceListeners.current.forEach((unsubscribe) => unsubscribe());
     dentistWorkspaceListeners.current = [];
@@ -643,6 +697,8 @@ export default function Patients({
   async function load(role = adminRole, staffUid = currentDentistIdentity.uid) {
     const dentistsResult = await getDocs(collection(db, "dentists"));
     const nextDentistProfiles = dentistsResult.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+    const servicesResult = await getDocs(collection(db, "clinicServices"));
+    setClinicServices(servicesResult.docs.map((entry) => ({ id: entry.id, ...entry.data() })).filter((entry) => entry.active !== false));
     let patientsResult;
     let bookingsResult;
 
@@ -801,8 +857,8 @@ export default function Patients({
     if (!linkedDentistProfile) return [];
     return bookings
       .filter((booking) =>
-        booking.archiveStatus !== "Archived" &&
-        isBookingAssignedToDentist(booking, linkedDentistProfile)
+        isBookingAssignedToDentist(booking, linkedDentistProfile) &&
+        (booking.archiveStatus !== "Archived" || booking.status === "completed" || Boolean(booking.treatmentCompletedAt))
       )
       .map((booking) => ({
         ...booking,
@@ -819,8 +875,8 @@ export default function Patients({
     const searchTerm = normalizeName(dentistSearch);
     return dentistAppointments.filter((booking) => {
       if (completedOnly) {
-        if (booking.status !== "completed") return false;
-      } else if (!["approved", "pending_payment"].includes(booking.status)) {
+        if (booking.status !== "completed" && !(booking.status === "pending_payment" && booking.treatmentCompletedAt)) return false;
+      } else if (booking.status !== "approved") {
         return false;
       }
 
@@ -943,16 +999,8 @@ export default function Patients({
     setCareDraft(emptyCareDraft());
 
     async function loadDentalChart() {
-      if (!selectedPatient.uid) {
-        setChartProcedureHistory([]);
-        const recordedTeeth = (selectedPatient.treatmentPlans || []).flatMap((plan) => plan.toothNumbers || []);
-        const nextSelectedTeeth = [...new Set(recordedTeeth.map(String))];
-        setSelectedTeeth(nextSelectedTeeth);
-        setSelectedChartTooth(nextSelectedTeeth[0] || "");
-        return;
-      }
-
-      const chartSnap = await getDoc(doc(db, "dentalCharts", selectedPatient.uid));
+      const chartId = selectedPatient.uid || selectedPatient.id;
+      const chartSnap = await getDoc(doc(db, "dentalCharts", chartId));
       const chartPlans = chartSnap.exists() && Array.isArray(chartSnap.data().patientTreatmentPlans)
         ? chartSnap.data().patientTreatmentPlans
         : [];
@@ -1030,6 +1078,7 @@ export default function Patients({
     setAddDraft((current) => ({
       ...current,
       [key]: value,
+      ...(key === "date" || key === "dentistId" || key === "service" ? { time: "" } : {}),
       ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
     }));
   }
@@ -1037,45 +1086,50 @@ export default function Patients({
   async function addPatient(e) {
     e.preventDefault();
     if (addSaving || !addDraft.firstName.trim() || !addDraft.lastName.trim()) return;
+    if (!walkInTimeOptions.includes(addDraft.time)) {
+      setAddError("Choose an available 45-minute appointment time.");
+      return;
+    }
     if (addDraft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(addDraft.bracesType)) {
       setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
       return;
     }
 
     setAddSaving(true);
+    setAddError("");
 
     try {
       const fullName = buildFullName(addDraft);
-      const created = await addDoc(collection(db, "patients"), {
-        firstName: addDraft.firstName.trim(),
-        middleName: addDraft.middleName.trim(),
-        lastName: addDraft.lastName.trim(),
-        name: fullName,
-        age: String(addDraft.age).trim(),
-        phone: addDraft.phone.trim(),
-        email: addDraft.email.trim(),
-        patientType: addDraft.patientType,
-        ...(addDraft.patientType === "Ortho" ? { bracesType: addDraft.bracesType } : {}),
-        preferredDentist: addDraft.preferredDentist,
-        status: "Active",
-        createdAt: serverTimestamp(),
-      });
-
-      await logAdminAction({
-        action: "add_patient",
-        targetType: "patient",
-        targetId: created.id,
-        targetLabel: fullName,
-        details: { patientType: addDraft.patientType },
+      await CREATE_STAFF_WALK_IN_BOOKING({
+        patient: {
+          firstName: addDraft.firstName.trim(),
+          middleName: addDraft.middleName.trim(),
+          lastName: addDraft.lastName.trim(),
+          age: String(addDraft.age).trim(),
+          phone: addDraft.phone.trim(),
+          email: addDraft.email.trim(),
+          patientType: addDraft.patientType,
+          bracesType: addDraft.patientType === "Ortho" ? addDraft.bracesType : "",
+        },
+        appointment: {
+          dentistId: addDraft.dentistId,
+          service: addDraft.service,
+          date: addDraft.date,
+          time: addDraft.time,
+        },
       });
 
       setAddOpen(false);
       setAddDraft(getEmptyAddDraft());
-      setNotice({ type: "success", text: `${fullName} was added to the patient list.` });
+      setNotice({ type: "success", text: `${fullName} and the appointment were added. The appointment is now in Bookings for approval.` });
       await load();
     } catch (error) {
       console.error(error);
-      setNotice({ type: "error", text: "Could not add the patient. Please try again." });
+      setAddError(
+        error?.code === "functions/internal" || error?.code === "functions/unavailable"
+          ? "The walk-in booking service is unavailable right now. Please try again later or contact the administrator."
+          : error?.message || "Could not create the patient and appointment. Please try again."
+      );
     } finally {
       setAddSaving(false);
     }
@@ -1239,7 +1293,7 @@ export default function Patients({
   }
 
   async function saveDentalChart() {
-    if (!selectedPatient?.uid || !isEditingDentalChart || savingDentalChart) return;
+    if (!selectedPatient?.id || !isEditingDentalChart || savingDentalChart) return;
     if (pendingChartProcedures.some((entry) =>
       !TOOTH_IDS.includes(entry.toothNumbers?.[0]) ||
       !DENTAL_CHART_PROCEDURES.includes(entry.title) ||
@@ -1267,7 +1321,8 @@ export default function Patients({
     setSavingDentalChart(true);
     setNotice(null);
     try {
-      const chartRef = doc(db, "dentalCharts", selectedPatient.uid);
+      const chartId = selectedPatient.uid || selectedPatient.id;
+      const chartRef = doc(db, "dentalCharts", chartId);
       let nextHistory = [];
       await runTransaction(db, async (transaction) => {
         const chartSnap = await transaction.get(chartRef);
@@ -1282,7 +1337,7 @@ export default function Patients({
           historyByCreatedAt.add(entry.createdAt);
         });
         transaction.set(chartRef, {
-          uid: selectedPatient.uid,
+          uid: selectedPatient.uid || "",
           patientName: selectedPatient.name || "",
           patientEmail: selectedPatient.email || "",
           authorizedDentistUids: selectedPatient.authorizedDentistUids || [],
@@ -1293,7 +1348,7 @@ export default function Patients({
       await logAdminAction({
         action: "save_dental_chart",
         targetType: "dental_chart",
-        targetId: selectedPatient.uid,
+        targetId: chartId,
         targetLabel: selectedPatient.name || selectedPatient.email || "Dental chart",
         details: {
           selectedTeeth,
@@ -1570,14 +1625,14 @@ export default function Patients({
     if (booking.status !== "approved" || !booking.checkedInAt) {
       setNotice({
         type: "error",
-        text: "Only an approved, checked-in appointment can be sent to Payments.",
+        text: "Only an approved, checked-in appointment can be marked as treatment complete.",
       });
       return;
     }
     const patientName = patient?.name || booking.fullName || "this patient";
     openConfirm({
-      title: "Send Treatment to Payments?",
-      message: `Confirm treatment was performed for ${patientName} on ${booking.date ? formatDateLabel(booking.date) : "the appointment date"} at ${formatTimeLabel(booking.time)} for ${getBookingServiceLabel(booking)}. The appointment will move to Payments and will only be marked Completed after payment is verified.`,
+      title: "Complete this treatment?",
+      message: `Confirm treatment was performed for ${patientName} on ${booking.date ? formatDateLabel(booking.date) : "the appointment date"} at ${formatTimeLabel(booking.time)} for ${getBookingServiceLabel(booking)}. It will move to Completed and remain in Payments until the balance is verified.`,
       confirmLabel: "Confirm treatment",
       action: async () => {
         if (processingTreatmentId) return;
@@ -1595,7 +1650,7 @@ export default function Patients({
           ));
           setNotice({
             type: "success",
-            text: `Treatment for ${patientName} was sent to Payments for verification.`,
+            text: `Treatment for ${patientName} moved to Completed and Payments.`,
           });
         } catch (error) {
           console.error("Dentist treatment completion could not be recorded:", error);
@@ -1666,7 +1721,7 @@ export default function Patients({
               <h1>{completedOnly ? "Completed" : "Patient"}</h1>
               <p>
                 {completedOnly
-                  ? "Review treatments completed for your assigned patients."
+                  ? "Review completed treatments and visits awaiting payment verification."
                   : "View your assigned patients and manage their treatment."}
               </p>
             </div>
@@ -1677,7 +1732,7 @@ export default function Patients({
                 <h2 className="panelTitle">{completedOnly ? "Completed treatments" : "Patient list"}</h2>
                 <p className="panelSub">
                   {completedOnly
-                    ? "Treatments recorded as completed."
+                    ? "Treatments performed and appointments awaiting final payment verification."
                     : "Appointments and treatment details assigned to you."}
                 </p>
               </div>
@@ -1840,7 +1895,7 @@ export default function Patients({
               </div>
 
               {canEditPatientProfile ? (
-                <button type="button" className="btn btnPrimary" onClick={() => setAddOpen(true)}>
+              <button type="button" className="btn btnPrimary" onClick={() => { setAddError(""); setAddOpen(true); }}>
                   Add New Patient
                 </button>
               ) : null}
@@ -2205,10 +2260,10 @@ export default function Patients({
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {pendingChartProcedures.map((entry) => {
+                                    {pendingChartProcedures.map((entry, index) => {
                                       const tooth = entry.toothNumbers[0];
                                       return (
-                                        <tr key={entry.createdAt} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
+                                        <tr key={`${entry.createdAt || "pending"}-${tooth || "tooth"}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
                                           <td data-label="Tooth Number">{tooth}</td>
                                           <td data-label="Procedure">{entry.title}</td>
                                           <td data-label="Procedure Date">{entry.targetDate}</td>
@@ -2636,8 +2691,8 @@ export default function Patients({
 
                   {sortedTimeline.length ? (
                     <ol className="timelineStack">
-                      {sortedTimeline.map((entry) => (
-                        <li key={entry.id} className="timelineRow">
+                      {sortedTimeline.map((entry, index) => (
+                        <li key={entry.id || `timeline-${index}`} className="timelineRow">
                           <span className={`timelineDot ${getStatusClass(entry.status) || "active"}`} aria-hidden="true" />
                           <div className="timelineBody">
                             <div className="timelineTopRow">
@@ -2679,13 +2734,14 @@ export default function Patients({
             onSubmit={addPatient}
           >
             <div className="modalHead">
-              <h2 id="add-patient-title" className="modalTitle">Add New Patient</h2>
+              <h2 id="add-patient-title" className="modalTitle">Add Walk-In Patient & Appointment</h2>
               <button type="button" className="iconBtn" aria-label="Close" onClick={() => setAddOpen(false)}>
                 &times;
               </button>
             </div>
 
             <div className="modalBody addPatientModalBody">
+              {addError ? <div className="formError walkInAppointmentError" role="alert">{addError}</div> : null}
               <label className="field">
                 <span className="fieldLabel">First name</span>
                 <input className="input" required value={addDraft.firstName} onChange={(e) => updateAddDraft("firstName", e.target.value)} />
@@ -2700,11 +2756,11 @@ export default function Patients({
               </label>
               <label className="field">
                 <span className="fieldLabel">Age</span>
-                <input className="input" type="number" min="1" value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
+                <input className="input" type="number" min="1" required value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
               </label>
               <label className="field">
                 <span className="fieldLabel">Contact number</span>
-                <input className="input" value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
+                <input className="input" type="tel" required value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
               </label>
               <label className="field">
                 <span className="fieldLabel">Gmail</span>
@@ -2734,21 +2790,45 @@ export default function Patients({
                   </select>
                 </label>
               ) : null}
+              <div className="fieldGroupLabel">Appointment details</div>
               <label className="field">
-                <span className="fieldLabel">Preferred dentist (optional)</span>
-                <select className="input" value={addDraft.preferredDentist} onChange={(e) => updateAddDraft("preferredDentist", e.target.value)}>
-                  <option value="">No preference</option>
-                  {dentistProfiles.map((dentist) => (
-                    <option key={dentist.id} value={dentist.name}>{dentist.name}</option>
+                <span className="fieldLabel">Dentist</span>
+                <select className="input" value={addDraft.dentistId} onChange={(e) => updateAddDraft("dentistId", e.target.value)} required>
+                  <option value="">Select a dentist</option>
+                  {dentistProfiles.filter((dentist) => dentist.active !== false && dentist.archiveStatus !== "Archived").map((dentist) => (
+                    <option key={dentist.id} value={dentist.id}>{dentist.name}</option>
                   ))}
                 </select>
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Service</span>
+                <select className="input" value={addDraft.service} onChange={(e) => updateAddDraft("service", e.target.value)} required>
+                  <option value="">Select a service</option>
+                  {clinicServices.map((service) => (
+                    <option key={service.id} value={service.name}>{service.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Appointment date</span>
+                <input className="input" type="date" min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)} value={addDraft.date} onChange={(e) => updateAddDraft("date", e.target.value)} required />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Appointment time</span>
+                <select className="input" value={addDraft.time} onChange={(e) => updateAddDraft("time", e.target.value)} required disabled={loadingWalkInTimes || !walkInTimeOptions.length}>
+                  <option value="">{loadingWalkInTimes ? "Checking availability…" : walkInTimeOptions.length ? "Select a time" : "No time slots available"}</option>
+                  {walkInTimeOptions.map((time) => (
+                    <option key={time} value={time}>{formatTimeLabel(time)}</option>
+                  ))}
+                </select>
+                {walkInAvailabilityError ? <span className="walkInAvailabilityError">{walkInAvailabilityError}</span> : null}
               </label>
             </div>
 
             <div className="modalFoot">
               <button type="button" className="btn btnSecondary" onClick={() => setAddOpen(false)}>Cancel</button>
               <button className="btn btnSuccess" type="submit" disabled={addSaving}>
-                {addSaving ? "Saving" : "Add Patient"}
+                {addSaving ? "Saving" : "Add Patient & Appointment"}
               </button>
             </div>
           </form>

@@ -19,6 +19,7 @@ import { SkeletonList } from "../../components/LoadingSkeleton";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
+const ARCHIVE_BOOKING = httpsCallable(functions, "archiveBooking");
 const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
 const REASSIGN_BOOKING_DENTIST = httpsCallable(functions, "reassignBookingDentist");
 
@@ -41,9 +42,10 @@ const BOOKING_FILTERS = {
     emptyText: "No cancelled bookings.",
   },
   "no-show": { label: "No-show", emptyText: "No no-show appointments recorded." },
+  completed: { label: "Completed", emptyText: "No completed treatments or appointments yet." },
 };
 
-const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "checked-in", "cancelled"];
+const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "checked-in", "cancelled", "completed"];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const BOOKING_SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -169,8 +171,9 @@ function getBookingServices(booking) {
   return services.map((service) => String(service).trim()).filter(Boolean).join(", ") || "Not set";
 }
 
-function BookingRow({ booking, onOpen, highlighted }) {
+function BookingRow({ booking, onOpen, onArchive, highlighted }) {
   const reschedule = booking.rescheduleRequest;
+  const canArchive = ["completed", "cancelled"].includes(String(booking.status || "").toLowerCase());
 
   return (
     <tr
@@ -206,6 +209,20 @@ function BookingRow({ booking, onOpen, highlighted }) {
           <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
         ) : null}
       </td>
+      <td data-label="Actions">
+        {canArchive ? (
+          <button
+            className="btn secondary btnSoft bookingRowArchiveButton"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onArchive(booking);
+            }}
+          >
+            Archive
+          </button>
+        ) : <span aria-hidden="true">—</span>}
+      </td>
     </tr>
   );
 }
@@ -228,6 +245,7 @@ function BookingDetailDrawer({
   onCheckIn,
   checkingIn,
   onCancel,
+  onArchive,
   onReschedule,
   onReassign,
   actionError,
@@ -406,6 +424,14 @@ function BookingDetailDrawer({
                 </div>
               ) : null}
             </div>
+
+            {status === "completed" || status === "cancelled" ? (
+              <div className="actionColumn actionColumnFriendly">
+                <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onArchive}>
+                  Archive booking
+                </button>
+              </div>
+            ) : null}
 
             {status === "pending" || (status === "approved" && !booking.checkedInAt) ? (
               <div className="actionColumn actionColumnFriendly">
@@ -827,6 +853,10 @@ export default function Bookings() {
     await SET_BOOKING_STATUS({ bookingId: id, status: nextStatus });
   }
 
+  async function archiveBooking(id) {
+    await ARCHIVE_BOOKING({ bookingId: id });
+  }
+
   async function toggleCheckIn(booking) {
     const result = await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
     const checkedInAtMillis = result.data?.checkedInAt;
@@ -841,7 +871,9 @@ export default function Bookings() {
   const activeItems = useMemo(
     () => activeBookings
       .filter((booking) => {
-        if (status === "checked-in") {
+        if (status === "completed") {
+          if (String(booking.status || "").toLowerCase() !== "completed") return false;
+        } else if (status === "checked-in") {
           if (booking.status !== "approved" || !booking.checkedInAt) return false;
         } else if (status === "approved" && (booking.status !== "approved" || booking.checkedInAt)) {
           return false;
@@ -875,6 +907,16 @@ export default function Bookings() {
 
   function openConfirm(config) {
     setConfirmState(config);
+  }
+
+  function requestArchiveBooking(booking) {
+    if (!booking || !["completed", "cancelled"].includes(String(booking.status || "").toLowerCase())) return;
+    openConfirm({
+      title: "Archive this booking?",
+      message: "The booking will move to Archive → Bookings. You can restore it later.",
+      confirmLabel: "Archive booking",
+      action: () => archiveBooking(booking.id),
+    });
   }
 
   async function handleConfirmAction() {
@@ -970,6 +1012,7 @@ export default function Bookings() {
                     <th>Dentist</th>
                     <th>Date &amp; time</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -978,6 +1021,7 @@ export default function Bookings() {
                       key={booking.id}
                       booking={booking}
                       onOpen={openBooking}
+                      onArchive={requestArchiveBooking}
                       highlighted={highlightedBookingIds.includes(booking.id)}
                     />
                   ))}
@@ -1097,11 +1141,17 @@ export default function Bookings() {
           closeDrawer();
           openConfirm({
             title: "Cancel this booking?",
-            message: "This booking will remain in your records and appear in the Cancelled tab.",
+            message: "This booking will remain in the Cancelled tab until you choose to archive it.",
             confirmLabel: "Cancel",
             tone: "danger",
             action: () => setStatus(b.id, "cancelled"),
           });
+        }}
+        onArchive={() => {
+          const booking = selectedBooking;
+          if (!booking) return;
+          closeDrawer();
+          requestArchiveBooking(booking);
         }}
       />
 

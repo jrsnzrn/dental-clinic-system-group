@@ -438,7 +438,6 @@ export default function App() {
               />
               <Route path="bookings">
                 <Route index element={<Navigate to="calendar" replace />} />
-                <Route path="completed" element={<Navigate to="/admin/bookings/calendar" replace />} />
                 <Route
                   path=":status"
                   element={
