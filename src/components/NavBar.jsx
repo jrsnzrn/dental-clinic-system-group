@@ -704,12 +704,14 @@ export default function NavBar({
                 ) : null}
               </>
             ) : null}
-            <StaffNotificationBell adminRole={adminRole} />
-            <StaffAccountInfo
-              user={user}
-              name={staffName}
-              role={ROLE_LABELS[adminRole] || "Staff"}
-            />
+            <div className="staffTopbarAccountGroup">
+              <StaffNotificationBell adminRole={adminRole} />
+              <StaffAccountInfo
+                user={user}
+                name={staffName}
+                role={ROLE_LABELS[adminRole] || "Staff"}
+              />
+            </div>
           </div>
         )}
 

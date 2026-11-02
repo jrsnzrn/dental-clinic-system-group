@@ -11519,6 +11519,14 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
   min-width: 0;
 }
 
+.staffTopbarAccountGroup {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
 .adminTopbar .accountMenu {
   margin-left: 0;
 }
@@ -11689,6 +11697,10 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
 
 @media (max-width: 860px) {
   .adminTopbar {
+    gap: 8px;
+  }
+
+  .staffTopbarAccountGroup {
     gap: 8px;
   }
 
@@ -15935,9 +15947,9 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .dentistHeaderSearch {
-  flex: 0 1 400px;
+  flex: 1 1 400px;
   min-width: 0;
-  max-width: 400px;
+  max-width: 780px;
 }
 
 .dentistHeaderSearch .input {
