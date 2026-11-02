@@ -117,6 +117,8 @@ export default function ServicesAdmin() {
   const filteredServices = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return normalizedServices.filter((service) => {
+      const isHiddenDentalXray = service.name.trim().toLowerCase() === "dental x-ray"
+        && service.startingRate.trim().toLowerCase() === "consultation pricing available at clinic";
       const matchesStatus = statusFilter === "all"
         || (statusFilter === "active" ? service.active : !service.active);
       const searchContent = [
@@ -125,7 +127,9 @@ export default function ServicesAdmin() {
         service.category,
         service.startingRate,
       ].join(" ").toLowerCase();
-      return matchesStatus && (!normalizedSearch || searchContent.includes(normalizedSearch));
+      return !isHiddenDentalXray
+        && matchesStatus
+        && (!normalizedSearch || searchContent.includes(normalizedSearch));
     });
   }, [normalizedServices, search, statusFilter]);
   const selectedBuiltinImage = CLINIC_SERVICE_IMAGE_OPTIONS.find((option) =>
@@ -347,6 +351,7 @@ export default function ServicesAdmin() {
           </button>
         </div>
 
+        {serviceError ? <p className="servicesAdminMessage isError" role="alert">{serviceError}</p> : null}
         {serviceLoadError ? <p className="servicesAdminMessage isError" role="alert">{serviceLoadError}</p> : null}
         {serviceLoading ? (
           <p className="servicesAdminMessage" role="status">Loading services…</p>

@@ -688,23 +688,23 @@ export default function NavBar({
                     onChange={(event) => onDentistSearchChange(event.target.value)}
                   />
                 </div>
-                {isDentistPatientsRoute ? (
-                  <label className="dentistPatientTypeFilter">
-                    <select
-                      className="input"
-                      aria-label="Filter patients by type"
-                      value={dentistPatientTypeFilter}
-                      onChange={(event) => onDentistPatientTypeFilterChange(event.target.value)}
-                    >
-                      <option value="All">All</option>
-                      <option value="Ortho">Ortho</option>
-                      <option value="Regular">Regular</option>
-                    </select>
-                  </label>
-                ) : null}
               </>
             ) : null}
             <div className="staffTopbarAccountGroup">
+              {isDentistPatientsRoute ? (
+                <label className="dentistPatientTypeFilter">
+                  <select
+                    className="input"
+                    aria-label="Filter patients by type"
+                    value={dentistPatientTypeFilter}
+                    onChange={(event) => onDentistPatientTypeFilterChange(event.target.value)}
+                  >
+                    <option value="All">All</option>
+                    <option value="Ortho">Ortho</option>
+                    <option value="Regular">Regular</option>
+                  </select>
+                </label>
+              ) : null}
               <StaffNotificationBell adminRole={adminRole} />
               <StaffAccountInfo
                 user={user}

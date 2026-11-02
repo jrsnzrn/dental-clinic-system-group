@@ -11521,7 +11521,8 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
 
 .staffTopbarAccountGroup {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-left: auto;
@@ -18020,6 +18021,10 @@ html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout span {
 
 .dentistPatientTypeFilter,
 .archiveTopbarFilter {
+  order: 1;
+}
+
+.staffTopbarAccountGroup .dentistPatientTypeFilter {
   order: 1;
 }
 
