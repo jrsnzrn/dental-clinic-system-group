@@ -566,20 +566,6 @@ export default function ServicesAdmin() {
                     />
                   </label>
                   <label>
-                    <span>Duration (minutes)</span>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      step="1"
-                      value={serviceDraft.durationMinutes}
-                      onChange={(event) => setServiceDraft((current) => ({
-                        ...current,
-                        durationMinutes: event.target.value === "" ? "" : Number(event.target.value),
-                      }))}
-                    />
-                  </label>
-                  <label>
                     <span>Category</span>
                     <input
                       required

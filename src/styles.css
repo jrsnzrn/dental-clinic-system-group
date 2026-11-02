@@ -17459,8 +17459,20 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   background: var(--bg);
 }
 
-.patientDashboardHeader .accountMenu {
-  margin-left: 0;
+.patientHeaderAccount {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.patientHeaderEmail {
+  max-width: min(320px, 30vw);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .patientDashboardMain {
@@ -17543,6 +17555,44 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   flex-direction: column;
   align-content: start;
   gap: 4px;
+}
+
+.patientDashboardMain .patientSidebarActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.patientDashboardMain .patientSidebarAction {
+  width: 100%;
+  gap: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--font-nav);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.patientDashboardMain .patientSidebarAction .accountItemIcon,
+.patientDashboardMain .patientSidebarAction > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.patientDashboardMain .patientSidebarAction.patientSidebarLogout {
+  color: var(--danger);
+}
+
+.patientDashboardMain .patientSidebarAction:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .patientDashboardMain .patientSidebarLink {
@@ -17705,6 +17755,21 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
     padding: 0;
   }
 
+  .patientDashboardMain .patientSidebarActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .patientDashboardMain .patientSidebarAction {
+    justify-content: center;
+    padding: 8px 5px;
+    font-size: 12px;
+    text-align: center;
+  }
+
   .patientDashboardMain .patientSidebarLink {
     min-height: 38px;
     min-width: 0;
@@ -17744,12 +17809,16 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
     padding: 0 12px;
   }
 
-  .patientDashboardHeader .accountTrigger {
+  .patientHeaderAccount {
     gap: 8px;
   }
 
-  .patientDashboardHeader .accountName {
+  .patientHeaderAccount .accountName {
     max-width: 112px;
+  }
+
+  .patientHeaderEmail {
+    max-width: min(190px, 48vw);
   }
 
   .patientDashboardPage .bookingPage .bookingServiceOptionGrid {

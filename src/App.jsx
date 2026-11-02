@@ -3,7 +3,7 @@ import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from "re
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import NavBar, { PatientDashboardHeader } from "./components/NavBar";
+import NavBar, { PatientDashboardHeader, PatientSidebarActions } from "./components/NavBar";
 import Footer from "./components/Footer";
 import Mascot from "./components/Mascot";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -265,9 +265,10 @@ function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }
                   </NavLink>
                 ))}
               </nav>
+              <PatientSidebarActions theme={theme} onThemeChange={onThemeChange} />
             </aside>
             <main className="patientDashboardContent">
-              <PatientDashboardHeader user={user} theme={theme} onThemeChange={onThemeChange} />
+              <PatientDashboardHeader user={user} />
               <div className="patientDashboardPage">{children}</div>
             </main>
           </div>

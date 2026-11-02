@@ -2143,7 +2143,7 @@ export default function Patients({
 
                         <div className="pdlActions">
                           <button type="submit" className="btn btnSuccess" disabled={savingDetails}>
-                            {savingDetails ? "Saving Changes..." : "Save Changes"}
+                            {savingDetails ? "Saving Changes..." : "Update"}
                           </button>
                           <button type="button" className="btn btnSecondary" onClick={cancelEditing} disabled={savingDetails}>
                             Cancel
@@ -2320,7 +2320,7 @@ export default function Patients({
                         {isEditingDentalChart ? (
                           <div className="formActions">
                             <button className="btn btnSuccess" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
-                              {savingDentalChart ? "Saving..." : "Save Changes"}
+                              {savingDentalChart ? "Saving..." : "Update"}
                             </button>
                             <button className="btn btnSecondary" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
                               Cancel
