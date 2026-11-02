@@ -6632,6 +6632,103 @@ input[type="date"].input { min-height: 48px; }
   background: var(--secondary);
 }
 
+.bookingQueuePanel {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--booking-border);
+}
+
+.bookingQueueHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bookingQueueHeader h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.bookingQueueHeader p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bookingQueueHeader input {
+  width: 138px;
+  min-width: 0;
+  padding: 7px;
+  font-size: 12px;
+}
+
+.bookingQueueList {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 390px;
+  margin: 0;
+  padding: 0 3px 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.bookingQueueItem {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid var(--booking-border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bookingQueueItem:hover,
+.bookingQueueItem:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.bookingQueueNumber {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bookingQueueDetails {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bookingQueueDetails strong,
+.bookingQueueDetails span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookingQueueDetails strong { font-size: 12px; }
+.bookingQueueDetails span { color: var(--muted); font-size: 11px; }
+.bookingQueueItem time { font-size: 11px; font-weight: 650; white-space: nowrap; }
+.bookingQueueEmpty { margin: 0; color: var(--muted); font-size: 12px; }
+
 @media (max-width: 480px) {
   .bookingCalendarPanel {
     padding: 14px 12px;

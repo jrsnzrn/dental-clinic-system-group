@@ -624,6 +624,7 @@ export default function Patients({
   const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
   const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
   const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
+  const [dentistDentalCharts, setDentistDentalCharts] = useState({});
   const [selectedTeeth, setSelectedTeeth] = useState([]);
   const [chartSelectionBeforeEdit, setChartSelectionBeforeEdit] = useState([]);
   const [selectedChartTooth, setSelectedChartTooth] = useState("");
@@ -706,29 +707,16 @@ export default function Patients({
       clearDentistWorkspaceListeners();
       const linkedDentist = nextDentistProfiles.find((dentist) => dentist.linkedStaffUid === staffUid);
       if (linkedDentist?.id) {
-        await SYNC_DENTIST_PATIENT_ACCESS();
-        let readyCount = 0;
-        const markReady = () => {
-          readyCount += 1;
-          if (readyCount >= 2) setLoadingPatients(false);
-        };
-        const patientUnsubscribe = onSnapshot(
-          query(collection(db, "patients"), where("authorizedDentistUids", "array-contains", staffUid)),
-          (snapshot) => {
-            setPatients(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-            markReady();
-          },
-          (error) => {
-            console.error("Assigned patient records could not load:", error);
-            setPatients([]);
-            setLoadingPatients(false);
-          }
-        );
+        const accessSync = await SYNC_DENTIST_PATIENT_ACCESS();
+        setPatients(Array.isArray(accessSync.data?.patients) ? accessSync.data.patients : []);
+        setDentistDentalCharts(accessSync.data?.dentalCharts && typeof accessSync.data.dentalCharts === "object"
+          ? accessSync.data.dentalCharts
+          : {});
         const bookingUnsubscribe = onSnapshot(
           query(collection(db, "bookings"), where("dentistId", "==", linkedDentist.id)),
           (snapshot) => {
             setBookings(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-            markReady();
+            setLoadingPatients(false);
           },
           (error) => {
             console.error("Assigned appointments could not load:", error);
@@ -736,7 +724,7 @@ export default function Patients({
             setLoadingPatients(false);
           }
         );
-        dentistWorkspaceListeners.current = [patientUnsubscribe, bookingUnsubscribe];
+        dentistWorkspaceListeners.current = [bookingUnsubscribe];
         setDentistProfiles(nextDentistProfiles);
         return;
       } else {
@@ -921,12 +909,38 @@ export default function Patients({
     });
   }, [patientCards, search, typeFilter]);
 
-  const selectedPatient = useMemo(
-    () => patientCards.find((patient) =>
+  const selectedPatient = useMemo(() => {
+    const patientRecord = patientCards.find((patient) =>
       patient.id === selectedPatientId || patient.uid === selectedPatientId
-    ) || null,
-    [patientCards, selectedPatientId]
-  );
+    );
+    if (patientRecord) return patientRecord;
+    if (adminRole !== ROLES.DENTIST || !selectedPatientId) return null;
+
+    const assignedBooking = dentistAppointments.find((booking) =>
+      [booking.patientProfileId, booking.patientId, booking.uid]
+        .some((id) => id && id === selectedPatientId)
+    );
+    if (!assignedBooking) return null;
+
+    const linkedRecord = assignedBooking.patient || {};
+    return {
+      ...linkedRecord,
+      id: linkedRecord.id || assignedBooking.patientId || assignedBooking.patientProfileId || selectedPatientId,
+      uid: linkedRecord.uid || assignedBooking.uid || "",
+      firstName: linkedRecord.firstName || assignedBooking.firstName || "",
+      middleName: linkedRecord.middleName || assignedBooking.middleName || "",
+      lastName: linkedRecord.lastName || assignedBooking.lastName || "",
+      name: linkedRecord.name || assignedBooking.fullName || "Patient",
+      age: linkedRecord.age || assignedBooking.age || "",
+      phone: linkedRecord.phone || assignedBooking.phone || "",
+      email: linkedRecord.email || assignedBooking.email || "",
+      patientType: linkedRecord.patientType || assignedBooking.patientType || "Regular",
+      preferredDentist: linkedRecord.preferredDentist || assignedBooking.selectedDentist || "",
+      treatmentPlans: linkedRecord.treatmentPlans || [],
+      careRecommendations: linkedRecord.careRecommendations || [],
+      timeline: linkedRecord.timeline || [],
+    };
+  }, [adminRole, dentistAppointments, patientCards, selectedPatientId]);
 
   const latestPatientAppointment = useMemo(() => {
     if (!selectedPatient) return null;
@@ -1000,22 +1014,30 @@ export default function Patients({
 
     async function loadDentalChart() {
       const chartId = selectedPatient.uid || selectedPatient.id;
-      const chartSnap = await getDoc(doc(db, "dentalCharts", chartId));
-      const chartPlans = chartSnap.exists() && Array.isArray(chartSnap.data().patientTreatmentPlans)
-        ? chartSnap.data().patientTreatmentPlans
-        : [];
-      setChartProcedureHistory(chartPlans);
-      const recordedTeeth = [
-        ...(selectedPatient.treatmentPlans || []),
-        ...chartPlans,
-      ].flatMap((plan) => plan.toothNumbers || []);
-      const nextSelectedTeeth = [...new Set(recordedTeeth.map(String))];
-      setSelectedTeeth(nextSelectedTeeth);
-      setSelectedChartTooth(nextSelectedTeeth[0] || "");
+      try {
+        const chartData = adminRole === ROLES.DENTIST
+          ? dentistDentalCharts[chartId] || {}
+          : (await getDoc(doc(db, "dentalCharts", chartId))).data() || {};
+        const chartPlans = Array.isArray(chartData.patientTreatmentPlans)
+          ? chartData.patientTreatmentPlans
+          : [];
+        setChartProcedureHistory(chartPlans);
+        const recordedTeeth = [
+          ...(selectedPatient.treatmentPlans || []),
+          ...chartPlans,
+        ].flatMap((plan) => plan.toothNumbers || []);
+        const nextSelectedTeeth = [...new Set(recordedTeeth.map(String))];
+        setSelectedTeeth(nextSelectedTeeth);
+        setSelectedChartTooth(nextSelectedTeeth[0] || "");
+      } catch (error) {
+        console.error("The patient's dental chart could not load:", error);
+        setChartProcedureHistory([]);
+        setNotice({ type: "error", text: "Patient details loaded, but the dental chart could not be opened. Please refresh or contact the administrator." });
+      }
     }
 
     loadDentalChart();
-  }, [selectedPatient?.id]);
+  }, [adminRole, dentistDentalCharts, selectedPatient?.id]);
 
   function openPatientRecord(patientId) {
     preparePatientRecordNavigation();

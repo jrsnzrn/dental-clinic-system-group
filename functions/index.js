@@ -148,6 +148,21 @@ function serializeAdminDoc(id, data = {}) {
   };
 }
 
+function serializeCallableValue(value) {
+  if (value == null) return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value?.toDate === "function") return value.toDate().toISOString();
+  if (Array.isArray(value)) return value.map(serializeCallableValue);
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, serializeCallableValue(entry)])
+    );
+  }
+  return value;
+}
+
 function normalizeText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -2718,16 +2733,19 @@ exports.syncDentistPatientAccess = onCall({}, async (request) => {
     .map((booking) => String(booking.uid || "").trim())
     .filter(Boolean))];
   const needsSync = await Promise.all(patientUids.map(async (patientUid) => {
-    const [profileSnap, patientRecordsSnap] = await Promise.all([
+    const [profileSnap, patientRecordsSnap, chartSnap] = await Promise.all([
       db.collection("patientProfiles").doc(patientUid).get(),
       db.collection("patients").where("uid", "==", patientUid).get(),
+      db.collection("dentalCharts").doc(patientUid).get(),
     ]);
     const profileNeedsSync = !profileSnap.exists || !Array.isArray(profileSnap.data()?.authorizedDentistUids) ||
       !profileSnap.data().authorizedDentistUids.includes(staff.uid);
     const patientRecordNeedsSync = patientRecordsSnap.docs.some((entry) =>
       !Array.isArray(entry.data()?.authorizedDentistUids) || !entry.data().authorizedDentistUids.includes(staff.uid)
     );
-    return profileNeedsSync || patientRecordNeedsSync;
+    const chartNeedsSync = chartSnap.exists &&
+      (!Array.isArray(chartSnap.data()?.authorizedDentistUids) || !chartSnap.data().authorizedDentistUids.includes(staff.uid));
+    return profileNeedsSync || patientRecordNeedsSync || chartNeedsSync;
   }));
   const patientUidsNeedingSync = patientUids.filter((patientUid, index) => needsSync[index]);
   await Promise.all(patientUidsNeedingSync.map((uid) => syncDentistPatientAccess(uid)));
@@ -2738,7 +2756,18 @@ exports.syncDentistPatientAccess = onCall({}, async (request) => {
     .flatMap((booking) => [booking.patientProfileId, booking.patientId])
     .map((id) => String(id || "").trim())
     .filter(Boolean))];
-  const patientRecordSnapshots = await Promise.all(patientRecordIds.map((id) => db.collection("patients").doc(id).get()));
+  const [directPatientRecordSnapshots, uidPatientRecordQueries] = await Promise.all([
+    Promise.all(patientRecordIds.map((id) => db.collection("patients").doc(id).get())),
+    Promise.all(patientUids.map((uid) => db.collection("patients").where("uid", "==", uid).get())),
+  ]);
+  const patientRecordMap = new Map();
+  directPatientRecordSnapshots.forEach((snapshot) => {
+    if (snapshot.exists) patientRecordMap.set(snapshot.id, snapshot);
+  });
+  uidPatientRecordQueries.forEach((snapshot) => {
+    snapshot.docs.forEach((entry) => patientRecordMap.set(entry.id, entry));
+  });
+  const patientRecordSnapshots = [...patientRecordMap.values()];
   const patientRecordRepairs = patientRecordSnapshots
     .filter((snapshot) => snapshot.exists && (!Array.isArray(snapshot.data()?.authorizedDentistUids) || !snapshot.data().authorizedDentistUids.includes(staff.uid)))
     .map((snapshot) => snapshot.ref.set({
@@ -2748,7 +2777,24 @@ exports.syncDentistPatientAccess = onCall({}, async (request) => {
     }, { merge: true }));
   await Promise.all(patientRecordRepairs);
 
-  return { success: true, syncedPatients: patientUidsNeedingSync.length + patientRecordRepairs.length };
+  const patientRecords = patientRecordSnapshots.map((snapshot) => ({
+    ...serializeCallableValue(snapshot.data() || {}),
+    id: snapshot.id,
+  }));
+  const chartIds = [...new Set([
+    ...patientUids,
+    ...patientRecordIds,
+  ])];
+  const chartSnapshots = await Promise.all(chartIds.map((id) => db.collection("dentalCharts").doc(id).get()));
+  const dentalCharts = Object.fromEntries(chartSnapshots
+    .filter((snapshot) => snapshot.exists)
+    .map((snapshot) => [snapshot.id, serializeCallableValue(snapshot.data() || {})]));
+  return {
+    success: true,
+    syncedPatients: patientUidsNeedingSync.length + patientRecordRepairs.length,
+    patients: patientRecords,
+    dentalCharts,
+  };
 });
 
 exports.syncDentistPatientAccessAfterProfileChange = onDocumentUpdated("dentists/{dentistId}", async (event) => {

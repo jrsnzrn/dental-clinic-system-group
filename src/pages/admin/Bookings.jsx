@@ -650,6 +650,7 @@ export default function Bookings() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [selectedDate, setSelectedDate] = useState("");
+  const [queueDate, setQueueDate] = useState(() => getLocalDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -888,6 +889,10 @@ export default function Bookings() {
       .sort((left, right) => compareBookings(left, right, sortBy)),
     [activeBookings, searchTerm, selectedDate, sortBy, status]
   );
+  const queueItems = useMemo(() => activeBookings
+    .filter((booking) => booking.date === queueDate &&
+      !["cancelled", "no-show", "completed"].includes(String(booking.status || "pending").toLowerCase()))
+    .sort((left, right) => compareBookings(left, right, "appointment-asc")), [activeBookings, queueDate]);
   const selectedDateCount = selectedDate ? calendarCounts.get(selectedDate) || 0 : 0;
 
   useEffect(() => {
@@ -1100,6 +1105,41 @@ export default function Bookings() {
               </>
             )}
           </div>
+          <section className="bookingQueuePanel" aria-label="Patient queue for the day">
+            <div className="bookingQueueHeader">
+              <div>
+                <h2>Patient queue</h2>
+                <p>{queueItems.length} scheduled for {formatDateLabel(queueDate)}</p>
+              </div>
+              <input
+                className="input"
+                type="date"
+                aria-label="Queue date"
+                value={queueDate}
+                onChange={(event) => setQueueDate(event.target.value)}
+              />
+            </div>
+            {loadingBookings ? (
+              <SkeletonList count={3} />
+            ) : queueItems.length ? (
+              <ol className="bookingQueueList">
+                {queueItems.map((booking, index) => (
+                  <li key={booking.id}>
+                    <button type="button" className="bookingQueueItem" onClick={() => openBooking(booking.id)}>
+                      <span className="bookingQueueNumber">{index + 1}</span>
+                      <span className="bookingQueueDetails">
+                        <strong>{booking.fullName || "No name"}</strong>
+                        <span>{booking.service || "Service not set"}</span>
+                      </span>
+                      <time>{formatTimeLabel(booking.time)}</time>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="bookingQueueEmpty">No patients are scheduled for this day.</p>
+            )}
+          </section>
         </aside>
       </div>
 
