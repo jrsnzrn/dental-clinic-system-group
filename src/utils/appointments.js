@@ -1,3 +1,5 @@
+import { formatAppointmentStatusLabel } from "./appointmentStatus";
+
 export function normalizeText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -106,7 +108,7 @@ export function buildPatientTimeline(history = []) {
         id: `${booking.id}-status`,
         kind: "status",
         timestamp: booking.statusUpdatedAt,
-        title: `Booking ${booking.status || "pending"}`,
+        title: `Booking ${formatAppointmentStatusLabel(booking.status || "pending")}`,
         subtitle: booking.service || "Appointment update",
         status: timelineStatus,
       });

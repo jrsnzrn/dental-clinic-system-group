@@ -17,7 +17,12 @@ import {
   getClinicAvailability,
 } from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
+<<<<<<< HEAD
 import { BOOKING_SLOT_INTERVAL_MINUTES, getActiveClosureForDate } from "../utils/clinic";
+=======
+import { getActiveClosureForDate } from "../utils/clinic";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../utils/appointmentStatus";
+>>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
 
 function pad(n) {
   return String(n).padStart(2, "0");
@@ -92,10 +97,10 @@ function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
             </p>
           </div>
           <div className="statusStack">
-            <span className={`statusPill ${booking.status || "pending"}`}>
-              {booking.status || "pending"}
+            <span className={`statusPill ${getAppointmentStatusClass(booking.status)}`}>
+              {formatAppointmentStatusLabel(booking.status)}
             </span>
-            {isCheckedIn ? <span className="statusPill approved">Checked in</span> : null}
+            {isCheckedIn ? <span className="statusPill approved">Checked In</span> : null}
           </div>
         </div>
 
@@ -126,7 +131,7 @@ function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
               {formatTimeLabel(booking.rescheduleRequest.requestedTime)}
             </p>
             <p>
-              Status: <strong>{booking.rescheduleRequest.status || "pending"}</strong>
+              Status: <strong>{formatAppointmentStatusLabel(booking.rescheduleRequest.status || "pending")}</strong>
               {booking.rescheduleRequest.reason ? ` • ${booking.rescheduleRequest.reason}` : ""}
             </p>
           </div>
@@ -136,7 +141,7 @@ function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
           <div className="detailNote historyPanel attention" style={{ marginTop: 14 }}>
             <span className="detailLabel">Cancellation request</span>
             <p>
-              Status: <strong>{booking.cancellationRequest.status || "pending"}</strong>
+              Status: <strong>{formatAppointmentStatusLabel(booking.cancellationRequest.status || "pending")}</strong>
             </p>
             <p>{booking.cancellationRequest.reason || "No reason provided."}</p>
           </div>

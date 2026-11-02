@@ -15,7 +15,9 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import EmptyState from "../../components/EmptyState";
+import BookingToolbar from "../../components/BookingToolbar";
 import { SkeletonList } from "../../components/LoadingSkeleton";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
@@ -47,13 +49,6 @@ const BOOKING_FILTERS = {
 
 const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "checked-in", "cancelled", "completed"];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-const BOOKING_SORT_OPTIONS = [
-  { value: "newest", label: "Newest first" },
-  { value: "oldest", label: "Oldest first" },
-  { value: "appointment-asc", label: "Earliest appointment" },
-  { value: "appointment-desc", label: "Latest appointment" },
-];
-
 function timestampMillis(value) {
   if (!value) return null;
   if (typeof value.toMillis === "function") {
@@ -173,7 +168,13 @@ function getBookingServices(booking) {
 
 function BookingRow({ booking, onOpen, onArchive, highlighted }) {
   const reschedule = booking.rescheduleRequest;
+<<<<<<< HEAD
   const canArchive = ["completed", "cancelled"].includes(String(booking.status || "").toLowerCase());
+=======
+  const displayStatus = booking.status === "approved" && booking.checkedInAt
+    ? "checked_in"
+    : booking.status || "pending";
+>>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
 
   return (
     <tr
@@ -198,12 +199,8 @@ function BookingRow({ booking, onOpen, onArchive, highlighted }) {
         <small>{formatTimeLabel(booking.time)}</small>
       </td>
       <td data-label="Status">
-        <span className={`bookingTableStatus bookingTableStatus-${
-          booking.status === "approved" && booking.checkedInAt ? "checked-in" : booking.status || "pending"
-        }`}>
-          {booking.status === "approved" && booking.checkedInAt
-            ? "Checked In"
-            : booking.status || "pending"}
+        <span className={`bookingTableStatus bookingTableStatus-${getAppointmentStatusClass(displayStatus)}`}>
+          {formatAppointmentStatusLabel(displayStatus)}
         </span>
         {reschedule?.status === "pending" ? (
           <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
@@ -252,12 +249,9 @@ function BookingDetailDrawer({
 }) {
   const reschedule = booking?.rescheduleRequest;
   const status = booking?.status || "pending";
-  const headingStatus = booking?.checkedInAt
-    ? "checked-in"
-    : status.toLowerCase().replace(/_/g, "-");
-  const headingLabel = headingStatus === "checked-in"
-    ? "CHECKED-IN"
-    : headingStatus.replace(/-/g, " ").toUpperCase();
+  const headingStatus = booking?.checkedInAt ? "checked_in" : status;
+  const headingClass = getAppointmentStatusClass(headingStatus);
+  const headingLabel = formatAppointmentStatusLabel(headingStatus);
   const [paymentDetails, setPaymentDetails] = useState(null);
   const currentPaymentDetails = paymentDetails?.bookingId === booking?.id ? paymentDetails : null;
   const paymentSummaries = currentPaymentDetails?.summaries || [];
@@ -294,7 +288,7 @@ function BookingDetailDrawer({
           <div className="patientDrawerInner">
             <div className="patientDrawerHeader bookingDetailsHeader">
               <div className="bookingDetailsHeading">
-                <span className={`bookingDetailsStatus bookingDetailsStatus-${headingStatus}`}>
+                <span className={`bookingDetailsStatus bookingDetailsStatus-${headingClass}`}>
                   {headingLabel}
                 </span>
               </div>
@@ -417,7 +411,7 @@ function BookingDetailDrawer({
                     <strong>{formatTimeLabel(reschedule.requestedTime)}</strong>
                   </p>
                   <p>
-                    Status: <strong>{reschedule.status || "pending"}</strong>
+                    Status: <strong>{formatAppointmentStatusLabel(reschedule.status || "pending")}</strong>
                     {reschedule.reason ? ` • ${reschedule.reason}` : ""}
                   </p>
 
@@ -640,15 +634,13 @@ function ReassignDentistModal({ open, booking, dentists, onClose, onSave }) {
   );
 }
 
-export default function Bookings() {
+export default function Bookings({ search, onSearchChange, sortBy, onSortChange }) {
   const [bookings, setBookings] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
   const [checkInPendingId, setCheckInPendingId] = useState(null);
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("newest");
   const [selectedDate, setSelectedDate] = useState("");
   const [queueDate, setQueueDate] = useState(() => getLocalDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -939,47 +931,16 @@ export default function Bookings() {
         </div>
       ) : null}
 
+      <BookingToolbar
+        className="bookingPageToolbar"
+        search={search}
+        onSearchChange={onSearchChange}
+        sortBy={sortBy}
+        onSortChange={onSortChange}
+      />
+
       <div className="bookingManagementGrid">
         <section className="bookingListPanel" aria-label="Appointment list">
-          <div className="bookingToolbar">
-            <label className="bookingSearch adminSearchField">
-              <svg className="adminSearchIcon" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
-              <input
-                className="input"
-                type="text"
-                aria-label="Search appointments by patient name, patient ID, appointment ID, or service"
-                placeholder="Search patient, ID, or service"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-              {search ? (
-                <button type="button" className="bookingClearSearch" onClick={() => setSearch("")}>
-                  Clear
-                </button>
-              ) : null}
-            </label>
-            <label className="bookingSortControl">
-              <span aria-hidden="true">
-                {BOOKING_SORT_OPTIONS.find((option) => option.value === sortBy)?.label}
-              </span>
-              <select
-                aria-label="Sort bookings"
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-              >
-                {BOOKING_SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="m4 6 4 4 4-4" />
-              </svg>
-            </label>
-          </div>
-
           <nav className="bookingStatusFilters" aria-label="Filter appointments by status">
             {BOOKING_STATUS_FILTERS.map((filter) => (
               <NavLink

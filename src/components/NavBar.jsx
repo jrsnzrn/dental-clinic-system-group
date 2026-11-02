@@ -6,6 +6,7 @@ import { auth, db, googleProvider } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
 import ConfirmDialog from "./ConfirmDialog";
+import BookingToolbar from "./BookingToolbar";
 import StaffNotificationBell from "./StaffNotificationBell";
 
 const THEME_OPTIONS = [
@@ -554,6 +555,10 @@ export default function NavBar({
   onDentistPatientTypeFilterChange = () => {},
   archiveSearch = "",
   onArchiveSearchChange = () => {},
+  bookingSearch = "",
+  onBookingSearchChange = () => {},
+  bookingSortBy = "newest",
+  onBookingSortChange = () => {},
 }) {
   const navClass = ({ isActive }) => "navItem" + (isActive ? " active" : "");
 
@@ -626,6 +631,12 @@ export default function NavBar({
   }, [location.pathname]);
 
   useEffect(() => {
+    if (location.pathname.startsWith("/admin/bookings")) return;
+    onBookingSearchChange("");
+    onBookingSortChange("newest");
+  }, [location.pathname, onBookingSearchChange, onBookingSortChange]);
+
+  useEffect(() => {
     if (!appearanceModalOpen) return undefined;
 
     function handleKeyDown(event) {
@@ -644,6 +655,7 @@ export default function NavBar({
     adminRole === ROLES.DENTIST &&
     (location.pathname === "/admin/patients" || location.pathname === "/admin/patients/");
   const isArchiveRoute = isAdmin && location.pathname.startsWith("/admin/archive");
+  const isBookingsRoute = isAdmin && location.pathname.startsWith("/admin/bookings");
   const isStaffVerificationRoute =
     location.pathname === "/admin/verify-email" || location.pathname === "/admin/mfa";
 
@@ -704,6 +716,7 @@ export default function NavBar({
                 ) : null}
               </>
             ) : null}
+<<<<<<< HEAD
             <div className="staffTopbarAccountGroup">
               <StaffNotificationBell adminRole={adminRole} />
               <StaffAccountInfo
@@ -712,6 +725,23 @@ export default function NavBar({
                 role={ROLE_LABELS[adminRole] || "Staff"}
               />
             </div>
+=======
+            {isBookingsRoute ? (
+              <BookingToolbar
+                className="bookingHeaderToolbar"
+                search={bookingSearch}
+                onSearchChange={onBookingSearchChange}
+                sortBy={bookingSortBy}
+                onSortChange={onBookingSortChange}
+              />
+            ) : null}
+            <StaffNotificationBell adminRole={adminRole} />
+            <StaffAccountInfo
+              user={user}
+              name={staffName}
+              role={ROLE_LABELS[adminRole] || "Staff"}
+            />
+>>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
           </div>
         )}
 

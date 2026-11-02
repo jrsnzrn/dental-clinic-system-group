@@ -289,6 +289,8 @@ export default function App() {
   const [dentistSearch, setDentistSearch] = useState("");
   const [dentistPatientTypeFilter, setDentistPatientTypeFilter] = useState("All");
   const [archiveSearch, setArchiveSearch] = useState("");
+  const [bookingSearch, setBookingSearch] = useState("");
+  const [bookingSortBy, setBookingSortBy] = useState("newest");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -378,6 +380,10 @@ export default function App() {
             onDentistPatientTypeFilterChange: setDentistPatientTypeFilter,
             archiveSearch,
             onArchiveSearchChange: setArchiveSearch,
+            bookingSearch,
+            onBookingSearchChange: setBookingSearch,
+            bookingSortBy,
+            onBookingSortChange: setBookingSortBy,
           }}
         >
           <Routes>
@@ -446,7 +452,12 @@ export default function App() {
                       user={user}
                       allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
                     >
-                      <Bookings />
+                      <Bookings
+                        search={bookingSearch}
+                        onSearchChange={setBookingSearch}
+                        sortBy={bookingSortBy}
+                        onSortChange={setBookingSortBy}
+                      />
                     </ProtectedRoute>
                   }
                 />
