@@ -168,13 +168,10 @@ function getBookingServices(booking) {
 
 function BookingRow({ booking, onOpen, onArchive, highlighted }) {
   const reschedule = booking.rescheduleRequest;
-<<<<<<< HEAD
   const canArchive = ["completed", "cancelled"].includes(String(booking.status || "").toLowerCase());
-=======
   const displayStatus = booking.status === "approved" && booking.checkedInAt
     ? "checked_in"
     : booking.status || "pending";
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
 
   return (
     <tr

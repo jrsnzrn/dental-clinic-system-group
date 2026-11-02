@@ -17,12 +17,8 @@ import {
   getClinicAvailability,
 } from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
-<<<<<<< HEAD
 import { BOOKING_SLOT_INTERVAL_MINUTES, getActiveClosureForDate } from "../utils/clinic";
-=======
-import { getActiveClosureForDate } from "../utils/clinic";
 import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../utils/appointmentStatus";
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
 
 function pad(n) {
   return String(n).padStart(2, "0");

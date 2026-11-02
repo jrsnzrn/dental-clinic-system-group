@@ -702,7 +702,15 @@ export default function NavBar({
                 </div>
               </>
             ) : null}
-<<<<<<< HEAD
+            {isBookingsRoute ? (
+              <BookingToolbar
+                className="bookingHeaderToolbar"
+                search={bookingSearch}
+                onSearchChange={onBookingSearchChange}
+                sortBy={bookingSortBy}
+                onSortChange={onBookingSortChange}
+              />
+            ) : null}
             <div className="staffTopbarAccountGroup">
               {isDentistPatientsRoute ? (
                 <label className="dentistPatientTypeFilter">
@@ -725,23 +733,6 @@ export default function NavBar({
                 role={ROLE_LABELS[adminRole] || "Staff"}
               />
             </div>
-=======
-            {isBookingsRoute ? (
-              <BookingToolbar
-                className="bookingHeaderToolbar"
-                search={bookingSearch}
-                onSearchChange={onBookingSearchChange}
-                sortBy={bookingSortBy}
-                onSortChange={onBookingSortChange}
-              />
-            ) : null}
-            <StaffNotificationBell adminRole={adminRole} />
-            <StaffAccountInfo
-              user={user}
-              name={staffName}
-              role={ROLE_LABELS[adminRole] || "Staff"}
-            />
->>>>>>> 5cb479a (Update TopDent booking, payment, and admin modules)
           </div>
         )}
 
