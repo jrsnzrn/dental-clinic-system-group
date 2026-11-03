@@ -641,6 +641,7 @@ export default function ServicesAdmin() {
 
       <ConfirmDialog
         open={Boolean(serviceActionConfirm)}
+        overlayClassName="servicesAdminConfirmOverlay"
         title={serviceActionConfirm?.nextActive ? "Activate this service?" : "Deactivate this service?"}
         message={serviceActionConfirm
           ? `Are you sure you want to ${serviceActionConfirm.nextActive ? "activate" : "deactivate"} "${serviceActionConfirm.service.name}"?`

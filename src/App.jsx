@@ -5,7 +5,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import NavBar, { PatientDashboardHeader, PatientSidebarActions } from "./components/NavBar";
 import Footer from "./components/Footer";
-import Mascot from "./components/Mascot";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 import Home from "./pages/Home";
@@ -553,7 +552,6 @@ export default function App() {
           </Routes>
         </AppFrame>
 
-        <Mascot />
       </FirstVisitHomeGate>
     </BrowserRouter>
   );

@@ -18,26 +18,8 @@ export default function Contact() {
       <CursorAura />
 
       <div className="contactGrid">
-        <div className="contactMapCard" data-mascot-target="contact">
-          <div className="contactMapFrame" data-mascot-target="map">
-            <button
-              type="button"
-              className="mascotCurseCollectible mascotCurseCollectible-crown"
-              aria-label="Return the hidden crown"
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent("topdent:curse-item-found", {
-                    detail: { item: "crown", source: "contact" },
-                  })
-                );
-              }}
-            >
-              <span className="mascotCurseCollectibleCrown">
-                <span />
-                <span />
-                <span />
-              </span>
-            </button>
+        <div className="contactMapCard">
+          <div className="contactMapFrame">
             <iframe
               className="mapFrame"
               src={satelliteMapUrl}
@@ -48,7 +30,7 @@ export default function Contact() {
           </div>
         </div>
 
-        <div className="contactInfo" data-mascot-target="contact">
+        <div className="contactInfo">
           <div className="iconRow">
             <div className="iconBubble">📍</div>
             <div>

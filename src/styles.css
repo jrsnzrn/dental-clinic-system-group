@@ -2508,10 +2508,6 @@ section > .innerWrap > p,
   object-fit: cover;
 }
 
-.svxImg.isScary {
-  filter: saturate(1.2) contrast(1.05);
-}
-
 .svxCardDesc {
   display: -webkit-box;
   margin: 0;
@@ -2728,10 +2724,6 @@ html[data-theme="blue"] .mapFrame {
     transition: none !important;
   }
 
-  .mascotCurseCollectible {
-    transition: none !important;
-    transform: none !important;
-  }
 }
 /* ==========================================================================
    BOOK Page
@@ -12559,6 +12551,10 @@ html body .patientListPage .typeBadge.ortho {
   background: rgba(0, 0, 0, 0.58);
 }
 
+.adminAppMain .adminSurface.servicesAdminPage > .modalOverlay.servicesAdminConfirmOverlay:has(.confirmModalCard) {
+  z-index: 1500;
+}
+
 .servicesAdminModal {
   display: flex;
   width: min(620px, 100%);
@@ -18840,26 +18836,4 @@ html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout span {
   background: transparent;
   color: var(--accent);
   box-shadow: none;
-}
-
-html[data-theme] .mascotTourBtn.topdentBackAction {
-  min-height: 32px;
-  padding: 0 4px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text);
-}
-
-html[data-theme] .mascotTourBtn.topdentBackAction:hover:not(:disabled) {
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  transform: none;
-}
-
-html[data-theme] .mascotTourBtn.topdentBackAction .backArrowIcon {
-  width: 20px;
-  height: 20px;
-  flex-basis: 20px;
 }

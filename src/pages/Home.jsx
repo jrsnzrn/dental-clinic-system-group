@@ -265,7 +265,7 @@ export default function Home() {
     <div className="homePage">
       <CursorAura />
 
-      <section className="homeLanding" data-mascot-target="home-hero">
+      <section className="homeLanding">
         <div className="innerWrap homeLandingInner">
           <div className="homeLandingCopy">
             <span className="heroEyebrow">Welcome to TopDent</span>
@@ -273,7 +273,7 @@ export default function Home() {
             <p>TopDent provides gentle, modern, and personalized dental care for patients of all ages. We're committed to making every visit comfortable and every smile healthier.</p>
 
             <div className="homeLandingActions">
-              <a href="/book" className="btnPrimary16" data-mascot-target="book">Book Appointment</a>
+              <a href="/book" className="btnPrimary16">Book Appointment</a>
               <NavLink to="/services" className="btnOutline16">Explore Services</NavLink>
             </div>
           </div>
@@ -288,7 +288,7 @@ export default function Home() {
 
       <PromoSection promotions={promotions} />
 
-      <section className="homeWhyUs" data-mascot-target="home-why">
+      <section className="homeWhyUs">
         <div className="innerWrap homeWhyUsInner">
           <div className="homeWhyUsVisual">
             <img src={clinicLobby} alt="TopDent clinic lobby" />
@@ -343,7 +343,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homeGalleryBand" data-mascot-target="home-gallery">
+      <section className="homeGalleryBand">
         <div className="innerWrap">
           <div className="homeGalleryIntro">
             <h2>Our <span>Dental Clinic</span></h2>
@@ -361,7 +361,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homeSmile" data-mascot-target="home-smile">
+      <section className="homeSmile">
         <div className="innerWrap">
           <div className="smileIntro">
             <h2>Smile <span>Gallery</span></h2>
@@ -389,7 +389,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homeServices" data-mascot-target="home-services">
+      <section className="homeServices">
         <div className="innerWrap">
           <div className="homeServicesIntro">
             <h2>Our <span>Services</span></h2>
@@ -415,7 +415,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homeDoctors" data-mascot-target="home-doctors">
+      <section className="homeDoctors">
         <div className="innerWrap">
           <div className="homeDoctorsIntro">
             <h2>Our Dental <span>Experts</span></h2>
@@ -438,7 +438,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homeFeedback" data-mascot-target="home-feedback">
+      <section className="homeFeedback">
         <div className="innerWrap">
           <div className="homeFeedbackIntro">
             <h2>What Our Patients Say About TopDent</h2>
@@ -475,7 +475,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="homePromo" data-mascot-target="home-promo">
+      <section className="homePromo">
         <div className="innerWrap homePromoInner">
           <p>
             Don't wait until it hurts. <strong>Book your appointment today.</strong>

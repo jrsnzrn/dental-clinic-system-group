@@ -3,7 +3,6 @@ import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import CursorAura from "../components/CursorAura";
 import { db } from "../firebase";
 import { getActiveServices, getClinicServiceImage, getLocalClinicServiceImage, PUBLIC_SERVICE_CATALOG } from "../utils/clinic";
-import scaryServiceTooth from "../assets/scary-service-tooth.png";
 import cleaningImg from "../assets/services/cleaning.jpg";
 import fillingsImg from "../assets/services/fillings.jpg";
 import extractionImg from "../assets/services/extraction.jpg";
@@ -304,29 +303,6 @@ function mergeServices(managedServices) {
 /* Hooks                                                               */
 /* ------------------------------------------------------------------ */
 
-const DEMONIC_CLASS = "mascotDemonicTheme";
-
-function useDemonicTheme() {
-  const [isDemonic, setIsDemonic] = useState(
-    () => typeof document !== "undefined" && document.body.classList.contains(DEMONIC_CLASS)
-  );
-
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-
-    const body = document.body;
-    const sync = () => setIsDemonic(body.classList.contains(DEMONIC_CLASS));
-
-    const observer = new MutationObserver(sync);
-    observer.observe(body, { attributes: true, attributeFilter: ["class"] });
-    sync();
-
-    return () => observer.disconnect();
-  }, []);
-
-  return isDemonic;
-}
-
 function useManagedServices() {
   const [services, setServices] = useState([]);
 
@@ -341,12 +317,12 @@ function useManagedServices() {
   return services;
 }
 
-function ServiceImage({ service, isDemonic }) {
+function ServiceImage({ service }) {
   return (
     <img
-      className={`svxImg${isDemonic ? " isScary" : ""}`}
-      src={isDemonic ? scaryServiceTooth : service.img}
-      alt={isDemonic ? `${service.name} in demon mode` : service.name}
+      className="svxImg"
+      src={service.img}
+      alt={service.name}
       loading="lazy"
       onError={(event) => {
         event.currentTarget.onerror = null;
@@ -356,13 +332,13 @@ function ServiceImage({ service, isDemonic }) {
   );
 }
 
-function ServiceCard({ service, isActive, isDemonic, onSelect }) {
+function ServiceCard({ service, isActive, onSelect }) {
   const types = service.types || [];
 
   return (
     <article
       className="svxCard"
-      data-mascot-target={isActive ? "selected-service-card" : undefined}
+
       onMouseEnter={onSelect}
       onFocus={onSelect}
       onClick={onSelect}
@@ -370,20 +346,20 @@ function ServiceCard({ service, isActive, isDemonic, onSelect }) {
       <h3 className="svxCardName">{service.name}</h3>
 
       <div className="svxCardMedia">
-        <ServiceImage service={service} isDemonic={isDemonic} />
+      <ServiceImage service={service} />
       </div>
 
-      <p className="svxCardDesc" data-mascot-target={isActive ? "selected-service-details" : undefined}>
+      <p className="svxCardDesc">
         {service.desc}
       </p>
 
       {types.length > 0 && <p className="svxCardTypes">{types.join(" · ")}</p>}
 
-      <p className="svxCardPrice" data-mascot-target={isActive ? "service-pricing" : undefined}>
+      <p className="svxCardPrice">
         {service.price}
       </p>
 
-      <a className="svxPill" href="/book" data-mascot-target={isActive ? "book" : undefined}>
+      <a className="svxPill" href="/book">
         Book now
       </a>
     </article>
@@ -395,7 +371,6 @@ function ServiceCard({ service, isActive, isDemonic, onSelect }) {
 /* ------------------------------------------------------------------ */
 
 export default function Services() {
-  const isDemonic = useDemonicTheme();
   const managedServices = useManagedServices();
   const items = useMemo(() => mergeServices(managedServices), [managedServices]);
 
@@ -463,15 +438,6 @@ export default function Services() {
     }
   }
 
-  // lets the mascot know which service is on screen
-  useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("topdent:selected-service-change", {
-        detail: { index: safeIndex, name: selected?.name || "" },
-      })
-    );
-  }, [safeIndex, selected?.name]);
-
   const indicatorProgress = carouselState.canScroll
     ? carouselState.progress
     : total > 1 ? safeIndex / (total - 1) : 0;
@@ -503,7 +469,6 @@ export default function Services() {
               key={item.name}
               service={item}
               isActive={i === safeIndex}
-              isDemonic={isDemonic}
               onSelect={() => setIndex(i)}
             />
           ))}

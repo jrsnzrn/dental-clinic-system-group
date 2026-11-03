@@ -681,7 +681,7 @@ export default function Book() {
   if (!user) {
     return (
       <div className="container bookingPage">
-        <div className="googleGate" data-mascot-target="booking-auth">
+        <div className="googleGate">
           <div className="googleGateLogo">
             <img src={GOOGLE_ICON_URL} alt="Google" />
           </div>
@@ -744,23 +744,6 @@ export default function Book() {
             <span className="badge">Signed in</span>
           </div>
 
-          {/* Hidden collectible (kept from the old summary card) */}
-          <button
-            type="button"
-            className="mascotCurseCollectible mascotCurseCollectible-wand"
-            aria-label="Return the hidden wand"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent("topdent:curse-item-found", {
-                  detail: { item: "wand", source: "book" },
-                })
-              );
-            }}
-          >
-            <span className="mascotCurseCollectibleStick" />
-            <span className="mascotCurseCollectibleStar" />
-          </button>
-
           {success && !profileReady ? (
             <div className="successBanner">
               <strong>{success}</strong>
@@ -771,11 +754,11 @@ export default function Book() {
           {loadingProfile ? <SkeletonList count={1} /> : null}
 
           {!loadingProfile && !profileReady ? (
-            <form className="form bookingProfileForm" onSubmit={saveProfile} style={{ marginTop: 12 }} data-mascot-target="book-profile">
+            <form className="form bookingProfileForm" onSubmit={saveProfile} style={{ marginTop: 12 }}>
               <input
                 className="input"
                 placeholder="First name"
-                data-mascot-target="book-name"
+
                 value={profileDraft.firstName}
                 onChange={(e) => setProfileDraft((current) => ({ ...current, firstName: e.target.value }))}
                 disabled={savingProfile || loadingProfile}
@@ -828,7 +811,7 @@ export default function Book() {
                 <span className="bookingFieldHint">Assigned by clinic staff after your profile is reviewed.</span>
               </label>
 
-              <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile} data-mascot-target="book-profile-save">
+              <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile}>
                 {savingProfile ? "Saving..." : loadingProfile ? "Loading..." : "Save Patient Profile"}
               </button>
             </form>
@@ -907,7 +890,7 @@ export default function Book() {
                       </button>
                     </div>
 
-                    <div className="bookingFieldCard bookingServiceSelector" data-mascot-target="book-service">
+                    <div className="bookingFieldCard bookingServiceSelector">
                       <div className="bookingFieldHeader">
                         <div className="bookingServiceHeaderText">
                           <span className="detailLabel">Choose services</span>
@@ -965,7 +948,7 @@ export default function Book() {
                   </section>
 
                   <section className="bookingInfoSection bookingInfoSchedule">
-                    <div className="bookingDatePanel" data-mascot-target="book-date">
+                    <div className="bookingDatePanel">
                       <div className="bookingDatePanelHeader">
                         <div>
                           <span className="detailLabel">Choose appointment day</span>
@@ -1045,7 +1028,7 @@ export default function Book() {
                     {availabilityError ? <div className="error">{availabilityError}</div> : null}
 
                     <div className="bookingFlowGrid">
-                      <label className="bookingFieldCard" data-mascot-target="book-dentist">
+                      <label className="bookingFieldCard">
                         <span className="detailLabel">Available dentist</span>
                         <div className="bookingSelectShell">
                           <select
@@ -1067,7 +1050,7 @@ export default function Book() {
                         </div>
                       </label>
 
-                      <label className="bookingFieldCard" data-mascot-target="book-time">
+                      <label className="bookingFieldCard">
                         <span className="detailLabel">Choose time slot</span>
                         <div className="bookingSelectShell">
                           <select
@@ -1154,7 +1137,7 @@ export default function Book() {
                   disabled={!user || saving}
                 />
 
-                <label className="bookingConsentCard" data-mascot-target="book-consent">
+                <label className="bookingConsentCard">
                   <input
                     type="checkbox"
                     checked={agreedToPrivacyConsent}
@@ -1169,7 +1152,7 @@ export default function Book() {
                 <button
                   type="submit"
                   className="btn btnShine bookingPrimaryBtn"
-                  data-mascot-target="book-submit"
+
                   disabled={!user || saving || loadingAvailability || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
                 >
                   Review Appointment Details

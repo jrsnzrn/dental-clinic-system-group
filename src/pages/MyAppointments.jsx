@@ -530,7 +530,7 @@ export default function MyAppointments() {
             <>
               {requestMode === "reschedule" ? (
                 <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard" data-mascot-target="appointment-request-date">
+                  <label className="bookingFieldCard">
                     <span className="detailLabel">Requested date</span>
                     <input
                       className="input bookingInputSpecial"
@@ -541,7 +541,7 @@ export default function MyAppointments() {
                       }
                     />
                   </label>
-                  <label className="bookingFieldCard" data-mascot-target="appointment-request-time">
+                  <label className="bookingFieldCard">
                     <span className="detailLabel">Requested time</span>
                     <input
                       className="input bookingInputSpecial"
@@ -563,7 +563,7 @@ export default function MyAppointments() {
                 onChange={(event) =>
                   setRescheduleDraft((current) => ({ ...current, reason: event.target.value }))
                 }
-                data-mascot-target="appointment-request-reason"
+
                 style={{ marginTop: 14 }}
               />
 
