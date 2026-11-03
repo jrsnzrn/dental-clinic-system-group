@@ -54,6 +54,46 @@ service cloud.firestore {
       return isAdmin() || isReceptionist() || isDentist();
     }
 
+    function patientDetailsAreValid(data) {
+      return data.firstName is string &&
+        data.firstName.matches(".*[^\\s].*") &&
+        data.lastName is string &&
+        data.lastName.matches(".*[^\\s].*") &&
+        data.name is string &&
+        data.name.matches(".*[^\\s].*") &&
+        data.age is string &&
+        data.age.matches("^[1-9][0-9]*$") &&
+        data.phone is string &&
+        data.phone.matches("^09[0-9]{9}$") &&
+        data.email is string &&
+        data.email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") &&
+        data.address is string &&
+        data.address.matches(".*[^\\s].*") &&
+        data.patientType in ["Regular", "Ortho"] &&
+        (
+          (data.patientType == "Regular" && !data.keys().hasAny(["bracesType"])) ||
+          (
+            data.patientType == "Ortho" &&
+            data.bracesType in ["Metal", "Ceramic", "Self-Ligating", "Sapphire"]
+          )
+        );
+    }
+
+    function patientDetailsAreChanging() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        "firstName",
+        "middleName",
+        "lastName",
+        "name",
+        "age",
+        "phone",
+        "email",
+        "address",
+        "patientType",
+        "bracesType"
+      ]);
+    }
+
     function patientProfileCreateKeysAreSafe(uid) {
       return request.resource.data.keys().hasOnly([
         "uid",
@@ -131,11 +171,15 @@ service cloud.firestore {
     match /patients/{id} {
       allow read: if isAdminOrReceptionist() ||
         (isDentist() && resource.data.authorizedDentistUids is list && resource.data.authorizedDentistUids.hasAny([request.auth.uid]));
-      allow create: if isAdminOrReceptionist();
+      allow create: if isAdminOrReceptionist() && patientDetailsAreValid(request.resource.data);
       allow delete: if isAdmin();
-      allow update: if isAdmin() ||
-        (isReceptionist() &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["status", "archiveStatus"]));
+      allow update: if
+        (
+          isAdmin() ||
+          (isReceptionist() &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(["status", "archiveStatus"]))
+        ) &&
+        (!patientDetailsAreChanging() || patientDetailsAreValid(request.resource.data));
     }
 
     match /bookings/{id} {

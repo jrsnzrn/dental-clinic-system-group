@@ -3,6 +3,7 @@ import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, db } from "../../firebase";
+import BackArrow from "../../components/BackArrow";
 import {
   getAdminProfile,
   getDefaultAdminPath,
@@ -257,14 +258,12 @@ export default function Login() {
           </button>
 
           <button
-            className="backButton appBackAction"
+            className="backButton appBackAction topdentBackAction"
             type="button"
+            aria-label="Go back"
             onClick={() => navigate("/")}
           >
-            <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
-              <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10h9" />
-            </svg>
-            Back to Home
+            <BackArrow />
           </button>
         </form>
 

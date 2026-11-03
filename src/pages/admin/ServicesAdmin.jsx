@@ -119,6 +119,8 @@ export default function ServicesAdmin() {
   const filteredServices = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return normalizedServices.filter((service) => {
+      const isHiddenDentalXray = service.name.trim().toLowerCase() === "dental x-ray"
+        && service.startingRate.trim().toLowerCase() === "consultation pricing available at clinic";
       const matchesStatus = statusFilter === "active" ? service.active : !service.active;
       const searchContent = [
         service.name,
@@ -126,7 +128,9 @@ export default function ServicesAdmin() {
         service.category,
         service.startingRate,
       ].join(" ").toLowerCase();
-      return matchesStatus && (!normalizedSearch || searchContent.includes(normalizedSearch));
+      return !isHiddenDentalXray
+        && matchesStatus
+        && (!normalizedSearch || searchContent.includes(normalizedSearch));
     });
   }, [normalizedServices, search, statusFilter]);
   const selectedBuiltinImage = CLINIC_SERVICE_IMAGE_OPTIONS.find((option) =>
@@ -576,20 +580,6 @@ export default function ServicesAdmin() {
                       value={serviceDraft.startingRate}
                       onChange={(event) => setServiceDraft((current) => ({ ...current, startingRate: event.target.value }))}
                       placeholder="e.g. PHP 800 starting"
-                    />
-                  </label>
-                  <label>
-                    <span>Duration (minutes)</span>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      step="1"
-                      value={serviceDraft.durationMinutes}
-                      onChange={(event) => setServiceDraft((current) => ({
-                        ...current,
-                        durationMinutes: event.target.value === "" ? "" : Number(event.target.value),
-                      }))}
                     />
                   </label>
                   <label>

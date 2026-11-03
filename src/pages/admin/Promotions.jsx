@@ -342,7 +342,7 @@ export default function Promotions() {
 
             <div className="inlineActionRow">
               <button className="btn btnShine" disabled={saving}>
-                {saving ? "Saving…" : editingId ? "Save changes" : "Create promo"}
+                {saving ? "Saving…" : editingId ? "Update" : "Create promo"}
               </button>
               <button className="btn btnGhost" type="button" onClick={closeForm} disabled={saving}>Cancel</button>
             </div>

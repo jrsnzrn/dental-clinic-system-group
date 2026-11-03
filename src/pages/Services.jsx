@@ -274,8 +274,12 @@ function mergeServices(managedServices) {
     if (rightOrder !== undefined) return 1;
     return left.name.localeCompare(right.name);
   });
+  const displayedServices = activeServices.filter((service) => (
+    key(service.name) !== key("Dental X-ray")
+    || key(service.startingRate) !== key("Consultation pricing available at clinic")
+  ));
 
-  return activeServices.map((service) => {
+  return displayedServices.map((service) => {
     const serviceKey = key(service.name);
     const existing = DEFAULT_ITEMS.find((item) => key(item.name) === serviceKey);
     const source = managedServices.find((entry) => entry.id === service.id) || {};

@@ -6,6 +6,7 @@ import { auth, db, googleProvider } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
 import ConfirmDialog from "./ConfirmDialog";
+import BookingToolbar from "./BookingToolbar";
 import StaffNotificationBell from "./StaffNotificationBell";
 
 const THEME_OPTIONS = [
@@ -406,18 +407,139 @@ async function logoutAccount() {
   }
 }
 
-export function PatientDashboardHeader({ user, theme, onThemeChange }) {
+export function PatientDashboardHeader({ user }) {
   return (
     <header className="patientDashboardHeader">
-      <AccountMenu
-        user={user}
-        items={[]}
-        onLogout={logoutAccount}
-        theme={theme}
-        onThemeChange={onThemeChange}
-        accountRole="Patient"
-      />
+      <div className="patientHeaderAccount" aria-label="Patient account">
+        <AccountAvatar user={user} />
+        <span className="accountMeta">
+          <span className="accountName">{getDisplayName(user)}</span>
+          {user?.email ? <span className="patientHeaderEmail">{user.email}</span> : null}
+        </span>
+      </div>
     </header>
+  );
+}
+
+export function PatientSidebarActions({ theme, onThemeChange }) {
+  const [appearanceModalOpen, setAppearanceModalOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+
+  useEffect(() => {
+    if (!appearanceModalOpen) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setAppearanceModalOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [appearanceModalOpen]);
+
+  return (
+    <>
+      <div className="patientSidebarActions">
+        <button
+          type="button"
+          className="patientSidebarLink patientSidebarAction"
+          onClick={() => setAppearanceModalOpen(true)}
+        >
+          <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
+            {THEME_OPTIONS.find((option) => option.id === "blue").icon}
+          </span>
+          <span>Appearance</span>
+        </button>
+        <button
+          type="button"
+          className="patientSidebarLink patientSidebarAction patientSidebarLogout"
+          data-mascot-target="nav-logout"
+          onClick={() => {
+            setLogoutError("");
+            setLogoutConfirmOpen(true);
+          }}
+        >
+          {ACCOUNT_ICONS.logout}
+          <span>Log Out</span>
+        </button>
+      </div>
+      {appearanceModalOpen && (
+        <div
+          className="appearanceModalOverlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAppearanceModalOpen(false);
+          }}
+        >
+          <section
+            className="appearanceModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="patientAppearanceModalTitle"
+          >
+            <header className="appearanceModalHeader">
+              <h2 id="patientAppearanceModalTitle">Appearance</h2>
+              <button
+                type="button"
+                className="appearanceModalClose"
+                aria-label="Close appearance settings"
+                onClick={() => setAppearanceModalOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="appearanceThemeOptions" role="radiogroup" aria-label="Theme">
+              {THEME_OPTIONS.map((option) => {
+                const label = option.id === "system"
+                  ? "Use System Setting"
+                  : `${option.id.charAt(0).toUpperCase() + option.id.slice(1)}`;
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className="appearanceThemeOption"
+                    role="radio"
+                    aria-checked={theme === option.id}
+                    onClick={() => onThemeChange(option.id)}
+                  >
+                    <span className={`appearanceThemePreview ${option.id}`} aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                    <span className="appearanceThemeLabel">{label}</span>
+                    <span className="appearanceThemeSelected" aria-hidden="true">
+                      {theme === option.id ? "✓" : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        title="Log Out?"
+        message={logoutError || "Are you sure you want to log out of your TopDent account?"}
+        confirmLabel="Log Out"
+        cancelLabel="Cancel"
+        tone="danger"
+        className="logoutConfirmModal"
+        overlayClassName="logoutConfirmOverlay"
+        icon={ACCOUNT_ICONS.logout}
+        closeIcon="×"
+        onConfirm={async () => {
+          const didLogout = await logoutAccount();
+          if (didLogout) setLogoutConfirmOpen(false);
+          else setLogoutError("Unable to log out. Please try again.");
+        }}
+        onClose={() => {
+          setLogoutConfirmOpen(false);
+          setLogoutError("");
+        }}
+      />
+    </>
   );
 }
 
@@ -433,6 +555,10 @@ export default function NavBar({
   onDentistPatientTypeFilterChange = () => {},
   archiveSearch = "",
   onArchiveSearchChange = () => {},
+  bookingSearch = "",
+  onBookingSearchChange = () => {},
+  bookingSortBy = "newest",
+  onBookingSortChange = () => {},
 }) {
   const navClass = ({ isActive }) => "navItem" + (isActive ? " active" : "");
 
@@ -505,6 +631,12 @@ export default function NavBar({
   }, [location.pathname]);
 
   useEffect(() => {
+    if (location.pathname.startsWith("/admin/bookings")) return;
+    onBookingSearchChange("");
+    onBookingSortChange("newest");
+  }, [location.pathname, onBookingSearchChange, onBookingSortChange]);
+
+  useEffect(() => {
     if (!appearanceModalOpen) return undefined;
 
     function handleKeyDown(event) {
@@ -523,6 +655,7 @@ export default function NavBar({
     adminRole === ROLES.DENTIST &&
     (location.pathname === "/admin/patients" || location.pathname === "/admin/patients/");
   const isArchiveRoute = isAdmin && location.pathname.startsWith("/admin/archive");
+  const isBookingsRoute = isAdmin && location.pathname.startsWith("/admin/bookings");
   const isStaffVerificationRoute =
     location.pathname === "/admin/verify-email" || location.pathname === "/admin/mfa";
 
@@ -567,28 +700,39 @@ export default function NavBar({
                     onChange={(event) => onDentistSearchChange(event.target.value)}
                   />
                 </div>
-                {isDentistPatientsRoute ? (
-                  <label className="dentistPatientTypeFilter">
-                    <select
-                      className="input"
-                      aria-label="Filter patients by type"
-                      value={dentistPatientTypeFilter}
-                      onChange={(event) => onDentistPatientTypeFilterChange(event.target.value)}
-                    >
-                      <option value="All">All</option>
-                      <option value="Ortho">Ortho</option>
-                      <option value="Regular">Regular</option>
-                    </select>
-                  </label>
-                ) : null}
               </>
             ) : null}
-            <StaffNotificationBell adminRole={adminRole} />
-            <StaffAccountInfo
-              user={user}
-              name={staffName}
-              role={ROLE_LABELS[adminRole] || "Staff"}
-            />
+            {isBookingsRoute ? (
+              <BookingToolbar
+                className="bookingHeaderToolbar"
+                search={bookingSearch}
+                onSearchChange={onBookingSearchChange}
+                sortBy={bookingSortBy}
+                onSortChange={onBookingSortChange}
+              />
+            ) : null}
+            <div className="staffTopbarAccountGroup">
+              {isDentistPatientsRoute ? (
+                <label className="dentistPatientTypeFilter">
+                  <select
+                    className="input"
+                    aria-label="Filter patients by type"
+                    value={dentistPatientTypeFilter}
+                    onChange={(event) => onDentistPatientTypeFilterChange(event.target.value)}
+                  >
+                    <option value="All">All</option>
+                    <option value="Ortho">Ortho</option>
+                    <option value="Regular">Regular</option>
+                  </select>
+                </label>
+              ) : null}
+              <StaffNotificationBell adminRole={adminRole} />
+              <StaffAccountInfo
+                user={user}
+                name={staffName}
+                role={ROLE_LABELS[adminRole] || "Staff"}
+              />
+            </div>
           </div>
         )}
 

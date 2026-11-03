@@ -3,7 +3,7 @@ import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from "re
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import NavBar, { PatientDashboardHeader } from "./components/NavBar";
+import NavBar, { PatientDashboardHeader, PatientSidebarActions } from "./components/NavBar";
 import Footer from "./components/Footer";
 import Mascot from "./components/Mascot";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -265,9 +265,10 @@ function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }
                   </NavLink>
                 ))}
               </nav>
+              <PatientSidebarActions theme={theme} onThemeChange={onThemeChange} />
             </aside>
             <main className="patientDashboardContent">
-              <PatientDashboardHeader user={user} theme={theme} onThemeChange={onThemeChange} />
+              <PatientDashboardHeader user={user} />
               <div className="patientDashboardPage">{children}</div>
             </main>
           </div>
@@ -288,6 +289,8 @@ export default function App() {
   const [dentistSearch, setDentistSearch] = useState("");
   const [dentistPatientTypeFilter, setDentistPatientTypeFilter] = useState("All");
   const [archiveSearch, setArchiveSearch] = useState("");
+  const [bookingSearch, setBookingSearch] = useState("");
+  const [bookingSortBy, setBookingSortBy] = useState("newest");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -377,6 +380,10 @@ export default function App() {
             onDentistPatientTypeFilterChange: setDentistPatientTypeFilter,
             archiveSearch,
             onArchiveSearchChange: setArchiveSearch,
+            bookingSearch,
+            onBookingSearchChange: setBookingSearch,
+            bookingSortBy,
+            onBookingSortChange: setBookingSortBy,
           }}
         >
           <Routes>
@@ -445,7 +452,12 @@ export default function App() {
                       user={user}
                       allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
                     >
-                      <Bookings />
+                      <Bookings
+                        search={bookingSearch}
+                        onSearchChange={setBookingSearch}
+                        sortBy={bookingSortBy}
+                        onSortChange={setBookingSortBy}
+                      />
                     </ProtectedRoute>
                   }
                 />
