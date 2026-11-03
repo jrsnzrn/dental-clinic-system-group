@@ -52,8 +52,6 @@ const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crown
 const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
 const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTreatmentComplete");
 const SYNC_DENTIST_PATIENT_ACCESS = httpsCallable(functions, "syncDentistPatientAccess");
-const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
-const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
 
 const PATIENT_VIEWS = {
   DETAILS: "details",
@@ -100,23 +98,6 @@ function buildDraftFromPatient(patient) {
     patientType: normalizePatientType(patient.patientType),
     bracesType: patient.bracesType || "",
     status: patient.status || "Active",
-  };
-}
-
-function getEmptyAddDraft() {
-  return {
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    age: "",
-    phone: "",
-    email: "",
-    patientType: "Regular",
-    bracesType: "",
-    dentistId: "",
-    service: "",
-    date: "",
-    time: "",
   };
 }
 
@@ -607,7 +588,6 @@ export default function Patients({
   const [patients, setPatients] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [dentistProfiles, setDentistProfiles] = useState([]);
-  const [clinicServices, setClinicServices] = useState([]);
   const selectedPatientId = patientId;
   const [draft, setDraft] = useState(getEmptyDraft());
   const [isEditing, setIsEditing] = useState(false);
@@ -616,13 +596,6 @@ export default function Patients({
   const [pdfBusy, setPdfBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
-  const [addOpen, setAddOpen] = useState(false);
-  const [addDraft, setAddDraft] = useState(getEmptyAddDraft());
-  const [addSaving, setAddSaving] = useState(false);
-  const [addError, setAddError] = useState("");
-  const [walkInTimeOptions, setWalkInTimeOptions] = useState([]);
-  const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
-  const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
   const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
   const [dentistDentalCharts, setDentistDentalCharts] = useState({});
   const [selectedTeeth, setSelectedTeeth] = useState([]);
@@ -644,52 +617,6 @@ export default function Patients({
   const [currentDentistIdentity, setCurrentDentistIdentity] = useState({ uid: "" });
   const dentistWorkspaceListeners = useRef([]);
 
-  useEffect(() => {
-    if (!addOpen || !addDraft.dentistId || !addDraft.date || !addDraft.service) {
-      setWalkInTimeOptions([]);
-      setWalkInAvailabilityError("");
-      setLoadingWalkInTimes(false);
-      return undefined;
-    }
-
-    let cancelled = false;
-    setLoadingWalkInTimes(true);
-    setWalkInAvailabilityError("");
-
-    const requestTimer = window.setTimeout(() => {
-      GET_BOOKING_AVAILABILITY({
-        dentistId: addDraft.dentistId,
-        date: addDraft.date,
-        selectedServices: [addDraft.service],
-      })
-        .then((response) => {
-          if (cancelled) return;
-          const options = (Array.isArray(response.data?.slotOptions) ? response.data.slotOptions : [])
-            .filter((option) => !option.disabled)
-            .map((option) => option.value);
-          setWalkInTimeOptions(options);
-          setAddDraft((current) => ({
-            ...current,
-            time: options.includes(current.time) ? current.time : options[0] || "",
-          }));
-        })
-        .catch((error) => {
-          if (cancelled) return;
-          console.error("Walk-in appointment availability could not load:", error);
-          setWalkInTimeOptions([]);
-          setWalkInAvailabilityError("Could not load available times. Please try again.");
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingWalkInTimes(false);
-        });
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(requestTimer);
-    };
-  }, [addOpen, addDraft.date, addDraft.dentistId, addDraft.service]);
-
   function clearDentistWorkspaceListeners() {
     dentistWorkspaceListeners.current.forEach((unsubscribe) => unsubscribe());
     dentistWorkspaceListeners.current = [];
@@ -698,8 +625,6 @@ export default function Patients({
   async function load(role = adminRole, staffUid = currentDentistIdentity.uid) {
     const dentistsResult = await getDocs(collection(db, "dentists"));
     const nextDentistProfiles = dentistsResult.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
-    const servicesResult = await getDocs(collection(db, "clinicServices"));
-    setClinicServices(servicesResult.docs.map((entry) => ({ id: entry.id, ...entry.data() })).filter((entry) => entry.active !== false));
     let patientsResult;
     let bookingsResult;
 
@@ -959,15 +884,6 @@ export default function Patients({
   }, [selectedPatient]);
 
   useEffect(() => {
-    if (!addOpen) return undefined;
-    function handleKey(e) {
-      if (e.key === "Escape") setAddOpen(false);
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [addOpen]);
-
-  useEffect(() => {
     if (!notice || notice.type !== "success") return undefined;
     const timer = setTimeout(() => setNotice(null), 5000);
     return () => clearTimeout(timer);
@@ -1094,67 +1010,6 @@ export default function Patients({
       [key]: value,
       ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
     }));
-  }
-
-  function updateAddDraft(key, value) {
-    setAddDraft((current) => ({
-      ...current,
-      [key]: value,
-      ...(key === "date" || key === "dentistId" || key === "service" ? { time: "" } : {}),
-      ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
-    }));
-  }
-
-  async function addPatient(e) {
-    e.preventDefault();
-    if (addSaving || !addDraft.firstName.trim() || !addDraft.lastName.trim()) return;
-    if (!walkInTimeOptions.includes(addDraft.time)) {
-      setAddError("Choose an available 45-minute appointment time.");
-      return;
-    }
-    if (addDraft.patientType === "Ortho" && !PATIENT_BRACES_TYPES.includes(addDraft.bracesType)) {
-      setNotice({ type: "error", text: "Select a type of braces for an Ortho patient." });
-      return;
-    }
-
-    setAddSaving(true);
-    setAddError("");
-
-    try {
-      const fullName = buildFullName(addDraft);
-      await CREATE_STAFF_WALK_IN_BOOKING({
-        patient: {
-          firstName: addDraft.firstName.trim(),
-          middleName: addDraft.middleName.trim(),
-          lastName: addDraft.lastName.trim(),
-          age: String(addDraft.age).trim(),
-          phone: addDraft.phone.trim(),
-          email: addDraft.email.trim(),
-          patientType: addDraft.patientType,
-          bracesType: addDraft.patientType === "Ortho" ? addDraft.bracesType : "",
-        },
-        appointment: {
-          dentistId: addDraft.dentistId,
-          service: addDraft.service,
-          date: addDraft.date,
-          time: addDraft.time,
-        },
-      });
-
-      setAddOpen(false);
-      setAddDraft(getEmptyAddDraft());
-      setNotice({ type: "success", text: `${fullName} and the appointment were added. The appointment is now in Bookings for approval.` });
-      await load();
-    } catch (error) {
-      console.error(error);
-      setAddError(
-        error?.code === "functions/internal" || error?.code === "functions/unavailable"
-          ? "The walk-in booking service is unavailable right now. Please try again later or contact the administrator."
-          : error?.message || "Could not create the patient and appointment. Please try again."
-      );
-    } finally {
-      setAddSaving(false);
-    }
   }
 
   async function savePatientDetails(e) {
@@ -1916,11 +1771,6 @@ export default function Patients({
                 </select>
               </div>
 
-              {canEditPatientProfile ? (
-              <button type="button" className="btn btnPrimary" onClick={() => { setAddError(""); setAddOpen(true); }}>
-                  Add New Patient
-                </button>
-              ) : null}
             </div>
           </div>
 
@@ -2743,118 +2593,6 @@ export default function Patients({
           )}
           </div>
         </main>
-      ) : null}
-
-      {addOpen ? (
-        <div className="modalOverlay addPatientModalOverlay" onClick={() => setAddOpen(false)} role="presentation">
-          <form
-            className="modalCard addPatientModal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-patient-title"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={addPatient}
-          >
-            <div className="modalHead">
-              <h2 id="add-patient-title" className="modalTitle">Add Walk-In Patient & Appointment</h2>
-              <button type="button" className="iconBtn" aria-label="Close" onClick={() => setAddOpen(false)}>
-                &times;
-              </button>
-            </div>
-
-            <div className="modalBody addPatientModalBody">
-              {addError ? <div className="formError walkInAppointmentError" role="alert">{addError}</div> : null}
-              <label className="field">
-                <span className="fieldLabel">First name</span>
-                <input className="input" required value={addDraft.firstName} onChange={(e) => updateAddDraft("firstName", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Middle name</span>
-                <input className="input" value={addDraft.middleName} onChange={(e) => updateAddDraft("middleName", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Last name</span>
-                <input className="input" required value={addDraft.lastName} onChange={(e) => updateAddDraft("lastName", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Age</span>
-                <input className="input" type="number" min="1" required value={addDraft.age} onChange={(e) => updateAddDraft("age", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Contact number</span>
-                <input className="input" type="tel" required value={addDraft.phone} onChange={(e) => updateAddDraft("phone", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Gmail</span>
-                <input className="input" type="email" value={addDraft.email} onChange={(e) => updateAddDraft("email", e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Type of patient</span>
-                <select className="input" value={addDraft.patientType} onChange={(e) => updateAddDraft("patientType", e.target.value)}>
-                  {PATIENT_TYPES.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </label>
-              {addDraft.patientType === "Ortho" ? (
-                <label className="field">
-                  <span className="fieldLabel">Type of Braces</span>
-                  <select
-                    className="input"
-                    value={addDraft.bracesType}
-                    onChange={(e) => updateAddDraft("bracesType", e.target.value)}
-                    required
-                  >
-                    <option value="">Select type of braces</option>
-                    {PATIENT_BRACES_TYPES.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <div className="fieldGroupLabel">Appointment details</div>
-              <label className="field">
-                <span className="fieldLabel">Dentist</span>
-                <select className="input" value={addDraft.dentistId} onChange={(e) => updateAddDraft("dentistId", e.target.value)} required>
-                  <option value="">Select a dentist</option>
-                  {dentistProfiles.filter((dentist) => dentist.active !== false && dentist.archiveStatus !== "Archived").map((dentist) => (
-                    <option key={dentist.id} value={dentist.id}>{dentist.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Service</span>
-                <select className="input" value={addDraft.service} onChange={(e) => updateAddDraft("service", e.target.value)} required>
-                  <option value="">Select a service</option>
-                  {clinicServices.map((service) => (
-                    <option key={service.id} value={service.name}>{service.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Appointment date</span>
-                <input className="input" type="date" min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)} value={addDraft.date} onChange={(e) => updateAddDraft("date", e.target.value)} required />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Appointment time</span>
-                <select className="input" value={addDraft.time} onChange={(e) => updateAddDraft("time", e.target.value)} required disabled={loadingWalkInTimes || !walkInTimeOptions.length}>
-                  <option value="">{loadingWalkInTimes ? "Checking availability…" : walkInTimeOptions.length ? "Select a time" : "No time slots available"}</option>
-                  {walkInTimeOptions.map((time) => (
-                    <option key={time} value={time}>{formatTimeLabel(time)}</option>
-                  ))}
-                </select>
-                {walkInAvailabilityError ? <span className="walkInAvailabilityError">{walkInAvailabilityError}</span> : null}
-              </label>
-            </div>
-
-            <div className="modalFoot">
-              <button type="button" className="btn btnSecondary" onClick={() => setAddOpen(false)}>Cancel</button>
-              <button className="btn btnSuccess" type="submit" disabled={addSaving}>
-                {addSaving ? "Saving" : "Add Patient & Appointment"}
-              </button>
-            </div>
-          </form>
-        </div>
       ) : null}
 
       <ConfirmDialog

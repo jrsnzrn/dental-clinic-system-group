@@ -2034,12 +2034,20 @@ exports.createStaffWalkInBooking = onCall(
     const patientType = String(patientInput.patientType || "Regular").trim();
     const bracesType = String(patientInput.bracesType || "").trim();
     const dentistId = String(appointment.dentistId || "").trim();
-    const serviceName = String(appointment.service || "").trim();
+    const requestedServiceNames = Array.isArray(appointment.services)
+      ? appointment.services.map((entry) => String(entry || "").trim()).filter(Boolean)
+      : String(appointment.service || "").split(",").map((entry) => entry.trim()).filter(Boolean);
+    const uniqueServiceNames = requestedServiceNames.filter((name, index, names) =>
+      names.findIndex((candidate) => normalizeText(candidate) === normalizeText(name)) === index
+    );
     const date = String(appointment.date || "").trim();
     const time = String(appointment.time || "").trim();
 
-    if (!firstName || !lastName || !age || !phone || !dentistId || !serviceName || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
-      throw new HttpsError("invalid-argument", "Patient details, dentist, service, date, and time are required.");
+    if (!firstName || !lastName || !age || !phone || !dentistId || !uniqueServiceNames.length || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+      throw new HttpsError("invalid-argument", "Patient details, dentist, at least one service, date, and time are required.");
+    }
+    if (uniqueServiceNames.length > 8) {
+      throw new HttpsError("invalid-argument", "Choose no more than eight services.");
     }
     if (!["Regular", "Ortho"].includes(patientType)) {
       throw new HttpsError("invalid-argument", "Choose a valid patient type.");
@@ -2057,16 +2065,19 @@ exports.createStaffWalkInBooking = onCall(
       const serviceOptions = getBookingServiceOptions(
         serviceSnapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
       );
-      const selectedService = serviceOptions.find((entry) => normalizeText(entry.name) === normalizeText(serviceName));
-      if (!selectedService) throw new HttpsError("failed-precondition", "That service is no longer available.");
+      const selectedServices = uniqueServiceNames.map((serviceName) =>
+        serviceOptions.find((entry) => normalizeText(entry.name) === normalizeText(serviceName))
+      );
+      if (selectedServices.some((entry) => !entry)) throw new HttpsError("failed-precondition", "One or more selected services are no longer available.");
+      const serviceNames = selectedServices.map((entry) => entry.name);
 
       const durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
       const draftBooking = {
         id: bookingRef.id,
         dentistId,
         selectedDentist: "",
-        service: selectedService.name,
-        services: [selectedService.name],
+        service: serviceNames.join(", "),
+        services: serviceNames,
         estimatedDurationMinutes: durationMinutes,
         date,
         time,
@@ -2126,9 +2137,9 @@ exports.createStaffWalkInBooking = onCall(
         selectedDentist: String(slot.dentist.name || "").trim(),
         dentistId: slot.dentist.id,
         dentistStaffUid: String(slot.dentist.linkedStaffUid || "").trim(),
-        service: selectedService.name,
-        services: [selectedService.name],
-        serviceCount: 1,
+        service: serviceNames.join(", "),
+        services: serviceNames,
+        serviceCount: serviceNames.length,
         estimatedDurationMinutes: durationMinutes,
         estimatedEndTime: slot.estimatedEndTime,
         date,
@@ -2570,6 +2581,107 @@ exports.setBookingStatus = onCall(
     return { success: true, bookingId, status: nextStatus };
   }
 );
+
+exports.rescheduleBooking = onCall({}, async (request) => {
+  const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const date = String(request.data?.date || "").trim();
+  const time = String(request.data?.time || "").trim();
+  if (!bookingId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    throw new HttpsError("invalid-argument", "Booking ID, date, and time are required.");
+  }
+
+  let updatedBooking = null;
+  await db.runTransaction(async (transaction) => {
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await transaction.get(bookingRef);
+    if (!bookingSnap.exists) throw new HttpsError("not-found", "Booking could not be found.");
+    const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+    if (booking.archiveStatus === "Archived" || ["completed", "no-show"].includes(String(booking.status || "").toLowerCase())) {
+      throw new HttpsError("failed-precondition", "This appointment cannot be rescheduled.");
+    }
+
+    const { lockRefs: oldLockRefs, lockSnaps: oldLockSnaps } = await getLockSnapshots(transaction, booking);
+    const slot = await validateStaffBookingSlot(transaction, {
+      bookingId,
+      booking,
+      nextDate: date,
+      nextTime: time,
+    });
+    if (slot.dentist.active === false || !slot.dentist.linkedStaffUid) {
+      throw new HttpsError("failed-precondition", "The selected dentist is not active or linked to a staff account.");
+    }
+    deleteOwnedLocks(transaction, oldLockRefs, oldLockSnaps, bookingId);
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const nextStatus = booking.status === "cancelled" ? "approved" : booking.status || "pending";
+    transaction.update(bookingRef, {
+      date,
+      time,
+      appointmentAt: slot.appointmentAt,
+      estimatedEndTime: slot.estimatedEndTime,
+      status: nextStatus,
+      checkedInAt: null,
+      queueSkippedAt: null,
+      queueSkippedByUid: null,
+      rescheduledAt: now,
+      statusUpdatedAt: now,
+    });
+    slot.lockRefs.forEach((lockRef) => {
+      transaction.set(lockRef, {
+        bookingId,
+        dentistId: slot.window.dentistId,
+        date: slot.window.date,
+        time: slot.window.time,
+        startMinutes: slot.window.startMinutes,
+        endMinutes: slot.window.endMinutes,
+        uid: booking.uid || "",
+        updatedAt: now,
+      });
+    });
+    updatedBooking = { ...booking, date, time, status: nextStatus };
+  });
+
+  await writeStaffAuditLog(staff, {
+    action: "reschedule_booking",
+    targetType: "booking",
+    targetId: bookingId,
+    targetLabel: getBookingTargetLabel(updatedBooking),
+    details: { date, time, status: updatedBooking.status },
+  });
+  return { success: true, bookingId, date, time };
+});
+
+exports.skipBookingQueue = onCall({}, async (request) => {
+  const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const skipped = request.data?.skipped !== false;
+  if (!bookingId) throw new HttpsError("invalid-argument", "Booking ID is required.");
+
+  let booking = null;
+  await db.runTransaction(async (transaction) => {
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await transaction.get(bookingRef);
+    if (!bookingSnap.exists) throw new HttpsError("not-found", "Booking could not be found.");
+    booking = { id: bookingSnap.id, ...bookingSnap.data() };
+    if (!isActiveBooking(booking)) {
+      throw new HttpsError("failed-precondition", "Only active appointments can be skipped in the queue.");
+    }
+    transaction.update(bookingRef, {
+      queueSkippedAt: skipped ? admin.firestore.FieldValue.serverTimestamp() : null,
+      queueSkippedByUid: skipped ? staff.uid : null,
+      queueUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  await writeStaffAuditLog(staff, {
+    action: skipped ? "skip_booking_queue" : "restore_booking_queue_order",
+    targetType: "booking",
+    targetId: bookingId,
+    targetLabel: getBookingTargetLabel(booking),
+    details: { date: booking.date || "", skipped },
+  });
+  return { success: true, bookingId, skipped };
+});
 
 exports.reassignBookingDentist = onCall(
   {},

@@ -7,8 +7,6 @@ import {
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -21,7 +19,20 @@ import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/s
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
 const ARCHIVE_BOOKING = httpsCallable(functions, "archiveBooking");
 const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
+const SKIP_BOOKING_QUEUE = httpsCallable(functions, "skipBookingQueue");
 const REASSIGN_BOOKING_DENTIST = httpsCallable(functions, "reassignBookingDentist");
+const RESCHEDULE_BOOKING = httpsCallable(functions, "rescheduleBooking");
+const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
+const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
+const WALK_IN_PATIENT_TYPES = ["Regular", "Ortho"];
+const WALK_IN_BRACES_TYPES = ["Metal Braces", "Ceramic Braces", "Sapphire Braces", "Self-Ligating Braces"];
+
+function getEmptyWalkInDraft() {
+  return {
+    firstName: "", middleName: "", lastName: "", age: "", phone: "", email: "",
+    patientType: "Regular", bracesType: "", dentistId: "", services: [], date: "", time: "",
+  };
+}
 
 const BOOKING_FILTERS = {
   calendar: { label: "All", emptyText: "No appointments match the current filters." },
@@ -481,6 +492,7 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
   const [newTime, setNewTime] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -503,7 +515,7 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  async function submit() {
+  function submit() {
     if (!newDate || !newTime) {
       setFormError("Choose both a date and a time.");
       return;
@@ -512,6 +524,12 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
       setFormError("The new date can't be in the past.");
       return;
     }
+    setFormError("");
+    setConfirmOpen(true);
+  }
+
+  async function confirmReschedule() {
+    setConfirmOpen(false);
     setSaving(true);
     setFormError("");
     try {
@@ -572,6 +590,14 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
           </div>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Confirm reschedule"
+        message={`Reschedule ${booking?.fullName || "this patient"} to ${formatDateLabel(newDate)} at ${formatTimeLabel(newTime)}?`}
+        confirmLabel="Confirm reschedule"
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={confirmReschedule}
+      />
     </>
   );
 }
@@ -643,14 +669,15 @@ function ReassignDentistModal({ open, booking, dentists, onClose, onSave }) {
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
   const [dentists, setDentists] = useState([]);
+  const [clinicServices, setClinicServices] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
   const [checkInPendingId, setCheckInPendingId] = useState(null);
+  const [queueActionPendingId, setQueueActionPendingId] = useState("");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [selectedDate, setSelectedDate] = useState("");
-  const [queueDate, setQueueDate] = useState(() => getLocalDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -661,6 +688,14 @@ export default function Bookings() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reassignId, setReassignId] = useState(null);
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [walkInDraft, setWalkInDraft] = useState(getEmptyWalkInDraft());
+  const [walkInSaving, setWalkInSaving] = useState(false);
+  const [walkInError, setWalkInError] = useState("");
+  const [walkInSuccess, setWalkInSuccess] = useState("");
+  const [walkInTimeOptions, setWalkInTimeOptions] = useState([]);
+  const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
+  const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
   const { status = "pending" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedBookingId = searchParams.get("bookingId");
@@ -698,6 +733,72 @@ export default function Bookings() {
     console.error("Dentists could not load for appointment coverage:", readError);
     setActionError("The dentist list could not be loaded. Please try again.");
   }), []);
+
+  useEffect(() => onSnapshot(collection(db, "clinicServices"), (snapshot) => {
+    setClinicServices(snapshot.docs
+      .map((entry) => ({ id: entry.id, ...entry.data() }))
+      .filter((service) => service.active !== false)
+      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""))));
+  }, (readError) => {
+    console.error("Clinic services could not load for walk-in booking:", readError);
+    setActionError("The clinic service list could not be loaded. Please try again.");
+  }), []);
+
+  const walkInServiceKey = walkInDraft.services.join("\u0000");
+  useEffect(() => {
+    if (!walkInOpen || !walkInDraft.dentistId || !walkInDraft.date || !walkInDraft.services.length) {
+      setWalkInTimeOptions([]);
+      setWalkInAvailabilityError("");
+      setLoadingWalkInTimes(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoadingWalkInTimes(true);
+    setWalkInAvailabilityError("");
+    setWalkInTimeOptions([]);
+    const requestTimer = window.setTimeout(() => {
+      GET_BOOKING_AVAILABILITY({
+        dentistId: walkInDraft.dentistId,
+        date: walkInDraft.date,
+        selectedServices: walkInDraft.services,
+      })
+        .then((response) => {
+          if (cancelled) return;
+          const options = (Array.isArray(response.data?.slotOptions) ? response.data.slotOptions : [])
+            .filter((option) => !option.disabled)
+            .map((option) => option.value);
+          setWalkInTimeOptions(options);
+          setWalkInDraft((current) => ({
+            ...current,
+            time: options.includes(current.time) ? current.time : options[0] || "",
+          }));
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error("Walk-in appointment availability could not load:", error);
+          setWalkInTimeOptions([]);
+          setWalkInAvailabilityError(error?.message || "Could not load available times. Please try again.");
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingWalkInTimes(false);
+        });
+    }, 2100);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(requestTimer);
+    };
+  }, [walkInOpen, walkInDraft.date, walkInDraft.dentistId, walkInServiceKey]);
+
+  useEffect(() => {
+    if (!walkInOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setWalkInOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [walkInOpen]);
 
   // Resolve deep-link state after the Firestore booking snapshot is available.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -802,31 +903,7 @@ export default function Bookings() {
   }
 
   async function saveReschedule(booking, date, time) {
-    const duration = Number(booking.estimatedDurationMinutes || 60);
-    const start = timeToMinutes(time);
-    const end = start + duration;
-
-    const conflict = bookings.find((b) => {
-      if (b.id === booking.id || b.date !== date || b.archiveStatus === "Archived") return false;
-      if (!["pending", "approved"].includes(b.status || "pending")) return false;
-      if (booking.selectedDentist && b.selectedDentist !== booking.selectedDentist) return false;
-      const bStart = timeToMinutes(b.time);
-      const bEnd = bStart + Number(b.estimatedDurationMinutes || 60);
-      return start < bEnd && bStart < end;
-    });
-    if (conflict) {
-      throw new Error(`That time overlaps ${conflict.fullName || "another booking"} (${getBookingTimeRange(conflict)}).`);
-    }
-
-    await updateDoc(doc(db, "bookings", booking.id), {
-      date,
-      time,
-      estimatedEndTime: minutesToTime(end),
-      appointmentAt: Timestamp.fromDate(new Date(`${date}T${time}:00`)),
-      status: booking.status === "cancelled" ? "approved" : booking.status || "pending",
-      checkedInAt: null,
-      rescheduledAt: serverTimestamp(),
-    });
+    await RESCHEDULE_BOOKING({ bookingId: booking.id, date, time });
     closeReschedule();
   }
 
@@ -846,7 +923,9 @@ export default function Bookings() {
       await action();
     } catch (error) {
       console.error(error);
-      setActionError(error?.message || "The booking action could not be completed.");
+      setActionError(error?.code === "functions/internal"
+        ? "The server could not finish this action. Confirm the latest Cloud Functions are deployed; if it continues, check Firebase Functions logs."
+        : error?.message || "The booking action could not be completed.");
     }
   }
 
@@ -858,6 +937,81 @@ export default function Bookings() {
     await ARCHIVE_BOOKING({ bookingId: id });
   }
 
+  function updateWalkInDraft(key, value) {
+    setWalkInDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "date" || key === "dentistId" ? { time: "" } : {}),
+      ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
+    }));
+    setWalkInError("");
+  }
+
+  function toggleWalkInService(serviceName) {
+    setWalkInDraft((current) => ({
+      ...current,
+      services: current.services.includes(serviceName)
+        ? current.services.filter((service) => service !== serviceName)
+        : [...current.services, serviceName],
+      time: "",
+    }));
+    setWalkInError("");
+  }
+
+  async function createWalkInBooking(event) {
+    event.preventDefault();
+    if (walkInSaving) return;
+    if (!walkInDraft.services.length) {
+      setWalkInError("Choose at least one service.");
+      return;
+    }
+    if (!walkInTimeOptions.includes(walkInDraft.time)) {
+      setWalkInError("Choose an available appointment time.");
+      return;
+    }
+
+    setWalkInSaving(true);
+    setWalkInError("");
+    setWalkInSuccess("");
+    const fullName = [walkInDraft.firstName, walkInDraft.middleName, walkInDraft.lastName]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(" ");
+    try {
+      await CREATE_STAFF_WALK_IN_BOOKING({
+        patient: {
+          firstName: walkInDraft.firstName.trim(),
+          middleName: walkInDraft.middleName.trim(),
+          lastName: walkInDraft.lastName.trim(),
+          age: String(walkInDraft.age).trim(),
+          phone: walkInDraft.phone.trim(),
+          email: walkInDraft.email.trim(),
+          patientType: walkInDraft.patientType,
+          bracesType: walkInDraft.patientType === "Ortho" ? walkInDraft.bracesType : "",
+        },
+        appointment: {
+          dentistId: walkInDraft.dentistId,
+          services: walkInDraft.services,
+          date: walkInDraft.date,
+          time: walkInDraft.time,
+        },
+      });
+      setWalkInOpen(false);
+      setWalkInDraft(getEmptyWalkInDraft());
+      setWalkInTimeOptions([]);
+      setWalkInSuccess(`Walk-in patient ${fullName} and appointment added to Bookings.`);
+    } catch (error) {
+      console.error("Walk-in appointment could not be created:", error);
+      setWalkInError(
+        error?.code === "functions/internal" || error?.code === "functions/unavailable"
+          ? "The walk-in booking service is unavailable right now. Please try again later or contact the administrator."
+          : error?.message || "Could not create the walk-in patient and appointment. Please try again."
+      );
+    } finally {
+      setWalkInSaving(false);
+    }
+  }
+
   async function toggleCheckIn(booking) {
     const result = await TOGGLE_BOOKING_CHECK_IN({ bookingId: booking.id });
     const checkedInAtMillis = result.data?.checkedInAt;
@@ -865,6 +1019,36 @@ export default function Bookings() {
       throw new Error("Check-in succeeded, but its recorded timestamp could not be confirmed.");
     }
     return Timestamp.fromMillis(checkedInAtMillis);
+  }
+
+  async function updateQueueSkip(booking, skipped) {
+    setQueueActionPendingId(booking.id);
+    try {
+      await SKIP_BOOKING_QUEUE({ bookingId: booking.id, skipped });
+    } finally {
+      setQueueActionPendingId("");
+    }
+  }
+
+  function requestQueueSkip(booking, skipped) {
+    openConfirm({
+      title: skipped ? "Skip this patient?" : "Bring this patient forward?",
+      message: skipped
+        ? `${booking.fullName || "This patient"} will move to the end of the queue for ${formatDateLabel(queueDate)}.`
+        : `${booking.fullName || "This patient"} will return to their scheduled time order for ${formatDateLabel(queueDate)}.`,
+      confirmLabel: skipped ? "Skip patient" : "Bring forward",
+      action: () => updateQueueSkip(booking, skipped),
+    });
+  }
+
+  function requestQueueCancellation(booking) {
+    openConfirm({
+      title: "Cancel this patient’s appointment?",
+      message: "The appointment will leave the queue and appear in the Cancelled bookings list.",
+      confirmLabel: "Cancel appointment",
+      tone: "danger",
+      action: () => setStatus(booking.id, "cancelled"),
+    });
   }
 
   const activeConfig = BOOKING_FILTERS[status] || BOOKING_FILTERS.calendar;
@@ -889,10 +1073,14 @@ export default function Bookings() {
       .sort((left, right) => compareBookings(left, right, sortBy)),
     [activeBookings, searchTerm, selectedDate, sortBy, status]
   );
+  const queueDate = selectedDate || getLocalDateKey(new Date());
   const queueItems = useMemo(() => activeBookings
     .filter((booking) => booking.date === queueDate &&
       !["cancelled", "no-show", "completed"].includes(String(booking.status || "pending").toLowerCase()))
-    .sort((left, right) => compareBookings(left, right, "appointment-asc")), [activeBookings, queueDate]);
+    .sort((left, right) => {
+      const skippedOrder = Number(Boolean(timestampMillis(left.queueSkippedAt))) - Number(Boolean(timestampMillis(right.queueSkippedAt)));
+      return skippedOrder || compareBookings(left, right, "appointment-asc");
+    }), [activeBookings, queueDate]);
   const selectedDateCount = selectedDate ? calendarCounts.get(selectedDate) || 0 : 0;
 
   useEffect(() => {
@@ -938,6 +1126,11 @@ export default function Bookings() {
           {actionError}
         </div>
       ) : null}
+      {walkInSuccess ? (
+        <div className="formSuccess bookingActionError" role="status">
+          {walkInSuccess}
+        </div>
+      ) : null}
 
       <div className="bookingManagementGrid">
         <section className="bookingListPanel" aria-label="Appointment list">
@@ -978,6 +1171,17 @@ export default function Bookings() {
                 <path d="m4 6 4 4 4-4" />
               </svg>
             </label>
+            <button
+              type="button"
+              className="btn btnPrimary bookingWalkInButton"
+              onClick={() => {
+                setWalkInError("");
+                setWalkInSuccess("");
+                setWalkInOpen(true);
+              }}
+            >
+              Add Walk-In Patient
+            </button>
           </div>
 
           <nav className="bookingStatusFilters" aria-label="Filter appointments by status">
@@ -1116,7 +1320,7 @@ export default function Bookings() {
                 type="date"
                 aria-label="Queue date"
                 value={queueDate}
-                onChange={(event) => setQueueDate(event.target.value)}
+                onChange={(event) => setSelectedDate(event.target.value)}
               />
             </div>
             {loadingBookings ? (
@@ -1125,14 +1329,37 @@ export default function Bookings() {
               <ol className="bookingQueueList">
                 {queueItems.map((booking, index) => (
                   <li key={booking.id}>
-                    <button type="button" className="bookingQueueItem" onClick={() => openBooking(booking.id)}>
-                      <span className="bookingQueueNumber">{index + 1}</span>
-                      <span className="bookingQueueDetails">
-                        <strong>{booking.fullName || "No name"}</strong>
-                        <span>{booking.service || "Service not set"}</span>
-                      </span>
-                      <time>{formatTimeLabel(booking.time)}</time>
-                    </button>
+                    <div className="bookingQueueEntry">
+                      <button type="button" className="bookingQueueItem" onClick={() => openBooking(booking.id)}>
+                        <span className="bookingQueueNumber">{index + 1}</span>
+                        <span className="bookingQueueDetails">
+                          <strong>{booking.fullName || "No name"}</strong>
+                          <span>{booking.service || "Service not set"}</span>
+                        {timestampMillis(booking.queueSkippedAt) ? <small>Skipped · moved to end</small> : null}
+                        </span>
+                        <time>{formatTimeLabel(booking.time)}</time>
+                      </button>
+                      <div className="bookingQueueActions" aria-label={`Actions for ${booking.fullName || "patient"}`}>
+                        <button
+                          type="button"
+                          className="bookingQueueActionButton isSkip"
+                          disabled={queueActionPendingId === booking.id}
+                          onClick={() => requestQueueSkip(booking, !Boolean(timestampMillis(booking.queueSkippedAt)))}
+                        >
+                          {queueActionPendingId === booking.id
+                            ? "Saving…"
+                            : timestampMillis(booking.queueSkippedAt)
+                              ? "Bring forward"
+                              : "Skip this patient"}
+                        </button>
+                        <button type="button" className="bookingQueueActionButton isCancel" onClick={() => requestQueueCancellation(booking)}>
+                          Cancel this patient
+                        </button>
+                        <button type="button" className="bookingQueueActionButton isReschedule" onClick={() => openReschedule(booking.id)}>
+                          Reschedule this patient
+                        </button>
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -1211,6 +1438,109 @@ export default function Bookings() {
         onClose={closeReschedule}
         onSave={saveReschedule}
       />
+
+      {walkInOpen ? (
+        <div className="modalOverlay addPatientModalOverlay" onClick={() => setWalkInOpen(false)} role="presentation">
+          <form
+            className="modalCard addPatientModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="walk-in-booking-title"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={createWalkInBooking}
+          >
+            <div className="modalHead">
+              <h2 id="walk-in-booking-title" className="modalTitle">Add Walk-In Patient &amp; Appointment</h2>
+              <button type="button" className="iconBtn" aria-label="Close" onClick={() => setWalkInOpen(false)}>&times;</button>
+            </div>
+            <div className="modalBody addPatientModalBody">
+              {walkInError ? <div className="formError walkInAppointmentError" role="alert">{walkInError}</div> : null}
+              <label className="field">
+                <span className="fieldLabel">First name</span>
+                <input className="input" required value={walkInDraft.firstName} onChange={(event) => updateWalkInDraft("firstName", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Middle name</span>
+                <input className="input" value={walkInDraft.middleName} onChange={(event) => updateWalkInDraft("middleName", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Last name</span>
+                <input className="input" required value={walkInDraft.lastName} onChange={(event) => updateWalkInDraft("lastName", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Age</span>
+                <input className="input" type="number" min="1" required value={walkInDraft.age} onChange={(event) => updateWalkInDraft("age", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Contact number</span>
+                <input className="input" type="tel" required value={walkInDraft.phone} onChange={(event) => updateWalkInDraft("phone", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Email</span>
+                <input className="input" type="email" value={walkInDraft.email} onChange={(event) => updateWalkInDraft("email", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Type of patient</span>
+                <select className="input" value={walkInDraft.patientType} onChange={(event) => updateWalkInDraft("patientType", event.target.value)}>
+                  {WALK_IN_PATIENT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              {walkInDraft.patientType === "Ortho" ? (
+                <label className="field">
+                  <span className="fieldLabel">Type of braces</span>
+                  <select className="input" required value={walkInDraft.bracesType} onChange={(event) => updateWalkInDraft("bracesType", event.target.value)}>
+                    <option value="">Select type of braces</option>
+                    {WALK_IN_BRACES_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              <div className="fieldGroupLabel">Appointment details</div>
+              <label className="field">
+                <span className="fieldLabel">Dentist</span>
+                <select className="input" required value={walkInDraft.dentistId} onChange={(event) => updateWalkInDraft("dentistId", event.target.value)}>
+                  <option value="">Select a dentist</option>
+                  {dentists.map((dentist) => <option key={dentist.id} value={dentist.id}>{dentist.name}</option>)}
+                </select>
+              </label>
+              <div className="field walkInServiceField" role="group" aria-labelledby="walk-in-services-label">
+                <span className="fieldLabel" id="walk-in-services-label">Services <span>(choose one or more)</span></span>
+                {clinicServices.length ? (
+                  <div className="walkInServiceOptions">
+                    {clinicServices.map((service) => (
+                      <label className="walkInServiceOption" key={service.id}>
+                        <input
+                          type="checkbox"
+                          checked={walkInDraft.services.includes(service.name)}
+                          onChange={() => toggleWalkInService(service.name)}
+                        />
+                        <span>{service.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : <span className="walkInAvailabilityError">No active services available.</span>}
+              </div>
+              <label className="field">
+                <span className="fieldLabel">Appointment date</span>
+                <input className="input" type="date" min={getLocalDateKey(new Date())} required value={walkInDraft.date} onChange={(event) => updateWalkInDraft("date", event.target.value)} />
+              </label>
+              <label className="field">
+                <span className="fieldLabel">Appointment time</span>
+                <select className="input" required value={walkInDraft.time} onChange={(event) => updateWalkInDraft("time", event.target.value)} disabled={loadingWalkInTimes || !walkInTimeOptions.length}>
+                  <option value="">{loadingWalkInTimes ? "Checking availability…" : walkInTimeOptions.length ? "Select a time" : "Choose dentist, services, and date first"}</option>
+                  {walkInTimeOptions.map((time) => <option key={time} value={time}>{formatTimeLabel(time)}</option>)}
+                </select>
+                {walkInAvailabilityError ? <span className="walkInAvailabilityError">{walkInAvailabilityError}</span> : null}
+              </label>
+            </div>
+            <div className="modalFoot">
+              <button type="button" className="btn btnSecondary" onClick={() => setWalkInOpen(false)}>Cancel</button>
+              <button className="btn btnSuccess" type="submit" disabled={walkInSaving || loadingWalkInTimes || !walkInTimeOptions.length}>
+                {walkInSaving ? "Saving" : "Add Patient & Appointment"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(confirmState)}

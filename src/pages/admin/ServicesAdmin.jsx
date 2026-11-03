@@ -10,6 +10,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import EmptyState from "../../components/EmptyState";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { db } from "../../firebase";
 import {
   CLINIC_SERVICE_IMAGE_OPTIONS,
@@ -50,7 +51,7 @@ export default function ServicesAdmin() {
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [closureDraft, setClosureDraft] = useState(emptyClosureDraft());
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [serviceLoading, setServiceLoading] = useState(true);
   const [closureLoading, setClosureLoading] = useState(true);
   const [serviceLoadError, setServiceLoadError] = useState("");
@@ -61,12 +62,13 @@ export default function ServicesAdmin() {
   const [savingClosure, setSavingClosure] = useState(false);
   const [busyServiceId, setBusyServiceId] = useState("");
   const [busyClosureId, setBusyClosureId] = useState("");
+  const [serviceActionConfirm, setServiceActionConfirm] = useState(null);
 
   useEffect(() => {
     const unsubServices = onSnapshot(
       query(collection(db, "clinicServices"), orderBy("name", "asc")),
       (snapshot) => {
-        setServices(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+        setServices(snapshot.docs.map((entry) => ({ ...entry.data(), id: entry.id })));
         setServiceLoading(false);
         setServiceLoadError("");
       },
@@ -117,8 +119,7 @@ export default function ServicesAdmin() {
   const filteredServices = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return normalizedServices.filter((service) => {
-      const matchesStatus = statusFilter === "all"
-        || (statusFilter === "active" ? service.active : !service.active);
+      const matchesStatus = statusFilter === "active" ? service.active : !service.active;
       const searchContent = [
         service.name,
         service.description,
@@ -168,7 +169,15 @@ export default function ServicesAdmin() {
 
   async function saveService(event) {
     event.preventDefault();
-    const payload = normalizeService(serviceDraft);
+    const normalizedDraft = normalizeService(serviceDraft);
+    const payload = {
+      name: normalizedDraft.name,
+      description: normalizedDraft.description,
+      durationMinutes: normalizedDraft.durationMinutes,
+      startingRate: normalizedDraft.startingRate,
+      category: normalizedDraft.category,
+      active: normalizedDraft.active,
+    };
     setServiceError("");
 
     const normalizedName = payload.name.toLowerCase().replace(/\s+/g, " ");
@@ -234,11 +243,15 @@ export default function ServicesAdmin() {
     }
   }
 
-  async function toggleService(service) {
-    const nextActive = !normalizeService(service).active;
-    const actionLabel = nextActive ? "activate" : "deactivate";
-    if (!window.confirm(`Are you sure you want to ${actionLabel} "${service.name}"?`)) return;
+  function requestServiceToggle(service) {
+    setServiceError("");
+    setServiceActionConfirm({
+      service,
+      nextActive: !normalizeService(service).active,
+    });
+  }
 
+  async function toggleService(service, nextActive) {
     setBusyServiceId(service.id);
     setServiceError("");
     try {
@@ -259,6 +272,13 @@ export default function ServicesAdmin() {
     } finally {
       setBusyServiceId("");
     }
+  }
+
+  async function confirmServiceToggle() {
+    if (!serviceActionConfirm) return;
+    const { service, nextActive } = serviceActionConfirm;
+    setServiceActionConfirm(null);
+    await toggleService(service, nextActive);
   }
 
   async function addClosure(event) {
@@ -330,7 +350,7 @@ export default function ServicesAdmin() {
       <section className="servicesAdminSection" aria-label="Services">
         <div className="servicesAdminToolbar">
           <div className="servicesAdminFilters" aria-label="Filter services by status">
-            {["all", "active", "inactive"].map((filter) => (
+            {["active", "inactive"].map((filter) => (
               <button
                 key={filter}
                 type="button"
@@ -348,6 +368,7 @@ export default function ServicesAdmin() {
         </div>
 
         {serviceLoadError ? <p className="servicesAdminMessage isError" role="alert">{serviceLoadError}</p> : null}
+        {serviceError && !serviceModalOpen ? <p className="servicesAdminMessage isError" role="alert">{serviceError}</p> : null}
         {serviceLoading ? (
           <p className="servicesAdminMessage" role="status">Loading services…</p>
         ) : !serviceLoadError && services.length === 0 ? (
@@ -360,42 +381,34 @@ export default function ServicesAdmin() {
               <li
                 className="servicesAdminRow"
                 key={service.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Edit ${service.name}`}
-                onClick={() => editService(service)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    editService(service);
-                  }
-                }}
               >
-                <div className="servicesAdminThumbnail">
-                  <img
-                    src={getClinicServiceImage(service)}
-                    alt=""
-                    loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.onerror = null;
-                      event.currentTarget.src = getLocalClinicServiceImage({ name: service.name });
-                    }}
-                  />
-                </div>
-                <div className="servicesAdminRowContent">
-                  <div className="servicesAdminNameLine">
-                    <h3>{service.name}</h3>
-                    <span className={`servicesAdminStatus ${service.active ? "isActive" : "isInactive"}`}>
-                      {service.active ? "Active" : "Inactive"}
-                    </span>
+                <button type="button" className="servicesAdminRowEdit" onClick={() => editService(service)}>
+                  <div className="servicesAdminThumbnail">
+                    <img
+                      src={getClinicServiceImage(service)}
+                      alt=""
+                      loading="lazy"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = getLocalClinicServiceImage({ name: service.name });
+                      }}
+                    />
                   </div>
-                  <p className="servicesAdminDescription">{service.description || "No description provided."}</p>
-                  <div className="servicesAdminMeta">
-                    <span>{service.startingRate || "Pricing not set"}</span>
-                    {service.durationMinutes > 0 ? <span>{service.durationMinutes} min</span> : null}
-                    {service.category ? <span>{service.category}</span> : null}
+                  <div className="servicesAdminRowContent">
+                    <div className="servicesAdminNameLine">
+                      <h3>{service.name}</h3>
+                      <span className={`servicesAdminStatus ${service.active ? "isActive" : "isInactive"}`}>
+                        {service.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <p className="servicesAdminDescription">{service.description || "No description provided."}</p>
+                    <div className="servicesAdminMeta">
+                      <span>{service.startingRate || "Pricing not set"}</span>
+                      {service.durationMinutes > 0 ? <span>{service.durationMinutes} min</span> : null}
+                      {service.category ? <span>{service.category}</span> : null}
+                    </div>
                   </div>
-                </div>
+                </button>
               </li>
             ))}
           </ul>
@@ -610,7 +623,7 @@ export default function ServicesAdmin() {
                       className="servicesAdminTextButton servicesAdminModalStatusAction"
                       onClick={() => {
                         const service = services.find((entry) => entry.id === editingServiceId);
-                        if (service) void toggleService(service);
+                        if (service) requestServiceToggle(service);
                       }}
                       disabled={busyServiceId === editingServiceId || savingService}
                     >
@@ -635,6 +648,18 @@ export default function ServicesAdmin() {
           </section>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(serviceActionConfirm)}
+        title={serviceActionConfirm?.nextActive ? "Activate this service?" : "Deactivate this service?"}
+        message={serviceActionConfirm
+          ? `Are you sure you want to ${serviceActionConfirm.nextActive ? "activate" : "deactivate"} "${serviceActionConfirm.service.name}"?`
+          : ""}
+        confirmLabel={serviceActionConfirm?.nextActive ? "Activate service" : "Deactivate service"}
+        tone={serviceActionConfirm?.nextActive ? "default" : "danger"}
+        onClose={() => setServiceActionConfirm(null)}
+        onConfirm={confirmServiceToggle}
+      />
     </div>
   );
 }

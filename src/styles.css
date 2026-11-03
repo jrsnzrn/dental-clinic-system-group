@@ -6676,15 +6676,22 @@ input[type="date"].input { min-height: 48px; }
   list-style: none;
 }
 
+.bookingQueueEntry {
+  overflow: hidden;
+  border: 1px solid var(--booking-border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
 .bookingQueueItem {
   display: flex;
   width: 100%;
   align-items: center;
   gap: 9px;
   padding: 9px;
-  border: 1px solid var(--booking-border);
-  border-radius: 7px;
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -6692,9 +6699,49 @@ input[type="date"].input { min-height: 48px; }
 
 .bookingQueueItem:hover,
 .bookingQueueItem:focus-visible {
-  border-color: var(--accent);
+  color: var(--text);
   outline: none;
 }
+
+.bookingQueueActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 9px 8px 43px;
+}
+
+.bookingQueueActionButton {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bookingQueueActionButton.isSkip {
+  border-color: color-mix(in srgb, #b77900 35%, var(--surface));
+  background: color-mix(in srgb, #ffc857 24%, var(--surface));
+  color: #805400;
+}
+
+.bookingQueueActionButton.isCancel {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--surface));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger);
+}
+
+.bookingQueueActionButton.isReschedule {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+}
+
+.bookingQueueActionButton:hover { filter: brightness(0.96); }
+.bookingQueueActionButton:disabled { opacity: 0.6; cursor: wait; }
+.bookingQueueActionButton:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .bookingQueueNumber {
   display: grid;
@@ -6726,8 +6773,41 @@ input[type="date"].input { min-height: 48px; }
 
 .bookingQueueDetails strong { font-size: 12px; }
 .bookingQueueDetails span { color: var(--muted); font-size: 11px; }
+.bookingQueueDetails small { color: var(--accent); font-size: 10px; }
 .bookingQueueItem time { font-size: 11px; font-weight: 650; white-space: nowrap; }
 .bookingQueueEmpty { margin: 0; color: var(--muted); font-size: 12px; }
+
+.bookingWalkInButton { white-space: nowrap; }
+
+.walkInServiceField {
+  min-width: 0;
+}
+
+.walkInServiceField .fieldLabel > span { color: var(--muted); font-weight: 400; }
+
+.walkInServiceOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.walkInServiceOption {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--booking-border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.walkInServiceOption input { margin: 2px 0 0; accent-color: var(--accent); }
+.walkInServiceOption span { overflow-wrap: anywhere; }
+.walkInServiceOption:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.bookingActionError.formSuccess { border-color: #9dd9b2; background: #effaf2; color: #216b3c; }
 
 @media (max-width: 480px) {
   .bookingCalendarPanel {
@@ -12099,18 +12179,32 @@ html body .patientListPage .typeBadge.ortho {
 
 .servicesAdminRow {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 16px;
+  gap: 0;
   min-width: 0;
   padding: 14px;
   border: 0;
   border-radius: 9px;
   background: transparent;
+}
+
+.servicesAdminRowEdit {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.servicesAdminRow:focus-visible {
+.servicesAdminRowEdit:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -12452,9 +12546,14 @@ html body .patientListPage .typeBadge.ortho {
   }
 
   .servicesAdminRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    align-items: start;
+  }
+
+  .servicesAdminRowEdit {
     grid-template-columns: 52px minmax(0, 1fr);
     gap: 10px;
-    align-items: start;
   }
 
   .servicesAdminThumbnail {
