@@ -60,6 +60,9 @@ const ADMIN_NAV_ICONS = {
   "/admin/analytics": (
     <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg>
   ),
+  "/admin/reports": (
+    <svg viewBox="0 0 24 24"><path d="M3 19V5"/><path d="M3 19h18"/><path d="m7 15 4-4 3 2 5-7"/><path d="M19 6h-4"/></svg>
+  ),
   "/admin/dashboard": (
     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
   ),
@@ -309,7 +312,7 @@ function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole 
           className="accountDropdownItem danger"
           role="menuitem"
           onClick={onLogout}
-
+          data-mascot-target="nav-logout"
         >
           <span className="accountItemIcon">{ACCOUNT_ICONS.logout}</span>
           <span className="accountItemText">
@@ -453,7 +456,7 @@ export function PatientSidebarActions({ theme, onThemeChange }) {
         <button
           type="button"
           className="patientSidebarLink patientSidebarAction patientSidebarLogout"
-
+          data-mascot-target="nav-logout"
           onClick={() => {
             setLogoutError("");
             setLogoutConfirmOpen(true);
@@ -799,7 +802,7 @@ export default function NavBar({
               <button
                 type="button"
                 className="adminSidebarLink adminSidebarLogout"
-
+                data-mascot-target="nav-logout"
                 onClick={() => {
                   setLogoutError("");
                   setLogoutConfirmOpen(true);
@@ -913,8 +916,8 @@ export default function NavBar({
           <div className={`navMenuShell ${menuOpen ? "open" : ""}`}>
             <div className={`navLinks navLinksPrimary ${menuOpen ? "open" : ""}`}>
               <NavLink to="/" className={navClass} onClick={() => setMenuOpen(false)}>Home</NavLink>
-              <NavLink to="/services" className={navClass} onClick={() => setMenuOpen(false)}>Services</NavLink>
-              <NavLink to="/contact" className={navClass} onClick={() => setMenuOpen(false)}>Contact</NavLink>
+              <NavLink to="/services" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-services">Services</NavLink>
+              <NavLink to="/contact" className={navClass} onClick={() => setMenuOpen(false)} data-mascot-target="nav-contact">Contact</NavLink>
               <NavLink to="/about" className={navClass} onClick={() => setMenuOpen(false)}>About Us</NavLink>
               {user ? <NavLink to="/book" className={navClass} onClick={() => setMenuOpen(false)}>Book Appointment</NavLink> : null}
             </div>

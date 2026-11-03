@@ -3,7 +3,6 @@ import { NavLink, Navigate, useParams, useSearchParams } from "react-router-dom"
 import {
   Timestamp,
   collection,
-  doc,
   onSnapshot,
   orderBy,
   query,
@@ -21,7 +20,6 @@ import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/s
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
 const ARCHIVE_BOOKING = httpsCallable(functions, "archiveBooking");
 const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
-const SKIP_BOOKING_QUEUE = httpsCallable(functions, "skipBookingQueue");
 const REASSIGN_BOOKING_DENTIST = httpsCallable(functions, "reassignBookingDentist");
 const RESCHEDULE_BOOKING = httpsCallable(functions, "rescheduleBooking");
 const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
@@ -177,9 +175,8 @@ function getBookingServices(booking) {
   return services.map((service) => String(service).trim()).filter(Boolean).join(", ") || "Not set";
 }
 
-function BookingRow({ booking, onOpen, onArchive, highlighted }) {
+function BookingRow({ booking, onOpen, highlighted }) {
   const reschedule = booking.rescheduleRequest;
-  const canArchive = ["completed", "cancelled"].includes(String(booking.status || "").toLowerCase());
   const displayStatus = booking.status === "approved" && booking.checkedInAt
     ? "checked_in"
     : booking.status || "pending";
@@ -214,20 +211,6 @@ function BookingRow({ booking, onOpen, onArchive, highlighted }) {
           <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
         ) : null}
       </td>
-      <td data-label="Actions">
-        {canArchive ? (
-          <button
-            className="btn secondary btnSoft bookingRowArchiveButton"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onArchive(booking);
-            }}
-          >
-            Archive
-          </button>
-        ) : <span aria-hidden="true">—</span>}
-      </td>
     </tr>
   );
 }
@@ -259,7 +242,7 @@ function BookingDetailDrawer({
   const status = booking?.status || "pending";
   const headingStatus = booking?.checkedInAt ? "checked_in" : status;
   const headingClass = getAppointmentStatusClass(headingStatus);
-  const headingLabel = formatAppointmentStatusLabel(headingStatus);
+  const headingLabel = status === "completed" ? "Complete" : formatAppointmentStatusLabel(headingStatus);
   const [paymentDetails, setPaymentDetails] = useState(null);
   const currentPaymentDetails = paymentDetails?.bookingId === booking?.id ? paymentDetails : null;
   const paymentSummaries = currentPaymentDetails?.summaries || [];
@@ -379,7 +362,7 @@ function BookingDetailDrawer({
             ) : null}
 
               {status === "completed" ? (
-                <div className="drawerNote">
+                <div className="drawerNote bookingPaymentNote">
                   <span className="drawerNoteLabel">Payment details</span>
                   {paymentLoading ? <p>Loading payment details…</p> : null}
                   {paymentError ? <p role="status">{paymentError}</p> : null}
@@ -429,8 +412,12 @@ function BookingDetailDrawer({
 
             {status === "completed" || status === "cancelled" ? (
               <div className="actionColumn actionColumnFriendly">
-                <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onArchive}>
-                  Archive booking
+                <button className="btn secondary btnSoft patientActionBtn bookingArchiveButton" type="button" onClick={onArchive}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M3.5 6.5h13v9.25a1.25 1.25 0 0 1-1.25 1.25h-10A1.25 1.25 0 0 1 4 15.75V6.5Z" />
+                    <path d="M2.75 3.5h14.5v3H2.75zM8 10h4" />
+                  </svg>
+                  Archive
                 </button>
               </div>
             ) : null}
@@ -665,7 +652,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
   const [checkInPendingId, setCheckInPendingId] = useState(null);
-  const [queueActionPendingId, setQueueActionPendingId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
@@ -1010,36 +996,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
     return Timestamp.fromMillis(checkedInAtMillis);
   }
 
-  async function updateQueueSkip(booking, skipped) {
-    setQueueActionPendingId(booking.id);
-    try {
-      await SKIP_BOOKING_QUEUE({ bookingId: booking.id, skipped });
-    } finally {
-      setQueueActionPendingId("");
-    }
-  }
-
-  function requestQueueSkip(booking, skipped) {
-    openConfirm({
-      title: skipped ? "Skip this patient?" : "Bring this patient forward?",
-      message: skipped
-        ? `${booking.fullName || "This patient"} will move to the end of the queue for ${formatDateLabel(queueDate)}.`
-        : `${booking.fullName || "This patient"} will return to their scheduled time order for ${formatDateLabel(queueDate)}.`,
-      confirmLabel: skipped ? "Skip patient" : "Bring forward",
-      action: () => updateQueueSkip(booking, skipped),
-    });
-  }
-
-  function requestQueueCancellation(booking) {
-    openConfirm({
-      title: "Cancel this patient’s appointment?",
-      message: "The appointment will leave the queue and appear in the Cancelled bookings list.",
-      confirmLabel: "Cancel appointment",
-      tone: "danger",
-      action: () => setStatus(booking.id, "cancelled"),
-    });
-  }
-
   const activeConfig = BOOKING_FILTERS[status] || BOOKING_FILTERS.calendar;
   const searchTerm = search.trim().toLocaleLowerCase();
   const activeItems = useMemo(
@@ -1062,14 +1018,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       .sort((left, right) => compareBookings(left, right, sortBy)),
     [activeBookings, searchTerm, selectedDate, sortBy, status]
   );
-  const queueDate = selectedDate || getLocalDateKey(new Date());
-  const queueItems = useMemo(() => activeBookings
-    .filter((booking) => booking.date === queueDate &&
-      !["cancelled", "no-show", "completed"].includes(String(booking.status || "pending").toLowerCase()))
-    .sort((left, right) => {
-      const skippedOrder = Number(Boolean(timestampMillis(left.queueSkippedAt))) - Number(Boolean(timestampMillis(right.queueSkippedAt)));
-      return skippedOrder || compareBookings(left, right, "appointment-asc");
-    }), [activeBookings, queueDate]);
   const selectedDateCount = selectedDate ? calendarCounts.get(selectedDate) || 0 : 0;
 
   useEffect(() => {
@@ -1121,29 +1069,29 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
         </div>
       ) : null}
 
-      <BookingToolbar
-        className="bookingPageToolbar"
-        search={search}
-        onSearchChange={onSearchChange}
-        sortBy={sortBy}
-        onSortChange={onSortChange}
-      />
+      <header className="bookingPageHeader">
+        <div>
+          <h1>Bookings</h1>
+          <p>Manage appointments and walk-in patients.</p>
+        </div>
+        <button
+          type="button"
+          className="btn btnPrimary bookingWalkInButton"
+          onClick={() => {
+            setWalkInError("");
+            setWalkInSuccess("");
+            setWalkInOpen(true);
+          }}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" />
+          </svg>
+          Add Patient
+        </button>
+      </header>
 
       <div className="bookingManagementGrid">
         <section className="bookingListPanel" aria-label="Appointment list">
-          <div className="bookingToolbar">
-            <button
-              type="button"
-              className="btn btnPrimary bookingWalkInButton"
-              onClick={() => {
-                setWalkInError("");
-                setWalkInSuccess("");
-                setWalkInOpen(true);
-              }}
-            >
-              Add Walk-In Patient
-            </button>
-          </div>
           <nav className="bookingStatusFilters" aria-label="Filter appointments by status">
             {BOOKING_STATUS_FILTERS.map((filter) => (
               <NavLink
@@ -1161,6 +1109,13 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
               </span>
             ) : null}
           </nav>
+          <BookingToolbar
+            className="bookingPageToolbar"
+            search={search}
+            onSearchChange={onSearchChange}
+            sortBy={sortBy}
+            onSortChange={onSortChange}
+          />
 
           {selectedDate ? (
             <div className="bookingDateFilter" role="status">
@@ -1181,7 +1136,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                     <th>Dentist</th>
                     <th>Date &amp; time</th>
                     <th>Status</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1190,7 +1144,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                       key={booking.id}
                       booking={booking}
                       onOpen={openBooking}
-                      onArchive={requestArchiveBooking}
                       highlighted={highlightedBookingIds.includes(booking.id)}
                     />
                   ))}
@@ -1269,64 +1222,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
               </>
             )}
           </div>
-          <section className="bookingQueuePanel" aria-label="Patient queue for the day">
-            <div className="bookingQueueHeader">
-              <div>
-                <h2>Patient queue</h2>
-                <p>{queueItems.length} scheduled for {formatDateLabel(queueDate)}</p>
-              </div>
-              <input
-                className="input"
-                type="date"
-                aria-label="Queue date"
-                value={queueDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
-              />
-            </div>
-            {loadingBookings ? (
-              <SkeletonList count={3} />
-            ) : queueItems.length ? (
-              <ol className="bookingQueueList">
-                {queueItems.map((booking, index) => (
-                  <li key={booking.id}>
-                    <div className="bookingQueueEntry">
-                      <button type="button" className="bookingQueueItem" onClick={() => openBooking(booking.id)}>
-                        <span className="bookingQueueNumber">{index + 1}</span>
-                        <span className="bookingQueueDetails">
-                          <strong>{booking.fullName || "No name"}</strong>
-                          <span>{booking.service || "Service not set"}</span>
-                        {timestampMillis(booking.queueSkippedAt) ? <small>Skipped · moved to end</small> : null}
-                        </span>
-                        <time>{formatTimeLabel(booking.time)}</time>
-                      </button>
-                      <div className="bookingQueueActions" aria-label={`Actions for ${booking.fullName || "patient"}`}>
-                        <button
-                          type="button"
-                          className="bookingQueueActionButton isSkip"
-                          disabled={queueActionPendingId === booking.id}
-                          onClick={() => requestQueueSkip(booking, !Boolean(timestampMillis(booking.queueSkippedAt)))}
-                        >
-                          {queueActionPendingId === booking.id
-                            ? "Saving…"
-                            : timestampMillis(booking.queueSkippedAt)
-                              ? "Bring forward"
-                              : "Skip this patient"}
-                        </button>
-                        <button type="button" className="bookingQueueActionButton isCancel" onClick={() => requestQueueCancellation(booking)}>
-                          Cancel this patient
-                        </button>
-                        <button type="button" className="bookingQueueActionButton isReschedule" onClick={() => openReschedule(booking.id)}>
-                          Reschedule this patient
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="bookingQueueEmpty">No patients are scheduled for this day.</p>
-            )}
-          </section>
         </aside>
       </div>
 

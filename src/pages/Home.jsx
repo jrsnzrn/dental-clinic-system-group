@@ -129,24 +129,43 @@ function formatPromoDate(value) {
 
 function PromoSection({ promotions }) {
   const carouselRef = useRef(null);
-  const [activePromotionIndex, setActivePromotionIndex] = useState(0);
-  if (!promotions || promotions.length === 0) return null;
-  const selectedPromotionIndex = Math.min(activePromotionIndex, promotions.length - 1);
-  const isCarousel = promotions.length >= 3;
+  const [activePromotionPage, setActivePromotionPage] = useState(0);
+  const [cardsPerPage, setCardsPerPage] = useState(2);
+  const promotionItems = Array.isArray(promotions) ? promotions : [];
+  const isCarousel = promotionItems.length > 1;
+  const pageCount = isCarousel ? Math.ceil(promotionItems.length / cardsPerPage) : 0;
+  const selectedPromotionPage = Math.min(activePromotionPage, Math.max(pageCount - 1, 0));
   const gridClassName = isCarousel
     ? "homeOffersGrid promoCarouselTrack"
-    : promotions.length === 1
-      ? "homeOffersGrid singlePromo"
-      : "homeOffersGrid twoPromos";
+    : "homeOffersGrid singlePromo";
 
-  function scrollToPromotion(index) {
+  useEffect(() => {
+    if (!isCarousel) return undefined;
     const track = carouselRef.current;
-    const card = track?.children[index];
+    if (!track) return undefined;
+
+    function updateCardsPerPage() {
+      const card = track.firstElementChild;
+      if (!card) return;
+      const cardWidth = card.getBoundingClientRect().width;
+      if (!cardWidth) return;
+      const nextCardsPerPage = Math.max(1, Math.round(track.clientWidth / cardWidth));
+      setCardsPerPage((current) => current === nextCardsPerPage ? current : nextCardsPerPage);
+    }
+
+    updateCardsPerPage();
+    window.addEventListener("resize", updateCardsPerPage);
+    return () => window.removeEventListener("resize", updateCardsPerPage);
+  }, [isCarousel, promotionItems.length]);
+
+  function scrollToPromotionPage(pageIndex) {
+    const track = carouselRef.current;
+    const card = track?.children[pageIndex * cardsPerPage];
     if (!track || !card) return;
     const trackLeft = track.getBoundingClientRect().left + track.clientLeft;
     const cardLeft = card.getBoundingClientRect().left;
     track.scrollTo({ left: track.scrollLeft + cardLeft - trackLeft, behavior: "smooth" });
-    setActivePromotionIndex(index);
+    setActivePromotionPage(pageIndex);
   }
 
   function updateActivePromotion(event) {
@@ -161,12 +180,18 @@ function PromoSection({ promotions }) {
         nearestIndex = index;
       }
     });
-    setActivePromotionIndex(nearestIndex);
+    setActivePromotionPage(Math.min(
+      Math.round(nearestIndex / Math.max(1, cardsPerPage)),
+      Math.max(pageCount - 1, 0)
+    ));
   }
+
+  if (promotionItems.length === 0) return null;
 
   return (
     <section className="homeOffers" aria-label="Promotions">
       <div className="innerWrap">
+        <h2 className="homeOffersHeading">Promotions</h2>
         <div
           className={gridClassName}
           ref={isCarousel ? carouselRef : null}
@@ -174,12 +199,12 @@ function PromoSection({ promotions }) {
           aria-label={isCarousel ? "Promotion carousel" : undefined}
           role={isCarousel ? "region" : undefined}
         >
-          {promotions.map((item) => {
+          {promotionItems.map((item) => {
             const amount = item.discountType === "percentage" ? `${item.discountValue}%` : `₱${Number(item.discountValue || 0).toLocaleString()}`;
-            const services = item.services && item.services.length ? item.services : ["Selected services"];
+            const services = Array.isArray(item.services) ? item.services.filter(Boolean) : [];
             const title = String(item.title || "Special offer");
             const headline = String(item.headlineMain || title);
-            const headlineAccent = String(item.headlineAccent || (/brighter/i.test(title) ? "" : "Brighter"));
+            const headlineAccent = String(item.headlineAccent || "");
             const tagline = String(item.tagline || "Your Smile's Best Deal");
 
             return (
@@ -198,11 +223,14 @@ function PromoSection({ promotions }) {
                       {headline} {headlineAccent ? <span>{headlineAccent}</span> : null}
                     </h3>
                     <p className="promoScript">{tagline}</p>
+                    <span className="promoTaglineUnderline" aria-hidden="true" />
+                    {services.length > 0 && (
+                      <ul className="promoCategory">
+                        {services.slice(0, 3).map((name) => <li key={name}>{name}</li>)}
+                        {services.length > 3 && <li>+{services.length - 3} more</li>}
+                      </ul>
+                    )}
                     {item.description && <p className="promoDesc">{item.description}</p>}
-                    <ul className="promoServices">
-                      {services.slice(0, 3).map((name) => <li key={name}>{name}</li>)}
-                      {services.length > 3 && <li>+{services.length - 3} more</li>}
-                    </ul>
                     <NavLink to="/book" className="btnPrimary16 promoCta">Book now</NavLink>
                     <div className="promoFooter">
                       <div className="promoContact">
@@ -223,16 +251,16 @@ function PromoSection({ promotions }) {
             );
           })}
         </div>
-        {isCarousel ? (
+        {pageCount > 1 ? (
           <div className="promoPagination" role="group" aria-label="Choose a promotion">
-            {promotions.map((promotion, index) => (
+            {Array.from({ length: pageCount }, (_, index) => (
               <button
-                key={promotion.id}
+                key={`promotion-page-${index}`}
                 type="button"
-                className={`promoPaginationDot${index === selectedPromotionIndex ? " active" : ""}`}
-                aria-label={`Show promotion ${index + 1} of ${promotions.length}`}
-                aria-current={index === selectedPromotionIndex ? "true" : undefined}
-                onClick={() => scrollToPromotion(index)}
+                className={`promoPaginationDot${index === selectedPromotionPage ? " active" : ""}`}
+                aria-label={`Show promotion group ${index + 1} of ${pageCount}`}
+                aria-current={index === selectedPromotionPage ? "true" : undefined}
+                onClick={() => scrollToPromotionPage(index)}
               />
             ))}
           </div>

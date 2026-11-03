@@ -626,11 +626,11 @@ export default function ServicesAdmin() {
                   ) : null}
                 </div>
                 <div className="servicesAdminModalFooterRight">
+                  <button type="submit" className="servicesAdminAddButton" disabled={savingService}>
+                    {savingService ? "Saving…" : editingServiceId ? "Update" : "Add service"}
+                  </button>
                   <button type="button" className="servicesAdminCancelButton" onClick={closeServiceModal} disabled={savingService}>
                     Cancel
-                  </button>
-                  <button type="submit" className="servicesAdminAddButton" disabled={savingService}>
-                    {savingService ? "Saving…" : editingServiceId ? "Save changes" : "Add service"}
                   </button>
                 </div>
               </footer>

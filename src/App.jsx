@@ -21,6 +21,7 @@ import Mfa from "./pages/admin/Mfa";
 import Dashboard from "./pages/admin/Dashboard";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
+import Queue from "./pages/admin/Queue";
 import Braces from "./pages/admin/Braces";
 import Payments from "./pages/admin/Payments";
 import Dentists from "./pages/admin/Dentists";
@@ -28,6 +29,7 @@ import ServicesAdmin from "./pages/admin/ServicesAdmin";
 import Accounts from "./pages/admin/Accounts";
 import Logs from "./pages/admin/Logs";
 import Archive from "./pages/admin/Archive";
+import Reports from "./pages/admin/Reports";
 import Promotions from "./pages/admin/Promotions";
 import Analytics from "./pages/admin/Analytics";
 import ForgotPassword from "./pages/admin/ForgotPassword";
@@ -462,6 +464,17 @@ export default function App() {
                 />
               </Route>
               <Route
+                path="queue"
+                element={
+                  <ProtectedRoute
+                    user={user}
+                    allowedRoles={[ROLES.RECEPTIONIST]}
+                  >
+                    <Queue />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="braces"
                 element={
                   <ProtectedRoute
@@ -546,6 +559,17 @@ export default function App() {
                   }
                 />
               </Route>
+              <Route
+                path="reports"
+                element={
+                  <ProtectedRoute
+                    user={user}
+                    allowedRoles={[ROLES.ADMIN]}
+                  >
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             <Route path="*" element={isAdmin ? adminRedirect : <Navigate to="/" replace />} />

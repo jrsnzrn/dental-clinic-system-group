@@ -66,11 +66,12 @@ export const ADMIN_NAV_BY_ROLE = {
     { to: "/admin/accounts", label: "Accounts" },
     { to: "/admin/logs", label: "Activity Logs" },
     { to: "/admin/archive", label: "Archive" },
+    { to: "/admin/reports", label: "Reports" },
   ],
   [ROLES.RECEPTIONIST]: [
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Bookings" },
-    { to: "/admin/bookings/checked-in", label: "Queue" },
+    { to: "/admin/queue", label: "Queue" },
     { to: "/admin/payments", label: "Payments" },
     { to: "/admin/archive", label: "Archive" },
   ],

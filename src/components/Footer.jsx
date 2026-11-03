@@ -1,7 +1,3 @@
-import bancnet from "../assets/bancnet.png";
-import gcash from "../assets/gcash.png";
-import mastercard from "../assets/mastercard.png";
-import qrph from "../assets/qrph.png";
 import logo from "../assets/logo.png";
 
 const THEME_OPTIONS = [
@@ -33,13 +29,6 @@ const THEME_OPTIONS = [
       </svg>
     ),
   },
-];
-
-const PAYMENT_LOGOS = [
-  { id: "bancnet", name: "BancNet", logo: bancnet },
-  { id: "mastercard", name: "Mastercard", logo: mastercard },
-  { id: "qrph", name: "QR Ph", logo: qrph },
-  { id: "gcash", name: "GCash", logo: gcash },
 ];
 
 export default function Footer({ isAdmin = false, theme = "dark", onThemeChange = () => {} }) {
@@ -124,17 +113,6 @@ export default function Footer({ isAdmin = false, theme = "dark", onThemeChange 
           </a>
         </div>
 
-        {/*Accepted Payments */}
-        <div className="footerLinksGroup footerPaymentGroup">
-          <span className="footerLabel">WE ACCEPT PAYMENTS</span>
-          <ul className="footerPaymentLogos">
-            {PAYMENT_LOGOS.map((method) => (
-              <li key={method.id} className="footerPaymentLogo" title={method.name}>
-                <img src={method.logo} alt={method.name} />
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
 
       <p className="footerCopy footerCopyBottom">© 2026 TopDent. All rights Reserved.</p>

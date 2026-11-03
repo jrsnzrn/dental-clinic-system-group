@@ -2031,6 +2031,7 @@ exports.createStaffWalkInBooking = onCall(
     const age = String(patientInput.age || "").trim();
     const phone = String(patientInput.phone || "").trim();
     const email = String(patientInput.email || "").trim();
+    const address = String(patientInput.address || "").trim();
     const patientType = String(patientInput.patientType || "Regular").trim();
     const bracesType = String(patientInput.bracesType || "").trim();
     const dentistId = String(appointment.dentistId || "").trim();
@@ -2114,6 +2115,7 @@ exports.createStaffWalkInBooking = onCall(
         age,
         phone,
         email,
+        address,
         patientType,
         ...(patientType === "Ortho" && bracesType ? { bracesType } : {}),
         preferredDentist: slot.dentist.name || "",
