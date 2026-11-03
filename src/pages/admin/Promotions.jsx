@@ -99,6 +99,7 @@ export default function Promotions() {
   const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [archivingId, setArchivingId] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -106,7 +107,11 @@ export default function Promotions() {
       getDocs(query(collection(db, "promotions"), orderBy("createdAt", "desc"))),
       getDocs(collection(db, "clinicServices")),
     ]);
-    setPromotions(promoSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    setPromotions(
+      promoSnap.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((entry) => String(entry.archiveStatus || "").toLowerCase() !== "archived")
+    );
     setServiceNames([...new Set(
       serviceSnap.docs.map((entry) => entry.data()).filter((entry) => entry.active !== false).map((entry) => entry.name).filter(Boolean)
     )].sort());
@@ -233,6 +238,31 @@ export default function Promotions() {
     }
   }
 
+  async function archivePromotion(promotion) {
+    setError("");
+    setArchivingId(promotion.id);
+    try {
+      await updateDoc(doc(db, "promotions", promotion.id), {
+        archiveStatus: "Archived",
+        _archivePreviousStatus: promotion.status || "draft",
+        status: "archived",
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await logAdminAction({
+        action: "archive_promotion",
+        targetType: "promotion",
+        targetId: promotion.id,
+        targetLabel: promotion.title,
+      });
+      await load();
+    } catch (archiveError) {
+      setError(archiveError.message || "Could not archive this promotion.");
+    } finally {
+      setArchivingId("");
+    }
+  }
+
   return (
     <section className="container adminSurface pageSection adminPage promotionsPage">
       {!formOpen && (
@@ -340,7 +370,7 @@ export default function Promotions() {
               )}
             </fieldset>
 
-            <div className="inlineActionRow">
+            <div className="inlineActionRow promoFormActions">
               <button className="btn btnShine" disabled={saving}>
                 {saving ? "Saving…" : editingId ? "Update" : "Create promo"}
               </button>
@@ -361,7 +391,7 @@ export default function Promotions() {
         {loading ? (
           <p className="sub">Loading promotions…</p>
         ) : !promotions.length ? (
-          <p className="sub">No promotions yet. Add a promo to get started.</p>
+          <p className="sub">No active promotions. Add a promo or check the archive.</p>
         ) : (
           <div className="promoList">
             {promotions.map((promotion) => (
@@ -385,7 +415,15 @@ export default function Promotions() {
                   </ul>
                 </div>
                 <div className="promoActions">
-                  <button className="btn btnGhost" type="button" onClick={() => edit(promotion)}>Edit</button>
+                  <button className="btn promoEditButton" type="button" onClick={() => edit(promotion)}>Edit</button>
+                  <button
+                    className="btn promoArchiveButton"
+                    type="button"
+                    disabled={archivingId === promotion.id}
+                    onClick={() => archivePromotion(promotion)}
+                  >
+                    {archivingId === promotion.id ? "Archiving…" : "Archive"}
+                  </button>
                 </div>
               </article>
             ))}

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useParams } from "react-router-dom";
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
+  serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -23,7 +25,7 @@ const RESTORE_STAFF_ACCOUNT = httpsCallable(functions, "restoreStaffAccount");
 const ARCHIVE_FILTERS = {
   all: {
     title: "Archived Records",
-    subtitle: "Archived staff accounts and bookings.",
+    subtitle: "Browse archived records by category.",
     emptyText: "No archived records matched your search.",
   },
   accounts: {
@@ -35,6 +37,11 @@ const ARCHIVE_FILTERS = {
     title: "Archived Bookings",
     subtitle: "Old or inactive booking records separated from the live booking board.",
     emptyText: "No archived bookings matched your search.",
+  },
+  promotions: {
+    title: "Archived Promotions",
+    subtitle: "Promotions moved out of the active offers list.",
+    emptyText: "No archived promotions matched your search.",
   },
 };
 
@@ -147,6 +154,7 @@ export default function Archive({ adminRole, search }) {
   const [dentists, setDentists] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [promotions, setPromotions] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -162,11 +170,12 @@ export default function Archive({ adminRole, search }) {
     setLoading(true);
     setError("");
 
-    const [patientResult, dentistResult, accountResult, bookingResult] = await Promise.allSettled([
+    const [patientResult, dentistResult, accountResult, bookingResult, promotionResult] = await Promise.allSettled([
       getDocs(collection(db, "patients")),
       getDocs(collection(db, "dentists")),
       getDocs(collection(db, "admins")),
       getDocs(collection(db, "bookings")),
+      isAdmin ? getDocs(collection(db, "promotions")) : Promise.resolve(null),
     ]);
 
     if (patientResult.status === "fulfilled") {
@@ -197,7 +206,13 @@ export default function Archive({ adminRole, search }) {
       setBookings([]);
     }
 
-    const failures = [patientResult, dentistResult, accountResult, bookingResult].filter(
+    if (promotionResult.status === "fulfilled" && promotionResult.value) {
+      setPromotions(promotionResult.value.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    } else {
+      setPromotions([]);
+    }
+
+    const failures = [patientResult, dentistResult, accountResult, bookingResult, promotionResult].filter(
       (result) => result.status === "rejected"
     );
 
@@ -254,6 +269,12 @@ export default function Archive({ adminRole, search }) {
       );
   }, [bookings, term]);
 
+  const archivedPromotions = useMemo(() => {
+    return promotions
+      .filter((promotion) => isArchivedValue(promotion.archiveStatus))
+      .filter((promotion) => normalizeValue(promotion.title).includes(term));
+  }, [promotions, term]);
+
   const archivedDentists = useMemo(() => {
     return dentists
       .filter((dentist) => dentist.archiveStatus === "Archived")
@@ -268,7 +289,7 @@ export default function Archive({ adminRole, search }) {
       );
   }, [accounts, term]);
 
-  if (!ARCHIVE_FILTERS[section]) {
+  if (!ARCHIVE_FILTERS[section] || (section === "promotions" && !isAdmin)) {
     return <Navigate to="/admin/archive/all" replace />;
   }
 
@@ -309,6 +330,23 @@ export default function Archive({ adminRole, search }) {
     if (refresh) await load();
   }
 
+  async function restorePromotion(id, refresh = true) {
+    const promotion = promotions.find((entry) => entry.id === id);
+    await updateDoc(doc(db, "promotions", id), {
+      archiveStatus: "Active",
+      status: promotion?._archivePreviousStatus || "draft",
+      _archivePreviousStatus: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+    await logAdminAction({
+      action: "restore_promotion",
+      targetType: "promotion",
+      targetId: id,
+      targetLabel: promotion?.title || "Promotion",
+    });
+    if (refresh) await load();
+  }
+
   const rows = {
     patients: archivedPatients.map((patient) => ({
       id: `patient-${patient.id}`,
@@ -346,6 +384,18 @@ export default function Archive({ adminRole, search }) {
       details: getRecordDetails(booking),
       restore: (refresh) => restoreBooking(booking.id, refresh),
     })),
+    promotions: archivedPromotions.map((promotion) => ({
+      id: `promotion-${promotion.id}`,
+      title: promotion.title || "Untitled promotion",
+      category: "Promotion",
+      subtitle: `${promotion.discountValue || 0}${promotion.discountType === "percentage" ? "%" : "₱"} off`,
+      meta: [
+        { label: "Dates", value: [promotion.startDate, promotion.endDate].filter(Boolean).join(" – ") || "No dates" },
+        { label: "Services", value: (promotion.services || []).join(", ") || "No services" },
+      ],
+      details: getRecordDetails(promotion).filter((item) => item.label !== "Image url"),
+      restore: (refresh) => restorePromotion(promotion.id, refresh),
+    })),
   };
 
   const current = ARCHIVE_FILTERS[section];
@@ -353,14 +403,16 @@ export default function Archive({ adminRole, search }) {
     ? [
         ...rows.accounts,
         ...rows.bookings,
+        ...rows.promotions,
       ]
     : rows[section];
   const selectedCurrentRows = currentRows.filter((row) => selectedIds.includes(row.id));
   const allCurrentRowsSelected = currentRows.length > 0 && currentRows.every((row) => selectedIds.includes(row.id));
   const archiveCategories = [
-    { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length },
+    { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length + rows.promotions.length },
     { section: "accounts", label: "Staff accounts", count: rows.accounts.length },
     { section: "bookings", label: "Bookings", count: rows.bookings.length },
+    ...(isAdmin ? [{ section: "promotions", label: "Promotions", count: rows.promotions.length }] : []),
   ];
 
   function toggleRowSelection(id) {

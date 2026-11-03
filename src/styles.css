@@ -8496,6 +8496,10 @@ html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--bu
   gap: 0.75rem;
 }
 
+.promotionsPage .promoFormActions {
+  justify-content: flex-end;
+}
+
 .promotionsPage .promoPreview {
   display: block;
   width: 100%;
@@ -8653,7 +8657,32 @@ html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--bu
 
 .promotionsPage .promoActions {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: center;
   gap: 0.5rem;
+}
+
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoEditButton,
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoEditButton:hover,
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoEditButton:focus-visible,
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoEditButton:active {
+  color: #4a3900;
+  background: #ffd54f;
+  border-color: #e6bd36;
+  filter: none;
+  transition: none;
+}
+
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoArchiveButton,
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoArchiveButton:hover,
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoArchiveButton:focus-visible,
+.adminAppMain .adminSurface.promotionsPage .promoActions .promoArchiveButton:active {
+  color: #4a3900;
+  background: #fff;
+  border: 1px solid #dc3545;
+  filter: none;
+  transition: none;
 }
 
 .promotionsPage .promoBadge {
