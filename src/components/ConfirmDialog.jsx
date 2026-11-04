@@ -69,9 +69,11 @@ export default function ConfirmDialog({
             <p>{message}</p>
           </div>
           <div className="confirmModalActions">
-            <button className="btn secondary btnSoft" type="button" onClick={onClose}>
-              {cancelLabel}
-            </button>
+            {showCancelButton ? (
+              <button className="btn secondary btnSoft" type="button" onClick={onClose}>
+                {cancelLabel}
+              </button>
+            ) : null}
             <button
               className={`btn ${tone === "danger" ? "danger" : tone === "archive" ? "archiveButton" : "btnShine"}`}
               type="button"
@@ -80,29 +82,6 @@ export default function ConfirmDialog({
               {confirmLabel}
             </button>
           </div>
-<<<<<<< HEAD
-          <button className="modalClose" type="button" onClick={onClose} aria-label="Close confirmation dialog">
-            {closeIcon}
-          </button>
-        </div>
-        <div className="confirmModalBody">
-          <p>{message}</p>
-        </div>
-        <div className="confirmModalActions">
-          {showCancelButton ? (
-            <button className="btn secondary btnSoft" type="button" onClick={onClose}>
-              {cancelLabel}
-            </button>
-          ) : null}
-          <button
-            className={`btn ${tone === "danger" ? "danger" : tone === "archive" ? "archiveButton" : "btnShine"}`}
-            type="button"
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
-=======
->>>>>>> 32699ca33289193c838c8c2e294d2cb2c181be6a
         </div>
       </div>
     </ModalPortal>

@@ -656,6 +656,7 @@ export default function NavBar({
     setAppearanceModalOpen(false);
     setLogoutError("");
     setLogoutConfirmOpen(true);
+    setMenuOpen(false);
   }
 
   if (isStaffVerificationRoute || (user && isAdmin && !user.emailVerified)) return null;
@@ -731,8 +732,8 @@ export default function NavBar({
                 name={staffName}
                 staffRole={adminRole}
                 role={ROLE_LABELS[adminRole] || "Staff"}
-                onAppearanceClick={() => setAppearanceModalOpen(true)}
-                onLogout={() => { setLogoutError(""); setLogoutConfirmOpen(true); setMenuOpen(false); }}
+                onAppearanceClick={openAppearance}
+                onLogout={openLogoutConfirm}
               />
             </div>
           </div>
@@ -784,32 +785,6 @@ export default function NavBar({
                 </NavLink>
               ))}
             </nav>
-<<<<<<< HEAD
-=======
-            <div className="adminSidebarActions">
-              <div className="accountAppearance">
-                <button
-                  type="button"
-                  className="adminSidebarLink accountAppearanceTrigger"
-                  onClick={openAppearance}
-                >
-                  <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
-                    {THEME_OPTIONS.find((option) => option.id === "blue").icon}
-                  </span>
-                  <span>Appearance</span>
-                </button>
-              </div>
-              <button
-                type="button"
-                className="adminSidebarLink adminSidebarLogout"
-                data-mascot-target="nav-logout"
-                onClick={openLogoutConfirm}
-              >
-                {ACCOUNT_ICONS.logout}
-                <span>Log Out</span>
-              </button>
-            </div>
->>>>>>> 32699ca33289193c838c8c2e294d2cb2c181be6a
           </div>
         </aside>
         <AppearanceModal
