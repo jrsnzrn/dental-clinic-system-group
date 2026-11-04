@@ -9,6 +9,9 @@ import recepArea from "../assets/recepArea.png";
 import waitingArea from "../assets/waitingarea.jpg";
 import waitingArea2 from "../assets/wa1.jpg";
 import treatmentRoom from "../assets/treatmentroom.jpg";
+import dentclinic2 from "../assets/dentclinic2.jpg";
+import dentclinic3  from "../assets/dentclinic3.jpg";
+import dentclinic4 from "../assets/dentclinic4.jpg";
 import dentist1 from "../assets/dentist1.png";
 import dentist2 from "../assets/dentist2.jpg";
 import dentist3 from "../assets/dentist3.jpg";
@@ -21,18 +24,24 @@ import kidIcon from "../assets/kid.png";
 import results1 from "../assets/results1.jpg";
 import results2 from "../assets/results2.jpg";
 import results3 from "../assets/results3.png";
+import results4 from"../assets/results4.jpg";
+
 
 const clinicGallery = [
-  { image: recepArea, caption: "Receptionist Area" },
-  { image: waitingArea, caption: "Waiting Area" },
-  { image: treatmentRoom, caption: "Treatment Room" },
-  { image: waitingArea2, caption: "Waiting Area" },
+  { image: recepArea, alt: "Receptionist Area" },
+  { image: waitingArea, alt: "Waiting Area" },
+  { image: treatmentRoom, alt: "Treatment Room" },
+  { image: waitingArea2, alt: "Waiting Area" },
+  { image: dentclinic2, alt: "Dental Clinic 2" },
+  { image: dentclinic3, alt: "Dental Clinic 3" },
+  { image: dentclinic4, alt: "Dental Clinic 4" },
 ];
 
 const smileResults = [
   { image: results1, alt: "Before and after result 1" },
-  { image: results2, alt: "Before and after result 2" },
   { image: results3, alt: "Before and after result 3" },
+  { image: results2, alt: "Before and after result 2" },
+  { image: results4, alt: "Before and after result 4" },
 ];
 
 const services = [
@@ -66,19 +75,19 @@ const services = [
 const doctors = [
   {
     photo: dentist1,
-    name: "Dr. Kael",
+    name: "Dr. Rica",
     specialty: "General & Cosmetic Dentistry",
     bio: "Ten years of turning nervous first visits into easy, comfortable ones.",
   },
   {
     photo: dentist2,
-    name: "Dr. Mira",
+    name: "Dr. Emerson",
     specialty: "Orthodontics",
     bio: "Believes a great bite shouldn't take forever — or feel like it.",
   },
   {
     photo: dentist3,
-    name: "Dr. Paul",
+    name: "Dr. Nessa",
     specialty: "Pediatric Dentistry",
     bio: "Makes kids actually look forward to the dentist. Parents too.",
   },
@@ -191,7 +200,15 @@ function PromoSection({ promotions }) {
   return (
     <section className="homeOffers" aria-label="Promotions">
       <div className="innerWrap">
-        <h2 className="homeOffersHeading">Promotions</h2>
+        <h2 className="homeOffersHeading">
+          <span className="homeOffersHeadingContent">
+            <svg className="homeOffersGiftIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="8" width="18" height="13" rx="2" />
+              <path d="M12 8v13M3 12h18M12 8H7.5a2.5 2.5 0 1 1 2.5-2.5L12 8Zm0 0h4.5A2.5 2.5 0 1 0 14 5.5L12 8Z" />
+            </svg>
+            <span>Special Offers</span>
+          </span>
+        </h2>
         <div
           className={gridClassName}
           ref={isCarousel ? carouselRef : null}
@@ -272,6 +289,7 @@ function PromoSection({ promotions }) {
 
 export default function Home() {
   const [promotions, setPromotions] = useState([]);
+  const smileGalleryRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -287,6 +305,28 @@ export default function Home() {
       })
       .catch((error) => console.error("Could not load public promotions:", error));
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const gallery = smileGalleryRef.current;
+    if (!gallery) return undefined;
+
+    const cards = gallery.querySelectorAll(".smileCard");
+    const revealCards = () => cards.forEach((card) => card.classList.add("is-visible"));
+
+    if (typeof IntersectionObserver !== "function") {
+      revealCards();
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      revealCards();
+      observer.disconnect();
+    }, { threshold: 0.15 });
+
+    observer.observe(gallery);
+    return () => observer.disconnect();
   }, []);
 
   return (
@@ -378,18 +418,31 @@ export default function Home() {
             <p>Our clinic is designed to provide a clean, comfortable, and welcoming space for every patient.</p>
           </div>
 
-          <div className="homeGalleryGrid">
-            {clinicGallery.map((item) => (
-              <figure className="homeGalleryCard" key={item.caption + item.image}>
-                <img src={item.image} alt={item.caption} />
-                <figcaption>{item.caption}</figcaption>
-              </figure>
-            ))}
+          <div className="homeGalleryGrid" role="region" aria-label="Dental clinic photos">
+            <div className="homeGalleryTrack">
+              {[false, true].map((isDuplicate) => (
+                <div
+                  className="homeGallerySequence"
+                  key={isDuplicate ? "duplicate" : "original"}
+                  aria-hidden={isDuplicate ? "true" : undefined}
+                >
+                  {clinicGallery.map((item, index) => (
+                    <img
+                      className="homeGalleryImage"
+                      key={`${item.alt}-${index}`}
+                      src={item.image}
+                      alt={isDuplicate ? "" : item.alt}
+                      loading="lazy"
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="homeSmile">
+      <section className="homeSmile" ref={smileGalleryRef}>
         <div className="innerWrap">
           <div className="smileIntro">
             <h2>Smile <span>Gallery</span></h2>
@@ -397,19 +450,12 @@ export default function Home() {
           </div>
 
           <div className="smileGrid">
-            {smileResults.map((item, i) => (
-              <figure className="smileCard" key={i}>
-                <div className="smileCardMedia">
-                  {item.image ? (
-                    <img src={item.image} alt={item.alt} loading="lazy" />
-                  ) : (
-                    <>
-                      <div className="smilePlaceholder" />
-                      <div className="smilePlaceholder" />
-                    </>
-                  )}
-                  <span className="smileTag before">BEFORE</span>
-                  <span className="smileTag after">AFTER </span>
+            {smileResults.map((item) => (
+              <figure className="smileCard" key={item.alt}>
+                <div className="smileComparisonImage">
+                  <img src={item.image} alt={item.alt} loading="lazy" />
+                  <span className="smileImageLabel smileBeforeLabel">Before</span>
+                  <span className="smileImageLabel smileAfterLabel">After</span>
                 </div>
               </figure>
             ))}
@@ -506,10 +552,11 @@ export default function Home() {
       <section className="homePromo">
         <div className="innerWrap homePromoInner">
           <p>
-            Don't wait until it hurts. <strong>Book your appointment today.</strong>
+            <span>Don't wait until it hurts.</span>
+            <strong>Book your appointment today.</strong>
           </p>
           <a href="/book" className="btnPrimary16">
-            Book now
+            Book Now
           </a>
         </div>
       </section>

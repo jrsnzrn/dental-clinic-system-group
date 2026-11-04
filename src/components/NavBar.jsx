@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged, signOut, signInWithPopup } from "firebase/auth";
-import { auth, db, googleProvider } from "../firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
 import ConfirmDialog from "./ConfirmDialog";
@@ -319,82 +319,6 @@ function AccountMenu({ user, items, onLogout, theme, onThemeChange, accountRole 
             <strong>Logout</strong>
           </span>
         </button>
-      </div>
-    </div>
-  );
-}
-
-function PatientLoginMenu() {
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
-  const [signingIn, setSigningIn] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    function closeOnOutsideClick(event) {
-      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
-    }
-    function closeOnEscape(event) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    document.addEventListener("touchstart", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
-      document.removeEventListener("touchstart", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  async function loginWithGoogle() {
-    setError("");
-    setSigningIn(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setOpen(false);
-      navigate("/book", { replace: true });
-    } catch (signInError) {
-      if (signInError?.code !== "auth/popup-closed-by-user") {
-        setError("Sign-in could not be completed. Please try again.");
-      }
-    } finally {
-      setSigningIn(false);
-    }
-  }
-
-  return (
-    <div className="accountMenu patientLoginMenu" ref={ref}>
-      <button
-        type="button"
-        className={`accountTrigger patientLoginTrigger${open ? " open" : ""}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          setError("");
-          setOpen((current) => !current);
-        }}
-      >
-        <AccountAvatar user={{ displayName: "P" }} />
-        <span className="accountMeta"><span className="accountName">Login</span></span>
-        <span className="accountChevron">{ACCOUNT_ICONS.chevron}</span>
-      </button>
-      <div className={`accountDropdown patientLoginDropdown${open ? " open" : ""}`} role="menu" aria-label="Patient login">
-        <div className="accountDropdownHead">
-          <AccountAvatar user={{ displayName: "P" }} large />
-          <div className="accountDropdownInfo">
-            <strong>Patient account</strong>
-            <span className="accountEmail">Sign in to manage your appointments</span>
-          </div>
-        </div>
-        <div className="accountDropdownDivider" />
-        <button className="accountDropdownItem patientLoginAction" type="button" role="menuitem" onClick={loginWithGoogle} disabled={signingIn}>
-          <span className="patientGoogleMark" aria-hidden="true">G</span>
-          <span className="accountItemText"><strong>{signingIn ? "Opening Google…" : "Sign in with Google"}</strong><small>Use your Google account</small></span>
-        </button>
-        {error ? <p className="patientLoginError" role="alert">{error}</p> : null}
       </div>
     </div>
   );
@@ -930,7 +854,15 @@ export default function NavBar({
               onLogout={logoutAccount}
             />
           )}
-          {!user && <PatientLoginMenu />}
+          {!user && (
+            <NavLink to="/book" className="btn patientLoginButton">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M5 21a7 7 0 0 1 14 0" />
+              </svg>
+              <span>Login</span>
+            </NavLink>
+          )}
         </div>
       </div>
     )

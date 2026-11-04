@@ -248,11 +248,18 @@ input, textarea, select {
 }
 
 .navInner > .navMenuShell {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .navLinksPrimary {
-  justify-content: center;
+  justify-content: flex-end;
+}
+
+.navInner > .patientLoginButton {
+  flex: 0 0 auto;
+  margin-left: 24px;
 }
 
 .brand {
@@ -763,7 +770,7 @@ section > .innerWrap > p,
 /*  Home Landing                                                    */
 /* ---------------------------------------------------------------- */
 .homeLanding {
-  background: var(--bg-landing);
+  background: var(--background);
   padding: clamp(72px, 8vw, 96px) 0;
 }
 
@@ -863,7 +870,7 @@ section > .innerWrap > p,
 /* ---------------------------------------------------------------- */
 .homeOffers {
   padding: clamp(40px, 5vw, 68px) 0;
-  background: #fff;
+  background: var(--surface);
 }
 
 .homeOffersHeading {
@@ -875,14 +882,17 @@ section > .innerWrap > p,
   color: var(--text);
 }
 
-.homeOffersHeading::after {
-  display: block;
-  width: 48px;
-  height: 3px;
-  margin-top: 10px;
-  content: "";
-  background: var(--accent);
-  border-radius: 999px;
+.homeOffersHeadingContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.homeOffersGiftIcon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  color: var(--accent);
 }
 
 .homeOffersGrid {
@@ -937,7 +947,7 @@ section > .innerWrap > p,
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -951,7 +961,7 @@ section > .innerWrap > p,
   min-width: 0;
   min-height: 100%;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   isolation: isolate;
 }
 
@@ -976,7 +986,7 @@ section > .innerWrap > p,
   left: -64px;
   width: 110px;
   content: "";
-  background: #fff;
+  background: var(--surface);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -1007,7 +1017,7 @@ section > .innerWrap > p,
   line-height: 1;
   text-align: center;
   color: var(--text);
-  background: #fff;
+  background: var(--surface);
   border: 4px solid var(--accent);
   border-radius: 50%;
 }
@@ -1036,7 +1046,7 @@ section > .innerWrap > p,
   gap: clamp(5px, 0.8vw, 10px);
   min-width: 0;
   padding: clamp(16px, 2vw, 28px);
-  background: #fff;
+  background: var(--surface);
 }
 
 .homeOffers .promoLabel {
@@ -1050,7 +1060,7 @@ section > .innerWrap > p,
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 999px;
 }
@@ -1194,7 +1204,7 @@ section > .innerWrap > p,
   width: 28px;
   aspect-ratio: 1;
   color: var(--accent);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--accent);
   border-radius: 50%;
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
@@ -1338,7 +1348,7 @@ section > .innerWrap > p,
 /*  Why Choose Us                                                   */
 /* ---------------------------------------------------------------- */
 .homeWhyUs {
-  background: var(--bg-whyus);
+  background: var(--background);
   padding: clamp(72px, 8vw, 96px) 0;
 }
 
@@ -1517,7 +1527,7 @@ section > .innerWrap > p,
 /*  Our Dental Clinic                                               */
 /* ---------------------------------------------------------------- */
 .homeGalleryBand {
-  background: var(--bg-gallery);
+  background: var(--surface);
   padding: clamp(72px, 8vw, 96px) 0;
 }
 
@@ -1545,52 +1555,57 @@ section > .innerWrap > p,
 }
 
 .homeGalleryGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 32px 24px;
-}
-
-.homeGalleryCard {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  background: none;
-  border: none;
-  border-radius: 0;
-  overflow: visible;
-}
-
-.homeGalleryCard img {
-  display: block;
   width: 100%;
+  overflow: hidden;
+}
+
+.homeGalleryTrack {
+  display: flex;
+  width: max-content;
+  animation: homeGalleryScroll 72s linear infinite;
+  will-change: transform;
+}
+
+.homeGalleryGrid:hover .homeGalleryTrack {
+  animation-play-state: paused;
+}
+
+.homeGallerySequence {
+  --home-gallery-gap: clamp(12px, 1.5vw, 20px);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--home-gallery-gap);
+  padding-right: var(--home-gallery-gap);
+}
+
+.homeGalleryImage {
+  display: block;
+  width: clamp(180px, 22vw, 280px);
   aspect-ratio: 4 / 5;
+  flex: 0 0 clamp(180px, 22vw, 280px);
   object-fit: cover;
-  border-radius: var(--radius);
+  border-radius: var(--radius, 12px);
 }
 
-.homeGalleryCard figcaption {
-  text-align: left;
-  padding: 0;
-  margin-top: 14px;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text);
-}
-
-@media (max-width: 960px) {
-  .homeGalleryGrid {
-    grid-template-columns: repeat(2, 1fr);
+@keyframes homeGalleryScroll {
+  to {
+    transform: translateX(-50%);
   }
 }
 
-@media (max-width: 520px) {
-  .homeGalleryBand {
-    padding: 72px 0;
+@media (prefers-reduced-motion: reduce) {
+  .homeGalleryGrid {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
   }
 
-  .homeGalleryGrid {
-    grid-template-columns: 1fr;
+  .homeGalleryTrack {
+    animation: none;
+    will-change: auto;
+  }
+
+  .homeGallerySequence[aria-hidden="true"] {
+    display: none;
   }
 }
 
@@ -1599,7 +1614,7 @@ section > .innerWrap > p,
 /* ================================================================ */
 
 .homeSmile {
-  background: var(--bg-smile, var(--bg));
+  background: var(--background);
   padding: clamp(72px, 8vw, 96px) 0;
   overflow: hidden;
 }
@@ -1607,19 +1622,23 @@ section > .innerWrap > p,
 .smileIntro {
   text-align: center;
   max-width: 620px;
-  margin: 0 auto 48px;
+  margin: 0 auto 40px;
 }
 
 .homeSmile .smileIntro h2 {
   display: block;
   font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1.5rem, 2.5vw, 1.875rem) !important;
+  font-weight: 700;
+  font-size: clamp(2rem, 3.5vw, 2.75rem) !important;
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--text);
   margin: 0 0 12px;
   text-wrap: balance;
+}
+
+.homeSmile .smileIntro h2 span {
+  color: var(--accent);
 }
 
 .smileIntro p {
@@ -1631,62 +1650,77 @@ section > .innerWrap > p,
 
 .smileGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 
 .smileCard {
+  min-width: 0;
   margin: 0;
-  border: 2.5px solid var(--accent);
-  border-radius: 12px;
-  padding: 24px 18px;
-}
-
-.smileCardMedia {
-  position: relative;
-  display: block;
-  width: 100%;
-  aspect-ratio: 3 / 4;
+  border: 1px solid var(--accent);
+  border-radius: 14px;
   overflow: hidden;
-  border-radius: 4px;
+  background: var(--surface);
 }
 
-.smileCardMedia img {
+.smileComparisonImage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 13px;
+  background: var(--surface);
+}
+
+.smileComparisonImage img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
 }
 
-.smileTag {
+.smileImageLabel {
   position: absolute;
+  left: 10px;
   z-index: 1;
-  padding: 4px 8px;
-  font-family: var(--font-mono, monospace);
-  font-weight: 800;
-  font-size: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  min-height: 28px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  border-radius: 4px;
-  color: var(--status-success);
-  background-color: color-mix(in srgb, var(--status-success) 14%, var(--surface));
 }
 
-.smileTag.before {
+.smileBeforeLabel {
   top: 10px;
-  left: 10px;
+  color: var(--text);
+  background: var(--secondary);
 }
 
-.smileTag.after {
-  bottom: 10px;
-  left: 10px;
+.smileAfterLabel {
+  top: calc(50% + 10px);
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1000px) {
   .smileGrid {
-    grid-template-columns: 1fr;
-    max-width: 520px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .smileGrid {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 420px;
     margin: 0 auto;
   }
 }
@@ -1701,7 +1735,7 @@ section > .innerWrap > p,
 /*  Our Services                                                    */
 /* ---------------------------------------------------------------- */
 .homeServices {
-  background: var(--bg-services);
+  background: var(--surface);
   padding: clamp(72px, 8vw, 96px) 0;
 }
 
@@ -1837,7 +1871,7 @@ section > .innerWrap > p,
 /*  Our Dental Experts                                              */
 /* ---------------------------------------------------------------- */
 .homeDoctors {
-  background: var(--bg-doctors);
+  background: var(--surface);
   padding: clamp(72px, 8vw, 96px) 0;
 }
 
@@ -1996,7 +2030,7 @@ section > .innerWrap > p,
 /*  Patient Feedback                                                */
 /* ---------------------------------------------------------------- */
 .homeFeedback {
-  background: var(--bg-feedback);
+  background: var(--background);
   padding: clamp(72px, 8vw, 96px) 0;
 }
 
@@ -2143,9 +2177,18 @@ section > .innerWrap > p,
 /*  CTA                                                             */
 /* ---------------------------------------------------------------- */
 .homePromo {
-  background: var(--bg-promo);
-  color: var(--text-promo);
+  background: var(--background);
+  color: var(--text);
   padding: 56px 0;
+  border-radius: 16px;
+}
+
+html[data-theme="light"] .homePromo {
+  background: var(--secondary);
+}
+
+html[data-theme="blue"] .homePromo {
+  background: var(--secondary);
 }
 
 .homePromoInner {
@@ -2156,30 +2199,41 @@ section > .innerWrap > p,
   flex-wrap: wrap;
 }
 
-.homePromoInner p {
+.homePromo .homePromoInner p {
   font-family: var(--font-display);
   font-weight: 500;
   font-size: 1.3rem;
   line-height: 1.25;
   letter-spacing: -0.02em;
-  color: var(--text-promo);
+  color: var(--text);
   max-width: 32ch;
   margin: 0;
   text-wrap: balance;
+}
+
+.homePromoInner p > span,
+.homePromoInner p strong {
+  display: block;
 }
 
 .homePromoInner p strong {
   font-weight: 700;
 }
 
-.homePromo .btnPrimary16 {
+.homePromo .homePromoInner > .btnPrimary16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 15px 30px;
+  border: 0;
+  border-radius: 16px;
   background: var(--button-primary-background);
-  color: var(--button-primary-color);
-  border: 1px solid var(--button-primary-background);
+  color: white;
 }
 
 .homePromo .btnPrimary16:hover {
   opacity: 1;
+  background: var(--button-primary-hover-background);
 }
 
 @media (max-width: 640px) {
@@ -2190,6 +2244,10 @@ section > .innerWrap > p,
   .homePromoInner {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .homePromo .homePromoInner > .btnPrimary16 {
+    align-self: flex-end;
   }
 }
 
@@ -4140,52 +4198,30 @@ html[data-theme="blue"] .mapFrame {
   background: color-mix(in srgb, var(--danger) 7%, var(--bg));
 }
 
-.patientLoginTrigger {
-  gap: 9px;
-}
-
-.patientLoginTrigger .accountAvatar {
-  width: 34px;
-  height: 34px;
-  font-size: 14px;
-  background: color-mix(in srgb, var(--accent) 9%, var(--bg));
-}
-
-.patientLoginDropdown {
-  width: min(320px, calc(100vw - 24px));
-  padding: 8px;
-}
-
-.patientLoginAction {
-  min-height: 58px;
-}
-
-.patientLoginAction:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
-.patientGoogleMark {
+.patientLoginButton.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--bg);
-  color: #4285f4;
-  font-family: Arial, sans-serif;
-  font-size: 17px;
-  font-weight: 700;
+  gap: 9px;
+  padding: 10px 16px;
+  border: 1px solid var(--button-primary-background);
+  border-radius: 8px;
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-.patientLoginError {
-  margin: 4px 10px 8px;
-  color: var(--danger);
-  font-size: 12px;
-  line-height: 1.4;
+.patientLoginButton.btn:hover {
+  border-color: var(--button-primary-hover-background);
+  background: var(--button-primary-hover-background);
+  color: var(--button-primary-color);
+}
+
+.patientLoginButton svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
 }
 
 .auditPageHeading {
@@ -4247,6 +4283,14 @@ html[data-theme="blue"] .mapFrame {
     justify-content: center;
     gap: 0;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .nav .patientLoginButton {
+    position: absolute;
+    top: 12px;
+    right: 70px;
+    margin-left: 0;
+    padding: 8px 11px;
   }
 
   .accountTrigger .accountAvatar {
