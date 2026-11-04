@@ -6,6 +6,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import EmptyState from "../../components/EmptyState";
 import BackArrow from "../../components/BackArrow";
+import PaymentReceipts from "../../components/PaymentReceipts";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { db, functions } from "../../firebase";
 import { logAdminAction } from "../../utils/audit";
@@ -15,7 +16,7 @@ import {
   recordBracesPayment,
   recordRegularPayment,
 } from "../../utils/paymentTransactions";
-import { formatDateLabel } from "../../utils/schedule";
+import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const DETAIL_PAYMENT_METHODS = ["Cash", "GCash", "Maya", "Bank Transfer", "Card"];
 const COMPLETE_PAID_APPOINTMENT = httpsCallable(functions, "completePaidAppointment");
@@ -62,10 +63,10 @@ function isFullyPaid(row) {
 }
 
 function paymentStatusLabel(row, patientType = row?.patientType) {
+  if (isFullyPaid(row || {})) return "Completed";
   if (row?.source === "Appointment" && row.paymentReady === false) {
     return row.paymentQueueLabel || "Awaiting treatment";
   }
-  if (isFullyPaid(row || {})) return "Completed";
   if (patientType !== "Ortho" && toAmount(row?.amountPaid) <= 0) return "Pending";
   return "Ongoing";
 }
@@ -613,6 +614,8 @@ export default function Payments() {
     [bracesPayments, detailBracesAccount, selectedPatientRecord]
   );
   const isBracesInstallment = selectedPaymentRow?.source === "Ortho" && selectedPatientType === "Ortho";
+  const selectedPaymentCompleted = isFullyPaid(selectedPaymentRow || {});
+  const selectedBooking = bookings.find((booking) => booking.id === selectedPaymentRow?.appointmentId);
   const canEditAppointmentCharge = selectedPaymentRow?.source !== "Appointment" || selectedPaymentRow.paymentReady === true;
   const hasValidAppointmentCharge = selectedPaymentRow?.source !== "Appointment" ||
     (selectedPaymentRow.paymentReady === true && Number(detailDraft.totalCost) > 0);
@@ -628,6 +631,15 @@ export default function Payments() {
         .map((payment) => ({ ...payment, ledgerSource: "Braces installment" })),
     ].sort((a, b) => paymentDateSortValue(b).localeCompare(paymentDateSortValue(a)));
   }, [bracesPayments, regularPayments, selectedPatientRecord]);
+  const selectedRecordTransactions = selectedPatientTransactions.filter((transaction) => {
+    if (isBracesInstallment) {
+      return transaction.ledgerSource === "Braces installment" && transaction.accountId === selectedPaymentRow?.treatmentId;
+    }
+    if (transaction.ledgerSource !== "Payment") return false;
+    return selectedPaymentRow?.appointmentId
+      ? transaction.appointmentId === selectedPaymentRow.appointmentId
+      : Boolean(selectedTreatmentId) && transaction.treatmentId === selectedTreatmentId;
+  });
   const filteredRows = useMemo(() => {
     const term = normalizeName(search);
     return [...allRows]
@@ -644,6 +656,7 @@ export default function Payments() {
   const tabRows = useMemo(() => {
     const matchingRows = filteredRows.filter((row) => {
       if (paymentTab === "Completed") return isFullyPaid(row);
+      if (isFullyPaid(row)) return false;
       if (row.patientType !== paymentTab) return false;
       if (paymentTab === "Ortho" && !["Ortho", "Appointment"].includes(row.source)) return false;
       return true;
@@ -693,7 +706,7 @@ export default function Payments() {
 
   async function saveSelectedPaymentDetails(event) {
     event.preventDefault();
-    if (submissionLockRef.current || !selectedPatientRecord) return;
+    if (submissionLockRef.current || !selectedPatientRecord || selectedPaymentCompleted) return;
     setDetailError("");
     if (!canRecordSelectedPayment) {
       setDetailError("Payment can be recorded after the dentist marks the treatment as completed and sends it to Payments, and a valid charge is available.");
@@ -846,17 +859,39 @@ export default function Payments() {
             </div>
           ) : null}
           {detailError ? <div className="formError" role="alert">{detailError}</div> : null}
-          {!canRecordSelectedPayment ? (
+          {!selectedPaymentCompleted && !canRecordSelectedPayment ? (
             <p className="paymentsDetailNote" role="status">
               This appointment is in the payment queue, but payment entry is disabled until its treatment details and charge are ready.
             </p>
           ) : null}
-          {selectedPaymentRow?.source === "Appointment" && selectedPaymentRow.paymentReady && Number(detailDraft.totalCost) <= 0 ? (
+          {!selectedPaymentCompleted && selectedPaymentRow?.source === "Appointment" && selectedPaymentRow.paymentReady && Number(detailDraft.totalCost) <= 0 ? (
             <p className="paymentsDetailNote" role="status">Treatment is ready. Enter a valid final charge before recording payment.</p>
           ) : null}
 
           <div className="paymentsDetailsContent">
             <section className="paymentsDetailsFormSection" aria-label="Record a payment">
+              {selectedPaymentCompleted ? (
+                <>
+                  <h2>Completed payment details</h2>
+                  <dl className="appointmentPaymentDetails">
+                    {[
+                      ["Booking ID", selectedPaymentRow?.appointmentId || "Not linked"],
+                      ["Appointment", selectedBooking?.date ? formatDateLabel(selectedBooking.date) : selectedPaymentRow?.appointmentDate ? formatDateLabel(selectedPaymentRow.appointmentDate) : "Not recorded"],
+                      ["Time", selectedBooking?.time ? `${formatTimeLabel(selectedBooking.time)}${selectedBooking.estimatedEndTime ? ` – ${formatTimeLabel(selectedBooking.estimatedEndTime)}` : ""}` : "Not recorded"],
+                      ["Service", selectedPaymentRow?.treatmentName || "Not recorded"],
+                      ["Dentist", selectedBooking?.selectedDentist || selectedPaymentRow?.selectedDentist || "Not recorded"],
+                      ["Booked at", selectedBooking?.createdAt ? formatTimestamp(selectedBooking.createdAt) : "Not recorded"],
+                      ["Total fee", formatCurrency(selectedPaymentRow.totalCost)],
+                      ["Total paid", formatCurrency(selectedPaymentRow.amountPaid)],
+                      ["Balance", formatCurrency(selectedPaymentRow.balance)],
+                    ].map(([label, value]) => (
+                      <div className="detailRow" key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                    ))}
+                  </dl>
+                  <PaymentReceipts payments={selectedRecordTransactions} patientName={selectedPatientRecord.name} booking={selectedBooking} />
+                </>
+              ) : (
+                <>
               <h2>Record a payment</h2>
               <form className="paymentsDetailsForm" onSubmit={saveSelectedPaymentDetails}>
                 <div className="paymentsDetailsFields">
@@ -958,6 +993,8 @@ export default function Payments() {
                   <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails}>Cancel</button>
                 </footer>
               </form>
+                </>
+              )}
             </section>
 
             <section className="paymentsDetailsHistory" aria-label="Payment history">
@@ -966,13 +1003,7 @@ export default function Payments() {
                 <table className="paymentsInlineHistoryTable">
                   <thead><tr><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th></tr></thead>
                   <tbody>
-                    {selectedPatientTransactions
-                      .filter((transaction) =>
-                        isBracesInstallment
-                          ? transaction.ledgerSource === "Braces installment"
-                          : transaction.ledgerSource === "Payment" &&
-                            (!selectedTreatmentId || transaction.treatmentId === selectedTreatmentId)
-                      )
+                    {selectedRecordTransactions
                       .map((transaction) => (
                         <tr key={`${transaction.ledgerSource}:${transaction.id}`}>
                           <td>{paymentDateSortValue(transaction) ? formatDateLabel(paymentDateSortValue(transaction)) : "—"}</td>
@@ -983,13 +1014,8 @@ export default function Payments() {
                       ))}
                   </tbody>
                 </table>
-                {!selectedPatientTransactions.some((transaction) =>
-                  isBracesInstallment
-                    ? transaction.ledgerSource === "Braces installment"
-                    : transaction.ledgerSource === "Payment" &&
-                      (!selectedTreatmentId || transaction.treatmentId === selectedTreatmentId)
-                ) ? (
-                  <p className="paymentsDetailNote">No payment history is recorded for this patient.</p>
+                {!selectedRecordTransactions.length ? (
+                  <p className="paymentsDetailNote">No payment history is recorded for this booking or treatment.</p>
                 ) : null}
               </div>
             </section>

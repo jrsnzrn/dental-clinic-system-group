@@ -11,6 +11,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import PaymentReceipts from "../../components/PaymentReceipts";
 import EmptyState from "../../components/EmptyState";
 import BookingToolbar from "../../components/BookingToolbar";
 import { SkeletonList } from "../../components/LoadingSkeleton";
@@ -246,6 +247,7 @@ function BookingDetailDrawer({
   const [paymentDetails, setPaymentDetails] = useState(null);
   const currentPaymentDetails = paymentDetails?.bookingId === booking?.id ? paymentDetails : null;
   const paymentSummaries = currentPaymentDetails?.summaries || [];
+  const paymentReceipts = currentPaymentDetails?.receipts || [];
   const paymentError = currentPaymentDetails?.error || "";
   const paymentLoading = open && status === "completed" && !currentPaymentDetails;
 
@@ -255,20 +257,30 @@ function BookingDetailDrawer({
       collection(db, "paymentTreatmentSummaries"),
       where("appointmentId", "==", booking.id)
     );
-    return onSnapshot(summariesQuery, (snapshot) => {
-      setPaymentDetails({
-        bookingId: booking.id,
-        summaries: snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })),
-        error: "",
-      });
+    const receiptsQuery = query(collection(db, "payments"), where("appointmentId", "==", booking.id));
+    const details = { bookingId: booking.id, summaries: [], receipts: [], error: "" };
+    const pending = new Set(["summaries", "receipts"]);
+    const errors = new Set();
+    const publish = () => {
+      if (!pending.size) setPaymentDetails({ ...details, error: errors.size ? "Some payment details could not be loaded. Please reopen this booking to retry." : "" });
+    };
+    const listen = (source, key) => onSnapshot(source, (snapshot) => {
+      details[key] = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      pending.delete(key);
+      errors.delete(key);
+      publish();
     }, (error) => {
-      console.error("Appointment payment details could not load:", error);
-      setPaymentDetails({
-        bookingId: booking.id,
-        summaries: [],
-        error: "Payment details are unavailable right now.",
-      });
+      console.error(`Appointment ${key} could not load:`, error);
+      pending.delete(key);
+      errors.add(key);
+      publish();
     });
+    const unsubscribeSummaries = listen(summariesQuery, "summaries");
+    const unsubscribeReceipts = listen(receiptsQuery, "receipts");
+    return () => {
+      unsubscribeSummaries();
+      unsubscribeReceipts();
+    };
   }, [booking?.id, open, status]);
 
   return (
@@ -383,7 +395,10 @@ function BookingDetailDrawer({
                       })}
                     </dl>
                   ) : null}
-                  {!paymentLoading && !paymentError && !paymentSummaries.length ? <p>No linked payment details.</p> : null}
+                  {!paymentLoading && !paymentError && !paymentSummaries.length && !paymentReceipts.length ? <p>No linked payment details. This booking has no saved payment summary or receipt.</p> : null}
+                  {!paymentLoading && paymentReceipts.length ? (
+                    <PaymentReceipts payments={paymentReceipts} patientName={booking.fullName || booking.name} booking={booking} />
+                  ) : null}
                 </div>
               ) : null}
 

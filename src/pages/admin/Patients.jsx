@@ -1279,7 +1279,7 @@ export default function Patients({
           uid: selectedPatient.uid || "",
           patientName: selectedPatient.name || "",
           patientEmail: selectedPatient.email || "",
-          authorizedDentistUids: selectedPatient.authorizedDentistUids || [],
+          authorizedDentistUids: chartSnap.data()?.authorizedDentistUids || selectedPatient.authorizedDentistUids || [],
           patientTreatmentPlans: nextHistory,
         }, { merge: true });
       });
@@ -2120,9 +2120,7 @@ export default function Patients({
                             pattern="^09[0-9]{9}$"
                             maxLength={11}
                             value={draft.phone}
-                            onKeyDown={handlePhoneKeyDown}
-                            onPaste={(e) => handlePhonePaste(e, setEditErrors)}
-                            onChange={(e) => handlePhoneChange(e, updateDraft, setEditErrors)}
+                            onChange={(e) => updateDraft("phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 11))}
                             aria-invalid={Boolean(editErrors.phone)}
                             aria-describedby={editErrors.phone ? "edit-patient-phone-error" : undefined}
                             required
@@ -2261,7 +2259,7 @@ export default function Patients({
                     )}
                   </div>
 
-                  {selectedPatient.uid ? (
+                  {selectedPatient.uid || selectedPatient.id ? (
                     <>
                     <div className="chartLayout dentalChartLayout">
                       <div className="chartCol">

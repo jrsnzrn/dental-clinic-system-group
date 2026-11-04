@@ -2895,6 +2895,35 @@ exports.syncDentistPatientAccess = onCall({}, async (request) => {
     ...serializeCallableValue(snapshot.data() || {}),
     id: snapshot.id,
   }));
+  // Walk-ins have a patient record ID rather than an authentication UID.
+  // Ensure their chart exists before the dentist's client transaction reads it.
+  // Firestore permits that read only when the chart already authorizes the dentist.
+  await Promise.all(patientRecordSnapshots
+    .filter((snapshot) => !snapshot.data()?.uid)
+    .map((patientSnapshot) => db.runTransaction(async (transaction) => {
+      const chartRef = db.collection("dentalCharts").doc(patientSnapshot.id);
+      const chartSnapshot = await transaction.get(chartRef);
+      if (!chartSnapshot.exists) {
+        const patient = patientSnapshot.data() || {};
+        transaction.set(chartRef, {
+          uid: "",
+          patientName: patient.name || "",
+          patientEmail: patient.email || "",
+          authorizedDentistUids: [...new Set([
+            ...(Array.isArray(patient.authorizedDentistUids) ? patient.authorizedDentistUids : []),
+            staff.uid,
+          ])],
+          patientTreatmentPlans: [],
+        });
+      } else if (!Array.isArray(chartSnapshot.data()?.authorizedDentistUids)) {
+        transaction.set(chartRef, { authorizedDentistUids: [staff.uid] }, { merge: true });
+      } else if (!chartSnapshot.data().authorizedDentistUids.includes(staff.uid)) {
+        transaction.set(chartRef, {
+          authorizedDentistUids: admin.firestore.FieldValue.arrayUnion(staff.uid),
+        }, { merge: true });
+      }
+    })));
+
   const chartIds = [...new Set([
     ...patientUids,
     ...patientRecordIds,

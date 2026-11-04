@@ -297,6 +297,8 @@ service cloud.firestore {
           "totalCost",
           "amount",
           "paymentDate",
+          "referenceNumber",
+          "additionalServices",
           "method",
           "notes",
           "createdAt"
@@ -304,6 +306,10 @@ service cloud.firestore {
         request.resource.data.patientId is string &&
         request.resource.data.treatmentId is string &&
         request.resource.data.patientType in ["Regular", "Ortho"] &&
+        request.resource.data.get("referenceNumber", "") is string &&
+        (request.resource.data.get("referenceNumber", "") == "" ||
+          request.resource.data.referenceNumber.matches("^[0-9]{13}$")) &&
+        request.resource.data.get("additionalServices", []) is list &&
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
         request.resource.data.totalCost is number &&
@@ -324,6 +330,7 @@ service cloud.firestore {
           "appointmentId",
           "treatmentName",
           "procedureName",
+          "additionalServices",
           "totalCost",
           "amountPaid",
           "remainingBalance",
@@ -333,6 +340,7 @@ service cloud.firestore {
         request.resource.data.patientId is string &&
         request.resource.data.treatmentId is string &&
         request.resource.data.patientType in ["Regular", "Ortho"] &&
+        request.resource.data.get("additionalServices", []) is list &&
         request.resource.data.totalCost is number &&
         request.resource.data.totalCost > 0 &&
         request.resource.data.amountPaid is number &&

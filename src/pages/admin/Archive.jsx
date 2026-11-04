@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useParams } from "react-router-dom";
 import {
   collection,
@@ -166,14 +166,14 @@ export default function Archive({ adminRole, search }) {
   const { section = "patients" } = useParams();
   const isAdmin = adminRole === "admin";
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
 
     const [patientResult, dentistResult, accountResult, bookingResult, promotionResult] = await Promise.allSettled([
       getDocs(collection(db, "patients")),
       getDocs(collection(db, "dentists")),
-      getDocs(collection(db, "admins")),
+      isAdmin ? getDocs(collection(db, "admins")) : Promise.resolve(null),
       getDocs(collection(db, "bookings")),
       isAdmin ? getDocs(collection(db, "promotions")) : Promise.resolve(null),
     ]);
@@ -190,7 +190,7 @@ export default function Archive({ adminRole, search }) {
       setDentists([]);
     }
 
-    if (accountResult.status === "fulfilled") {
+    if (accountResult.status === "fulfilled" && accountResult.value) {
       setAccounts(
         accountResult.value.docs
           .map((entry) => ({ id: entry.id, ...entry.data() }))
@@ -221,11 +221,11 @@ export default function Archive({ adminRole, search }) {
     }
 
     setLoading(false);
-  }
+  }, [isAdmin]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const term = normalizeValue(search);
 
@@ -289,7 +289,7 @@ export default function Archive({ adminRole, search }) {
       );
   }, [accounts, term]);
 
-  if (!ARCHIVE_FILTERS[section] || (section === "promotions" && !isAdmin)) {
+  if (!ARCHIVE_FILTERS[section] || (["accounts", "promotions"].includes(section) && !isAdmin)) {
     return <Navigate to="/admin/archive/all" replace />;
   }
 
@@ -410,7 +410,7 @@ export default function Archive({ adminRole, search }) {
   const allCurrentRowsSelected = currentRows.length > 0 && currentRows.every((row) => selectedIds.includes(row.id));
   const archiveCategories = [
     { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length + rows.promotions.length },
-    { section: "accounts", label: "Staff accounts", count: rows.accounts.length },
+    ...(isAdmin ? [{ section: "accounts", label: "Staff accounts", count: rows.accounts.length }] : []),
     { section: "bookings", label: "Bookings", count: rows.bookings.length },
     ...(isAdmin ? [{ section: "promotions", label: "Promotions", count: rows.promotions.length }] : []),
   ];
