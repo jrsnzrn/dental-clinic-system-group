@@ -7,7 +7,7 @@ import { formatDateLabel, formatTimeLabel } from "../../utils/schedule";
 import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
 import { getDashboardPatientPath, getDashboardStatus, getStaffDashboardSummary } from "../../utils/staffDashboard";
 import { getClinicDate } from "../../../functions/bookingWindow.mjs";
-import { formatStaffName } from "../../utils/staffProfile";
+import { formatStaffDisplayName } from "../../utils/staffProfile";
 
 const ICON_PATHS = {
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
@@ -25,7 +25,7 @@ export default function StaffDashboard({ uid, role }) {
   const loading = data.loading || !data.bookings;
   const unavailable = loading || Boolean(data.error);
   const summary = getStaffDashboardSummary(data.bookings || [], date);
-  const name = formatStaffName(data.profile);
+  const name = formatStaffDisplayName(data.profile);
   const rows = summary.appointments.filter(booking => [booking.fullName, booking.patientName, booking.service,
     booking.selectedDentist, booking.id, ...(Array.isArray(booking.services) ? booking.services : [])].some(value => String(value || "").toLowerCase().includes(search.trim().toLowerCase())));
   const cards = [

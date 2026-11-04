@@ -20,7 +20,7 @@ function harness(profile, { verified = true, next = "", authTime = 1000 } = {}) 
 }
 
 test("admin, receptionist, and dentist roles are detected from the saved account", async () => {
-  for (const [role, path] of [["admin", "/admin/patients"], ["receptionist", "/admin/dashboard"], ["dentist", "/admin/dashboard"]]) {
+  for (const [role, path] of [["admin", "/admin/analytics"], ["receptionist", "/admin/dashboard"], ["dentist", "/admin/dashboard"]]) {
     const state = harness({ role, mfaVerifiedAuthTime: 1000, mfaVerifiedUntil: new Date(Date.now() + 60000) });
     await state.login();
     assert.equal(state.destinations[0].path, path);
@@ -46,7 +46,7 @@ test("unverified email still goes through staff email verification", async () =>
 test("automatic role detection keeps required MFA", async () => {
   const state = harness({ role: "admin" });
   await state.login();
-  assert.equal(state.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fpatients");
+  assert.equal(state.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fanalytics");
 });
 
 test("a new login requires OTP even when an earlier MFA check has not expired", async () => {
@@ -90,8 +90,20 @@ test("dentists and receptionists use the dashboard after email and MFA verificat
   }
 });
 
-test("administrators keep their internal destination and external redirects are rejected", () => {
-  assert.equal(getStaffLoginPath("admin", "/admin/payments"), "/admin/payments");
-  assert.equal(getStaffLoginPath("admin", "https://example.com"), "/admin/patients");
-  assert.equal(getStaffLoginPath("admin", "/administrator"), "/admin/patients");
+test("administrators always land on Overview, regardless of saved next links", () => {
+  assert.equal(getStaffLoginPath("admin", "/admin/payments"), "/admin/analytics");
+  assert.equal(getStaffLoginPath("admin", "https://example.com"), "/admin/analytics");
+  assert.equal(getStaffLoginPath("admin", "/administrator"), "/admin/analytics");
+});
+
+test("admin sign-in, email verification, and OTP all lead to Overview", async () => {
+  const direct = harness({ role: "admin", mfaVerifiedAuthTime: 1000, mfaVerifiedUntil: new Date(Date.now() + 60000) }, { next: "/admin/patients" });
+  await direct.login();
+  assert.equal(direct.destinations[0].path, "/admin/analytics");
+  const email = harness({ role: "admin" }, { verified: false, next: "/admin/patients" });
+  await email.login();
+  assert.equal(email.destinations[0].path, "/admin/verify-email?next=%2Fadmin%2Fanalytics");
+  const otp = harness({ role: "admin" }, { next: "/admin/patients" });
+  await otp.login();
+  assert.equal(otp.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fanalytics");
 });

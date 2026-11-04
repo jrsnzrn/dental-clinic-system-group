@@ -54,17 +54,12 @@ export function getDefaultAdminPath(role) {
   const normalizedRole = normalizeRole(role);
   if (normalizedRole === ROLES.RECEPTIONIST) return "/admin/dashboard";
   if (normalizedRole === ROLES.DENTIST) return "/admin/dashboard";
-  return "/admin/patients";
+  return "/admin/analytics";
 }
 
-export function getStaffLoginPath(role, requestedNext = "") {
-  const normalizedRole = normalizeRole(role);
-  if (normalizedRole === ROLES.RECEPTIONIST || normalizedRole === ROLES.DENTIST) {
-    return "/admin/dashboard";
-  }
-  return requestedNext === "/admin" || requestedNext.startsWith("/admin/")
-    ? requestedNext
-    : getDefaultAdminPath(normalizedRole);
+export function getStaffLoginPath(role) {
+  // Every new login starts at its role's overview, including after verification.
+  return getDefaultAdminPath(role);
 }
 
 export const ADMIN_NAV_BY_ROLE = {

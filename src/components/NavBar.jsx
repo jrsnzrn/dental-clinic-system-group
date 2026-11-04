@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
-import { formatStaffName, staffHeaderName } from "../utils/staffProfile";
+import { formatStaffDisplayName, staffHeaderName } from "../utils/staffProfile";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
@@ -152,6 +152,7 @@ function getInitial(user) {
 }
 
 function StaffAccountInfo({ user, name, role, staffRole, onLogout }) {
+  const location = useLocation();
   const displayName = staffHeaderName(staffRole, name, user?.displayName);
   const avatarUser = { displayName };
   const [open, setOpen] = useState(false);
@@ -195,7 +196,7 @@ function StaffAccountInfo({ user, name, role, staffRole, onLogout }) {
         <svg className={`staffAccountChevron${open ? " isOpen" : ""}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
       </button>
       {open ? <div id={menuId} className="staffAccountDropdown" role="menu" aria-label="Account options" ref={menuRef} onKeyDown={moveFocus}>
-        <NavLink to="/admin/settings" role="menuitem" onClick={() => setOpen(false)}>
+        <NavLink to="/admin/settings" state={{ from: `${location.pathname}${location.search}` }} role="menuitem" onClick={() => setOpen(false)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m10 3-.7 2.5-2.1 1.2-2.5-.6-2 3.4 1.8 1.9v2.4l-1.8 1.9 2 3.4 2.5-.6 2.1 1.2.7 2.3h4l.7-2.3 2.1-1.2 2.5.6 2-3.4-1.8-1.9v-2.4l1.8-1.9-2-3.4-2.5.6-2.1-1.2L14 3z" /><circle cx="12" cy="12" r="3" /></svg>
           <span>Settings</span>
         </NavLink>
@@ -558,7 +559,7 @@ export default function NavBar({
           const profile = getAdminProfile(snap.data());
           setIsAdmin(true);
           setAdminRole(profile.role);
-          setStaffName(formatStaffName(profile));
+          setStaffName(formatStaffDisplayName(profile));
         } else {
           setIsAdmin(false);
           setAdminRole("");

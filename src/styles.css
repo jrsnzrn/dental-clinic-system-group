@@ -20809,3 +20809,62 @@ button.staffAccountTrigger:hover, button.staffAccountTrigger[aria-expanded="true
 .staffSettingsResetLink { color: var(--text); font-size: 14px; text-underline-offset: 4px; }
 @media (max-width: 600px) { .staffSettingsFields, .staffSettingsFacts { grid-template-columns: 1fr; } .staffSettingsPanel { padding: 20px; } }
 @media (prefers-reduced-motion: reduce) { .staffAccountChevron { transition: none; } }
+
+.staffSettingsBack { margin-bottom: 22px; }
+.staffSettingsBack:disabled { cursor: wait; opacity: .6; }
+.staffSettingsActions { flex-direction: column; align-items: stretch; }
+.staffSettingsActionButtons { display: flex; flex-wrap: wrap; gap: 12px; }
+.staffSettingsActionButtons > button[aria-busy="true"] { opacity: 1; cursor: wait; }
+.staffSettingsSaveProgress { padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.staffSettingsSaveProgress .actionLoadingIndicator { justify-content: flex-start; font-size: 14px; font-weight: 650; color: var(--text); }
+.staffSettingsSaveProgress .actionLoadingSpinner { width: 20px; height: 20px; border-width: 3px; }
+.staffSettingsSaveProgress p { margin: 7px 0 12px 31px; color: var(--muted); font-size: 12px; }
+.staffSettingsProgressTrack { height: 4px; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+.staffSettingsProgressTrack > span { display: block; width: 35%; height: 100%; background: var(--accent); border-radius: inherit; animation: staffSettingsSaving 1.2s ease-in-out infinite alternate; }
+@keyframes staffSettingsSaving { from { transform: translateX(0); } to { transform: translateX(186%); } }
+.staffSettingsSecurity { padding: 0; overflow: hidden; }
+.staffSettingsSecurityHeader { display: flex; align-items: center; gap: 14px; padding: 26px 26px 20px; }
+.staffSettingsSecurityHeader h2 { margin: 0 0 5px; }
+.staffSettingsSecurityHeader p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.staffSettingsSecurityIcon, .staffSettingsPasswordIcon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 13px; color: var(--text); background: var(--surface); }
+.staffSettingsSecurityIcon svg, .staffSettingsPasswordIcon svg { width: 23px; height: 23px; }
+.staffSettingsSecurityIcon { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.staffSettingsSecurityFacts { margin: 0 26px 16px; gap: 14px; }
+.staffSettingsSecurityFacts > div { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--text) 2%, var(--surface)); }
+.staffSettingsSecurityFacts dd { min-height: 26px; font-weight: 600; line-height: 1.6; }
+.staffSettingsManagedBadge { display: inline-block; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.staffSettingsRoleBadge { display: inline-block; padding: 3px 10px; border-radius: 7px; color: var(--text); background: color-mix(in srgb, var(--accent) 15%, var(--surface)); font-size: 12px; }
+.staffSettingsSecurity > p.staffSettingsAccessNotice { margin: 0; padding: 0 26px 22px; font-size: 12px; line-height: 1.6; }
+.staffSettingsPasswordCard { display: flex; align-items: center; gap: 15px; padding: 24px 26px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.staffSettingsPasswordCard > div { flex: 1; min-width: 0; }
+.staffSettingsPasswordCard h3 { margin: 0 0 6px; font-size: 15px; }
+.staffSettingsPasswordCard p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.staffSettingsPasswordButton { display: inline-flex; justify-content: center; align-items: center; gap: 12px; text-decoration: none; white-space: nowrap; flex-shrink: 0; }
+.staffSettingsPasswordButton[aria-disabled="true"] { pointer-events: none; opacity: .6; }
+@media (max-width: 600px) {
+  .staffSettingsSecurity { padding: 0; }
+  .staffSettingsSecurityHeader { padding: 22px 20px 18px; }
+  .staffSettingsSecurityFacts { margin-left: 20px; margin-right: 20px; }
+  .staffSettingsSecurity > p.staffSettingsAccessNotice { padding: 0 20px 20px; }
+  .staffSettingsPasswordCard { padding: 22px 20px; flex-wrap: wrap; }
+  .staffSettingsPasswordButton { width: 100%; margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .staffSettingsProgressTrack > span { animation: none; width: 100%; opacity: .65; } }
+
+.staffProfileRequiredDialog { width: min(500px, calc(100vw - 32px)); padding: 32px; border: 1px solid var(--line); border-radius: 22px; color: var(--text); background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.2); max-height: 90dvh; overflow-y: auto; }
+.staffProfileRequiredDialog::backdrop { background: rgba(15,23,42,.68); }
+.staffProfileRequiredBadge { display: inline-block; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 15%, var(--surface)); border-radius: 20px; padding: 5px 11px; font-size: 11px; font-weight: 700; }
+.staffProfileRequiredWelcome { margin: 20px 0 7px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.staffProfileRequiredDialog h1 { font-size: 25px; margin: 0 0 12px; line-height: 1.25; }
+.staffProfileRequiredDialog > p:last-of-type { color: var(--muted); font-size: 14px; line-height: 1.65; margin: 0; }
+.staffProfileRequiredSteps { list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 18px; }
+.staffProfileRequiredSteps li { display: flex; gap: 12px; align-items: flex-start; }
+.staffProfileRequiredSteps li > span { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; font-size: 12px; font-weight: 700; }
+.staffProfileRequiredSteps strong { font-size: 14px; }
+.staffProfileRequiredSteps p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.staffProfileRequiredDialog > button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.staffProfileSetupNotice { padding: 18px 20px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); margin-bottom: 22px; }
+.staffProfileSetupNotice strong { font-size: 14px; }
+.staffProfileSetupNotice p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+@media (max-width: 520px) { .staffProfileRequiredDialog { padding: 25px 22px; } }
+.staffNicknameHint { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.5; }

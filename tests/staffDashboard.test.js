@@ -50,6 +50,6 @@ test("staff land on their dashboard and dentist navigation contains no reception
     assert.equal(getDefaultAdminPath(role), "/admin/dashboard");
     assert.equal(ADMIN_NAV_BY_ROLE[role][0].to, "/admin/dashboard");
   }
-  assert.equal(getDefaultAdminPath("admin"), "/admin/patients");
+  assert.equal(getDefaultAdminPath("admin"), "/admin/analytics");
   assert.ok(ADMIN_NAV_BY_ROLE.dentist.every(link => !["/admin/payments", "/admin/queue", "/admin/bookings"].includes(link.to)));
 });

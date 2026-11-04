@@ -21,6 +21,7 @@ import Mfa from "./pages/admin/Mfa";
 import Dashboard from "./pages/admin/Dashboard";
 import StaffDashboard from "./pages/admin/StaffDashboard";
 import StaffSettings from "./pages/admin/StaffSettings";
+import StaffProfileSetupGate from "./components/StaffProfileSetupGate";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
 import Queue from "./pages/admin/Queue";
@@ -447,7 +448,9 @@ export default function App() {
                   user={user}
                   allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST, ROLES.DENTIST]}
                 >
-                  <Dashboard adminRole={adminRole} />
+                  <StaffProfileSetupGate key={user?.uid} user={user}>
+                    <Dashboard adminRole={adminRole} />
+                  </StaffProfileSetupGate>
                 </ProtectedRoute>
               }
             >

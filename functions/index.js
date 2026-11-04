@@ -136,6 +136,7 @@ function serializeAdminDoc(id, data = {}) {
     id,
     name: data.name || "",
     firstName: data.firstName || "",
+    nickname: data.nickname || "",
     middleName: data.middleName || "",
     lastName: data.lastName || "",
     fullName: data.fullName || "",
@@ -1614,7 +1615,7 @@ exports.createStaffAccount = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Invalid role.");
   }
 
-  const { buildStaffProfile } = await import("./staffProfile.mjs");
+  const { buildStaffProfile, formatStaffDisplayName } = await import("./staffProfile.mjs");
   let profile;
   try { profile = buildStaffProfile(payload, role); }
   catch (error) { throw new HttpsError("invalid-argument", error.message); }
@@ -1625,7 +1626,7 @@ exports.createStaffAccount = onCall(async (request) => {
     userRecord = await auth.createUser({
       email,
       password,
-      displayName: name,
+      displayName: formatStaffDisplayName({ ...profile, role }),
       disabled: false,
     });
   } catch (error) {
@@ -1675,30 +1676,34 @@ exports.updateStaffProfile = onCall(async (request) => {
   if (actor.role !== "admin" && Object.prototype.hasOwnProperty.call(request.data || {}, "email")) {
     throw new HttpsError("permission-denied", "Only an administrator can change a staff sign-in email.");
   }
-  const { buildStaffProfile } = await import("./staffProfile.mjs");
+  const { buildStaffProfile, dentistNameFields, formatStaffDisplayName } = await import("./staffProfile.mjs");
   let fields;
+  let targetRole;
   await db.runTransaction(async transaction => {
     const staffRef = db.collection("admins").doc(uid);
     const snapshot = await transaction.get(staffRef);
     if (!snapshot.exists) throw new HttpsError("not-found", "Staff account could not be found.");
     const role = String(snapshot.data().role || "").trim().toLowerCase();
+    targetRole = role;
     if (!ALLOWED_ROLES.includes(role) && !(role === "admin" && editingSelf)) throw new HttpsError("permission-denied", "Only your own account or dentist and receptionist profiles can be edited here.");
     try { fields = buildStaffProfile(request.data, role); }
     catch (error) { throw new HttpsError("invalid-argument", error.message); }
     const dentists = role === "dentist"
       ? await transaction.get(db.collection("dentists").where("linkedStaffUid", "==", uid)) : { docs: [] };
     if (dentists.docs.length > 400) throw new HttpsError("failed-precondition", "Too many linked dentist profiles. Contact the administrator.");
-    transaction.update(staffRef, { ...fields, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: actor.uid });
-    for (const dentist of dentists.docs) transaction.update(dentist.ref, {
-      name: fields.name, fullName: fields.fullName, firstName: fields.firstName, middleName: fields.middleName,
-      lastName: fields.lastName, title: fields.title, linkedStaffName: fields.name,
-    });
+    const confirmedOwnProfile = editingSelf && ALLOWED_ROLES.includes(role);
+    transaction.update(staffRef, { ...fields,
+      ...(confirmedOwnProfile ? { profileSetupCompleted: true, profileSetupCompletedBy: actor.uid,
+        profileSetupCompletedAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: actor.uid });
+    for (const dentist of dentists.docs) transaction.update(dentist.ref, dentistNameFields({ ...fields, role }));
   });
   let authDisplayNameSynced = true;
-  try { await auth.updateUser(uid, { displayName: fields.name }); }
+  try { await auth.updateUser(uid, { displayName: formatStaffDisplayName({ ...fields, role: targetRole }) }); }
   catch (error) { authDisplayNameSynced = false; console.error("Staff profile saved but Auth display name sync failed:", error); }
   await writeStaffAuditLog(actor, { action: "update_staff_profile", targetType: "admin_account", targetId: uid, targetLabel: fields.name });
-  return { success: true, ...fields, authDisplayNameSynced };
+  return { success: true, ...fields, authDisplayNameSynced,
+    ...(editingSelf && actor.role !== "admin" ? { profileSetupCompleted: true, profileSetupCompletedBy: actor.uid } : {}) };
 });
 
 exports.syncLinkedDentistName = onDocumentWritten("dentists/{dentistId}", async event => {
@@ -2137,7 +2142,7 @@ exports.createStaffWalkInBooking = onCall(
   {},
   async (request) => {
     const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
-    const { formatStaffName } = await import("./staffProfile.mjs");
+    const { formatStaffDisplayName } = await import("./staffProfile.mjs");
     const patientInput = request.data?.patient || {};
     const appointment = request.data?.appointment || {};
     const firstName = String(patientInput.firstName || "").trim();
@@ -2233,7 +2238,7 @@ exports.createStaffWalkInBooking = onCall(
         address,
         patientType,
         ...(patientType === "Ortho" && bracesType ? { bracesType } : {}),
-        preferredDentist: formatStaffName({ ...slot.dentist, role: "dentist" }),
+        preferredDentist: formatStaffDisplayName({ ...slot.dentist, role: "dentist" }),
         authorizedDentistUids: [slot.dentist.linkedStaffUid],
         status: "Active",
         createdAt: now,
@@ -2251,7 +2256,7 @@ exports.createStaffWalkInBooking = onCall(
         email,
         patientType,
         walkIn: true,
-        selectedDentist: formatStaffName({ ...slot.dentist, role: "dentist" }),
+        selectedDentist: formatStaffDisplayName({ ...slot.dentist, role: "dentist" }),
         dentistId: slot.dentist.id,
         dentistStaffUid: String(slot.dentist.linkedStaffUid || "").trim(),
         service: serviceNames.join(", "),
@@ -2322,7 +2327,7 @@ exports.createBooking = onCall(
     });
 
     const { isWithinBookingWindow } = await import("./bookingWindow.mjs");
-    const { formatStaffName } = await import("./staffProfile.mjs");
+    const { formatStaffDisplayName } = await import("./staffProfile.mjs");
     const payload = request.data || {};
     const uid = request.auth.uid;
     const dentistId = String(payload.dentistId || "").trim();
@@ -2532,7 +2537,7 @@ exports.createBooking = onCall(
 
       const patientType = String(patientProfile.patientType || "New Patient").trim();
       const patientEmail = String(patientProfile.email || request.auth.token.email || "").trim();
-      const selectedDentist = formatStaffName({ ...dentist, role: "dentist" });
+      const selectedDentist = formatStaffDisplayName({ ...dentist, role: "dentist" });
       const service = selectedServices.join(", ");
       const appointmentAt = admin.firestore.Timestamp.fromDate(createManilaAppointmentDate(date, time));
       const bookingRef = db.collection("bookings").doc();
@@ -2811,7 +2816,7 @@ exports.reassignBookingDentist = onCall(
   {},
   async (request) => {
     const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
-    const { formatStaffName } = await import("./staffProfile.mjs");
+    const { formatStaffDisplayName } = await import("./staffProfile.mjs");
     const bookingId = String(request.data?.bookingId || "").trim();
     const dentistId = String(request.data?.dentistId || "").trim();
     const reason = String(request.data?.reason || "").trim().slice(0, 500);
@@ -2863,7 +2868,7 @@ exports.reassignBookingDentist = onCall(
       const updateBooking = {
         ...booking,
         dentistId: newDentist.id,
-        selectedDentist: formatStaffName({ ...newDentist, role: "dentist" }),
+        selectedDentist: formatStaffDisplayName({ ...newDentist, role: "dentist" }),
       };
       const slot = await validateStaffBookingSlot(transaction, {
         bookingId,
@@ -2877,7 +2882,7 @@ exports.reassignBookingDentist = onCall(
         fromDentistId: oldDentistId,
         fromDentistName: String(booking.selectedDentist || "").trim(),
         toDentistId: newDentist.id,
-        toDentistName: formatStaffName({ ...newDentist, role: "dentist" }),
+        toDentistName: formatStaffDisplayName({ ...newDentist, role: "dentist" }),
         reason,
         changedByUid: staff.uid,
         changedByName: staff.name,
@@ -2909,7 +2914,7 @@ exports.reassignBookingDentist = onCall(
 
       transaction.update(bookingRef, {
         dentistId: newDentist.id,
-        selectedDentist: formatStaffName({ ...newDentist, role: "dentist" }),
+        selectedDentist: formatStaffDisplayName({ ...newDentist, role: "dentist" }),
         dentistStaffUid: String(newDentist.linkedStaffUid || "").trim(),
         ...firstAssignment,
         dentistAssignmentHistory: [...history, change],

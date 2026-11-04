@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { buildStaffProfile } from "../functions/staffProfile.mjs";
+import { buildStaffProfile, dentistNameFields, formatStaffDisplayName } from "../functions/staffProfile.mjs";
 
 const source = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");
 const body = source.slice(source.indexOf("exports.updateStaffProfile = onCall("), source.indexOf("exports.syncLinkedDentistName ="))
@@ -33,10 +33,10 @@ function harness({ actorRole = "admin", actorUid = "admin", targetRole = "dentis
   const update = new Function("onCall", "getStaffContextFromRequest", "HttpsError", "ALLOWED_ROLES", "db", "staffProfileModule", "admin", "auth", "writeStaffAuditLog", `${body}; return update;`)(
     callback => callback,
     async (_request, roles) => { if (!roles.includes(actorRole)) throw new HttpsError("permission-denied", "Staff access required"); return { uid: actorUid, role: actorRole }; },
-    HttpsError, ["dentist", "receptionist"], db, { buildStaffProfile }, { firestore: { FieldValue: { serverTimestamp: () => "now" } } },
+    HttpsError, ["dentist", "receptionist"], db, { buildStaffProfile, dentistNameFields, formatStaffDisplayName }, { firestore: { FieldValue: { serverTimestamp: () => "now" } } },
     { updateUser: async (uid, data) => authUpdates.push({ uid, data }) }, async (_actor, entry) => audit.push(entry),
   );
-  const request = { data: { ...(ownAccount ? {} : { uid: "staff" }), firstName: "Maria", middleName: "", lastName: "Reyes", age: 30, gender: "female", phone: "09123456789",
+  const request = { data: { ...(ownAccount ? {} : { uid: "staff" }), firstName: "Maria", middleName: "", lastName: "Reyes", nickname: "Mia", age: 30, gender: "female", phone: "09123456789",
     role: "admin", ...(includeEmail ? { email: "changed@example.com" } : {}), mfaEnabled: false } };
   return { stored, update: () => update(request), authUpdates, audit };
 }
@@ -49,11 +49,16 @@ test("admin edits name fields and linked dentist names together while identity a
   assert.equal(staff.role, "dentist");
   assert.equal(staff.email, "staff@example.com");
   assert.equal(staff.mfaEnabled, true);
-  assert.equal(h.stored.get("dentists/linked").name, staff.name);
+  assert.equal(staff.profileSetupCompleted, undefined);
+  assert.equal(staff.fullName, "Maria Reyes");
+  assert.equal(staff.nickname, "Mia");
+  assert.equal(h.stored.get("dentists/linked").name, "Dra. Mia");
+  assert.equal(h.stored.get("dentists/linked").nickname, "Mia");
+  assert.equal(h.stored.get("dentists/linked").fullName, "");
   assert.equal(h.stored.get("dentists/linked").linkedStaffUid, "staff");
   assert.equal(h.stored.get("dentists/linked").schedule.monday.active, true);
   assert.equal(h.stored.get("dentists/other").name, "Other Dentist");
-  assert.deepEqual(h.authUpdates, [{ uid: "staff", data: { displayName: "Dra. Maria Reyes" } }]);
+  assert.deepEqual(h.authUpdates, [{ uid: "staff", data: { displayName: "Dra. Mia" } }]);
   assert.equal(h.audit[0].action, "update_staff_profile");
 });
 
@@ -86,6 +91,8 @@ test("dentists and receptionists can update themselves without changing email, r
     assert.equal(saved.email, "staff@example.com");
     assert.equal(saved.mfaEnabled, true);
     assert.equal(saved.phone, "09123456789");
+    assert.equal(saved.profileSetupCompleted, true);
+    assert.equal(saved.profileSetupCompletedBy, "staff");
     assert.equal(saved.name, actorRole === "dentist" ? "Dra. Maria Reyes" : "Ms. Maria Reyes");
   }
 });

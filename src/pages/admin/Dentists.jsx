@@ -1,5 +1,5 @@
 import RecordPagination from "../../components/RecordPagination";
-import { linkedDentistNameFields } from "../../utils/staffProfile";
+import { linkedDentistNameFields, formatStaffDisplayName } from "../../utils/staffProfile";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -140,7 +140,7 @@ export default function Dentists() {
       specialization: specialization.trim(),
       linkedStaffUid: linkedStaff?.id || "",
       linkedStaffEmail: linkedStaff?.email || "",
-      linkedStaffName: linkedStaff?.name || "",
+      linkedStaffName: linkedStaff ? formatStaffDisplayName(linkedStaff) : "",
       schedule,
       status: getDentistScheduleStatus({ schedule }, new Date().toISOString().slice(0, 10)),
       createdAt: serverTimestamp(),
@@ -196,7 +196,7 @@ export default function Dentists() {
       specialization: nextSpecialization,
       linkedStaffUid: linkedStaff?.id || "",
       linkedStaffEmail: linkedStaff?.email || "",
-      linkedStaffName: linkedStaff?.name || "",
+      linkedStaffName: linkedStaff ? formatStaffDisplayName(linkedStaff) : "",
     });
 
     setDentists((current) =>
@@ -209,7 +209,7 @@ export default function Dentists() {
               specialization: nextSpecialization,
               linkedStaffUid: linkedStaff?.id || "",
               linkedStaffEmail: linkedStaff?.email || "",
-              linkedStaffName: linkedStaff?.name || "",
+              linkedStaffName: linkedStaff ? formatStaffDisplayName(linkedStaff) : "",
             }
           : entry
       )

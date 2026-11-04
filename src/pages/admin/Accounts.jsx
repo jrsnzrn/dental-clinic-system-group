@@ -19,7 +19,7 @@ const ARCHIVE_STAFF_ACCOUNT = httpsCallable(functions, "archiveStaffAccount");
 const SET_STAFF_MFA_REQUIRED = httpsCallable(functions, "setStaffMfaRequired");
 
 function emptyDraft() {
-  return { firstName: "", middleName: "", lastName: "", age: "", gender: "", phone: "", email: "", password: "", role: ROLES.RECEPTIONIST };
+  return { firstName: "", middleName: "", lastName: "", nickname: "", age: "", gender: "", phone: "", email: "", password: "", role: ROLES.RECEPTIONIST };
 }
 
 const ROLE_FILTER_OPTIONS = [
@@ -255,7 +255,7 @@ export default function Accounts() {
       setSubmitting(true);
       const result = editingAccountId
         ? await UPDATE_STAFF_PROFILE({ uid: editingAccountId, firstName: profile.firstName, middleName: profile.middleName,
-          lastName: profile.lastName, age: profile.age, gender: profile.gender, phone: profile.phone })
+          lastName: profile.lastName, nickname: profile.nickname, age: profile.age, gender: profile.gender, phone: profile.phone })
         : await CREATE_STAFF({ ...profile, email: draft.email.trim(), password: draft.password, role: draft.role });
 
       const created = result.data || {};
@@ -524,6 +524,7 @@ export default function Accounts() {
                 <input className="input" value={draft[field]} maxLength={80} autoComplete={field === "firstName" ? "given-name" : field === "lastName" ? "family-name" : "additional-name"}
                   required={field !== "middleName"} disabled={submitting} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} />
               </label>)}
+              <label className="acctField"><span>Nickname</span><input className="input" required maxLength={40} autoComplete="nickname" value={draft.nickname} disabled={submitting} onChange={event => setDraft(current => ({ ...current, nickname: event.target.value }))} /><small className="staffNicknameHint">Shown in booking and the staff account menu.</small></label>
               <label className="acctField"><span>Age</span><input className="input" type="number" min="18" max="100" step="1" required value={draft.age} disabled={submitting}
                 onChange={event => setDraft(current => ({ ...current, age: event.target.value }))} /></label>
               <label className="acctField"><span>Gender</span><select className="input" required value={draft.gender} disabled={submitting}
