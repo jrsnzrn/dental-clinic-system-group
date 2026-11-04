@@ -10026,6 +10026,17 @@ html[data-theme="blue"] .acctOverlay {
   border-top: 1px solid var(--line);
 }
 
+.adminAppMain .adminSurface .archiveDetailActions .archiveRestoreButton {
+  color: #24271F;
+  background: #FFC94D;
+  border-color: #FFC94D;
+}
+
+.adminAppMain .adminSurface .archiveDetailActions .archiveRestoreButton:hover:not(:disabled) {
+  background: #F2B936;
+  border-color: #F2B936;
+}
+
 @media (max-width: 760px) {
   .archiveRow.isSelecting {
     gap: 10px;

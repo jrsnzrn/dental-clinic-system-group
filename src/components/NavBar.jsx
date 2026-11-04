@@ -151,7 +151,7 @@ function getInitial(user) {
   return getDisplayName(user).charAt(0).toUpperCase();
 }
 
-function StaffAccountInfo({ user, name, role, staffRole, onLogout }) {
+function StaffAccountInfo({ user, name, role, staffRole, onAppearanceClick, onLogout }) {
   const location = useLocation();
   const displayName = staffHeaderName(staffRole, name, user?.displayName);
   const avatarUser = { displayName };
@@ -196,6 +196,12 @@ function StaffAccountInfo({ user, name, role, staffRole, onLogout }) {
         <svg className={`staffAccountChevron${open ? " isOpen" : ""}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
       </button>
       {open ? <div id={menuId} className="staffAccountDropdown" role="menu" aria-label="Account options" ref={menuRef} onKeyDown={moveFocus}>
+        <button type="button" role="menuitem" onClick={() => { setOpen(false); onAppearanceClick(); }}>
+          <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
+            {THEME_OPTIONS.find(option => option.id === "blue").icon}
+          </span>
+          <span>Appearance</span>
+        </button>
         <NavLink to="/admin/settings" state={{ from: `${location.pathname}${location.search}` }} role="menuitem" onClick={() => setOpen(false)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m10 3-.7 2.5-2.1 1.2-2.5-.6-2 3.4 1.8 1.9v2.4l-1.8 1.9 2 3.4 2.5-.6 2.1 1.2.7 2.3h4l.7-2.3 2.1-1.2 2.5.6 2-3.4-1.8-1.9v-2.4l1.8-1.9-2-3.4-2.5.6-2.1-1.2L14 3z" /><circle cx="12" cy="12" r="3" /></svg>
           <span>Settings</span>
@@ -697,6 +703,7 @@ export default function NavBar({
                 name={staffName}
                 staffRole={adminRole}
                 role={ROLE_LABELS[adminRole] || "Staff"}
+                onAppearanceClick={() => setAppearanceModalOpen(true)}
                 onLogout={() => { setLogoutError(""); setLogoutConfirmOpen(true); setMenuOpen(false); }}
               />
             </div>
@@ -749,20 +756,6 @@ export default function NavBar({
                 </NavLink>
               ))}
             </nav>
-            <div className="adminSidebarActions">
-              <div className="accountAppearance">
-                <button
-                  type="button"
-                  className="adminSidebarLink accountAppearanceTrigger"
-                  onClick={() => setAppearanceModalOpen(true)}
-                >
-                  <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
-                    {THEME_OPTIONS.find((option) => option.id === "blue").icon}
-                  </span>
-                  <span>Appearance</span>
-                </button>
-              </div>
-            </div>
           </div>
         </aside>
         {appearanceModalOpen && (

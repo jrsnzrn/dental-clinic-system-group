@@ -4,6 +4,7 @@ export default function ConfirmDialog({
   message = "",
   confirmLabel = "Continue",
   cancelLabel = "Cancel",
+  showCancelButton = true,
   tone = "default",
   className = "",
   overlayClassName = "",
@@ -38,9 +39,11 @@ export default function ConfirmDialog({
           <p>{message}</p>
         </div>
         <div className="confirmModalActions">
-          <button className="btn secondary btnSoft" type="button" onClick={onClose}>
-            {cancelLabel}
-          </button>
+          {showCancelButton ? (
+            <button className="btn secondary btnSoft" type="button" onClick={onClose}>
+              {cancelLabel}
+            </button>
+          ) : null}
           <button
             className={`btn ${tone === "danger" ? "danger" : tone === "archive" ? "archiveButton" : "btnShine"}`}
             type="button"

@@ -469,7 +469,7 @@ export default function Queue() {
                 )}
               </tbody>
             </table>
-              <RecordPagination pagination={queuePage} />
+              {queuePage.pageCount > 1 ? <RecordPagination pagination={queuePage} /> : null}
           </div>
         </section>
 

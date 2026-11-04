@@ -1309,6 +1309,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
             title: "Cancel this booking?",
             message: "This booking will remain in the Cancelled tab until you choose to archive it.",
             confirmLabel: "Cancel",
+            showCancelButton: false,
             successMessage: "Appointment cancelled successfully. It is now in the Cancelled tab.",
             tone: "danger",
             action: () => setStatus(b.id, "cancelled"),
@@ -1447,6 +1448,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
         title={confirmState?.title}
         message={confirmState?.message}
         confirmLabel={confirmState?.confirmLabel}
+        showCancelButton={confirmState?.showCancelButton}
         tone={confirmState?.tone}
         onClose={() => setConfirmState(null)}
         onConfirm={handleConfirmAction}

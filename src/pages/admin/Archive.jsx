@@ -625,7 +625,7 @@ export default function Archive({ adminRole, search }) {
             </div>
             <footer className="archiveDetailActions">
               <button
-                className="btn secondary"
+                className="btn archiveRestoreButton"
                 type="button"
                 disabled={restoring}
                 onClick={() => requestRestore([detailRow])}
