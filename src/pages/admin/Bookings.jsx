@@ -1098,7 +1098,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
 
       <header className="bookingPageHeader">
         <div>
-          <h1>Bookings</h1>
+          <h1>Appointments</h1>
           <p>Manage appointments and walk-in patients.</p>
         </div>
         <button

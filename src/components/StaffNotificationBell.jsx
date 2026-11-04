@@ -113,10 +113,10 @@ export default function StaffNotificationBell({ adminRole }) {
       bookings
         .filter((booking) => booking.status === "pending")
         .sort((a, b) => b.added.localeCompare(a.added))
-        .slice(0, 6)
         .forEach((booking) => {
           items.push({
             id: `pending:${booking.id}`,
+            kind: "pending",
             bookingId: booking.id,
             title: `New appointment: ${booking.name}`,
             sub: `${formatDate(booking.date)}${booking.time ? `, ${booking.time}` : ""}`,
@@ -125,10 +125,10 @@ export default function StaffNotificationBell({ adminRole }) {
 
       bookings
         .filter((booking) => booking.status === "cancelled" && booking.date >= today)
-        .slice(0, 4)
         .forEach((booking) => {
           items.push({
             id: `cancelled:${booking.id}`,
+            kind: "cancelled",
             bookingId: booking.id,
             title: `${booking.name} cancelled`,
             sub: `${booking.service || "No service"} · ${formatDate(booking.date)}`,
@@ -145,6 +145,7 @@ export default function StaffNotificationBell({ adminRole }) {
     if (todayBookings.length) {
       items.unshift({
         id: `today:${today}:${todayBookings.length}`,
+        kind: "today",
         bookingIds: todayBookings.map((booking) => booking.id),
         date: today,
         title: `${todayBookings.length} appointment${todayBookings.length > 1 ? "s" : ""} today`,
@@ -156,6 +157,10 @@ export default function StaffNotificationBell({ adminRole }) {
   }, [bookings, canAccessBookings, today]);
 
   const unread = notifications.filter((item) => !readIds.has(item.id)).length;
+  const compactNotifications = notifications.filter((item) => item.kind === "today").concat(
+    notifications.filter((item) => item.kind === "pending").slice(0, 6),
+    notifications.filter((item) => item.kind === "cancelled").slice(0, 4)
+  );
 
   function saveReadIds(nextIds) {
     setReadIds(nextIds);
@@ -190,6 +195,7 @@ export default function StaffNotificationBell({ adminRole }) {
     <NotificationPopover
       key={location.key}
       notifications={notifications}
+      compactNotifications={compactNotifications}
       unread={unread}
       loading={loading}
       error={error}
@@ -204,6 +210,7 @@ export default function StaffNotificationBell({ adminRole }) {
 
 function NotificationPopover({
   notifications,
+  compactNotifications,
   unread,
   loading,
   error,
@@ -213,6 +220,7 @@ function NotificationPopover({
 }) {
   const bellRef = useRef(null);
   const [open, setOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -256,7 +264,7 @@ function NotificationPopover({
 
       {open ? (
         <div
-          className="staffNotificationPanel"
+          className={`staffNotificationPanel${showAll ? " expanded" : ""}`}
           id="staff-notification-panel"
           role="dialog"
           aria-label="Notifications"
@@ -274,7 +282,7 @@ function NotificationPopover({
             <p className="staffNotificationMessage" role="status">Loading notifications…</p>
           ) : notifications.length ? (
             <ul>
-              {notifications.map((item) => (
+              {(showAll ? notifications : compactNotifications).map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
@@ -290,6 +298,18 @@ function NotificationPopover({
           ) : (
             <p className="staffNotificationMessage">You&apos;re all caught up.</p>
           )}
+          {notifications.length ? (
+            <div className="staffNotificationActions">
+              <button
+                type="button"
+                className="staffNotificationSeeAll"
+                aria-expanded={showAll}
+                onClick={() => setShowAll((current) => !current)}
+              >
+                {showAll ? "Show less" : "See all"}
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
