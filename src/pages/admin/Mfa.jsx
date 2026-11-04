@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, db, functions } from "../../firebase";
 import {
   getAdminProfile,
-  getDefaultAdminPath,
+  getStaffLoginPath,
   hasFreshStaffMfa,
   requiresStaffMfa,
 } from "../../utils/rbac";
@@ -65,7 +65,7 @@ export default function Mfa() {
 
       if (result.data?.required === false) {
         navigate(
-          nextPath || getDefaultAdminPath(profile?.role),
+          getStaffLoginPath(profile?.role, nextPath),
           { replace: true }
         );
         return;
@@ -115,7 +115,7 @@ export default function Mfa() {
         setProfile(nextProfile);
 
         if (!freshUser.emailVerified) {
-          const targetPath = nextPath || getDefaultAdminPath(nextProfile.role);
+          const targetPath = getStaffLoginPath(nextProfile.role, nextPath);
           navigate(`/admin/verify-email?next=${encodeURIComponent(targetPath)}`, {
             replace: true,
           });
@@ -127,7 +127,7 @@ export default function Mfa() {
           hasFreshStaffMfa(nextProfile, tokenResult.claims.auth_time)
         ) {
           navigate(
-            nextPath || getDefaultAdminPath(nextProfile.role),
+            getStaffLoginPath(nextProfile.role, nextPath),
             { replace: true }
           );
           return;
@@ -227,7 +227,7 @@ export default function Mfa() {
       }
 
       navigate(
-        nextPath || getDefaultAdminPath(profile?.role),
+        getStaffLoginPath(profile?.role, nextPath),
         { replace: true }
       );
     } catch (err) {

@@ -8,7 +8,7 @@ const body = source.slice(source.indexOf("exports.verifyStaffMfaCode ="), source
 function harness(challengeOverrides = {}) {
   const challenge = { uid: "staff", authTime: 1000, codeHash: "correct", salt: "salt", attemptCount: 0,
     expiresAt: { toMillis: () => Date.now() + 60000 }, ...challengeOverrides };
-  const records = new Map([["admins/staff", { role: "admin" }], ["staffMfaChallenges/challenge", challenge]]);
+  const records = new Map([["admins/staff", { role: "admin", email: "current@example.com" }], ["staffMfaChallenges/challenge", challenge]]);
   const writes = [];
   const db = { collection: name => ({ doc: id => ({ path: `${name}/${id}` }) }), runTransaction: async callback => {
     const pending = [];
@@ -57,4 +57,10 @@ test("wrong OTPs still count attempts without authorizing the login", async () =
   await assert.rejects(state.verify("654321"), /incorrect/);
   assert.equal(state.records.get("admins/staff").mfaVerifiedAuthTime, undefined);
   assert.equal(state.records.get("staffMfaChallenges/challenge").attemptCount, 1);
+});
+
+test("codes sent to an old email cannot authorize a session after an admin changes it", async () => {
+  const state = harness({ email: "old@example.com" });
+  await assert.rejects(state.verify(), /account email changed/);
+  assert.equal(state.writes.length, 0);
 });

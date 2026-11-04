@@ -1,3 +1,5 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
+import { buildStaffProfile, getStaffTitle, staffProfileDraft } from "../../utils/staffProfile";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
@@ -10,12 +12,14 @@ import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 import { fetchStaffAccounts } from "../../utils/staffAccounts";
 
 const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
+const UPDATE_STAFF_PROFILE = httpsCallable(functions, "updateStaffProfile");
+const SET_STAFF_EMAIL = httpsCallable(functions, "setStaffAccountEmail");
 const SET_STAFF_DISABLED = httpsCallable(functions, "setStaffAccountDisabled");
 const ARCHIVE_STAFF_ACCOUNT = httpsCallable(functions, "archiveStaffAccount");
 const SET_STAFF_MFA_REQUIRED = httpsCallable(functions, "setStaffMfaRequired");
 
 function emptyDraft() {
-  return { name: "", email: "", password: "", role: ROLES.RECEPTIONIST };
+  return { firstName: "", middleName: "", lastName: "", nickname: "", age: "", gender: "", phone: "", email: "", password: "", role: ROLES.RECEPTIONIST };
 }
 
 const ROLE_FILTER_OPTIONS = [
@@ -48,6 +52,8 @@ function AccountRow({
   onToggleMfa,
   onRequestStatusChange,
   onRequestArchive,
+  onEdit,
+  onChangeEmail,
 }) {
   const isAdmin = account.role === ROLES.ADMIN;
   const canArchive = account.disabled && !isAdmin;
@@ -90,6 +96,8 @@ function AccountRow({
 
           {menuOpen ? (
             <div className="acctMenu" role="menu">
+              {!isAdmin ? <button className="acctMenuItem" type="button" role="menuitem" onClick={run(onEdit)}>Edit staff details</button> : null}
+              {!isAdmin ? <button className="acctMenuItem" type="button" role="menuitem" onClick={run(onChangeEmail)}>Change sign-in email</button> : null}
               {isAdmin ? (
                 !account.mfaEnabled ? (
                   <button className="acctMenuItem" type="button" role="menuitem" onClick={run(onToggleMfa)}>
@@ -129,6 +137,11 @@ export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState("");
+  const [emailAccount, setEmailAccount] = useState(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState("");
   const [formError, setFormError] = useState("");
   const [listError, setListError] = useState("");
   const [adminAccounts, setAdminAccounts] = useState([]);
@@ -175,7 +188,7 @@ export default function Accounts() {
       if (!event.target.closest?.(".acctMenuWrap")) setMenuId("");
     }
     function onKeyDown(event) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !submitting) {
         setMenuId("");
         setShowPassword(false);
         setShowForm(false);
@@ -187,18 +200,29 @@ export default function Accounts() {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [submitting]);
 
   function openForm() {
+    setEditingAccountId("");
+    setDraft(emptyDraft());
     setFormError("");
     setShowPassword(false);
     setShowForm(true);
   }
 
   function closeForm() {
+    if (submitting) return;
     setShowPassword(false);
     setShowForm(false);
     setFormError("");
+  }
+
+  function editStaff(account) {
+    setEditingAccountId(account.id);
+    setDraft(staffProfileDraft(account));
+    setFormError("");
+    setShowPassword(false);
+    setShowForm(true);
   }
 
   async function runAccountAction(account, action, successMessage, errorMessage) {
@@ -218,25 +242,23 @@ export default function Accounts() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (submitting) return;
     setFormError("");
 
-    if (!draft.name.trim() || !draft.email.trim() || !draft.password.trim()) {
-      setFormError("Complete the staff name, email, password, and role first.");
-      return;
-    }
-
     try {
+      const profile = buildStaffProfile(draft, draft.role);
+      if (!editingAccountId && (!draft.email.trim() || !draft.password.trim())) throw new Error("Enter an email and temporary password.");
       setSubmitting(true);
-      const result = await CREATE_STAFF({
-        name: draft.name.trim(),
-        email: draft.email.trim(),
-        password: draft.password,
-        role: draft.role,
-      });
+      const result = editingAccountId
+        ? await UPDATE_STAFF_PROFILE({ uid: editingAccountId, firstName: profile.firstName, middleName: profile.middleName,
+          lastName: profile.lastName, nickname: profile.nickname, age: profile.age, gender: profile.gender, phone: profile.phone })
+        : await CREATE_STAFF({ ...profile, email: draft.email.trim(), password: draft.password, role: draft.role });
 
       const created = result.data || {};
       notifySuccess(
-        `${ROLE_LABELS[draft.role]} account created for ${created.name || draft.name.trim()} (${created.email || draft.email.trim()}).`
+        editingAccountId
+          ? `Staff details saved for ${created.name || profile.name}.${created.authDisplayNameSynced === false ? " The sign-in display name could not be synced; save again to retry." : ""}`
+          : `${ROLE_LABELS[draft.role]} account created for ${created.name || profile.name} (${created.email || draft.email.trim()}).`
       );
       setDraft(emptyDraft());
       setShowPassword(false);
@@ -465,6 +487,8 @@ export default function Accounts() {
                   onToggleMfa={toggleStaffMfa}
                   onRequestStatusChange={requestStatusChange}
                   onRequestArchive={requestArchive}
+                  onEdit={editStaff}
+                  onChangeEmail={account => { setEmailAccount(account); setNewEmail(account.email || ""); setEmailError(""); }}
                 />
               ))}
             </ul>
@@ -482,35 +506,42 @@ export default function Accounts() {
         >
           <form className="acctDialog" onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-labelledby="acctDialogTitle">
             <div className="acctDialogHead">
-              <h3 id="acctDialogTitle">Add staff account</h3>
-              <button className="acctIconBtn" type="button" aria-label="Close" onClick={closeForm}>
+              <h3 id="acctDialogTitle">{editingAccountId ? "Edit staff details" : "Add staff account"}</h3>
+              <button className="acctIconBtn" type="button" aria-label="Close" onClick={closeForm} disabled={submitting}>
                 ✕
               </button>
             </div>
-            <p className="acctHint">Creates the login and its role record through a protected backend function.</p>
+            <p className="acctHint">The title is set automatically from the staff member’s role and gender.</p>
 
             <div className="acctFields">
-              <label className="acctField">
-                <span>Full name</span>
-                <input
-                  className="input"
-                  placeholder="(Firstname, Lastname)"
-                  value={draft.name}
-                  onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
-                  autoFocus
-                />
-              </label>
+              {[["firstName", "First name"], ["middleName", "Middle name (optional)"], ["lastName", "Last name"]].map(([field, label]) => <label className="acctField" key={field}><span>{label}</span>
+                <input className="input" value={draft[field]} maxLength={80} autoComplete={field === "firstName" ? "given-name" : field === "lastName" ? "family-name" : "additional-name"}
+                  required={field !== "middleName"} disabled={submitting} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} />
+              </label>)}
+              <label className="acctField"><span>Nickname</span><input className="input" required maxLength={40} autoComplete="nickname" value={draft.nickname} disabled={submitting} onChange={event => setDraft(current => ({ ...current, nickname: event.target.value }))} /><small className="staffNicknameHint">Shown in booking and the staff account menu.</small></label>
+              <label className="acctField"><span>Age</span><input className="input" type="number" min="18" max="100" step="1" required value={draft.age} disabled={submitting}
+                onChange={event => setDraft(current => ({ ...current, age: event.target.value }))} /></label>
+              <label className="acctField"><span>Gender</span><select className="input" required value={draft.gender} disabled={submitting}
+                onChange={event => setDraft(current => ({ ...current, gender: event.target.value }))}>
+                <option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option>
+              </select></label>
+              <div className="acctField"><span>Title</span><strong className="staffTitlePreview">{draft.gender ? getStaffTitle(draft.role, draft.gender) : "Choose gender first"}</strong></div>
+              <label className="acctField"><span>Contact number (optional)</span><input className="input" type="tel" maxLength={30} value={draft.phone} disabled={submitting}
+                onChange={event => setDraft(current => ({ ...current, phone: event.target.value }))} /></label>
               <label className="acctField">
                 <span>Email</span>
                 <input
                   className="input"
                   type="email"
+                  readOnly={Boolean(editingAccountId)}
+                  disabled={submitting}
+                  required
                   placeholder="staff@topdent.com"
                   value={draft.email}
                   onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))}
                 />
               </label>
-              <label className="acctField">
+              {!editingAccountId ? <label className="acctField">
                 <span>Temporary password</span>
                 <div className="acctPasswordInput">
                   <input
@@ -518,6 +549,9 @@ export default function Accounts() {
                     type={showPassword ? "text" : "password"}
                     placeholder="Temporary password"
                     autoComplete="new-password"
+                    disabled={submitting}
+                    minLength={6}
+                    required
                     value={draft.password}
                     onChange={(e) => setDraft((current) => ({ ...current, password: e.target.value }))}
                   />
@@ -545,12 +579,13 @@ export default function Accounts() {
                     </svg>
                   </button>
                 </div>
-              </label>
+              </label> : null}
               <label className="acctField">
                 <span>Role</span>
                 <select
                   className="input"
                   value={draft.role}
+                  disabled={submitting || Boolean(editingAccountId)}
                   onChange={(e) => setDraft((current) => ({ ...current, role: e.target.value }))}
                 >
                   <option value={ROLES.RECEPTIONIST}>{ROLE_LABELS[ROLES.RECEPTIONIST]}</option>
@@ -563,15 +598,37 @@ export default function Accounts() {
 
             <div className="acctDialogActions">
               <button className="btn btnShine" type="submit" disabled={submitting}>
-                {submitting ? "Creating..." : "Create account"}
+                {submitting ? <LoadingIndicator>{editingAccountId ? "Saving…" : "Creating…"}</LoadingIndicator> : editingAccountId ? "Save staff details" : "Create account"}
               </button>
-              <button className="btn secondary" type="button" onClick={closeForm}>
+              <button className="btn secondary" type="button" onClick={closeForm} disabled={submitting}>
                 Cancel
               </button>
             </div>
           </form>
         </div>
       ) : null}
+
+      {emailAccount ? <div className="acctOverlay"><form className="acctDialog" role="dialog" aria-modal="true" aria-labelledby="staff-email-title" onSubmit={async event => {
+        event.preventDefault();
+        if (savingEmail) return;
+        setSavingEmail(true);
+        setEmailError("");
+        try {
+          const result = await SET_STAFF_EMAIL({ uid: emailAccount.id, email: newEmail.trim() });
+          setEmailAccount(null);
+          notifySuccess(`Sign-in email updated to ${result.data.email}.${result.data.verificationRequired ? " The staff member must verify the new email when signing in." : ""}`);
+          await loadStaffAccounts();
+        } catch (error) { setEmailError(error.message || "The email could not be changed."); }
+        finally { setSavingEmail(false); }
+      }}>
+        <div className="acctDialogHead"><h3 id="staff-email-title">Change sign-in email</h3></div>
+        <p className="acctHint">Change the sign-in email for {labelOf(emailAccount)}. The staff member will need to sign in again and verify their new email.</p>
+        <label className="acctField"><span>New email address</span><input className="input" type="email" required maxLength={254} autoFocus disabled={savingEmail} value={newEmail} onChange={event => setNewEmail(event.target.value)} /></label>
+        {emailError ? <div className="error" role="alert">{emailError}</div> : null}
+        <div className="acctDialogActions"><button type="submit" className="btn btnShine" disabled={savingEmail || newEmail.trim().toLowerCase() === emailAccount.email?.toLowerCase()}>
+          {savingEmail ? <LoadingIndicator>Updating email…</LoadingIndicator> : "Confirm email change"}</button>
+          <button type="button" className="btn secondary" disabled={savingEmail} onClick={() => setEmailAccount(null)}>Cancel</button></div>
+      </form></div> : null}
 
       <ConfirmDialog
         open={Boolean(pendingAction)}

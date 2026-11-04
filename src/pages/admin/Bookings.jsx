@@ -1,6 +1,8 @@
+import SuccessDialog from "../../components/SuccessDialog";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { NavLink, Navigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Timestamp,
@@ -236,6 +238,7 @@ function BookingDetailDrawer({
   onApprove,
   onCheckIn,
   checkingIn,
+  pendingAction,
   onCancel,
   onArchive,
   onReschedule,
@@ -243,6 +246,7 @@ function BookingDetailDrawer({
   actionError,
 }) {
   const reschedule = booking?.rescheduleRequest;
+  const busy = Boolean(pendingAction || checkingIn);
   const status = booking?.status || "pending";
   const headingStatus = booking?.checkedInAt ? "checked_in" : status;
   const headingClass = getAppointmentStatusClass(headingStatus);
@@ -298,7 +302,7 @@ function BookingDetailDrawer({
                   {headingLabel}
                 </span>
               </div>
-              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
+              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close" disabled={busy}>
                 ×
               </button>
             </div>
@@ -376,7 +380,7 @@ function BookingDetailDrawer({
               </div>
             ) : null}
 
-              {!["completed", "cancelled", "no-show"].includes(status) ? <BookingPromotionSelect key={booking.id} booking={booking} /> : null}
+              {!["completed", "cancelled", "no-show"].includes(status) ? <BookingPromotionSelect key={booking.id} booking={booking} disabled={busy} /> : null}
               {status === "completed" ? (
                 <div className="drawerNote bookingPaymentNote">
                   <span className="drawerNoteLabel">Payment details</span>
@@ -431,7 +435,7 @@ function BookingDetailDrawer({
 
             {status === "completed" || status === "cancelled" ? (
               <div className="actionColumn actionColumnFriendly">
-                <button className="btn secondary btnSoft patientActionBtn bookingArchiveButton" type="button" onClick={onArchive}>
+                <button className="btn secondary btnSoft patientActionBtn bookingArchiveButton" type="button" onClick={onArchive} disabled={busy}>
                   <svg viewBox="0 0 20 20" aria-hidden="true">
                     <path d="M3.5 6.5h13v9.25a1.25 1.25 0 0 1-1.25 1.25h-10A1.25 1.25 0 0 1 4 15.75V6.5Z" />
                     <path d="M2.75 3.5h14.5v3H2.75zM8 10h4" />
@@ -445,10 +449,10 @@ function BookingDetailDrawer({
               <div className="actionColumn actionColumnFriendly">
                 {status === "pending" ? (
                   <>
-                    <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove}>
-                      Approve
+                    <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove} disabled={busy} aria-busy={Boolean(pendingAction)}>
+                      {pendingAction ? <LoadingIndicator>Approving…</LoadingIndicator> : "Approve"}
                     </button>
-                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
+                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
                       Cancel
                     </button>
                   </>
@@ -460,17 +464,18 @@ function BookingDetailDrawer({
                       className="btn btnShine patientActionBtn"
                       type="button"
                       onClick={onCheckIn}
-                      disabled={checkingIn}
+                      disabled={busy}
+                      aria-busy={checkingIn}
                     >
-                      {checkingIn ? "Checking in..." : "Mark as Check-in"}
+                      {checkingIn ? <LoadingIndicator>Checking in…</LoadingIndicator> : "Mark as Check-in"}
                     </button>
-                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule}>
+                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule} disabled={busy}>
                       Reschedule
                     </button>
-                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign}>
+                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign} disabled={busy}>
                       Reassign dentist
                     </button>
-                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel}>
+                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
                       Cancel
                     </button>
                   </>
@@ -578,7 +583,7 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
 
             <div className="actionColumn actionColumnFriendly">
               <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving}>
-                {saving ? "Saving..." : "Save new schedule"}
+                {saving ? <LoadingIndicator>Saving schedule…</LoadingIndicator> : "Save new schedule"}
               </button>
               <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>
                 Cancel
@@ -652,7 +657,7 @@ function ReassignDentistModal({ open, booking, dentists, onClose, onSave }) {
             {formError ? <div className="formError" role="alert">{formError}</div> : null}
             <div className="actionColumn actionColumnFriendly">
               <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving || !eligibleDentists.length}>
-                {saving ? "Saving..." : "Reassign appointment"}
+                {saving ? <LoadingIndicator>Reassigning…</LoadingIndicator> : "Reassign appointment"}
               </button>
               <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>Cancel</button>
             </div>
@@ -670,6 +675,8 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
+  const [pendingAction, setPendingAction] = useState("");
+  const actionInFlight = useRef(false);
   const [checkInPendingId, setCheckInPendingId] = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -686,7 +693,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const [walkInDraft, setWalkInDraft] = useState(getEmptyWalkInDraft());
   const [walkInSaving, setWalkInSaving] = useState(false);
   const [walkInError, setWalkInError] = useState("");
-  const [walkInSuccess, setWalkInSuccess] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
   const [walkInTimeOptions, setWalkInTimeOptions] = useState([]);
   const [loadingWalkInTimes, setLoadingWalkInTimes] = useState(false);
   const [walkInAvailabilityError, setWalkInAvailabilityError] = useState("");
@@ -858,6 +865,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   );
 
   function openBooking(id) {
+    if (actionInFlight.current) return;
     setSelectedBookingId(id);
     setDrawerOpen(true);
   }
@@ -894,32 +902,41 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   async function saveReassignment(booking, dentistId, reason) {
     await REASSIGN_BOOKING_DENTIST({ bookingId: booking.id, dentistId, reason });
     closeReassign();
+    setActionSuccess("The appointment has been reassigned to the selected dentist.");
   }
 
   async function saveReschedule(booking, date, time) {
     await RESCHEDULE_BOOKING({ bookingId: booking.id, date, time });
     closeReschedule();
+    setActionSuccess(`Appointment rescheduled to ${formatDateLabel(date)} at ${formatTimeLabel(time)}.`);
   }
 
   // Close popup with Escape (must stay above the early return below)
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const onKey = (e) => {
-      if (e.key === "Escape") setDrawerOpen(false);
+      if (e.key === "Escape" && !actionInFlight.current) setDrawerOpen(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
 
-  async function runBookingAction(action) {
+  async function runBookingAction(action, label = "Saving changes…", successMessage = "") {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    setPendingAction(label);
     setActionError("");
     try {
       await action();
+      if (successMessage) setActionSuccess(successMessage);
     } catch (error) {
       console.error(error);
       setActionError(error?.code === "functions/internal"
         ? "The server could not finish this action. Confirm the latest Cloud Functions are deployed; if it continues, check Firebase Functions logs."
         : error?.message || "The booking action could not be completed.");
+    } finally {
+      actionInFlight.current = false;
+      setPendingAction("");
     }
   }
 
@@ -966,7 +983,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
 
     setWalkInSaving(true);
     setWalkInError("");
-    setWalkInSuccess("");
+    setActionSuccess("");
     const fullName = [walkInDraft.firstName, walkInDraft.middleName, walkInDraft.lastName]
       .map((value) => value.trim())
       .filter(Boolean)
@@ -993,7 +1010,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       setWalkInOpen(false);
       setWalkInDraft(getEmptyWalkInDraft());
       setWalkInTimeOptions([]);
-      setWalkInSuccess(`Walk-in patient ${fullName} and appointment added to Bookings.`);
+      setActionSuccess(`Walk-in patient ${fullName} and appointment added to Bookings.`);
     } catch (error) {
       console.error("Walk-in appointment could not be created:", error);
       setWalkInError(
@@ -1072,29 +1089,27 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       title: "Archive this booking?",
       message: "The booking will move to Archive → Bookings. You can restore it later.",
       confirmLabel: "Archive booking",
+      successMessage: "Booking moved to Archive. You can restore it from the Archive page.",
       action: () => archiveBooking(booking.id),
     });
   }
 
   async function handleConfirmAction() {
-    if (!confirmState?.action) return;
+    if (!confirmState?.action || actionInFlight.current) return;
     const action = confirmState.action;
     setConfirmState(null);
-    await runBookingAction(action);
+    await runBookingAction(action, confirmState.tone === "archive" ? "Archiving booking…" : "Updating booking…", confirmState.successMessage);
   }
 
   return (
     <div className="container adminSurface bookingManagementPage">
+      {pendingAction && !drawerOpen ? <div className="bookingActionProgress"><LoadingIndicator>{pendingAction}</LoadingIndicator></div> : null}
       {actionError ? (
         <div className="formError bookingActionError" role="alert">
           {actionError}
         </div>
       ) : null}
-      {walkInSuccess ? (
-        <div className="formSuccess bookingActionError" role="status">
-          {walkInSuccess}
-        </div>
-      ) : null}
+      <SuccessDialog message={actionSuccess} onConfirm={() => setActionSuccess("")} />
 
       <header className="bookingPageHeader">
         <div>
@@ -1106,7 +1121,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
           className="btn btnPrimary bookingWalkInButton"
           onClick={() => {
             setWalkInError("");
-            setWalkInSuccess("");
+            setActionSuccess("");
             setWalkInOpen(true);
           }}
         >
@@ -1258,19 +1273,20 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
         booking={selectedBooking}
         actionError={actionError}
         checkingIn={selectedBooking?.id === checkInPendingId}
-        onClose={closeDrawer}
+        pendingAction={pendingAction}
+        onClose={() => { if (!actionInFlight.current) closeDrawer(); }}
         onApprove={() =>
           selectedBooking &&
           runBookingAction(async () => {
             await setStatus(selectedBooking.id, "approved");
             closeDrawer();
-          })
+          }, "Approving appointment…", `Appointment for ${selectedBooking.fullName || "the patient"} approved successfully.`)
         }
         onReschedule={() => selectedBooking && openReschedule(selectedBooking.id)}
         onReassign={() => selectedBooking && openReassign(selectedBooking.id)}
         onCheckIn={() => {
           const b = selectedBooking;
-          if (!b || b.checkedInAt || checkInPendingId === b.id) return;
+          if (!b || b.checkedInAt || actionInFlight.current || checkInPendingId === b.id) return;
           setCheckInPendingId(b.id);
           runBookingAction(async () => {
             try {
@@ -1283,7 +1299,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
             } finally {
               setCheckInPendingId(null);
             }
-          });
+          }, "Checking in patient…", `${b.fullName || "Patient"} checked in successfully.`);
         }}
         onCancel={() => {
           const b = selectedBooking;
@@ -1293,6 +1309,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
             title: "Cancel this booking?",
             message: "This booking will remain in the Cancelled tab until you choose to archive it.",
             confirmLabel: "Cancel",
+            successMessage: "Appointment cancelled successfully. It is now in the Cancelled tab.",
             tone: "danger",
             action: () => setStatus(b.id, "cancelled"),
           });
@@ -1418,7 +1435,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
             <div className="modalFoot">
               <button type="button" className="btn btnSecondary" onClick={() => setWalkInOpen(false)}>Cancel</button>
               <button className="btn btnSuccess" type="submit" disabled={walkInSaving || loadingWalkInTimes || !walkInTimeOptions.length}>
-                {walkInSaving ? "Saving" : "Add Patient & Appointment"}
+                {walkInSaving ? <LoadingIndicator>Saving appointment…</LoadingIndicator> : "Add Patient & Appointment"}
               </button>
             </div>
           </form>

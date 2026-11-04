@@ -37,9 +37,9 @@ const ARCHIVE_FILTERS = {
     emptyText: "No archived staff accounts matched your search.",
   },
   bookings: {
-    title: "Archived Bookings",
-    subtitle: "Old or inactive booking records separated from the live booking board.",
-    emptyText: "No archived bookings matched your search.",
+    title: "Archived Appointments",
+    subtitle: "Old or inactive appointment records separated from the live appointments board.",
+    emptyText: "No archived appointments matched your search.",
   },
   promotions: {
     title: "Archived Promotions",
@@ -411,7 +411,7 @@ export default function Archive({ adminRole, search }) {
   const archiveCategories = [
     { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length + rows.promotions.length },
     ...(isAdmin ? [{ section: "accounts", label: "Staff accounts", count: rows.accounts.length }] : []),
-    { section: "bookings", label: "Bookings", count: rows.bookings.length },
+    { section: "bookings", label: "Appointments", count: rows.bookings.length },
     ...(isAdmin ? [{ section: "promotions", label: "Promotions", count: rows.promotions.length }] : []),
   ];
 

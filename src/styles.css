@@ -3555,8 +3555,8 @@ html[data-theme="blue"] .mapFrame {
   color: var(--text);
 }
 .verificationCard .successBanner {
-  border: 1px solid color-mix(in srgb, var(--success) 42%, var(--line));
-  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+  border: 0;
+  background: transparent;
   color: var(--success);
 }
 .verificationCard .error {
@@ -5146,7 +5146,7 @@ input[type="date"].input { min-height: 48px; }
   font-weight: 600;
   cursor: pointer;
 }
-.backLink::before { content: "\2190\00a0"; }
+.backLink:not(:has(.backArrowIcon))::before { content: "\2190\00a0"; }
 .backLink:hover { color: var(--accent); }
 
 .recordHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
@@ -22950,3 +22950,253 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
     font-size: 13px;
   }
 }
+.patientDentalRecordPage .patientRecordSection { margin-top: 18px; }
+.patientRecordFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; margin: 16px 0; }
+.patientRecordFacts dt { color: var(--muted); font-size: 12px; }
+.patientRecordFacts dd { margin: 4px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.patientRecordText { white-space: pre-wrap; overflow-wrap: anywhere; }
+.patientReadOnlyChart .toothImageSurface,
+.patientReadOnlyChart .toothMarker { cursor: default; pointer-events: none; }
+.patientReadOnlyChart .toothMarker { display: flex; align-items: center; justify-content: center; }
+.patientReadOnlyChart .toothMarker:hover { transform: none; }
+.patientDentalRecordPage .historyPanel { margin-top: 12px; }
+@media (max-width: 640px) { .patientRecordFacts { grid-template-columns: 1fr; } }
+
+.receiptSectionHeader { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.receiptSectionHeader h3 { margin: 0; font-size: 20px; color: var(--text); }
+.receiptSectionHeader p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.receiptCount { padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.paymentReceiptCard { margin-top: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); }
+.paymentReceiptHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 22px; background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border-bottom: 1px solid var(--line); }
+.paymentReceiptIdentity { min-width: 0; }
+.receiptEyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+.paymentReceiptIdentity h4 { margin: 8px 0; font-size: 17px; line-height: 1.4; overflow-wrap: anywhere; }
+.paymentReceiptIdentity p { margin: 0; color: var(--muted); font-size: 12px; }
+.paymentReceiptAmount { display: flex; flex-shrink: 0; align-items: flex-end; flex-direction: column; gap: 5px; }
+.paymentReceiptAmount > span:first-child { color: var(--muted); font-size: 11px; }
+.paymentReceiptAmount strong { font-size: 26px; line-height: 1.3; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.receiptMethod { padding: 4px 9px; border-radius: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--line); font-size: 11px; }
+.paymentReceiptFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 0; padding: 22px; }
+.paymentReceiptFacts dt { color: var(--muted); font-size: 11px; margin-bottom: 5px; }
+.paymentReceiptFacts dd { margin: 0; color: var(--text); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.receiptDetails { margin: 0 22px; border-top: 1px solid var(--line); }
+.receiptDetails summary { padding: 14px 0; color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer; }
+.receiptDetails summary:hover { color: var(--accent); }
+.receiptDetails .paymentsChargeBreakdown { margin: 0 0 16px; }
+.receiptDetails .paymentReceiptFacts { padding: 0 0 18px; }
+.receiptIdentifiers summary { color: var(--muted); font-size: 11px; }
+.receiptAttachments { margin: 0 22px; padding: 18px 0; border-top: 1px solid var(--line); }
+.receiptAttachmentsHeading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.receiptAttachmentsHeading h5 { margin: 0; font-size: 13px; }
+.receiptAttachmentsHeading > span { color: var(--muted); font-size: 11px; }
+.receiptPhotoGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 220px)); gap: 14px; }
+.receiptPhotoCard { margin: 0; min-width: 0; }
+.receiptPhotoPreview { display: block; position: relative; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--line) 10%, var(--surface)); cursor: zoom-in; transition: transform 160ms ease, border-color 160ms ease; }
+.receiptPhotoPreview img { display: block; width: 100%; height: 180px; object-fit: contain; background: white; border-radius: 4px; }
+.receiptPhotoPreview > span { display: inline-block; margin-top: 8px; color: var(--text); font-size: 11px; }
+.receiptPhotoPreview:hover { transform: translateY(-2px); border-color: var(--accent); }
+.receiptPhotoPreview:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.receiptPhotoCard figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 9px; font-size: 11px; color: var(--muted); }
+.receiptPhotoCard figcaption a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.receiptNoAttachment { margin: 0; color: var(--muted); font-size: 12px; }
+.receiptEmptyState { padding: 32px 20px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
+.receiptEmptyState p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.receiptPhotoDialog { width: min(800px, 92vw); max-height: 90vh; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); }
+.receiptPhotoDialog::backdrop { background: rgba(15, 23, 42, .7); }
+.receiptPhotoDialog header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.receiptPhotoDialog header h3 { margin: 0; font-size: 18px; }
+.receiptPhotoDialog > img { display: block; width: 100%; max-height: 65vh; object-fit: contain; background: white; border-radius: 8px; }
+.receiptPhotoDialog footer { display: flex; justify-content: flex-end; margin-top: 16px; }
+@media (max-width: 540px) {
+  .paymentReceiptHeader { flex-direction: column; padding: 18px; gap: 16px; }
+  .paymentReceiptAmount { align-items: flex-start; }
+  .paymentReceiptFacts { grid-template-columns: 1fr; padding: 18px; }
+  .receiptDetails, .receiptAttachments { margin-left: 18px; margin-right: 18px; }
+  .receiptPhotoGrid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .receiptPhotoPreview { transition: none; }
+  .receiptPhotoPreview:hover { transform: none; }
+}
+.bookingLeaveDialog { width: min(460px, 90vw); padding: 26px; border: 1px solid var(--line); border-radius: 16px; color: var(--text); background: var(--surface); }
+.bookingLeaveDialog::backdrop { background: rgba(15,23,42,.65); }
+.bookingLeaveDialog h2 { margin-top: 0; }
+.bookingLeaveDialog p { line-height: 1.6; }
+.bookingLeaveActions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+
+/* Role-based staff dashboards */
+.staffDashboardPage { max-width: 1380px; padding-top: 32px; padding-bottom: 48px; }
+.staffDashboardHero { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.staffDashboardEyebrow { color: var(--muted); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700; }
+.staffDashboardHero h1 { font-size: clamp(25px, 3vw, 34px); line-height: 1.2; margin: 9px 0 10px; }
+.staffDashboardHero p, .staffDashboardHint, .staffDashboardPanelHeader p, .staffDashboardActions p, .staffDashboardEmpty p, .staffDashboardPaymentNote p { color: var(--muted); line-height: 1.6; }
+.staffDashboardHero p { margin: 0; max-width: 570px; }
+.staffDashboardDate { display: grid; gap: 7px; min-width: 190px; }
+.staffDashboardDate label { color: var(--muted); font-size: 12px; font-weight: 600; }
+.staffDashboardDate button { color: var(--text); border: 0; background: transparent; text-align: right; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.staffDashboardStats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 22px; }
+.staffDashboardStat { position: relative; display: flex; flex-direction: column; align-items: flex-start; min-height: 176px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); text-decoration: none; transition: transform .18s ease, box-shadow .18s ease; }
+.staffDashboardStatIcon { position: absolute; right: 18px; top: 18px; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; color: #986b06; background: #fff2c8; }
+.staffDashboardStatIcon svg { width: 21px; height: 21px; }
+.staffDashboardStat-waiting .staffDashboardStatIcon { color: #32669c; background: #e9f2ff; }
+.staffDashboardStat-complete .staffDashboardStatIcon { color: #287552; background: #e6f5ed; }
+.staffDashboardStat-request .staffDashboardStatIcon { color: #7a55a0; background: #f1eaf9; }
+.staffDashboardStatLabel { font-size: 13px; font-weight: 600; padding-right: 34px; }
+.staffDashboardStat > strong { font-size: 36px; line-height: 1.25; margin: 14px 0 8px; font-variant-numeric: tabular-nums; }
+.staffDashboardHint { font-size: 11px; }
+.staffDashboardPaymentNote { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 12px; margin-bottom: 24px; }
+.staffDashboardPaymentNote strong { font-size: 14px; }
+.staffDashboardPaymentNote p { margin: 3px 0 0; font-size: 12px; }
+.staffDashboardPanel { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.staffDashboardPanelHeader { padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
+.staffDashboardPanelHeader h2, .staffDashboardActionsTitle { margin: 0; font-size: 18px; }
+.staffDashboardPanelHeader p { margin: 5px 0 0; font-size: 12px; }
+.staffDashboardPanelHeader input { max-width: 290px; }
+.staffDashboardTableScroll { overflow-x: auto; }
+.staffDashboardTable { border-collapse: collapse; width: 100%; text-align: left; font-size: 13px; }
+.staffDashboardTable th { background: color-mix(in srgb, var(--text) 3%, var(--surface)); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; padding: 14px 20px; }
+.staffDashboardTable td { padding: 18px 20px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.staffDashboardTable tr:last-child td { border-bottom: 0; }
+.staffDashboardTable td small { display: block; color: var(--muted); font-size: 11px; margin-top: 5px; }
+.staffDashboardTable td:first-child { min-width: 105px; }
+.staffDashboardRecordLink { color: var(--text); font-size: 12px; text-decoration: underline; text-underline-offset: 4px; white-space: nowrap; }
+.staffDashboardTable tbody tr:has(.staffDashboardRecordLink):hover { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.staffDashboardEmpty { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+.staffDashboardEmpty strong { color: var(--text); }
+.staffDashboardEmpty p { font-size: 13px; margin-bottom: 0; }
+.staffDashboardActionsTitle { margin: 28px 0 14px; }
+.staffDashboardActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.staffDashboardActions > a { padding: 19px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--text); text-decoration: none; transition: transform .18s ease, box-shadow .18s ease; }
+.staffDashboardActions strong { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.staffDashboardActions strong span { color: var(--muted); }
+.staffDashboardActions p { margin: 7px 0 0; font-size: 12px; }
+.staffDashboardStat:hover, .staffDashboardActions > a:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(0,0,0,.06); border-color: var(--accent); }
+.staffDashboardPage a:focus-visible, .staffDashboardPage button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.staffDashboardNotice { padding: 16px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 14px; line-height: 1.6; }
+.staffDashboardNotice button { margin-left: 12px; }
+@media (max-width: 1050px) { .staffDashboardStats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .staffDashboardPage { padding-top: 20px; }
+  .staffDashboardHero, .staffDashboardPanelHeader { align-items: stretch; flex-direction: column; }
+  .staffDashboardPanelHeader input { max-width: none; }
+  .staffDashboardStat { padding: 18px; }
+  .staffDashboardStatLabel { padding: 0; max-width: 95px; }
+  .staffDashboardStatIcon { position: static; width: 30px; height: 30px; margin-bottom: 12px; }
+  .staffDashboardStat > strong { font-size: 30px; margin-top: 8px; }
+  .staffDashboardActions { grid-template-columns: 1fr; }
+  .staffDashboardPaymentNote { align-items: flex-start; flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .staffDashboardStat, .staffDashboardActions > a { transition: none; }
+  .staffDashboardStat:hover, .staffDashboardActions > a:hover { transform: none; }
+}
+
+.actionLoadingIndicator { display: inline-flex; align-items: center; justify-content: center; gap: 9px; vertical-align: middle; }
+.actionLoadingSpinner { display: inline-block; flex-shrink: 0; width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: actionLoadingSpin .75s linear infinite; }
+.bookingActionProgress { padding: 13px 16px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: var(--surface); font-size: 14px; }
+.bookingDetailsModal .patientActionBtn:disabled, .bookingDetailsModal .patientDrawerCloseBtn:disabled { cursor: wait; opacity: .65; }
+@keyframes actionLoadingSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .actionLoadingSpinner { animation: none; } }
+
+.actionSuccessDialog { width: min(430px, calc(100vw - 32px)); padding: 32px 28px 26px; border: 1px solid var(--line); border-radius: 20px; color: var(--text); background: var(--surface); text-align: center; box-shadow: 0 22px 80px rgba(0,0,0,.2); }
+.actionSuccessDialog::backdrop { background: rgba(15,23,42,.6); }
+.actionSuccessIcon { display: inline-grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; color: #23865a; background: #e5f5ec; margin-bottom: 15px; }
+.actionSuccessIcon svg { width: 30px; height: 30px; }
+.actionSuccessDialog h2 { font-size: 22px; line-height: 1.3; margin: 0 0 12px; }
+.actionSuccessDialog p { font-size: 14px; line-height: 1.7; margin: 0 0 24px; overflow-wrap: anywhere; color: var(--muted); }
+.actionSuccessDialog > button { min-width: 120px; }
+.actionSuccessDialog > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.paymentsBookingDate { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.acctDialog .acctFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 16px; padding-right: 4px; }
+.acctDialog { width: min(640px, calc(100vw - 32px)); max-width: 640px; }
+.staffTitlePreview { display: flex; align-items: center; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 7%, var(--surface)); font-size: 14px; }
+@media (max-width: 520px) { .acctDialog .acctFields { grid-template-columns: 1fr; } }
+
+.staffAccountMenu { position: relative; min-width: 0; order: 3; }
+button.staffAccountTrigger { border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--text); padding: 5px 7px; cursor: pointer; font: inherit; text-align: left; }
+button.staffAccountTrigger:hover, button.staffAccountTrigger[aria-expanded="true"] { border-color: var(--line); background: var(--surface); }
+.staffAccountChevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted); transition: transform .18s ease; }
+.staffAccountChevron.isOpen { transform: rotate(180deg); }
+.staffAccountDropdown { position: absolute; top: calc(100% + 10px); right: 0; width: min(240px, calc(100vw - 32px)); padding: 7px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 14px 42px rgba(0,0,0,.16); z-index: 1400; }
+.staffAccountDropdown > a, .staffAccountDropdown > button { display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; padding: 12px; border: 0; border-radius: 8px; color: var(--text); background: transparent; font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
+.staffAccountDropdown svg { width: 19px; height: 19px; flex-shrink: 0; }
+.staffAccountDropdown > a:hover, .staffAccountDropdown > button:hover { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.staffAccountDropdown .staffAccountLogout { color: var(--danger); border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; margin-top: 4px; }
+.staffAccountTrigger:focus-visible, .staffAccountDropdown > a:focus-visible, .staffAccountDropdown > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.staffSettingsPage { max-width: 940px; padding-top: 32px; padding-bottom: 48px; }
+.staffSettingsHeading { margin-bottom: 28px; }
+.staffSettingsHeading > span { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 600; }
+.staffSettingsHeading h1 { margin: 8px 0; font-size: 30px; }
+.staffSettingsHeading p, .staffSettingsPanel > p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.staffSettingsPanel { border: 1px solid var(--line); border-radius: 16px; padding: 26px; margin-bottom: 22px; background: var(--surface); }
+.staffSettingsPanel h2 { font-size: 18px; margin: 0 0 8px; }
+.staffSettingsPanel > p { margin: 0 0 22px; }
+.staffSettingsFields { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.staffSettingsFields label, .staffSettingsTitle { display: flex; flex-direction: column; min-width: 0; gap: 8px; font-size: 13px; font-weight: 600; }
+.staffSettingsTitle strong { display: flex; align-items: center; min-height: 43px; padding: 10px 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.staffSettingsActions { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 22px; margin-top: 24px; border-top: 1px solid var(--line); }
+.staffSettingsFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 20px 0; }
+.staffSettingsFacts dt { color: var(--muted); font-size: 12px; margin-bottom: 7px; }
+.staffSettingsFacts dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.staffSettingsResetLink { color: var(--text); font-size: 14px; text-underline-offset: 4px; }
+@media (max-width: 600px) { .staffSettingsFields, .staffSettingsFacts { grid-template-columns: 1fr; } .staffSettingsPanel { padding: 20px; } }
+@media (prefers-reduced-motion: reduce) { .staffAccountChevron { transition: none; } }
+
+.staffSettingsBack { margin-bottom: 22px; }
+.staffSettingsBack:disabled { cursor: wait; opacity: .6; }
+.staffSettingsActions { flex-direction: column; align-items: stretch; }
+.staffSettingsActionButtons { display: flex; flex-wrap: wrap; gap: 12px; }
+.staffSettingsActionButtons > button[aria-busy="true"] { opacity: 1; cursor: wait; }
+.staffSettingsSaveProgress { padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.staffSettingsSaveProgress .actionLoadingIndicator { justify-content: flex-start; font-size: 14px; font-weight: 650; color: var(--text); }
+.staffSettingsSaveProgress .actionLoadingSpinner { width: 20px; height: 20px; border-width: 3px; }
+.staffSettingsSaveProgress p { margin: 7px 0 12px 31px; color: var(--muted); font-size: 12px; }
+.staffSettingsProgressTrack { height: 4px; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+.staffSettingsProgressTrack > span { display: block; width: 35%; height: 100%; background: var(--accent); border-radius: inherit; animation: staffSettingsSaving 1.2s ease-in-out infinite alternate; }
+@keyframes staffSettingsSaving { from { transform: translateX(0); } to { transform: translateX(186%); } }
+.staffSettingsSecurity { padding: 0; overflow: hidden; }
+.staffSettingsSecurityHeader { display: flex; align-items: center; gap: 14px; padding: 26px 26px 20px; }
+.staffSettingsSecurityHeader h2 { margin: 0 0 5px; }
+.staffSettingsSecurityHeader p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.staffSettingsSecurityIcon, .staffSettingsPasswordIcon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 13px; color: var(--text); background: var(--surface); }
+.staffSettingsSecurityIcon svg, .staffSettingsPasswordIcon svg { width: 23px; height: 23px; }
+.staffSettingsSecurityIcon { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.staffSettingsSecurityFacts { margin: 0 26px 16px; gap: 14px; }
+.staffSettingsSecurityFacts > div { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--text) 2%, var(--surface)); }
+.staffSettingsSecurityFacts dd { min-height: 26px; font-weight: 600; line-height: 1.6; }
+.staffSettingsManagedBadge { display: inline-block; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.staffSettingsRoleBadge { display: inline-block; padding: 3px 10px; border-radius: 7px; color: var(--text); background: color-mix(in srgb, var(--accent) 15%, var(--surface)); font-size: 12px; }
+.staffSettingsSecurity > p.staffSettingsAccessNotice { margin: 0; padding: 0 26px 22px; font-size: 12px; line-height: 1.6; }
+.staffSettingsPasswordCard { display: flex; align-items: center; gap: 15px; padding: 24px 26px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.staffSettingsPasswordCard > div { flex: 1; min-width: 0; }
+.staffSettingsPasswordCard h3 { margin: 0 0 6px; font-size: 15px; }
+.staffSettingsPasswordCard p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.staffSettingsPasswordButton { display: inline-flex; justify-content: center; align-items: center; gap: 12px; text-decoration: none; white-space: nowrap; flex-shrink: 0; }
+.staffSettingsPasswordButton[aria-disabled="true"] { pointer-events: none; opacity: .6; }
+@media (max-width: 600px) {
+  .staffSettingsSecurity { padding: 0; }
+  .staffSettingsSecurityHeader { padding: 22px 20px 18px; }
+  .staffSettingsSecurityFacts { margin-left: 20px; margin-right: 20px; }
+  .staffSettingsSecurity > p.staffSettingsAccessNotice { padding: 0 20px 20px; }
+  .staffSettingsPasswordCard { padding: 22px 20px; flex-wrap: wrap; }
+  .staffSettingsPasswordButton { width: 100%; margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .staffSettingsProgressTrack > span { animation: none; width: 100%; opacity: .65; } }
+
+.staffProfileRequiredDialog { width: min(500px, calc(100vw - 32px)); padding: 32px; border: 1px solid var(--line); border-radius: 22px; color: var(--text); background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.2); max-height: 90dvh; overflow-y: auto; }
+.staffProfileRequiredDialog::backdrop { background: rgba(15,23,42,.68); }
+.staffProfileRequiredBadge { display: inline-block; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 15%, var(--surface)); border-radius: 20px; padding: 5px 11px; font-size: 11px; font-weight: 700; }
+.staffProfileRequiredWelcome { margin: 20px 0 7px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.staffProfileRequiredDialog h1 { font-size: 25px; margin: 0 0 12px; line-height: 1.25; }
+.staffProfileRequiredDialog > p:last-of-type { color: var(--muted); font-size: 14px; line-height: 1.65; margin: 0; }
+.staffProfileRequiredSteps { list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 18px; }
+.staffProfileRequiredSteps li { display: flex; gap: 12px; align-items: flex-start; }
+.staffProfileRequiredSteps li > span { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; font-size: 12px; font-weight: 700; }
+.staffProfileRequiredSteps strong { font-size: 14px; }
+.staffProfileRequiredSteps p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.staffProfileRequiredDialog > button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.staffProfileSetupNotice { padding: 18px 20px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); margin-bottom: 22px; }
+.staffProfileSetupNotice strong { font-size: 14px; }
+.staffProfileSetupNotice p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+@media (max-width: 520px) { .staffProfileRequiredDialog { padding: 25px 22px; } }
+.staffNicknameHint { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.5; }

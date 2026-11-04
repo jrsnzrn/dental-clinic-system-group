@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getAdminProfile, getDefaultAdminPath, hasFreshStaffMfa, requiresStaffMfa, ROLES } from "../src/utils/rbac.js";
+import { getAdminProfile, getStaffLoginPath, hasFreshStaffMfa, requiresStaffMfa, ROLES } from "../src/utils/rbac.js";
 
 const source = fs.readFileSync(new URL("../src/pages/admin/Login.jsx", import.meta.url), "utf8");
 const body = source.slice(source.indexOf("  async function completeStaffLogin("), source.indexOf("  async function onLogin("));
@@ -9,10 +9,10 @@ const body = source.slice(source.indexOf("  async function completeStaffLogin(")
 function harness(profile, { verified = true, next = "", authTime = 1000 } = {}) {
   const destinations = [];
   let signedOut = false;
-  const login = new Function("auth", "db", "doc", "getDoc", "signOut", "getAdminProfile", "getDefaultAdminPath", "hasFreshStaffMfa", "requiresStaffMfa", "ROLES", "searchParams", "navigate", `${body}; return completeStaffLogin;`)(
+  const login = new Function("auth", "db", "doc", "getDoc", "signOut", "getAdminProfile", "getStaffLoginPath", "hasFreshStaffMfa", "requiresStaffMfa", "ROLES", "searchParams", "navigate", `${body}; return completeStaffLogin;`)(
     {}, {}, (_db, collection, uid) => ({ collection, uid }),
     async () => ({ exists: () => profile !== null, data: () => profile }),
-    async () => { signedOut = true; }, getAdminProfile, getDefaultAdminPath, hasFreshStaffMfa, requiresStaffMfa, ROLES,
+    async () => { signedOut = true; }, getAdminProfile, getStaffLoginPath, hasFreshStaffMfa, requiresStaffMfa, ROLES,
     new URLSearchParams({ next }), (path, options) => destinations.push({ path, options }),
   );
   const credential = { user: { uid: "staff", emailVerified: verified, getIdTokenResult: async () => ({ claims: { auth_time: authTime } }), reload: async () => {} } };
@@ -20,7 +20,7 @@ function harness(profile, { verified = true, next = "", authTime = 1000 } = {}) 
 }
 
 test("admin, receptionist, and dentist roles are detected from the saved account", async () => {
-  for (const [role, path] of [["admin", "/admin/patients"], ["receptionist", "/admin/bookings"], ["dentist", "/admin/patients"]]) {
+  for (const [role, path] of [["admin", "/admin/analytics"], ["receptionist", "/admin/dashboard"], ["dentist", "/admin/dashboard"]]) {
     const state = harness({ role, mfaVerifiedAuthTime: 1000, mfaVerifiedUntil: new Date(Date.now() + 60000) });
     await state.login();
     assert.equal(state.destinations[0].path, path);
@@ -40,13 +40,13 @@ test("nonstaff accounts, unknown roles, and disabled staff cannot enter", async 
 test("unverified email still goes through staff email verification", async () => {
   const state = harness({ role: "receptionist" }, { verified: false });
   await state.login();
-  assert.equal(state.destinations[0].path, "/admin/verify-email?next=%2Fadmin%2Fbookings");
+  assert.equal(state.destinations[0].path, "/admin/verify-email?next=%2Fadmin%2Fdashboard");
 });
 
 test("automatic role detection keeps required MFA", async () => {
   const state = harness({ role: "admin" });
   await state.login();
-  assert.equal(state.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fpatients");
+  assert.equal(state.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fanalytics");
 });
 
 test("a new login requires OTP even when an earlier MFA check has not expired", async () => {
@@ -66,11 +66,44 @@ test("legacy MFA timestamps cannot skip verification, while the current login st
   assert.equal(hasFreshStaffMfa({ ...profile, mfaVerifiedAuthTime: 1000, mfaVerifiedUntil: new Date(0) }, 1000), false);
 });
 
-test("external next links are ignored while internal staff destinations are retained", async () => {
+test("receptionists land on the dashboard even with a saved next page", async () => {
   const external = harness({ role: "receptionist" }, { next: "https://example.com" });
   await external.login();
-  assert.equal(external.destinations[0].path, "/admin/bookings");
+  assert.equal(external.destinations[0].path, "/admin/dashboard");
   const internal = harness({ role: "receptionist" }, { next: "/admin/payments" });
   await internal.login();
-  assert.equal(internal.destinations[0].path, "/admin/payments");
+  assert.equal(internal.destinations[0].path, "/admin/dashboard");
+});
+
+
+test("dentists and receptionists use the dashboard after email and MFA verification even with a next link", async () => {
+  for (const role of ["dentist", "receptionist"]) {
+    const direct = harness({ role }, { next: "/admin/patients" });
+    await direct.login();
+    assert.equal(direct.destinations[0].path, "/admin/dashboard");
+    const email = harness({ role }, { verified: false, next: "/admin/patients" });
+    await email.login();
+    assert.equal(email.destinations[0].path, "/admin/verify-email?next=%2Fadmin%2Fdashboard");
+    const mfa = harness({ role, mfaRequired: true }, { next: "/admin/patients" });
+    await mfa.login();
+    assert.equal(mfa.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fdashboard");
+  }
+});
+
+test("administrators always land on Overview, regardless of saved next links", () => {
+  assert.equal(getStaffLoginPath("admin", "/admin/payments"), "/admin/analytics");
+  assert.equal(getStaffLoginPath("admin", "https://example.com"), "/admin/analytics");
+  assert.equal(getStaffLoginPath("admin", "/administrator"), "/admin/analytics");
+});
+
+test("admin sign-in, email verification, and OTP all lead to Overview", async () => {
+  const direct = harness({ role: "admin", mfaVerifiedAuthTime: 1000, mfaVerifiedUntil: new Date(Date.now() + 60000) }, { next: "/admin/patients" });
+  await direct.login();
+  assert.equal(direct.destinations[0].path, "/admin/analytics");
+  const email = harness({ role: "admin" }, { verified: false, next: "/admin/patients" });
+  await email.login();
+  assert.equal(email.destinations[0].path, "/admin/verify-email?next=%2Fadmin%2Fanalytics");
+  const otp = harness({ role: "admin" }, { next: "/admin/patients" });
+  await otp.login();
+  assert.equal(otp.destinations[0].path, "/admin/mfa?next=%2Fadmin%2Fanalytics");
 });

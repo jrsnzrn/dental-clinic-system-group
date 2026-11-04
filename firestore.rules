@@ -310,7 +310,8 @@ service cloud.firestore {
     }
 
     match /payments/{id} {
-      allow read: if isPaymentsStaff();
+      allow read: if isPaymentsStaff() ||
+        (isSignedIn() && resource.data.get("uid", "") == request.auth.uid);
       allow create: if isAdminOrReceptionist() &&
         request.resource.data.keys().hasOnly([
           "patientId",
@@ -329,6 +330,7 @@ service cloud.firestore {
           "chargeBreakdown",
           "balanceAfterPayment",
           "amountPaidBefore",
+          "paymentGroupId",
           "receiptPhotos",
           "method",
           "notes",
@@ -336,6 +338,7 @@ service cloud.firestore {
         ]) &&
         request.resource.data.patientId is string &&
         request.resource.data.treatmentId is string &&
+        request.resource.data.get("paymentGroupId", "") is string &&
         request.resource.data.patientType in ["Regular", "Ortho"] &&
         request.resource.data.get("referenceNumber", "") is string &&
         request.resource.data.get("referenceNumber", "").size() <= 100 &&

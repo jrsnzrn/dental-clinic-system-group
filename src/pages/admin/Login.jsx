@@ -6,7 +6,7 @@ import { auth, db } from "../../firebase";
 import BackArrow from "../../components/BackArrow";
 import {
   getAdminProfile,
-  getDefaultAdminPath,
+  getStaffLoginPath,
   hasFreshStaffMfa,
   requiresStaffMfa,
   ROLES,
@@ -70,9 +70,7 @@ export default function Login() {
     }
 
     const requestedNext = searchParams.get("next") || "";
-    const targetPath = (requestedNext === "/admin" || requestedNext.startsWith("/admin/"))
-      ? requestedNext
-      : getDefaultAdminPath(profile.role);
+    const targetPath = getStaffLoginPath(profile.role, requestedNext);
 
     await credential.user.reload();
     if (!credential.user.emailVerified) {

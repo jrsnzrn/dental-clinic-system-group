@@ -1,3 +1,4 @@
+import { formatStaffDisplayName } from "../utils/staffProfile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
@@ -18,6 +19,8 @@ import { SkeletonList } from "../components/LoadingSkeleton";
 import BackArrow from "../components/BackArrow";
 import ModalPortal from "../components/ModalPortal";
 import { notifySuccess } from "../utils/successDialog";
+import BookingLeaveGuard from "../components/BookingLeaveGuard";
+import { getClinicDate, getLatestBookingDate, isWithinBookingWindow } from "../../functions/bookingWindow.mjs";
 import {
   BOOKING_SLOT_INTERVAL_MINUTES,
   getActiveClosureForDate,
@@ -95,11 +98,11 @@ function toStoredPhilippineMobile(value) {
   return `0${getPhilippineMobileDigits(value)}`;
 }
 
-function generateUpcomingDates(startDate, count = 12) {
+function generateUpcomingDates(startDate, count, lastDate) {
   const dates = [];
   const cursor = new Date(startDate);
 
-  while (dates.length < count) {
+  while (dates.length < count && toLocalISODate(cursor) <= lastDate) {
     const iso = toLocalISODate(cursor);
     if (!isSunday(iso)) {
       dates.push(iso);
@@ -128,7 +131,8 @@ export default function Book() {
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [selectedDentistId, setSelectedDentistId] = useState("");
-  const [date, setDate] = useState(toLocalISODate(new Date()));
+  const [initialDate] = useState(() => getClinicDate());
+  const [date, setDate] = useState(() => getClinicDate());
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
   const [agreedToPrivacyConsent, setAgreedToPrivacyConsent] = useState(false);
@@ -136,7 +140,7 @@ export default function Book() {
   const [saving, setSaving] = useState(false);
   const [recentlySubmitted, setRecentlySubmitted] = useState(false);
 
-  const [datePageStart, setDatePageStart] = useState(toLocalISODate(new Date()));
+  const [datePageStart, setDatePageStart] = useState(() => getClinicDate());
   const [slotOptions, setSlotOptions] = useState([]);
   const [blockedRanges, setBlockedRanges] = useState([]);
   const [duplicateWarning, setDuplicateWarning] = useState(false);
@@ -154,7 +158,8 @@ export default function Book() {
     }
   }, []);
 
-  const todayStr = toLocalISODate(new Date());
+  const todayStr = getClinicDate();
+  const lastBookingDate = getLatestBookingDate(todayStr);
   const getBookingAvailability = useMemo(
     () => httpsCallable(functions, "getBookingAvailability"),
     []
@@ -163,7 +168,7 @@ export default function Book() {
     () => httpsCallable(functions, "createBooking"),
     []
   );
-  const upcomingDates = useMemo(() => generateUpcomingDates(new Date(`${datePageStart}T00:00:00`), 8), [datePageStart]);
+  const upcomingDates = useMemo(() => generateUpcomingDates(new Date(`${datePageStart}T00:00:00`), 8, lastBookingDate), [datePageStart, lastBookingDate]);
   const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
   const selectedClosure = useMemo(() => getActiveClosureForDate(clinicClosures, date), [clinicClosures, date]);
   const service = selectedServices.join(", ");
@@ -252,7 +257,10 @@ export default function Book() {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "dentists"), (snap) => {
-      const list = snap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      const list = snap.docs.map(entry => {
+        const data = entry.data();
+        return { ...data, id: entry.id, name: formatStaffDisplayName({ ...data, role: "dentist" }) };
+      });
       setDentists(list);
       setLoadingDentists(false);
     });
@@ -396,7 +404,7 @@ export default function Book() {
     const nextStart = new Date(`${datePageStart}T00:00:00`);
     nextStart.setDate(nextStart.getDate() + amount);
     const nextIso = toLocalISODate(nextStart);
-    setDatePageStart(nextIso < todayStr ? todayStr : nextIso);
+    setDatePageStart(nextIso < todayStr ? todayStr : nextIso > lastBookingDate ? lastBookingDate : nextIso);
   }
 
   async function loginGoogle() {
@@ -526,6 +534,7 @@ export default function Book() {
     }
     if (!date) return setError("Please choose a date.");
     if (date < todayStr) return setError("You cannot book before today.");
+    if (!isWithinBookingWindow(date, todayStr)) return setError("You can only book up to two months ahead.");
     if (isSunday(date)) return setError("Clinic is closed on Sundays. Please choose Monday to Saturday.");
     if (selectedClosure) return setError(`${selectedClosure.label} blocks booking on ${formatDateLabel(date)}. Please choose another day.`);
     if (!selectedServices.length) return setError("Please choose at least one service.");
@@ -774,6 +783,9 @@ export default function Book() {
 
   return (
     <>
+    <BookingLeaveGuard active={Boolean(user && !recentlySubmitted && (
+      selectedServices.length || time || notes.trim() || date !== initialDate
+    ))} />
     <div className="container bookingPage">
       <header className="bookingPageHeading">
         <h1>Book an Appointment</h1>
@@ -983,10 +995,31 @@ export default function Book() {
                       <span className="bookingSectionHeading">
                         <h2>Appointment Schedule</h2>
                         <p>Choose your preferred dentist, appointment date, and time.</p>
+                        <p>You can book up to two months ahead, through {formatDateLabel(lastBookingDate)}.</p>
                       </span>
                     </header>
 
                     <div className="bookingScheduleControls">
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Day</span>
+                        <span className="bookingDateInputShell">
+                          <span>{formatDateLabel(date)}</span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="5" width="17" height="16" rx="2" />
+                            <path d="M7.5 3.5v3M16.5 3.5v3M3.5 9.5h17M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
+                          </svg>
+                          <input
+                            type="date"
+                            aria-label="Choose appointment day"
+                            min={todayStr}
+                            max={lastBookingDate}
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            disabled={!user || saving}
+                          />
+                        </span>
+                      </label>
+
                       <label className="bookingFieldCard">
                         <span className="detailLabel">Available Dentist</span>
                         <div className="bookingSelectShell">
@@ -1007,21 +1040,6 @@ export default function Book() {
                             )}
                           </select>
                         </div>
-                      </label>
-
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Appointment Date</span>
-                        <span className="bookingDateInputShell">
-                          <span>{formatDateLabel(date)}</span>
-                          <input
-                            type="date"
-                            aria-label="Choose appointment day"
-                            min={todayStr}
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            disabled={!user || saving}
-                          />
-                        </span>
                       </label>
 
                       <div className="bookingTimeSlotField">
@@ -1108,7 +1126,7 @@ export default function Book() {
                           type="button"
                           className="bookingDateNavButton"
                           onClick={() => moveSuggestedDates(7)}
-                          disabled={!user || saving}
+                          disabled={!user || saving || upcomingDates.at(-1) >= lastBookingDate || upcomingDates.length < 8}
                           aria-label="Next suggested appointment days"
                         >
                           <span>Next</span>

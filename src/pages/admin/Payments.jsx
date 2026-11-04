@@ -1,3 +1,6 @@
+import SuccessDialog from "../../components/SuccessDialog";
+import { groupBookingPaymentRows, groupBookingReceipts } from "../../utils/bookingPayments";
+import { recordBookingPayment } from "../../utils/recordBookingPayment";
 import PaginatedRecords from "../../components/PaginatedRecords";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
@@ -67,6 +70,7 @@ function paymentStatus(totalCost, amountPaid, pending = false) {
 }
 
 function isFullyPaid(row) {
+  if (row.treatments && !row.allPriced) return false;
   return (row.totalCost > 0 || row.chargeBreakdown?.grossTotal > 0) && row.balance <= 0.005 && row.amountPaid + 0.005 >= row.totalCost;
 }
 
@@ -468,6 +472,7 @@ export default function Payments() {
   });
   const [savingDetails, setSavingDetails] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [receiptPhotoLoading, setReceiptPhotoLoading] = useState(false);
   const [promotionSaving, setPromotionSaving] = useState(false);
   const [paymentPromotion, setPaymentPromotion] = useState({ bookingId: "", promotion: null, error: "" });
@@ -581,7 +586,7 @@ export default function Payments() {
     ]));
   }, [regularTreatmentSummaries]);
   const allRows = useMemo(
-    () => [
+    () => groupBookingPaymentRows([
       ...regularRows.map((row) => ({
         ...row,
         appointmentTotal: row.appointmentId
@@ -589,7 +594,7 @@ export default function Payments() {
           : 0,
       })),
       ...makeBracesPaymentRows(bracesPayments, bracesAccounts, patients),
-    ],
+    ]),
     [appointmentTotals, bracesAccounts, bracesPayments, patients, regularRows]
   );
   const selectedPatientRecord = useMemo(() => (
@@ -659,7 +664,7 @@ export default function Payments() {
     ...(detailDraft.treatmentName || "Dental treatment").split(",").map(name => name.trim()).filter(Boolean),
     ...detailDraft.additionalServices,
   ])];
-  const previousDiscount = regularTreatmentSummaries.filter(summary =>
+  const previousDiscount = selectedPaymentRow?.treatments ? 0 : regularTreatmentSummaries.filter(summary =>
     summary.appointmentId === selectedBooking?.id && summary.treatmentId !== selectedPaymentRow?.treatmentId &&
     summary.chargeBreakdown?.promotionId === promotionId
   ).reduce((sum, summary) => sum + (Number(summary.chargeBreakdown?.discountAmount) || 0), 0);
@@ -682,7 +687,7 @@ export default function Payments() {
         .map((payment) => ({ ...payment, ledgerSource: "Braces installment" })),
     ].sort((a, b) => paymentDateSortValue(b).localeCompare(paymentDateSortValue(a)));
   }, [bracesPayments, regularPayments, selectedPatientRecord]);
-  const selectedRecordTransactions = selectedPatientTransactions.filter((transaction) => {
+  const selectedRecordTransactions = groupBookingReceipts(selectedPatientTransactions.filter((transaction) => {
     if (isBracesInstallment) {
       return transaction.ledgerSource === "Braces installment" && transaction.accountId === selectedPaymentRow?.treatmentId;
     }
@@ -690,7 +695,7 @@ export default function Payments() {
     return selectedPaymentRow?.appointmentId
       ? transaction.appointmentId === selectedPaymentRow.appointmentId
       : Boolean(selectedTreatmentId) && transaction.treatmentId === selectedTreatmentId;
-  });
+  }));
   const filteredRows = useMemo(() => {
     const term = normalizeName(search);
     return [...allRows]
@@ -830,7 +835,8 @@ export default function Payments() {
         if (!selectedPatientRecord.id || !selectedPaymentRow?.treatmentId) {
           throw new Error("No existing payment treatment is linked to this patient.");
         }
-        savedId = await recordRegularPayment({
+        const recordPayment = selectedPaymentRow.treatments ? recordBookingPayment : recordRegularPayment;
+        savedId = await recordPayment({
           patientId: selectedPatientRecord.id,
           uid: selectedPatientRecord.uid || "",
           patientName: selectedPatientRecord.name || "",
@@ -845,7 +851,8 @@ export default function Payments() {
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
           additionalServices: detailDraft.additionalServices,
-          chargeBreakdown,
+          chargeBreakdown: selectedPaymentRow.treatments
+            ? { ...chargeBreakdown, eligibleServiceNames: promotion?.services || [] } : chargeBreakdown,
           receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
           allowZeroAmount: true,
         });
@@ -867,6 +874,7 @@ export default function Payments() {
       }
       setDetailDraft((current) => ({ ...current, amount: "", receiptPhotos: [], referenceNumber: "" }));
       if (completionWarning) setDetailError(completionWarning);
+      else setSuccessMessage(amount > 0 ? "Payment recorded successfully. The patient’s balance and receipt have been updated." : "Payment charges saved successfully.");
     } catch (error) {
       console.error("Patient payment details could not be saved:", error);
       setDetailError(error.message || "Payment details could not be saved. Check access and try again.");
@@ -878,6 +886,7 @@ export default function Payments() {
 
   return (
     <div className="container adminSurface paymentsPage">
+      <SuccessDialog message={successMessage} onConfirm={() => setSuccessMessage("")} />
       {loadError ? (
         <div className="formError" role="alert">
           Payment records could not be fully loaded. {loadError}
@@ -1210,6 +1219,7 @@ export default function Payments() {
                       >
                         {row.patientName}
                       </button>
+                      {row.appointmentDate ? <small className="paymentsBookingDate">{formatDateLabel(row.appointmentDate)}</small> : null}
                     </td>
                     {paymentTab === "Ortho" ? (
                       <>
@@ -1225,7 +1235,7 @@ export default function Payments() {
                       </>
                     ) : paymentTab === "Regular" ? (
                       <>
-                        <td data-label="Treatment">{row.treatmentName || "—"}</td>
+                        <td data-label="Treatment">{row.treatmentName || "—"}{row.treatments && !row.allPriced ? <small className="paymentsBookingDate">Some service charges still need to be entered</small> : null}</td>
                         <td data-label="Balance">{row.totalCost > 0 ? formatCurrency(row.balance) : "—"}</td>
                         <td data-label="Method">{row.method || "—"}</td>
                         <td data-label="Status">{paymentStatusLabel(row, "Regular")}</td>
