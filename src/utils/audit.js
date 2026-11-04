@@ -56,6 +56,8 @@ const ACTION_LABELS = {
   restore_dentist: "Restored dentist record",
   delete_archived_record: "Deleted archived record",
   create_staff_account: "Created staff account",
+  update_staff_profile: "Updated staff profile",
+  change_staff_email: "Changed staff sign-in email",
   archive_staff_account: "Archived staff account",
   restore_staff_account: "Restored staff account",
 };

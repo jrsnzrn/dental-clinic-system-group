@@ -20,6 +20,7 @@ import EmailVerification from "./pages/admin/EmailVerification";
 import Mfa from "./pages/admin/Mfa";
 import Dashboard from "./pages/admin/Dashboard";
 import StaffDashboard from "./pages/admin/StaffDashboard";
+import StaffSettings from "./pages/admin/StaffSettings";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
 import Queue from "./pages/admin/Queue";
@@ -451,6 +452,11 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={getDefaultAdminPath(adminRole).replace("/admin/", "")} replace />} />
+              <Route path="settings" element={
+                <ProtectedRoute user={user} allowedRoles={[ROLES.ADMIN, ROLES.RECEPTIONIST, ROLES.DENTIST]}>
+                  <StaffSettings key={user?.uid} uid={user?.uid} />
+                </ProtectedRoute>
+              } />
               <Route path="dashboard" element={
                 <ProtectedRoute user={user} allowedRoles={[ROLES.RECEPTIONIST, ROLES.DENTIST]}>
                   <StaffDashboard key={`${user?.uid}-${adminRole}`} uid={user?.uid} role={adminRole} />

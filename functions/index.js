@@ -1,6 +1,6 @@
 const admin = require("firebase-admin");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const nodemailer = require("nodemailer");
@@ -135,6 +135,14 @@ function serializeAdminDoc(id, data = {}) {
   return {
     id,
     name: data.name || "",
+    firstName: data.firstName || "",
+    middleName: data.middleName || "",
+    lastName: data.lastName || "",
+    fullName: data.fullName || "",
+    age: data.age ?? "",
+    gender: data.gender || "",
+    title: data.title || "",
+    phone: data.phone || "",
     email: data.email || "",
     role: data.role || "",
     disabled: Boolean(data.disabled),
@@ -1585,19 +1593,14 @@ exports.createStaffAccount = onCall(async (request) => {
   }
 
   const callerRole = String(callerSnap.data()?.role || "").trim().toLowerCase();
-  if (callerRole !== "admin") {
+  if (callerRole !== "admin" || callerSnap.data()?.disabled === true) {
     throw new HttpsError("permission-denied", "Only administrator accounts can create staff.");
   }
 
   const payload = request.data || {};
-  const name = String(payload.name || "").trim();
   const email = String(payload.email || "").trim().toLowerCase();
   const password = String(payload.password || "");
   const role = String(payload.role || "").trim().toLowerCase();
-
-  if (!name) {
-    throw new HttpsError("invalid-argument", "Full name is required.");
-  }
 
   if (!email) {
     throw new HttpsError("invalid-argument", "Email is required.");
@@ -1610,6 +1613,12 @@ exports.createStaffAccount = onCall(async (request) => {
   if (!ALLOWED_ROLES.includes(role)) {
     throw new HttpsError("invalid-argument", "Invalid role.");
   }
+
+  const { buildStaffProfile } = await import("./staffProfile.mjs");
+  let profile;
+  try { profile = buildStaffProfile(payload, role); }
+  catch (error) { throw new HttpsError("invalid-argument", error.message); }
+  const { name } = profile;
 
   let userRecord;
   try {
@@ -1624,7 +1633,7 @@ exports.createStaffAccount = onCall(async (request) => {
   }
 
   await db.collection("admins").doc(userRecord.uid).set({
-    name,
+    ...profile,
     email,
     role,
     mfaEnabled: true,
@@ -1653,7 +1662,111 @@ exports.createStaffAccount = onCall(async (request) => {
     email,
     role,
     name,
+    ...profile,
   };
+});
+
+exports.updateStaffProfile = onCall(async (request) => {
+  const actor = await getStaffContextFromRequest(request, ["admin", "receptionist", "dentist"]);
+  const uid = String(request.data?.uid || actor.uid).trim();
+  if (!uid) throw new HttpsError("invalid-argument", "A staff account is required.");
+  const editingSelf = uid === actor.uid;
+  if (actor.role !== "admin" && !editingSelf) throw new HttpsError("permission-denied", "You can only edit your own account details.");
+  if (actor.role !== "admin" && Object.prototype.hasOwnProperty.call(request.data || {}, "email")) {
+    throw new HttpsError("permission-denied", "Only an administrator can change a staff sign-in email.");
+  }
+  const { buildStaffProfile } = await import("./staffProfile.mjs");
+  let fields;
+  await db.runTransaction(async transaction => {
+    const staffRef = db.collection("admins").doc(uid);
+    const snapshot = await transaction.get(staffRef);
+    if (!snapshot.exists) throw new HttpsError("not-found", "Staff account could not be found.");
+    const role = String(snapshot.data().role || "").trim().toLowerCase();
+    if (!ALLOWED_ROLES.includes(role) && !(role === "admin" && editingSelf)) throw new HttpsError("permission-denied", "Only your own account or dentist and receptionist profiles can be edited here.");
+    try { fields = buildStaffProfile(request.data, role); }
+    catch (error) { throw new HttpsError("invalid-argument", error.message); }
+    const dentists = role === "dentist"
+      ? await transaction.get(db.collection("dentists").where("linkedStaffUid", "==", uid)) : { docs: [] };
+    if (dentists.docs.length > 400) throw new HttpsError("failed-precondition", "Too many linked dentist profiles. Contact the administrator.");
+    transaction.update(staffRef, { ...fields, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: actor.uid });
+    for (const dentist of dentists.docs) transaction.update(dentist.ref, {
+      name: fields.name, fullName: fields.fullName, firstName: fields.firstName, middleName: fields.middleName,
+      lastName: fields.lastName, title: fields.title, linkedStaffName: fields.name,
+    });
+  });
+  let authDisplayNameSynced = true;
+  try { await auth.updateUser(uid, { displayName: fields.name }); }
+  catch (error) { authDisplayNameSynced = false; console.error("Staff profile saved but Auth display name sync failed:", error); }
+  await writeStaffAuditLog(actor, { action: "update_staff_profile", targetType: "admin_account", targetId: uid, targetLabel: fields.name });
+  return { success: true, ...fields, authDisplayNameSynced };
+});
+
+exports.syncLinkedDentistName = onDocumentWritten("dentists/{dentistId}", async event => {
+  const reference = db.collection("dentists").doc(event.params.dentistId);
+  const { dentistNameFields } = await import("./staffProfile.mjs");
+  await db.runTransaction(async transaction => {
+    const dentist = await transaction.get(reference);
+    if (!dentist.exists) return;
+    const uid = String(dentist.data().linkedStaffUid || "").trim();
+    if (!uid) return;
+    const staff = await transaction.get(db.collection("admins").doc(uid));
+    if (!staff.exists || staff.data().role !== "dentist") return;
+    const fields = dentistNameFields(staff.data());
+    if (Object.entries(fields).every(([key, value]) => dentist.data()[key] === value)) return;
+    transaction.update(reference, fields);
+  });
+});
+
+exports.setStaffAccountEmail = onCall(async request => {
+  const actor = await getStaffContextFromRequest(request, ["admin"]);
+  const uid = String(request.data?.uid || "").trim();
+  const email = String(request.data?.email || "").trim().toLowerCase();
+  if (!uid || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpsError("invalid-argument", "Enter a valid staff email address.");
+  const staffRef = db.collection("admins").doc(uid);
+  const operationId = crypto.randomUUID();
+  let previous;
+  await db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(staffRef);
+    if (!snapshot.exists || !ALLOWED_ROLES.includes(snapshot.data().role)) throw new HttpsError("permission-denied", "Choose a dentist or receptionist account.");
+    previous = snapshot.data();
+    if (previous.emailUpdateUntil?.toMillis?.() > Date.now()) throw new HttpsError("aborted", "Another email update is in progress. Please try again shortly.");
+    transaction.update(staffRef, { emailUpdateId: operationId, emailUpdateUntil: admin.firestore.Timestamp.fromMillis(Date.now() + 5 * 60_000) });
+  });
+  let oldAuth;
+  let authChanged = false;
+  try {
+    oldAuth = await auth.getUser(uid);
+    if (String(oldAuth.email || "").toLowerCase() !== email) {
+      await auth.updateUser(uid, { email, emailVerified: false });
+      authChanged = true;
+    }
+    await db.runTransaction(async transaction => {
+      const current = await transaction.get(staffRef);
+      if (current.data()?.emailUpdateId !== operationId) throw new HttpsError("aborted", "The email update changed. Refresh Accounts and try again.");
+      const dentists = await transaction.get(db.collection("dentists").where("linkedStaffUid", "==", uid));
+      if (dentists.docs.length > 400) throw new HttpsError("failed-precondition", "Too many linked dentist profiles.");
+      transaction.update(staffRef, { email, emailUpdateId: admin.firestore.FieldValue.delete(), emailUpdateUntil: admin.firestore.FieldValue.delete(),
+        ...(authChanged ? { mfaVerifiedUntil: null, mfaVerifiedAuthTime: null } : {}),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: actor.uid });
+      transaction.delete(db.collection("staffEmailVerificationChallenges").doc(uid));
+      for (const dentist of dentists.docs) transaction.update(dentist.ref, { linkedStaffEmail: email,
+        ...(dentist.data().email === previous.email ? { email } : {}) });
+    });
+  } catch (error) {
+    if (authChanged && oldAuth?.email) {
+      try { await auth.updateUser(uid, { email: oldAuth.email, emailVerified: oldAuth.emailVerified }); }
+      catch (rollbackError) { console.error("Staff email rollback needs administrator attention:", rollbackError); }
+    }
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(staffRef);
+      if (snapshot.data()?.emailUpdateId === operationId) transaction.update(staffRef, { emailUpdateId: admin.firestore.FieldValue.delete(), emailUpdateUntil: admin.firestore.FieldValue.delete() });
+    });
+    throw new HttpsError(error.code === "auth/email-already-exists" ? "already-exists" : "failed-precondition",
+      error.code === "auth/email-already-exists" ? "That email is already used by another account." : "The email could not be updated. Refresh Accounts and try again.");
+  }
+  if (authChanged) await auth.revokeRefreshTokens(uid);
+  await writeStaffAuditLog(actor, { action: "change_staff_email", targetType: "admin_account", targetId: uid, targetLabel: previous.name || email });
+  return { success: true, uid, email, verificationRequired: authChanged || oldAuth.emailVerified !== true };
 });
 
 exports.getStaffAccounts = onCall({ invoker: "public" }, async (request) => {
@@ -2024,6 +2137,7 @@ exports.createStaffWalkInBooking = onCall(
   {},
   async (request) => {
     const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const { formatStaffName } = await import("./staffProfile.mjs");
     const patientInput = request.data?.patient || {};
     const appointment = request.data?.appointment || {};
     const firstName = String(patientInput.firstName || "").trim();
@@ -2119,7 +2233,7 @@ exports.createStaffWalkInBooking = onCall(
         address,
         patientType,
         ...(patientType === "Ortho" && bracesType ? { bracesType } : {}),
-        preferredDentist: slot.dentist.name || "",
+        preferredDentist: formatStaffName({ ...slot.dentist, role: "dentist" }),
         authorizedDentistUids: [slot.dentist.linkedStaffUid],
         status: "Active",
         createdAt: now,
@@ -2137,7 +2251,7 @@ exports.createStaffWalkInBooking = onCall(
         email,
         patientType,
         walkIn: true,
-        selectedDentist: String(slot.dentist.name || "").trim(),
+        selectedDentist: formatStaffName({ ...slot.dentist, role: "dentist" }),
         dentistId: slot.dentist.id,
         dentistStaffUid: String(slot.dentist.linkedStaffUid || "").trim(),
         service: serviceNames.join(", "),
@@ -2208,6 +2322,7 @@ exports.createBooking = onCall(
     });
 
     const { isWithinBookingWindow } = await import("./bookingWindow.mjs");
+    const { formatStaffName } = await import("./staffProfile.mjs");
     const payload = request.data || {};
     const uid = request.auth.uid;
     const dentistId = String(payload.dentistId || "").trim();
@@ -2417,7 +2532,7 @@ exports.createBooking = onCall(
 
       const patientType = String(patientProfile.patientType || "New Patient").trim();
       const patientEmail = String(patientProfile.email || request.auth.token.email || "").trim();
-      const selectedDentist = String(dentist.name || "").trim();
+      const selectedDentist = formatStaffName({ ...dentist, role: "dentist" });
       const service = selectedServices.join(", ");
       const appointmentAt = admin.firestore.Timestamp.fromDate(createManilaAppointmentDate(date, time));
       const bookingRef = db.collection("bookings").doc();
@@ -2696,6 +2811,7 @@ exports.reassignBookingDentist = onCall(
   {},
   async (request) => {
     const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+    const { formatStaffName } = await import("./staffProfile.mjs");
     const bookingId = String(request.data?.bookingId || "").trim();
     const dentistId = String(request.data?.dentistId || "").trim();
     const reason = String(request.data?.reason || "").trim().slice(0, 500);
@@ -2747,7 +2863,7 @@ exports.reassignBookingDentist = onCall(
       const updateBooking = {
         ...booking,
         dentistId: newDentist.id,
-        selectedDentist: String(newDentist.name || "").trim(),
+        selectedDentist: formatStaffName({ ...newDentist, role: "dentist" }),
       };
       const slot = await validateStaffBookingSlot(transaction, {
         bookingId,
@@ -2761,7 +2877,7 @@ exports.reassignBookingDentist = onCall(
         fromDentistId: oldDentistId,
         fromDentistName: String(booking.selectedDentist || "").trim(),
         toDentistId: newDentist.id,
-        toDentistName: String(newDentist.name || "").trim(),
+        toDentistName: formatStaffName({ ...newDentist, role: "dentist" }),
         reason,
         changedByUid: staff.uid,
         changedByName: staff.name,
@@ -2793,7 +2909,7 @@ exports.reassignBookingDentist = onCall(
 
       transaction.update(bookingRef, {
         dentistId: newDentist.id,
-        selectedDentist: String(newDentist.name || "").trim(),
+        selectedDentist: formatStaffName({ ...newDentist, role: "dentist" }),
         dentistStaffUid: String(newDentist.linkedStaffUid || "").trim(),
         ...firstAssignment,
         dentistAssignmentHistory: [...history, change],
@@ -3791,6 +3907,8 @@ exports.resetStaffPasswordWithCode = onCall(async (request) => {
     if (!challengeSnap.exists) throw new HttpsError("not-found", "The reset code is invalid or expired. Request a new code.");
     const challenge = challengeSnap.data() || {};
     if (challenge.email !== email || challenge.usedAt || challenge.expiresAt?.toMillis?.() < Date.now()) throw new HttpsError("failed-precondition", "The reset code is invalid or expired. Request a new code.");
+    const staffSnap = await transaction.get(db.collection("admins").doc(challenge.uid || "missing"));
+    if (!staffSnap.exists || staffSnap.data().emailUpdateId || String(staffSnap.data().email || "").trim().toLowerCase() !== email) throw new HttpsError("failed-precondition", "The account email changed. Request a new reset code.");
     if (Number(challenge.attemptCount || 0) >= 5) throw new HttpsError("resource-exhausted", "Too many incorrect codes. Request a new code.");
     if (hashMfaCode(code, challenge.salt || "") !== challenge.codeHash) {
       transaction.update(challengeRef, { attemptCount: admin.firestore.FieldValue.increment(1), lastAttemptAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -4193,6 +4311,9 @@ exports.verifyStaffMfaCode = onCall(
       const challenge = challengeSnap.data() || {};
       if (challenge.uid !== request.auth.uid) {
         throw new HttpsError("permission-denied", "This verification code belongs to another account.");
+      }
+      if (staff.emailUpdateId || (challenge.email && staff.email && String(challenge.email).toLowerCase() !== String(staff.email).toLowerCase())) {
+        throw new HttpsError("failed-precondition", "The account email changed. Sign in again and request a new code.");
       }
       if (Number(challenge.authTime) !== authTime) {
         throw new HttpsError("failed-precondition", "This code belongs to a previous login. Request a new code.");

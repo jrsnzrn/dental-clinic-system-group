@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
+import { formatStaffName, staffHeaderName } from "../utils/staffProfile";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
@@ -150,17 +151,58 @@ function getInitial(user) {
   return getDisplayName(user).charAt(0).toUpperCase();
 }
 
-function StaffAccountInfo({ user, name, role }) {
-  const displayName = name || user?.email || user?.displayName || "Account";
+function StaffAccountInfo({ user, name, role, staffRole, onLogout }) {
+  const displayName = staffHeaderName(staffRole, name, user?.displayName);
   const avatarUser = { displayName };
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector('[role="menuitem"]')?.focus();
+    const outside = event => { if (!containerRef.current?.contains(event.target)) setOpen(false); };
+    const escape = event => {
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); triggerRef.current?.focus(); }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open]);
+
+  function moveFocus(event) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = [...menuRef.current.querySelectorAll('[role="menuitem"]')];
+    const index = items.indexOf(document.activeElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+      : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus();
+  }
 
   return (
-    <div className="staffAccountInfo" aria-label={`${displayName}, ${role}`}>
-      <AccountAvatar user={avatarUser} />
-      <span className="staffAccountMeta">
-        <span className="staffAccountName" title={displayName}>{displayName}</span>
-        <span className="staffAccountRole">{role}</span>
-      </span>
+    <div className="staffAccountMenu" ref={containerRef} onBlur={event => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    }}>
+      <button type="button" className="staffAccountInfo staffAccountTrigger" ref={triggerRef}
+        aria-label={`Account options for ${displayName}, ${role}`} aria-haspopup="menu" aria-expanded={open} aria-controls={menuId}
+        onClick={() => setOpen(value => !value)} onKeyDown={event => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); }
+        }}>
+        <AccountAvatar user={avatarUser} />
+        <span className="staffAccountMeta"><span className="staffAccountName" title={displayName}>{displayName}</span><span className="staffAccountRole">{role}</span></span>
+        <svg className={`staffAccountChevron${open ? " isOpen" : ""}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+      </button>
+      {open ? <div id={menuId} className="staffAccountDropdown" role="menu" aria-label="Account options" ref={menuRef} onKeyDown={moveFocus}>
+        <NavLink to="/admin/settings" role="menuitem" onClick={() => setOpen(false)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m10 3-.7 2.5-2.1 1.2-2.5-.6-2 3.4 1.8 1.9v2.4l-1.8 1.9 2 3.4 2.5-.6 2.1 1.2.7 2.3h4l.7-2.3 2.1-1.2 2.5.6 2-3.4-1.8-1.9v-2.4l1.8-1.9-2-3.4-2.5.6-2.1-1.2L14 3z" /><circle cx="12" cy="12" r="3" /></svg>
+          <span>Settings</span>
+        </NavLink>
+        <button type="button" role="menuitem" className="staffAccountLogout" data-mascot-target="nav-logout" onClick={() => { setOpen(false); onLogout(); }}>
+          {ACCOUNT_ICONS.logout}<span>Log out</span>
+        </button>
+      </div> : null}
     </div>
   );
 }
@@ -500,43 +542,38 @@ export default function NavBar({
   const location = useLocation();
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    let stopProfile = () => {};
+    const unsub = onAuthStateChanged(auth, u => {
+      stopProfile();
       setUser(u);
-
+      setStaffName("");
       if (!u) {
         setIsAdmin(false);
         setAdminRole("");
-        setStaffName("");
         return;
       }
-
-      try {
-        const snap = await getDoc(doc(db, "admins", u.uid));
+      stopProfile = onSnapshot(doc(db, "admins", u.uid), snap => {
+        if (auth.currentUser?.uid !== u.uid) return;
         if (snap.exists()) {
           const profile = getAdminProfile(snap.data());
           setIsAdmin(true);
           setAdminRole(profile.role);
-          setStaffName(
-            [profile.name, profile.fullName, profile.firstName]
-              .find((value) => typeof value === "string" && value.trim())
-              ?.trim() || ""
-          );
+          setStaffName(formatStaffName(profile));
         } else {
           setIsAdmin(false);
           setAdminRole("");
           setStaffName("");
         }
-      } catch (err) {
-        console.error("Admin check failed:", err);
+      }, error => {
+        if (auth.currentUser?.uid !== u.uid) return;
+        console.error("Staff profile could not load:", error);
         setIsAdmin(false);
         setAdminRole("");
         setStaffName("");
-      }
+      });
     });
-
-    return () => unsub();
+    return () => { unsub(); stopProfile(); };
   }, []);
-
   useEffect(() => {
     setUser(userFromApp);
   }, [userFromApp]);
@@ -657,7 +694,9 @@ export default function NavBar({
               <StaffAccountInfo
                 user={user}
                 name={staffName}
+                staffRole={adminRole}
                 role={ROLE_LABELS[adminRole] || "Staff"}
+                onLogout={() => { setLogoutError(""); setLogoutConfirmOpen(true); setMenuOpen(false); }}
               />
             </div>
           </div>
@@ -722,18 +761,6 @@ export default function NavBar({
                   <span>Appearance</span>
                 </button>
               </div>
-              <button
-                type="button"
-                className="adminSidebarLink adminSidebarLogout"
-                data-mascot-target="nav-logout"
-                onClick={() => {
-                  setLogoutError("");
-                  setLogoutConfirmOpen(true);
-                }}
-              >
-                {ACCOUNT_ICONS.logout}
-                <span>Log Out</span>
-              </button>
             </div>
           </div>
         </aside>

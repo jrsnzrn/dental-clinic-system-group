@@ -1,6 +1,7 @@
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../firebase";
+import { formatStaffName } from "./staffProfile";
 
 const GET_STAFF_ACCOUNTS = httpsCallable(functions, "getStaffAccounts");
 
@@ -11,6 +12,7 @@ function toIso(value) {
 function normalizeStaffAccount(entry) {
   return {
     ...entry,
+    name: formatStaffName(entry),
     createdAt: toIso(entry.createdAt),
     mfaVerifiedUntil: toIso(entry.mfaVerifiedUntil),
     mfaLastVerifiedAt: toIso(entry.mfaLastVerifiedAt),
@@ -25,7 +27,7 @@ async function loadStaffAccountsFromFirestore() {
 export async function fetchStaffAccounts() {
   try {
     const result = await GET_STAFF_ACCOUNTS();
-    return Array.isArray(result.data) ? result.data : [];
+    return Array.isArray(result.data) ? result.data.map(normalizeStaffAccount) : [];
   } catch (callableError) {
     console.error("getStaffAccounts callable failed, using Firestore read fallback:", callableError);
     return loadStaffAccountsFromFirestore();

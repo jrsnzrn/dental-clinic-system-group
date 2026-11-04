@@ -1,4 +1,5 @@
 import RecordPagination from "../../components/RecordPagination";
+import { linkedDentistNameFields } from "../../utils/staffProfile";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -134,6 +135,7 @@ export default function Dentists() {
 
     await addDoc(collection(db, "dentists"), {
       name: name.trim(),
+      ...linkedDentistNameFields(linkedStaff),
       email: linkedStaff?.email || "",
       specialization: specialization.trim(),
       linkedStaffUid: linkedStaff?.id || "",
@@ -161,8 +163,10 @@ export default function Dentists() {
     setAddModalOpen(false);
   }
 
-  function getBookingCount(dentistName) {
-    return bookings.filter((b) => b.selectedDentist === dentistName).length;
+  function getBookingCount(dentist) {
+    return bookings.filter(booking => booking.dentistId
+      ? booking.dentistId === dentist.id
+      : booking.selectedDentist === dentist.name).length;
   }
 
   function updateDetailDraft(dentistId, field, value) {
@@ -188,6 +192,7 @@ export default function Dentists() {
 
     await updateDoc(doc(db, "dentists", dentist.id), {
       email: nextEmail,
+      ...linkedDentistNameFields(linkedStaff),
       specialization: nextSpecialization,
       linkedStaffUid: linkedStaff?.id || "",
       linkedStaffEmail: linkedStaff?.email || "",
@@ -199,6 +204,7 @@ export default function Dentists() {
         entry.id === dentist.id
           ? {
               ...entry,
+              ...linkedDentistNameFields(linkedStaff),
               email: nextEmail,
               specialization: nextSpecialization,
               linkedStaffUid: linkedStaff?.id || "",
@@ -398,7 +404,7 @@ export default function Dentists() {
                       <td>{dentist.specialization || "-"}</td>
                       <td>{dentist.email || "No email"}</td>
                       <td>{dentist.linkedStaffName || dentist.linkedStaffEmail || "Not linked"}</td>
-                      <td>{getBookingCount(dentist.name)}</td>
+                      <td>{getBookingCount(dentist)}</td>
                       <td className="patientTableStatusCell">
                         <span className={`statusPill ${isActiveToday ? "approved" : "cancelled"}`}>
                           {isActiveToday ? "Active" : "Inactive"}

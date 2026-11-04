@@ -1,4 +1,5 @@
 import SuccessDialog from "../components/SuccessDialog";
+import { formatStaffName } from "../utils/staffProfile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
@@ -259,7 +260,10 @@ export default function Book() {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "dentists"), (snap) => {
-      const list = snap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      const list = snap.docs.map(entry => {
+        const data = entry.data();
+        return { ...data, id: entry.id, name: formatStaffName({ ...data, role: "dentist" }) };
+      });
       setDentists(list);
       setLoadingDentists(false);
     });
