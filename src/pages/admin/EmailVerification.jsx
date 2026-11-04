@@ -21,9 +21,9 @@ const VERIFY_EMAIL_VERIFICATION_CODE = httpsCallable(
 );
 const RESEND_COOLDOWN_SECONDS = 60;
 
-function getVerifiedPath(profile, nextPath) {
+function getVerifiedPath(profile, nextPath, authTime) {
   const destination = nextPath || getDefaultAdminPath(profile.role);
-  if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile)) {
+  if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile, authTime)) {
     return `/admin/mfa?next=${encodeURIComponent(destination)}`;
   }
   return destination;
@@ -111,8 +111,9 @@ export default function EmailVerification() {
     return next.startsWith("/admin") ? next : "";
   }, [searchParams]);
 
-  const continueAfterVerification = useCallback((verifiedProfile) => {
-    navigate(getVerifiedPath(verifiedProfile, nextPath), { replace: true });
+  const continueAfterVerification = useCallback(async (verifiedProfile) => {
+    const tokenResult = await auth.currentUser?.getIdTokenResult();
+    navigate(getVerifiedPath(verifiedProfile, nextPath, tokenResult?.claims.auth_time), { replace: true });
   }, [navigate, nextPath]);
 
   useEffect(() => {
@@ -143,7 +144,7 @@ export default function EmailVerification() {
 
         if (!alive) return;
         if (freshUser.emailVerified) {
-          continueAfterVerification(nextProfile);
+          await continueAfterVerification(nextProfile);
           return;
         }
 
@@ -181,7 +182,7 @@ export default function EmailVerification() {
       const result = await REQUEST_EMAIL_VERIFICATION_CODE();
       if (result.data?.alreadyVerified) {
         await user.reload();
-        continueAfterVerification(profile);
+        await continueAfterVerification(profile);
         return;
       }
       setEmailHint(result.data?.emailHint || maskEmail(user.email || ""));
@@ -284,7 +285,7 @@ export default function EmailVerification() {
       }
       await freshUser.getIdToken(true);
       setStatus("Your email has been verified.");
-      continueAfterVerification(profile);
+      await continueAfterVerification(profile);
     } catch (verificationError) {
       logVerificationError("Staff email verification failed:", verificationError);
       setError(getVerificationErrorMessage(

@@ -7,6 +7,7 @@ import { canAccessRoute, getAdminProfile, getDefaultAdminPath, hasFreshStaffMfa,
 export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
   const [loading, setLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
+  const [loginAuthTime, setLoginAuthTime] = useState(null);
   const location = useLocation();
 
   useEffect(() => {
@@ -23,10 +24,11 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
 
       try {
         const ref = doc(db, "admins", user.uid);
-        const snap = await getDoc(ref);
+        const [snap, tokenResult] = await Promise.all([getDoc(ref), user.getIdTokenResult()]);
 
         if (alive) {
           setAdminProfile(snap.exists() ? getAdminProfile(snap.data()) : null);
+          setLoginAuthTime(tokenResult.claims.auth_time);
           setLoading(false);
         }
       } catch (err) {
@@ -52,7 +54,7 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
   if (loading) return null;
   if (!adminProfile) return <Navigate to="/" replace />;
   if (adminProfile.disabled) return <Navigate to="/admin/login" replace />;
-  if (requiresStaffMfa(adminProfile) && !hasFreshStaffMfa(adminProfile)) {
+  if (requiresStaffMfa(adminProfile) && !hasFreshStaffMfa(adminProfile, loginAuthTime)) {
     const next = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate to={`/admin/mfa?next=${next}`} replace />;
   }

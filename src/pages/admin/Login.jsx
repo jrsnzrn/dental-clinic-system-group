@@ -12,16 +12,9 @@ import {
   ROLES,
 } from "../../utils/rbac";
 
-const ROLE_OPTIONS = [
-  { value: ROLES.ADMIN, label: "Admin" },
-  { value: ROLES.RECEPTIONIST, label: "Receptionist" },
-  { value: ROLES.DENTIST, label: "Dentist" },
-];
-
 function getLoginErrorMessage(error) {
-  // Correct email & password, but selected the wrong account type or not in staff list
-  if (error?.message === "role-mismatch" || error?.message === "not-admin") {
-    return "Invalid account";
+  if (error?.message === "not-admin") {
+    return "This account does not have staff access.";
   }
 
   // Disabled staff account
@@ -47,7 +40,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState(ROLES.ADMIN);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +47,7 @@ export default function Login() {
   const [searchParams] = useSearchParams();
 
   async function completeStaffLogin(credential) {
-    await credential.user.getIdToken(true);
+    const tokenResult = await credential.user.getIdTokenResult(true);
 
     const adminSnap = await getDoc(doc(db, "admins", credential.user.uid));
 
@@ -64,21 +56,21 @@ export default function Login() {
       throw new Error("not-admin");
     }
 
-    const profile = getAdminProfile(adminSnap.data());
+    const staffData = adminSnap.data();
+    const savedRole = String(staffData.role || "").trim().toLowerCase();
+    if (!Object.values(ROLES).includes(savedRole)) {
+      await signOut(auth);
+      throw new Error("not-admin");
+    }
+    const profile = getAdminProfile(staffData);
 
     if (profile.disabled) {
       await signOut(auth);
       throw new Error("account-disabled");
     }
 
-    // Triggers "Invalid account" if role selection doesn't match profile
-    if (profile.role !== selectedRole) {
-      await signOut(auth);
-      throw new Error("role-mismatch");
-    }
-
     const requestedNext = searchParams.get("next") || "";
-    const targetPath = requestedNext.startsWith("/admin")
+    const targetPath = (requestedNext === "/admin" || requestedNext.startsWith("/admin/"))
       ? requestedNext
       : getDefaultAdminPath(profile.role);
 
@@ -90,7 +82,7 @@ export default function Login() {
       return;
     }
 
-    if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile)) {
+    if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile, tokenResult.claims.auth_time)) {
       navigate(`/admin/mfa?next=${encodeURIComponent(targetPath)}`, {
         replace: true,
       });
@@ -102,6 +94,7 @@ export default function Login() {
 
   async function onLogin(e) {
     e.preventDefault();
+    if (loading) return;
     setErr("");
 
     if (!email.trim() || !password.trim()) {
@@ -136,32 +129,6 @@ export default function Login() {
         </div>
 
         <form onSubmit={onLogin} className="loginForm">
-          {/* Account Type Selection */}
-          <div className="inputGroup">
-            <label className="label">Account Type</label>
-            <div className="radioGroup">
-              {ROLE_OPTIONS.map((role) => (
-                <label
-                  key={role.value}
-                  className={`radioOption ${
-                    selectedRole === role.value ? "active" : ""
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="accountRole"
-                    value={role.value}
-                    checked={selectedRole === role.value}
-                    onChange={(e) => setSelectedRole(e.target.value)}
-                    className="radioInput"
-                  />
-                  <span className="customRadio" />
-                  <span className="radioText">{role.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* Email Field */}
           <div className="inputGroup">
             <label htmlFor="loginEmail" className="label">

@@ -1,5 +1,3 @@
-import RecordPagination from "../../components/RecordPagination";
-import useRecordPagination from "../../hooks/useRecordPagination";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -265,7 +263,6 @@ export default function Promotions() {
     }
   }
 
-  const promotionPage = useRecordPagination(promotions);
   return (
     <section className="container adminSurface pageSection adminPage promotionsPage">
       {!formOpen && (
@@ -397,7 +394,7 @@ export default function Promotions() {
           <p className="sub">No active promotions. Add a promo or check the archive.</p>
         ) : (
           <div className="promoList">
-            {promotionPage.items.map((promotion) => (
+            {promotions.map((promotion) => (
               <article className="promoItem" key={promotion.id}>
                 {promotion.imageUrl ? (
                   <img className="promoThumb" src={promotion.imageUrl} alt="" loading="lazy" />
@@ -432,7 +429,6 @@ export default function Promotions() {
             ))}
           </div>
         )}
-        <RecordPagination pagination={promotionPage} label="promotions" />
       </div>
     </section>
   );

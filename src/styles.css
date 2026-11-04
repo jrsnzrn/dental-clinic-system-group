@@ -16929,6 +16929,34 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   grid-column: 1 / -1;
 }
 
+.bookingPage .bookingProfileFacts {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  margin: 6px 0 0;
+}
+
+.bookingPage .bookingProfileFacts dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bookingPage .bookingProfileFacts dd {
+  margin: 3px 0 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.bookingPage .bookingProfileForm > .bookingFieldHint {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+}
+
+.bookingPage .bookingProfileBack {
+  justify-self: start;
+  margin-bottom: 8px;
+}
+
 .bookingPage .bookingPatientSummary {
   display: flex;
   min-width: 0;
@@ -20302,3 +20330,52 @@ html[data-theme] .mascotTourBtn.topdentBackAction .backArrowIcon {
 .bookingStaffPromotion { margin: 16px 0; }
 .reportsPagination label { display: flex; align-items: center; gap: 6px; }
 .reportsPagination select { width: auto; min-width: 60px; }
+
+/* Make records that open a detail view visibly interactive. */
+.adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable) {
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+
+.adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable) > td {
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable):is(:hover, :focus-visible, :focus-within) > td {
+  background-color: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable):is(:hover, :focus-visible, :focus-within) > td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.adminSurface :is(.servicesAdminRowEdit, .archiveRecordMain) {
+  border-radius: 8px;
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.adminSurface :is(.servicesAdminRowEdit, .archiveRecordMain):is(:hover, :focus-visible) {
+  background-color: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable):hover,
+  .adminSurface :is(.servicesAdminRowEdit, .archiveRecordMain):hover {
+    transform: translateY(-1px);
+  }
+
+  .adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable):active,
+  .adminSurface :is(.servicesAdminRowEdit, .archiveRecordMain):active {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable),
+  .adminSurface :is(tr.patientRow, tr.patientTableRow, tr.bookingRow.clickable, tr.paymentsClickableRow, tr.dentistAppointmentRowClickable) > td,
+  .adminSurface :is(.servicesAdminRowEdit, .archiveRecordMain) {
+    transition: none;
+    transform: none;
+  }
+}

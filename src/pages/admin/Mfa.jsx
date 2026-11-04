@@ -100,6 +100,7 @@ export default function Mfa() {
       try {
         await user.reload();
         const freshUser = auth.currentUser || user;
+        const tokenResult = await freshUser.getIdTokenResult();
         if (alive) setCurrentUser(freshUser);
         const snap = await getDoc(doc(db, "admins", freshUser.uid));
 
@@ -124,7 +125,7 @@ export default function Mfa() {
 
         if (
           !requiresStaffMfa(nextProfile) ||
-          hasFreshStaffMfa(nextProfile)
+          hasFreshStaffMfa(nextProfile, tokenResult.claims.auth_time)
         ) {
           navigate(
             nextPath || getDefaultAdminPath(nextProfile.role),

@@ -36,9 +36,12 @@ export function requiresStaffMfa(profile = {}) {
   return profile.mfaEnabled === true || profile.mfaRequired === true;
 }
 
-export function hasFreshStaffMfa(profile = {}) {
+export function hasFreshStaffMfa(profile = {}, authTime) {
   if (!requiresStaffMfa(profile)) return true;
-  return timestampToMillis(profile.mfaVerifiedUntil) > Date.now();
+  const currentLogin = Number(authTime);
+  return Number.isFinite(currentLogin) && currentLogin > 0 &&
+    Number(profile.mfaVerifiedAuthTime) === currentLogin &&
+    timestampToMillis(profile.mfaVerifiedUntil) > Date.now();
 }
 
 export function canAccessRoute(role, allowedRoles = []) {

@@ -45,6 +45,12 @@ const PATIENT_DASHBOARD_PATHS = new Set([
   "/my-record",
   "/my-dental-record",
 ]);
+const STAFF_AUTH_PATHS = new Set([
+  "/admin/login",
+  "/admin/forgot-password",
+  "/admin/verify-email",
+  "/admin/mfa",
+]);
 
 function getInitialTheme() {
   if (typeof window === "undefined") return "light";
@@ -231,6 +237,7 @@ function FirstVisitHomeGate({ user, isAdmin, children }) {
 function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }) {
   const location = useLocation();
   const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+  const showStaffAuthLayout = STAFF_AUTH_PATHS.has(currentPath);
   const showPatientLayout = Boolean(
     user && !isAdmin && PATIENT_DASHBOARD_PATHS.has(currentPath)
   );
@@ -242,8 +249,8 @@ function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }
 
   return (
     <>
-      {!showPatientLayout ? <NavBar {...navBarProps} /> : null}
-      <div className={`appMain ${isAdmin ? "adminAppMain" : ""} ${showPatientLayout ? "patientDashboardMain" : ""}`}>
+      {!showPatientLayout && !showStaffAuthLayout ? <NavBar {...navBarProps} /> : null}
+      <div className={`appMain ${isAdmin && !showStaffAuthLayout ? "adminAppMain" : ""} ${showPatientLayout ? "patientDashboardMain" : ""}`}>
         {showPatientLayout ? (
           <div className="patientDashboardLayout">
             <aside className="patientSidebar" aria-label="Patient navigation">
@@ -275,7 +282,7 @@ function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }
           </div>
         ) : children}
       </div>
-      {!showPatientLayout ? <Footer isAdmin={isAdmin} theme={theme} onThemeChange={onThemeChange} /> : null}
+      {!showPatientLayout && !showStaffAuthLayout ? <Footer isAdmin={isAdmin} theme={theme} onThemeChange={onThemeChange} /> : null}
     </>
   );
 }

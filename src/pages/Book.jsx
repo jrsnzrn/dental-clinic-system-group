@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { auth, db, functions } from "../firebase";
 import EmptyState from "../components/EmptyState";
 import { SkeletonList } from "../components/LoadingSkeleton";
@@ -103,16 +103,17 @@ export default function Book() {
   const [profileDraft, setProfileDraft] = useState(getEmptyProfile());
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingDentists, setLoadingDentists] = useState(true);
-  const [editingProfile, setEditingProfile] = useState(false);
+  const [searchParams] = useSearchParams();
+  const editingProfile = searchParams.get("editProfile") === "1";
   const [savingProfile, setSavingProfile] = useState(false);
 
-  const [selectedServices, setSelectedServices] = useState(["Cleaning"]);
+  const [selectedServices, setSelectedServices] = useState([]);
   const [clinicServices, setClinicServices] = useState([]);
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [selectedDentistId, setSelectedDentistId] = useState("");
   const [date, setDate] = useState(toLocalISODate(new Date()));
-  const [time, setTime] = useState("09:00");
+  const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
   const [agreedToPrivacyConsent, setAgreedToPrivacyConsent] = useState(false);
   const [error, setError] = useState("");
@@ -167,7 +168,7 @@ export default function Book() {
       setPatientProfile(null);
       setPatientProfileUid("");
       setProfileDraft(getEmptyProfile(u?.email || ""));
-      setEditingProfile(Boolean(u));
+      setSelectedServices([]);
       setSavingProfile(false);
       setLoadingProfile(Boolean(u));
       setBookingStep("info");
@@ -213,12 +214,10 @@ export default function Book() {
           setPatientProfile(nextProfile);
           setPatientProfileUid(u.uid);
           setProfileDraft(nextProfile);
-          setEditingProfile(false);
         } else {
           const emptyProfile = getEmptyProfile(u.email || "");
           setPatientProfile(null);
           setProfileDraft(emptyProfile);
-          setEditingProfile(true);
         }
       } catch (profileError) {
         if (requestId !== profileLoadRequest.current || auth.currentUser?.uid !== u.uid) return;
@@ -272,14 +271,14 @@ export default function Book() {
       const stillAvailable = current.filter((name) =>
         activeServiceOptions.some((entry) => entry.name === name)
       );
-      return stillAvailable.length ? stillAvailable : [activeServiceOptions[0].name];
+      return stillAvailable;
     });
   }, [activeServiceOptions]);
 
   function toggleService(serviceName) {
     setSelectedServices((current) => {
       if (current.includes(serviceName)) {
-        return current.length === 1 ? current : current.filter((entry) => entry !== serviceName);
+        return current.filter((entry) => entry !== serviceName);
       }
       return [...current, serviceName];
     });
@@ -319,7 +318,7 @@ export default function Book() {
 
   useEffect(() => {
     if (!availableSlots.includes(time)) {
-      setTime(availableSlots[0] || "09:00");
+      setTime(availableSlots[0] || "");
     }
   }, [availableSlots, time]);
 
@@ -395,9 +394,33 @@ export default function Book() {
       await signInWithPopup(auth, provider);
       navigate("/my-appointments", { replace: true });
     } catch (e) {
-      console.error(e);
-      setError("Google sign-in failed. Try again.");
+      if (e.code === "auth/popup-closed-by-user") {
+        setError("Sign-in was cancelled. You can try again.");
+      } else if (e.code === "auth/cancelled-popup-request") {
+        setError("Another Google sign-in window was opened. Finish signing in there, or close it before trying again.");
+      } else if (e.code === "auth/popup-blocked") {
+        setError("Your browser blocked the sign-in window. Allow pop-ups for this website and try again.");
+      } else {
+        console.error(e);
+        setError("Google sign-in failed. Try again.");
+      }
     }
+  }
+
+  function openProfileEditor() {
+    setProfileDraft({ ...patientProfile });
+    setError("");
+    setSuccess("");
+    navigate("/book?editProfile=1");
+  }
+
+  function backToBooking() {
+    if (savingProfile) return;
+    setProfileDraft(patientProfile ? { ...patientProfile } : getEmptyProfile(user?.email || ""));
+    setError("");
+    setSuccess("");
+    setBookingStep("info");
+    navigate("/book", { replace: true });
   }
 
   async function saveProfile(e) {
@@ -467,7 +490,8 @@ export default function Book() {
       setPatientProfile(savedProfile);
       setPatientProfileUid(user.uid);
       setProfileDraft(savedProfile);
-      setEditingProfile(false);
+      setBookingStep("info");
+      navigate("/book", { replace: true });
       setSuccess("Profile saved. You can now book appointments with your saved patient details.");
     } catch (profileError) {
       console.error(profileError);
@@ -714,10 +738,11 @@ export default function Book() {
         <div className="card bookingFormCard">
           <div className="cardHeader">
             <div>
-              <h3 className="title">{profileReady ? "Appointment Form" : "Patient Sign-up First"}</h3>
+              <h3 className="title">{profileReady ? "Appointment Form" : editingProfile ? "Update Profile" : "Patient Sign-up First"}</h3>
               <p className="sub">
                 {profileReady
                   ? "Your patient details are locked to this Google account for cleaner tracking."
+                  : editingProfile ? "Update your patient details, then return to your appointment."
                   : "Before booking, complete your patient profile so the same Gmail cannot create appointments under different names."}
               </p>
             </div>
@@ -735,6 +760,11 @@ export default function Book() {
 
           {!loadingProfile && !profileReady ? (
             <form className="form bookingProfileForm" onSubmit={saveProfile} style={{ marginTop: 12 }}>
+              <button type="button" className="backLink appBackAction topdentBackAction bookingProfileBack"
+                onClick={backToBooking} disabled={savingProfile} aria-label="Back to Book Appointment">
+                <BackArrow />
+                <span>Back to Book Appointment</span>
+              </button>
               <input
                 className="input"
                 placeholder="First name"
@@ -783,13 +813,17 @@ export default function Book() {
                 disabled={savingProfile || loadingProfile}
               />
 
-              <input className="input" value={user.email || profileDraft.email} disabled />
-
-              <label className="bookingFieldCard">
-                <span className="detailLabel">Patient type</span>
-                <input className="input" value={profileDraft.patientType || "New Patient"} disabled />
-                <span className="bookingFieldHint">Assigned by clinic staff after your profile is reviewed.</span>
-              </label>
+              <dl className="bookingProfileFacts">
+                <div>
+                  <dt>Email</dt>
+                  <dd>{user.email || profileDraft.email}</dd>
+                </div>
+                <div>
+                  <dt>Patient type</dt>
+                  <dd>{profileDraft.patientType || "New Patient"}</dd>
+                </div>
+              </dl>
+              <p className="bookingFieldHint">Patient type is assigned by clinic staff after your profile is reviewed.</p>
 
               <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile}>
                 {savingProfile ? "Saving..." : loadingProfile ? "Loading..." : "Save Patient Profile"}
@@ -860,7 +894,7 @@ export default function Book() {
                       <button
                         type="button"
                         className="btn secondary btnSoft bookingSecondaryBtn"
-                        onClick={() => setEditingProfile(true)}
+                        onClick={openProfileEditor}
                       >
                         Update Profile
                       </button>
@@ -1009,7 +1043,7 @@ export default function Book() {
                             className="input bookingInputSpecial"
                             value={time}
                             onChange={(e) => setTime(e.target.value)}
-                            disabled={!user || saving || loadingAvailability || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
+                            disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
                           >
                             {slotOptions.length ? (
                               slotOptions.map((slot) => (
@@ -1020,14 +1054,24 @@ export default function Book() {
                                 </option>
                               ))
                             ) : (
-                              <option value="">No available times today</option>
+                              <option value="">{!selectedServices.length
+                                ? "Choose a service first"
+                                : loadingAvailability
+                                  ? "Loading available times…"
+                                  : availabilityError
+                                    ? "Could not load available times"
+                                    : "No available times on this date"}</option>
                             )}
                           </select>
                         </div>
                         <span className="bookingFieldHint">
-                          {loadingAvailability
-                            ? "Loading live slot availability..."
-                            : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
+                          {!selectedServices.length
+                            ? "Select at least one service to see available appointment times."
+                            : loadingAvailability
+                              ? "Loading live slot availability..."
+                              : availabilityError
+                                ? "Availability could not be checked. Refresh the page and try again."
+                                : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
                         </span>
                       </label>
                     </div>
@@ -1040,7 +1084,7 @@ export default function Book() {
                       />
                     ) : null}
 
-                    {!loadingDentists && selectedDentistId && !availableSlots.length && !isSunday(date) ? (
+                    {selectedServices.length > 0 && !loadingDentists && !loadingAvailability && !availabilityError && selectedDentistId && !availableSlots.length && !isSunday(date) && !selectedClosure ? (
                       <EmptyState
                         compact
                         title="No available time slots"
@@ -1105,7 +1149,7 @@ export default function Book() {
                   type="submit"
                   className="btn btnShine bookingPrimaryBtn"
 
-                  disabled={!user || saving || loadingAvailability || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
+                  disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || !availableSlots.length || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
                 >
                   Review Appointment Details
                 </button>

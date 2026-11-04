@@ -145,6 +145,7 @@ function serializeAdminDoc(id, data = {}) {
     createdAt: serializeTimestamp(data.createdAt),
     mfaVerifiedUntil: serializeTimestamp(data.mfaVerifiedUntil),
     mfaLastVerifiedAt: serializeTimestamp(data.mfaLastVerifiedAt),
+    mfaVerifiedAuthTime: data.mfaVerifiedAuthTime || null,
   };
 }
 
@@ -4072,6 +4073,10 @@ exports.requestStaffMfaCode = onCall(
       return { required: false };
     }
 
+    const authTime = Number(request.auth.token.auth_time);
+    if (!Number.isFinite(authTime) || authTime <= 0) {
+      throw new HttpsError("unauthenticated", "Please sign in again before requesting a verification code.");
+    }
     const recipientEmail = String(staff.email || request.auth.token.email || "").trim().toLowerCase();
     if (!recipientEmail) {
       throw new HttpsError("failed-precondition", "This staff account has no email address for MFA.");
@@ -4086,6 +4091,7 @@ exports.requestStaffMfaCode = onCall(
     await challengeRef.set({
       uid: request.auth.uid,
       email: recipientEmail,
+      authTime,
       codeHash,
       salt,
       expiresAt: admin.firestore.Timestamp.fromMillis(now + STAFF_MFA_CODE_TTL_MS),
@@ -4154,6 +4160,10 @@ exports.verifyStaffMfaCode = onCall(
       throw new HttpsError("invalid-argument", "Enter the 6-digit verification code.");
     }
 
+    const authTime = Number(request.auth.token.auth_time);
+    if (!Number.isFinite(authTime) || authTime <= 0) {
+      throw new HttpsError("unauthenticated", "Please sign in again before verifying a code.");
+    }
     const verifiedUntil = admin.firestore.Timestamp.fromMillis(Date.now() + STAFF_MFA_VERIFIED_MS);
 
     const verificationResult = await db.runTransaction(async (transaction) => {
@@ -4178,6 +4188,9 @@ exports.verifyStaffMfaCode = onCall(
       const challenge = challengeSnap.data() || {};
       if (challenge.uid !== request.auth.uid) {
         throw new HttpsError("permission-denied", "This verification code belongs to another account.");
+      }
+      if (Number(challenge.authTime) !== authTime) {
+        throw new HttpsError("failed-precondition", "This code belongs to a previous login. Request a new code.");
       }
 
       if (challenge.usedAt) {
@@ -4209,6 +4222,7 @@ exports.verifyStaffMfaCode = onCall(
         {
           mfaLastVerifiedAt: admin.firestore.FieldValue.serverTimestamp(),
           mfaVerifiedUntil: verifiedUntil,
+          mfaVerifiedAuthTime: authTime,
         },
         { merge: true }
       );
