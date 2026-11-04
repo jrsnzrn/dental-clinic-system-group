@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -19,6 +19,7 @@ import Login from "./pages/admin/Login";
 import EmailVerification from "./pages/admin/EmailVerification";
 import Mfa from "./pages/admin/Mfa";
 import Dashboard from "./pages/admin/Dashboard";
+import StaffDashboard from "./pages/admin/StaffDashboard";
 import Patients from "./pages/admin/Patients";
 import Bookings from "./pages/admin/Bookings";
 import Queue from "./pages/admin/Queue";
@@ -396,7 +397,7 @@ export default function App() {
   const adminRedirect = <Navigate to={getDefaultAdminPath(adminRole)} replace />;
 
   return (
-    <BrowserRouter>
+    <>
       <FirstVisitHomeGate user={user} isAdmin={isAdmin}>
         <AppFrame
           user={user}
@@ -450,6 +451,11 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={getDefaultAdminPath(adminRole).replace("/admin/", "")} replace />} />
+              <Route path="dashboard" element={
+                <ProtectedRoute user={user} allowedRoles={[ROLES.RECEPTIONIST, ROLES.DENTIST]}>
+                  <StaffDashboard key={`${user?.uid}-${adminRole}`} uid={user?.uid} role={adminRole} />
+                </ProtectedRoute>
+              } />
               <Route
                 path="patients/:patientId?"
                 element={
@@ -611,6 +617,6 @@ export default function App() {
         </AppFrame>
 
       </FirstVisitHomeGate>
-    </BrowserRouter>
+    </>
   );
 }

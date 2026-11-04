@@ -1,3 +1,4 @@
+import SuccessDialog from "../../components/SuccessDialog";
 import PaginatedRecords from "../../components/PaginatedRecords";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
@@ -20,6 +21,7 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../../firebase";
 import { useNavigate, useParams } from "react-router-dom";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import PatientPaymentReceipts from "../../components/PatientPaymentReceipts";
 import BackArrow from "../../components/BackArrow";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
@@ -104,12 +106,14 @@ const PATIENT_VIEWS = {
   CHART: "chart",
   PLAN: "plan",
   TIMELINE: "timeline",
+  PAYMENTS: "payments",
 };
 
 const RECORD_TABS = [
   { id: PATIENT_VIEWS.DETAILS, label: "Patient Details" },
   { id: PATIENT_VIEWS.CHART, label: "Dental Chart" },
   { id: PATIENT_VIEWS.TIMELINE, label: "Visit Timeline" },
+  { id: PATIENT_VIEWS.PAYMENTS, label: "Payment Receipts" },
 ];
 
 function getEmptyDraft() {
@@ -337,7 +341,19 @@ function normalizePatientBracesType(value) {
   return aliases[normalized] || "";
 }
 
-async function exportPatientPdf(patient) {
+async function exportPatientPdf(patient, { printWindow, includeFinancials = true, chartData } = {}) {
+  if (!printWindow || printWindow.closed) return false;
+  const chartId = patient.uid || patient.id;
+  let dentalChart = chartData;
+  if (!dentalChart && chartId) {
+    const chartSnap = await getDoc(doc(db, "dentalCharts", chartId));
+    dentalChart = chartSnap.exists() ? chartSnap.data() : {};
+  }
+  dentalChart = { ...createEmptyDentalChart(chartId || ""), ...dentalChart };
+  const procedureMap = new Map();
+  [...(patient.treatmentPlans || []), ...(dentalChart.patientTreatmentPlans || [])].forEach((plan, index) => {
+    procedureMap.set(plan.createdAt || `procedure-${index}`, plan);
+  });
   const nameParts = splitFullName(patient.name || "");
   const firstName = patient.firstName || nameParts.firstName || "";
   const middleName = patient.middleName || nameParts.middleName || "";
@@ -385,7 +401,7 @@ async function exportPatientPdf(patient) {
     )
     .join("");
 
-  const treatmentPlanCards = (patient.treatmentPlans || [])
+  const treatmentPlanCards = [...procedureMap.values()]
     .map(
       (plan) => `
           <div class="treatment-card">
@@ -434,7 +450,7 @@ async function exportPatientPdf(patient) {
     .join("");
 
   let bracesSummary = null;
-  if (patient.id) {
+  if (includeFinancials && patient.id) {
     const [bracesAccountsSnap, paymentsSnap] = await Promise.all([
       getDocs(collection(db, "bracesAccounts")),
       getDocs(collection(db, "bracesPayments")),
@@ -465,18 +481,6 @@ async function exportPatientPdf(patient) {
     )
     .join("");
 
-  let dentalChart = createEmptyDentalChart(patient.uid || "");
-  if (patient.uid) {
-    const chartSnap = await getDoc(doc(db, "dentalCharts", patient.uid));
-    if (chartSnap.exists()) {
-      dentalChart = {
-        uid: patient.uid,
-        generalNotes: chartSnap.data().generalNotes || "",
-        teeth: chartSnap.data().teeth || {},
-      };
-    }
-  }
-
   const toothNotes = Object.entries(dentalChart.teeth || {}).filter(([, note]) => String(note || "").trim());
   const chartMarkers = toothNotes
     .map(
@@ -497,9 +501,6 @@ async function exportPatientPdf(patient) {
         `
     )
     .join("");
-
-  const printWindow = window.open("", "_blank", "width=980,height=720");
-  if (!printWindow) return false;
 
   printWindow.document.write(`
       <html>
@@ -542,7 +543,7 @@ async function exportPatientPdf(patient) {
         <body>
           <div class="summary-banner">
             <h1 class="summary-title">TopDent Patient Record</h1>
-            <p class="summary-sub">Updated clinic summary including patient identity, appointments, follow-up notes, braces payments, and dental chart details.</p>
+            <p class="summary-sub">Clinic summary including patient identity, appointments, follow-up notes, and dental chart details${includeFinancials ? ", with available braces payment records" : ""}.</p>
           </div>
           <div class="section">
             <h2>Patient Summary</h2>
@@ -943,11 +944,6 @@ export default function Patients({
     );
   }, [selectedPatient]);
 
-  useEffect(() => {
-    if (!notice || notice.type !== "success") return undefined;
-    const timer = setTimeout(() => setNotice(null), 5000);
-    return () => clearTimeout(timer);
-  }, [notice]);
 
   useEffect(() => {
     setActivePatientView(PATIENT_VIEWS.DETAILS);
@@ -1630,13 +1626,24 @@ export default function Patients({
 
   async function handleDownloadPdf() {
     if (!selectedPatient || pdfBusy) return;
+    const printWindow = window.open("", "_blank", "width=980,height=720");
+    if (!printWindow) {
+      setNotice({ type: "error", text: "The PDF window was blocked. Allow pop-ups for this site and try again." });
+      return;
+    }
     setPdfBusy(true);
     try {
-      const opened = await exportPatientPdf(selectedPatient);
+      const chartId = selectedPatient.uid || selectedPatient.id;
+      const opened = await exportPatientPdf(selectedPatient, {
+        printWindow,
+        includeFinancials: adminRole === ROLES.ADMIN || adminRole === ROLES.RECEPTIONIST,
+        chartData: adminRole === ROLES.DENTIST ? dentistDentalCharts[chartId] || {} : undefined,
+      });
       if (!opened) {
         setNotice({ type: "error", text: "The PDF window was blocked. Allow pop-ups for this site and try again." });
       }
     } catch (error) {
+      printWindow.close();
       console.error(error);
       setNotice({ type: "error", text: "Could not generate the PDF. Please try again." });
     } finally {
@@ -1668,7 +1675,8 @@ export default function Patients({
 
   return (
     <div className={`container adminSurface${isDentist ? " dentistPatientsPage" : !patientId ? " patientListSurface" : ""}`}>
-      {notice ? (
+      <SuccessDialog message={notice?.type === "success" ? notice.text : ""} onConfirm={() => setNotice(null)} />
+      {notice && notice.type !== "success" ? (
         <div className={`notice notice-${notice.type}`} role={notice.type === "error" ? "alert" : "status"}>
           <span>{notice.text}</span>
           <button type="button" className="noticeClose" aria-label="Dismiss message" onClick={() => setNotice(null)}>
@@ -2004,7 +2012,7 @@ export default function Patients({
           ) : (
             <>
               <div className="recordTabs" role="tablist" aria-label="Patient record sections">
-                {RECORD_TABS.map((tab) => (
+                {RECORD_TABS.filter(tab => tab.id !== PATIENT_VIEWS.PAYMENTS || canEditPatientProfile).map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
@@ -2232,6 +2240,14 @@ export default function Patients({
                       <p className="patientAppointmentEmpty">No appointment yet</p>
                     )}
                   </section>
+                </section>
+              ) : null}
+
+              {activePatientView === PATIENT_VIEWS.PAYMENTS && canEditPatientProfile ? (
+                <section className="panel" role="tabpanel" id={`panel-${PATIENT_VIEWS.PAYMENTS}`} aria-labelledby={`tab-${PATIENT_VIEWS.PAYMENTS}`}>
+                  <p className="panelSub">Payment details and uploaded receipt photos for this patient's appointments.</p>
+                  <PatientPaymentReceipts key={selectedPatient.id} patientId={selectedPatient.id}
+                    uid={selectedPatient.uid || ""} patientName={selectedPatient.name} bookings={bookings} />
                 </section>
               ) : null}
 

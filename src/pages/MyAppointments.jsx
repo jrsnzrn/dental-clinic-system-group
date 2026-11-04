@@ -1,3 +1,4 @@
+import SuccessDialog from "../components/SuccessDialog";
 import PaginatedRecords from "../components/PaginatedRecords";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -420,12 +421,7 @@ export default function MyAppointments() {
         </div>
       </div>
 
-      {success ? (
-        <div className="successBanner" style={{ marginTop: 18 }}>
-          <strong>{success}</strong>
-          <span>The clinic can review your request from the booking dashboard.</span>
-        </div>
-      ) : null}
+      <SuccessDialog message={success} onConfirm={() => setSuccess("")} />
 
       {error ? <div className="error" style={{ marginTop: 18 }}>{error}</div> : null}
 

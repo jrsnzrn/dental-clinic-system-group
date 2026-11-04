@@ -2207,6 +2207,7 @@ exports.createBooking = onCall(
       maxCalls: BOOKING_CREATE_MAX_CALLS,
     });
 
+    const { isWithinBookingWindow } = await import("./bookingWindow.mjs");
     const payload = request.data || {};
     const uid = request.auth.uid;
     const dentistId = String(payload.dentistId || "").trim();
@@ -2230,6 +2231,10 @@ exports.createBooking = onCall(
 
     if (!/^\d{2}:\d{2}$/.test(time)) {
       throw new HttpsError("invalid-argument", "Time must use HH:mm format.");
+    }
+
+    if (!isWithinBookingWindow(date)) {
+      throw new HttpsError("invalid-argument", "You can only book from today up to two months ahead.");
     }
 
     if (!selectedServices.length) {

@@ -1,3 +1,4 @@
+import SuccessDialog from "../../components/SuccessDialog";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
@@ -169,12 +170,6 @@ export default function Accounts() {
     loadStaffAccounts();
   }, []);
 
-  // success message fades out on its own
-  useEffect(() => {
-    if (!success) return undefined;
-    const timer = setTimeout(() => setSuccess(""), 5000);
-    return () => clearTimeout(timer);
-  }, [success]);
 
   // close the row menu on outside click, and the menu / dialog on Escape
   useEffect(() => {
@@ -374,12 +369,7 @@ export default function Accounts() {
   const accountPage = useRecordPagination(visibleAccounts, JSON.stringify([searchTerm, roleFilter]));
   return (
     <div className="container adminSurface acctPage">
-      {success ? (
-        <div className="successBanner acctBanner acctToast" role="status">
-          <span>{success}</span>
-          <button type="button" aria-label="Dismiss" onClick={() => setSuccess("")}>✕</button>
-        </div>
-      ) : null}
+      <SuccessDialog message={success} onConfirm={() => setSuccess("")} />
 
       <div className="acctBar acctTopToolbar">
         <div className="acctBarLeft">

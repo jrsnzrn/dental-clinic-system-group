@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, db, functions } from "../../firebase";
 import {
   getAdminProfile,
-  getDefaultAdminPath,
+  getStaffLoginPath,
   hasFreshStaffMfa,
   requiresStaffMfa,
 } from "../../utils/rbac";
@@ -22,7 +22,7 @@ const VERIFY_EMAIL_VERIFICATION_CODE = httpsCallable(
 const RESEND_COOLDOWN_SECONDS = 60;
 
 function getVerifiedPath(profile, nextPath, authTime) {
-  const destination = nextPath || getDefaultAdminPath(profile.role);
+  const destination = getStaffLoginPath(profile.role, nextPath);
   if (requiresStaffMfa(profile) && !hasFreshStaffMfa(profile, authTime)) {
     return `/admin/mfa?next=${encodeURIComponent(destination)}`;
   }

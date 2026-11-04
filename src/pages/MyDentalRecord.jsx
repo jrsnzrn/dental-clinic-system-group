@@ -1,224 +1,116 @@
-import { useEffect, useMemo, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { createEmptyDentalChart, DENTAL_CHART_IMAGE, TOOTH_IDS, TOOTH_LABELS, TOOTH_MARKERS } from "../utils/teeth";
+import { DENTAL_CHART_IMAGE, TOOTH_IDS, TOOTH_LABELS, TOOTH_MARKERS } from "../utils/teeth";
+import PatientPaymentReceipts from "../components/PatientPaymentReceipts";
+import PaginatedRecords from "../components/PaginatedRecords";
+
+function RecordFacts({ items }) {
+  return <dl className="patientRecordFacts">{items.map(([label, value]) => (
+    <div key={label}><dt>{label}</dt><dd>{value || "Not recorded"}</dd></div>
+  ))}</dl>;
+}
 
 export default function MyDentalRecord() {
   const [user, setUser] = useState(null);
-  const [chart, setChart] = useState(createEmptyDentalChart());
-  const [selectedTeeth, setSelectedTeeth] = useState(["11"]);
-  const [hoveredTooth, setHoveredTooth] = useState("");
+  const [authReady, setAuthReady] = useState(false);
+  const [records, setRecords] = useState({});
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (nextUser) => {
+    let stopRecords = [];
+    const stopAuth = onAuthStateChanged(auth, nextUser => {
+      stopRecords.forEach(stop => stop());
+      stopRecords = [];
       setUser(nextUser);
-
-      if (!nextUser) {
-        setChart(createEmptyDentalChart());
-        return;
-      }
-
-      const chartSnap = await getDoc(doc(db, "dentalCharts", nextUser.uid));
-
-      if (chartSnap.exists()) {
-        const chartData = chartSnap.data();
-        setChart({
-          uid: nextUser.uid,
-          generalNotes: chartData.generalNotes || "",
-          teeth: chartData.teeth || {},
+      setAuthReady(true);
+      if (!nextUser) return;
+      const uid = nextUser.uid;
+      const update = (name, value, error = "") => {
+        if (auth.currentUser?.uid !== uid) return;
+        setRecords(current => {
+          const previous = current.uid === uid ? current : { uid, errors: {} };
+          return { ...previous, [name]: value, errors: { ...previous.errors, [name]: error } };
         });
-      } else {
-        setChart(createEmptyDentalChart(nextUser.uid));
-      }
+      };
+      const listen = (name, reference, fallback, convert) => onSnapshot(reference,
+        snapshot => update(name, convert(snapshot)),
+        error => {
+          console.error(`Patient ${name} could not load:`, error);
+          update(name, fallback, `${name === "chart" ? "Dental notes" : name === "profile" ? "Patient details" : "Appointment history"} could not be loaded. Please refresh and try again.`);
+        });
+      stopRecords = [
+        listen("chart", doc(db, "dentalCharts", uid), {}, snapshot => snapshot.data() || {}),
+        listen("profile", doc(db, "patientProfiles", uid), {}, snapshot => snapshot.data() || {}),
+        listen("bookings", query(collection(db, "bookings"), where("uid", "==", uid)), [],
+          snapshot => snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() }))),
+      ];
     });
-
-    return () => unsub();
+    return () => { stopAuth(); stopRecords.forEach(stop => stop()); };
   }, []);
 
-  const selectedComment = useMemo(() => {
-    const selectedValues = selectedTeeth.map((tooth) => chart.teeth?.[tooth] || "");
-    return selectedValues.every((note) => note === selectedValues[0]) ? selectedValues[0] || "" : "";
-  }, [chart.teeth, selectedTeeth]);
-  const selectedToothEntries = useMemo(
-    () =>
-      selectedTeeth.map((tooth) => ({
-        tooth,
-        label: TOOTH_LABELS[tooth],
-        note: chart.teeth?.[tooth] || "",
-      })),
-    [chart.teeth, selectedTeeth]
-  );
-  const hasMixedSelectedNotes = useMemo(() => {
-    const selectedValues = selectedTeeth.map((tooth) => chart.teeth?.[tooth] || "");
-    return selectedValues.some((note) => note !== selectedValues[0]);
-  }, [chart.teeth, selectedTeeth]);
-  const focusedTooth = hoveredTooth || selectedTeeth[selectedTeeth.length - 1] || "11";
-  const focusedComment = chart.teeth?.[focusedTooth] || "";
-  const teethWithNotes = useMemo(
-    () => Object.keys(chart.teeth || {}).filter((tooth) => chart.teeth?.[tooth]?.trim()),
-    [chart.teeth]
-  );
-  const notedSelectedCount = selectedTeeth.filter((tooth) => chart.teeth?.[tooth]?.trim()).length;
+  if (!authReady) return <div className="container"><p role="status">Loading your dental record…</p></div>;
+  if (!user) return <div className="container"><h1>My Dental Record</h1><p>Sign in to view your dental record.</p></div>;
 
-  function toggleToothSelection(tooth) {
-    setSelectedTeeth((current) => {
-      if (current.includes(tooth)) {
-        return current.length === 1 ? current : current.filter((entry) => entry !== tooth);
-      }
-
-      return [...current, tooth];
-    });
-  }
-
-  if (!user) {
-    return (
-      <div className="container">
-        <div className="hero bookingHero">
-          <div className="bookingHeroGlow" />
-          <div className="bookingHeroGrid">
-            <div>
-              <span className="heroEyebrow">Dental Record</span>
-              <h1>My Dental Record</h1>
-              <p>Sign in first to view the dentist comments and tooth notes linked to your account.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const current = records.uid === user.uid ? records : {};
+  const chart = current.chart || {};
+  const profile = current.profile || {};
+  const bookings = [...(current.bookings || [])].sort((left, right) =>
+    `${right.date || ""} ${right.time || ""}`.localeCompare(`${left.date || ""} ${left.time || ""}`));
+  const toothNotes = TOOTH_IDS.filter(tooth => String(chart.teeth?.[tooth] || "").trim());
+  const loading = !current.chart || !current.profile || !current.bookings;
+  const errors = Object.values(current.errors || {}).filter(Boolean);
 
   return (
-    <div className="container bookingPage">
-      <div className="hero bookingHero">
-        <div className="bookingHeroGlow" />
-        <div className="bookingHeroGrid">
-          <div>
-            <span className="heroEyebrow">Dental Record</span>
-            <h1>My Dental Record</h1>
-            <p>Review the dentist notes saved to your signed-in patient account, including tooth-by-tooth comments and general observations.</p>
+    <div className="container bookingPage patientDentalRecordPage">
+      <div className="hero bookingHero"><div className="bookingHeroGrid"><div>
+        <span className="heroEyebrow">Dental Record</span>
+        <h1>My Dental Record</h1>
+        <p>Review your patient details, dentist notes, and payment receipts.</p>
+      </div></div></div>
+      {loading ? <p role="status">Loading your saved records…</p> : null}
+      {errors.map(error => <p className="error" role="alert" key={error}>{error}</p>)}
+
+      <section className="card bookingFormCard patientRecordSection" aria-labelledby="record-patient-heading">
+        <h2 id="record-patient-heading">Patient details</h2>
+        <RecordFacts items={[
+          ["Name", profile.fullName || [profile.firstName, profile.middleName, profile.lastName].filter(Boolean).join(" ") || user.displayName],
+          ["Email", profile.email || user.email], ["Phone", profile.phone],
+          ["Age", profile.age ? String(profile.age) : ""], ["Patient type", profile.patientType], ["Address", profile.address],
+        ]} />
+      </section>
+
+      <div className="grid dentalRecordLayout patientRecordSection">
+        <section className="card bookingFormCard" aria-labelledby="record-chart-heading">
+          <h2 id="record-chart-heading">Tooth chart</h2>
+          <p className="sub">This chart is a reference. All saved tooth notes are listed alongside it.</p>
+          <div className="toothChartFrame patientReadOnlyChart">
+            <div className="toothImageSurface" role="img" aria-label="Read-only dental numbering chart. Tooth notes are listed in Dentist notes.">
+              <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
+              <div className="toothViewerOverlay" aria-hidden="true">
+                {TOOTH_IDS.map(tooth => <span key={tooth} className={`toothMarker${toothNotes.includes(tooth) ? " hasNote" : ""}`}
+                  style={{ top: TOOTH_MARKERS[tooth]?.top, left: TOOTH_MARKERS[tooth]?.left }}>{tooth}</span>)}
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
+        <section className="card bookingDetailsCard" aria-labelledby="record-notes-heading">
+          <h2 id="record-notes-heading">Dentist notes</h2>
+          <h3>General notes</h3>
+          <p className="patientRecordText">{chart.generalNotes || "No general notes saved yet."}</p>
+          <h3>Tooth notes</h3>
+          {toothNotes.length ? <PaginatedRecords items={toothNotes} resetKey={user.uid} label="tooth notes">{tooth => (
+            <article className="detailNote historyPanel" key={tooth}>
+              <strong>Tooth {tooth} — {TOOTH_LABELS[tooth]}</strong>
+              <p className="patientRecordText">{chart.teeth[tooth]}</p>
+            </article>
+          )}</PaginatedRecords> : <p>No tooth notes saved yet.</p>}
+        </section>
       </div>
 
-      <div className="grid dentalRecordLayout" style={{ marginTop: 18 }}>
-        <div className="card bookingFormCard">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Dental Numbering Guide</h3>
-              <p className="sub">Hover a tooth marker to preview it, or tap several teeth to review grouped notes from the numbering guide.</p>
-            </div>
-          </div>
-
-          <div className="toothViewerMeta">
-            <div className="viewerFocusCard">
-              <span className="detailLabel">Current focus</span>
-              <strong>Tooth {focusedTooth} {" - "} {TOOTH_LABELS[focusedTooth]}</strong>
-              <span>{focusedComment ? "Dentist note saved for this tooth." : "No saved tooth note yet."}</span>
-            </div>
-            <div className="viewerStatusRow">
-              <span className="viewerStatusPill active">Dental numbering guide</span>
-              <span className="viewerStatusPill">{teethWithNotes.length} teeth with notes</span>
-              <span className="viewerStatusPill">{selectedTeeth.length} selected</span>
-            </div>
-          </div>
-
-          <div className="toothViewer3d">
-            <div className="toothChartFrame">
-              <div
-                className="toothViewerHalo"
-                style={{
-                  top: TOOTH_MARKERS[focusedTooth]?.top,
-                  left: TOOTH_MARKERS[focusedTooth]?.left,
-                }}
-              />
-              <div className="toothImageSurface" aria-label="Tap a tooth marker to inspect one or more teeth">
-                <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
-                <div className="toothViewerOverlay">
-                  {TOOTH_IDS.map((tooth) => (
-                    <button
-                      key={tooth}
-                      type="button"
-                      className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""} ${focusedTooth === tooth ? "focused" : ""} ${chart.teeth?.[tooth]?.trim() ? "hasNote" : ""}`}
-                      style={{
-                        top: TOOTH_MARKERS[tooth]?.top,
-                        left: TOOTH_MARKERS[tooth]?.left,
-                      }}
-                      onClick={() => toggleToothSelection(tooth)}
-                      onMouseEnter={() => setHoveredTooth(tooth)}
-                      onMouseLeave={() => setHoveredTooth("")}
-                      onFocus={() => setHoveredTooth(tooth)}
-                      onBlur={() => setHoveredTooth("")}
-                      aria-pressed={selectedTeeth.includes(tooth)}
-                      aria-label={`Tooth ${tooth} ${TOOTH_LABELS[tooth]}`}
-                    >
-                      {tooth}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="toothViewerLegend">
-                <span>Interactive guide</span>
-                <strong>{focusedTooth}</strong>
-                <small>{TOOTH_LABELS[focusedTooth]}</small>
-              </div>
-            </div>
-          </div>
-
-          <div className="toothSelectedChips" style={{ marginTop: 12 }}>
-            {selectedTeeth.map((tooth) => (
-              <button
-                key={tooth}
-                type="button"
-                className={`toothSelectedChip ${focusedTooth === tooth ? "active" : ""}`}
-                onClick={() => setSelectedTeeth([tooth])}
-              >
-                Tooth {tooth}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="card bookingDetailsCard patientDentalNotesCard">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">Dentist Notes</h3>
-              <p className="sub">The notes updates instantly as you explore the numbering guide and tooth chart.</p>
-            </div>
-          </div>
-
-          <div className="detailNote historyPanel selectedToothPanel">
-            <span className="detailLabel">{selectedTeeth.length > 1 ? "Selected teeth" : "Selected tooth"}</span>
-            <p>
-              <strong>{selectedTeeth.join(", ")}</strong>
-            </p>
-            <p>
-              {selectedTeeth.length === 1
-                ? TOOTH_LABELS[selectedTeeth[0]]
-                : "Multiple teeth selected for grouped review."}
-            </p>
-            {selectedTeeth.length > 1 ? (
-              <div className="selectedToothNotesList">
-                {selectedToothEntries.map(({ tooth, label, note }) => (
-                  <div key={tooth} className="selectedToothNoteItem">
-                    <strong>Tooth {tooth}</strong>
-                    <span>{label}</span>
-                    <p>{note || "No comment saved for this tooth yet."}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>{selectedComment || "No comment saved for the selected tooth yet."}</p>
-            )}
-          </div>
-
-          <div className="detailNote historyPanel" style={{ marginTop: 12 }}>
-            <span className="detailLabel">General dentist notes</span>
-            <p>{chart.generalNotes || "No general notes saved yet."}</p>
-          </div>
-
-        </div>
-      </div>
+      <section className="card bookingFormCard patientRecordSection" aria-label="My payment receipts">
+        <PatientPaymentReceipts key={user.uid} uid={user.uid} patientName={profile.fullName || user.displayName || ""} bookings={bookings} />
+      </section>
     </div>
   );
 }

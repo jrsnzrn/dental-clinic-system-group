@@ -1,3 +1,4 @@
+import SuccessDialog from "../../components/SuccessDialog";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -502,7 +503,7 @@ export default function Archive({ adminRole, search }) {
       </nav>
 
       {error ? <div className="error">{error}</div> : null}
-      {success ? <div className="archiveSuccess" role="status">{success}</div> : null}
+      <SuccessDialog message={success} onConfirm={() => setSuccess("")} />
 
       <section className="archiveSection">
         {loading ? <SkeletonList count={2} /> : null}

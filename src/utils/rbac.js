@@ -52,9 +52,19 @@ export function canAccessRoute(role, allowedRoles = []) {
 
 export function getDefaultAdminPath(role) {
   const normalizedRole = normalizeRole(role);
-  if (normalizedRole === ROLES.RECEPTIONIST) return "/admin/bookings";
-  if (normalizedRole === ROLES.DENTIST) return "/admin/patients";
+  if (normalizedRole === ROLES.RECEPTIONIST) return "/admin/dashboard";
+  if (normalizedRole === ROLES.DENTIST) return "/admin/dashboard";
   return "/admin/patients";
+}
+
+export function getStaffLoginPath(role, requestedNext = "") {
+  const normalizedRole = normalizeRole(role);
+  if (normalizedRole === ROLES.RECEPTIONIST || normalizedRole === ROLES.DENTIST) {
+    return "/admin/dashboard";
+  }
+  return requestedNext === "/admin" || requestedNext.startsWith("/admin/")
+    ? requestedNext
+    : getDefaultAdminPath(normalizedRole);
 }
 
 export const ADMIN_NAV_BY_ROLE = {
@@ -72,6 +82,7 @@ export const ADMIN_NAV_BY_ROLE = {
     { to: "/admin/reports", label: "Reports" },
   ],
   [ROLES.RECEPTIONIST]: [
+    { to: "/admin/dashboard", label: "Dashboard" },
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Appointments" },
     { to: "/admin/queue", label: "Queue" },
@@ -79,6 +90,7 @@ export const ADMIN_NAV_BY_ROLE = {
     { to: "/admin/archive", label: "Archive" },
   ],
   [ROLES.DENTIST]: [
+    { to: "/admin/dashboard", label: "Dashboard" },
     { to: "/admin/patients", label: "Patient" },
     { to: "/admin/completed", label: "Completed" },
   ],
