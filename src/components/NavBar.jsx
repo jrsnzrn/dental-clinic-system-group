@@ -776,7 +776,6 @@ export default function NavBar({
                 <NavLink
                   key={link.to}
                   to={link.to}
-                  end={link.to === "/admin/bookings"}
                   className={({ isActive }) => `adminSidebarLink ${isActive ? "active" : ""}`}
                   onClick={() => setMenuOpen(false)}
                   title={link.to === "/admin/braces" && adminRole === ROLES.RECEPTIONIST ? "Braces payment ledger" : undefined}
