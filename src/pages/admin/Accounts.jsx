@@ -1,4 +1,3 @@
-import SuccessDialog from "../../components/SuccessDialog";
 import LoadingIndicator from "../../components/LoadingIndicator";
 import { buildStaffProfile, getStaffTitle, staffProfileDraft } from "../../utils/staffProfile";
 import RecordPagination from "../../components/RecordPagination";
@@ -8,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { notifySuccess } from "../../utils/successDialog";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 import { fetchStaffAccounts } from "../../utils/staffAccounts";
 
@@ -144,7 +144,6 @@ export default function Accounts() {
   const [emailError, setEmailError] = useState("");
   const [formError, setFormError] = useState("");
   const [listError, setListError] = useState("");
-  const [success, setSuccess] = useState("");
   const [adminAccounts, setAdminAccounts] = useState([]);
   const [staffAccounts, setStaffAccounts] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
@@ -182,7 +181,6 @@ export default function Accounts() {
   useEffect(() => {
     loadStaffAccounts();
   }, []);
-
 
   // close the row menu on outside click, and the menu / dialog on Escape
   useEffect(() => {
@@ -230,10 +228,9 @@ export default function Accounts() {
   async function runAccountAction(account, action, successMessage, errorMessage) {
     try {
       setListError("");
-      setSuccess("");
       setUpdatingAccountId(account.id);
       await action();
-      setSuccess(successMessage);
+      notifySuccess(successMessage);
       await loadStaffAccounts();
     } catch (err) {
       setListError(err?.message || errorMessage);
@@ -247,7 +244,6 @@ export default function Accounts() {
     event.preventDefault();
     if (submitting) return;
     setFormError("");
-    setSuccess("");
 
     try {
       const profile = buildStaffProfile(draft, draft.role);
@@ -259,7 +255,7 @@ export default function Accounts() {
         : await CREATE_STAFF({ ...profile, email: draft.email.trim(), password: draft.password, role: draft.role });
 
       const created = result.data || {};
-      setSuccess(
+      notifySuccess(
         editingAccountId
           ? `Staff details saved for ${created.name || profile.name}.${created.authDisplayNameSynced === false ? " The sign-in display name could not be synced; save again to retry." : ""}`
           : `${ROLE_LABELS[draft.role]} account created for ${created.name || profile.name} (${created.email || draft.email.trim()}).`
@@ -360,7 +356,7 @@ export default function Accounts() {
         : action.disabled
           ? "disabled"
           : "enabled";
-      setSuccess(`${succeeded} account${succeeded === 1 ? "" : "s"} ${verb} successfully.`);
+      notifySuccess(`${succeeded} account${succeeded === 1 ? "" : "s"} ${verb} successfully.`);
     }
   }
 
@@ -391,8 +387,6 @@ export default function Accounts() {
   const accountPage = useRecordPagination(visibleAccounts, JSON.stringify([searchTerm, roleFilter]));
   return (
     <div className="container adminSurface acctPage">
-      <SuccessDialog message={success} onConfirm={() => setSuccess("")} />
-
       <div className="acctBar acctTopToolbar">
         <div className="acctBarLeft">
           <div className="acctSearch adminSearchField">
@@ -622,7 +616,7 @@ export default function Accounts() {
         try {
           const result = await SET_STAFF_EMAIL({ uid: emailAccount.id, email: newEmail.trim() });
           setEmailAccount(null);
-          setSuccess(`Sign-in email updated to ${result.data.email}.${result.data.verificationRequired ? " The staff member must verify the new email when signing in." : ""}`);
+          notifySuccess(`Sign-in email updated to ${result.data.email}.${result.data.verificationRequired ? " The staff member must verify the new email when signing in." : ""}`);
           await loadStaffAccounts();
         } catch (error) { setEmailError(error.message || "The email could not be changed."); }
         finally { setSavingEmail(false); }

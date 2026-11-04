@@ -7,8 +7,10 @@ import { auth, db } from "../firebase";
 import { ADMIN_NAV_BY_ROLE, getAdminProfile, ROLE_LABELS, ROLES } from "../utils/rbac";
 import topDentLogo from "../assets/logo.png";
 import ConfirmDialog from "./ConfirmDialog";
+import ModalPortal from "./ModalPortal";
 import BookingToolbar from "./BookingToolbar";
 import StaffNotificationBell from "./StaffNotificationBell";
+import { isTopmostModal } from "../utils/modalUtils";
 
 const THEME_OPTIONS = [
   {
@@ -56,6 +58,81 @@ const THEME_OPTIONS = [
     )
   },
 ];
+
+function AppearanceModal({ open, theme, onThemeChange, onClose, titleId }) {
+  const overlayRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape" && isTopmostModal(overlayRef.current)) onClose();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <ModalPortal>
+      <div
+        ref={overlayRef}
+        className="appearanceModalOverlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
+      >
+        <section
+          className="appearanceModal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+        >
+          <header className="appearanceModalHeader">
+            <h2 id={titleId}>Appearance</h2>
+            <button
+              type="button"
+              className="appearanceModalClose"
+              aria-label="Close appearance settings"
+              onClick={onClose}
+            >
+              ×
+            </button>
+          </header>
+          <div className="appearanceThemeOptions" role="radiogroup" aria-label="Theme">
+            {THEME_OPTIONS.map((option) => {
+              const label = option.id === "system"
+                ? "Use System Setting"
+                : `${option.id.charAt(0).toUpperCase() + option.id.slice(1)}`;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className="appearanceThemeOption"
+                  role="radio"
+                  aria-checked={theme === option.id}
+                  onClick={() => onThemeChange(option.id)}
+                >
+                  <span className={`appearanceThemePreview ${option.id}`} aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="appearanceThemeLabel">{label}</span>
+                  <span className="appearanceThemeSelected" aria-hidden="true">
+                    {theme === option.id ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </ModalPortal>
+  );
+}
 
 const ADMIN_NAV_ICONS = {
   "/admin/analytics": (
@@ -402,16 +479,17 @@ export function PatientSidebarActions({ theme, onThemeChange }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutError, setLogoutError] = useState("");
 
-  useEffect(() => {
-    if (!appearanceModalOpen) return undefined;
+  function openAppearance() {
+    setLogoutConfirmOpen(false);
+    setLogoutError("");
+    setAppearanceModalOpen(true);
+  }
 
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setAppearanceModalOpen(false);
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [appearanceModalOpen]);
+  function openLogoutConfirm() {
+    setAppearanceModalOpen(false);
+    setLogoutError("");
+    setLogoutConfirmOpen(true);
+  }
 
   return (
     <>
@@ -419,7 +497,7 @@ export function PatientSidebarActions({ theme, onThemeChange }) {
         <button
           type="button"
           className="patientSidebarLink patientSidebarAction"
-          onClick={() => setAppearanceModalOpen(true)}
+          onClick={openAppearance}
         >
           <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
             {THEME_OPTIONS.find((option) => option.id === "blue").icon}
@@ -430,70 +508,19 @@ export function PatientSidebarActions({ theme, onThemeChange }) {
           type="button"
           className="patientSidebarLink patientSidebarAction patientSidebarLogout"
           data-mascot-target="nav-logout"
-          onClick={() => {
-            setLogoutError("");
-            setLogoutConfirmOpen(true);
-          }}
+          onClick={openLogoutConfirm}
         >
           {ACCOUNT_ICONS.logout}
           <span>Log Out</span>
         </button>
       </div>
-      {appearanceModalOpen && (
-        <div
-          className="appearanceModalOverlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setAppearanceModalOpen(false);
-          }}
-        >
-          <section
-            className="appearanceModal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="patientAppearanceModalTitle"
-          >
-            <header className="appearanceModalHeader">
-              <h2 id="patientAppearanceModalTitle">Appearance</h2>
-              <button
-                type="button"
-                className="appearanceModalClose"
-                aria-label="Close appearance settings"
-                onClick={() => setAppearanceModalOpen(false)}
-              >
-                ×
-              </button>
-            </header>
-            <div className="appearanceThemeOptions" role="radiogroup" aria-label="Theme">
-              {THEME_OPTIONS.map((option) => {
-                const label = option.id === "system"
-                  ? "Use System Setting"
-                  : `${option.id.charAt(0).toUpperCase() + option.id.slice(1)}`;
-
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className="appearanceThemeOption"
-                    role="radio"
-                    aria-checked={theme === option.id}
-                    onClick={() => onThemeChange(option.id)}
-                  >
-                    <span className={`appearanceThemePreview ${option.id}`} aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </span>
-                    <span className="appearanceThemeLabel">{label}</span>
-                    <span className="appearanceThemeSelected" aria-hidden="true">
-                      {theme === option.id ? "✓" : ""}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-      )}
+      <AppearanceModal
+        open={appearanceModalOpen}
+        theme={theme}
+        onThemeChange={onThemeChange}
+        onClose={() => setAppearanceModalOpen(false)}
+        titleId="patientAppearanceModalTitle"
+      />
       <ConfirmDialog
         open={logoutConfirmOpen}
         title="Log Out?"
@@ -607,17 +634,6 @@ export default function NavBar({
     onBookingSortChange("newest");
   }, [location.pathname, onBookingSearchChange, onBookingSortChange]);
 
-  useEffect(() => {
-    if (!appearanceModalOpen) return undefined;
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setAppearanceModalOpen(false);
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [appearanceModalOpen]);
-
   const adminLinks = ADMIN_NAV_BY_ROLE[adminRole] || ADMIN_NAV_BY_ROLE[ROLES.ADMIN] || [];
   const isDentistRecordsRoute =
     adminRole === ROLES.DENTIST &&
@@ -629,6 +645,18 @@ export default function NavBar({
   const isBookingsRoute = isAdmin && location.pathname.startsWith("/admin/bookings");
   const isStaffVerificationRoute =
     location.pathname === "/admin/verify-email" || location.pathname === "/admin/mfa";
+
+  function openAppearance() {
+    setLogoutConfirmOpen(false);
+    setLogoutError("");
+    setAppearanceModalOpen(true);
+  }
+
+  function openLogoutConfirm() {
+    setAppearanceModalOpen(false);
+    setLogoutError("");
+    setLogoutConfirmOpen(true);
+  }
 
   if (isStaffVerificationRoute || (user && isAdmin && !user.emailVerified)) return null;
 
@@ -756,63 +784,41 @@ export default function NavBar({
                 </NavLink>
               ))}
             </nav>
-          </div>
-        </aside>
-        {appearanceModalOpen && (
-          <div
-            className="appearanceModalOverlay"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setAppearanceModalOpen(false);
-            }}
-          >
-            <section
-              className="appearanceModal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="appearanceModalTitle"
-            >
-              <header className="appearanceModalHeader">
-                <h2 id="appearanceModalTitle">Appearance</h2>
+<<<<<<< HEAD
+=======
+            <div className="adminSidebarActions">
+              <div className="accountAppearance">
                 <button
                   type="button"
-                  className="appearanceModalClose"
-                  aria-label="Close appearance settings"
-                  onClick={() => setAppearanceModalOpen(false)}
+                  className="adminSidebarLink accountAppearanceTrigger"
+                  onClick={openAppearance}
                 >
-                  ×
+                  <span className="accountItemIcon accountAppearanceIcon" aria-hidden="true">
+                    {THEME_OPTIONS.find((option) => option.id === "blue").icon}
+                  </span>
+                  <span>Appearance</span>
                 </button>
-              </header>
-              <div className="appearanceThemeOptions" role="radiogroup" aria-label="Theme">
-                {THEME_OPTIONS.map((option) => {
-                  const label = option.id === "system"
-                    ? "Use System Setting"
-                    : `${option.id.charAt(0).toUpperCase() + option.id.slice(1)}`;
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className="appearanceThemeOption"
-                      role="radio"
-                      aria-checked={theme === option.id}
-                      onClick={() => onThemeChange(option.id)}
-                    >
-                      <span className={`appearanceThemePreview ${option.id}`} aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                      </span>
-                      <span className="appearanceThemeLabel">{label}</span>
-                      <span className="appearanceThemeSelected" aria-hidden="true">
-                        {theme === option.id ? "✓" : ""}
-                      </span>
-                    </button>
-                  );
-                })}
               </div>
-            </section>
+              <button
+                type="button"
+                className="adminSidebarLink adminSidebarLogout"
+                data-mascot-target="nav-logout"
+                onClick={openLogoutConfirm}
+              >
+                {ACCOUNT_ICONS.logout}
+                <span>Log Out</span>
+              </button>
+            </div>
+>>>>>>> 32699ca33289193c838c8c2e294d2cb2c181be6a
           </div>
-        )}
+        </aside>
+        <AppearanceModal
+          open={appearanceModalOpen}
+          theme={theme}
+          onThemeChange={onThemeChange}
+          onClose={() => setAppearanceModalOpen(false)}
+          titleId="appearanceModalTitle"
+        />
         <ConfirmDialog
           open={logoutConfirmOpen}
           title="Log Out?"

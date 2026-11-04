@@ -10,6 +10,7 @@ import {
   hasFreshStaffMfa,
   requiresStaffMfa,
 } from "../../utils/rbac";
+import { notifySuccess } from "../../utils/successDialog";
 
 const REQUEST_STAFF_MFA_CODE = httpsCallable(
   functions,
@@ -27,7 +28,6 @@ export default function Mfa() {
   const [challengeId, setChallengeId] = useState("");
   const [emailHint, setEmailHint] = useState("");
   const [code, setCode] = useState("");
-  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -56,7 +56,6 @@ export default function Mfa() {
 
   const requestCode = useCallback(async () => {
     setError("");
-    setStatus("");
 
     try {
       setSending(true);
@@ -75,7 +74,7 @@ export default function Mfa() {
       setChallengeId(result.data?.challengeId || "");
       setEmailHint(result.data?.emailHint || "your staff email");
 
-      setStatus("A verification code has been sent to your email.");
+      notifySuccess("A verification code has been sent to your email.", "Verification Code Sent!");
     } catch (err) {
       console.error(err);
       setError(
@@ -201,7 +200,6 @@ export default function Mfa() {
     event.preventDefault();
 
     setError("");
-    setStatus("");
 
     if (!challengeId) {
       setError("Please request a verification code first.");
@@ -301,12 +299,6 @@ export default function Mfa() {
               ))}
             </div>
           </div>
-
-          {status && (
-            <div className="successBanner">
-              {status}
-            </div>
-          )}
 
           {error && (
             <div className="error" id="verificationCodeError" role="alert">

@@ -5239,6 +5239,87 @@ input[type="date"].input { min-height: 48px; }
 .toothImageSurface { position: relative; width: 100%; }
 .toothReferenceImage { display: block; width: 100%; height: auto; user-select: none; pointer-events: none; }
 .toothViewerOverlay { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+.dentalTreatmentTooth {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  width: 5.2%;
+  height: 7%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  line-height: 0;
+}
+.dentalTreatmentTooth svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.dentalTreatmentToothShape {
+  fill: color-mix(in srgb, var(--treatment-color) 36%, var(--surface));
+  stroke: var(--treatment-color);
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+.dentalTreatmentTooth.extraction .dentalTreatmentGap {
+  fill: color-mix(in srgb, var(--treatment-color) 34%, var(--surface));
+  stroke: var(--treatment-color);
+  stroke-width: 5;
+  stroke-dasharray: 8 6;
+  stroke-linejoin: round;
+}
+.dentalTreatmentExtractionMark,
+.dentalTreatmentDentureBase {
+  fill: none;
+  stroke: var(--treatment-color);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.dentalTreatmentTooth.denture .dentalTreatmentToothShape { stroke-width: 7; }
+.dentalProcedureLegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 13px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 12px;
+}
+.dentalProcedureLegend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.dentalProcedureLegend i,
+.toothTreatmentDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--treatment-color);
+}
+.toothNumberDisplay.hasTreatmentColor {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0.4em;
+}
+.dentalProcedureBadge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.dentalProcedureBadge.colored {
+  border-color: color-mix(in srgb, var(--treatment-color) 42%, var(--line));
+  background: color-mix(in srgb, var(--treatment-color) 30%, var(--surface));
+}
 .toothMarker {
   position: absolute;
   z-index: 1;
@@ -5285,6 +5366,12 @@ input[type="date"].input { min-height: 48px; }
   border-color: var(--accent);
   background: color-mix(in srgb, var(--primary) 22%, transparent);
 }
+.toothMarker.hasTreatment { background: transparent; }
+.toothMarker.hasTreatment.active {
+  border-color: var(--treatment-color);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--treatment-color);
+}
 .toothViewerLegend {
   display: flex;
   align-items: baseline;
@@ -5315,6 +5402,33 @@ input[type="date"].input { min-height: 48px; }
 .selectedToothNoteItem strong { display: block; font-size: 14px; }
 .selectedToothNoteItem span { font-size: 13px; color: var(--muted); }
 .selectedToothNoteItem p { margin: 4px 0 0; font-size: 14px; }
+
+.toothNumberDisplay {
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35em 0.8em;
+  vertical-align: top;
+}
+
+.toothNumberDisplayItem {
+  display: inline-flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35em;
+}
+
+.toothNumberDisplayItem > strong {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.toothNumberDisplayName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 .patientDetailsPage .dentalChartPanel {
   min-width: 0;
@@ -5404,6 +5518,34 @@ input[type="date"].input { min-height: 48px; }
 }
 .patientDetailsPage .dentalChartTable {
   min-width: 520px;
+}
+.patientDetailsPage .procedureHistorySection .dentalChartTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.patientDetailsPage .procedureHistorySection .dentalChartTable th,
+.patientDetailsPage .procedureHistorySection .dentalChartTable td {
+  padding: 9px 7px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.patientDetailsPage .procedureHistorySection .dentalChartTable th {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.035em;
+}
+.patientDetailsPage .procedureHistorySection .dentalChartTable th:nth-child(1),
+.patientDetailsPage .procedureHistorySection .dentalChartTable td:nth-child(1) { width: 29%; }
+.patientDetailsPage .procedureHistorySection .dentalChartTable th:nth-child(2),
+.patientDetailsPage .procedureHistorySection .dentalChartTable td:nth-child(2) { width: 21%; }
+.patientDetailsPage .procedureHistorySection .dentalChartTable th:nth-child(3),
+.patientDetailsPage .procedureHistorySection .dentalChartTable td:nth-child(3) { width: 21%; }
+.patientDetailsPage .procedureHistorySection .dentalChartTable th:nth-child(4),
+.patientDetailsPage .procedureHistorySection .dentalChartTable td:nth-child(4) { width: 29%; }
+.patientDetailsPage .procedureHistorySection .dentalProcedureBadge {
+  padding-inline: 6px;
+  font-size: 12px;
 }
 .patientDetailsPage .dentalChartEmpty {
   margin: 0;
@@ -7132,10 +7274,11 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
   justify-content: center;
   padding: 16px;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
-.adminAppMain .adminSurface .modalOverlay:has(.confirmModalCard) {
-  z-index: 1100;
+.confirmDialogOverlay {
+  z-index: 3000;
 }
 .modalCard {
   width: min(600px, 100%);
@@ -9910,10 +10053,6 @@ html[data-theme="blue"] .acctOverlay {
   background: rgba(0, 0, 0, 0.45);
 }
 
-.archivePage > .modalOverlay:has(.confirmModalCard) {
-  z-index: 1200;
-}
-
 .archiveDetailModal {
   display: flex;
   flex-direction: column;
@@ -11171,7 +11310,7 @@ html[data-theme="blue"] .bookingInputSpecial {
 
 /* Management dialog visual normalization; public modal styles remain unchanged. */
 .adminAppMain .adminSurface .modalOverlay.addPatientModalOverlay,
-.adminAppMain .adminSurface .modalOverlay:has(.confirmModalCard),
+.confirmDialogOverlay,
 .adminAppMain .acctOverlay,
 .patientDrawerOverlay,
 .dentistModalOverlay {
@@ -11264,7 +11403,7 @@ html[data-theme="blue"] .bookingInputSpecial {
 
 .acctDialog .acctIconBtn:focus-visible,
 .acctDialog .btn:focus-visible,
-.adminAppMain .adminSurface .confirmModalCard :is(button, a):focus-visible,
+.confirmDialogOverlay .confirmModalCard :is(button, a):focus-visible,
 .adminAppMain .adminSurface .addPatientModal :is(button, a):focus-visible,
 .patientDrawer :is(button, a):focus-visible,
 .dentistModal :is(button, a):focus-visible {
@@ -11319,7 +11458,7 @@ html[data-theme="blue"] .bookingInputSpecial {
 .acctDialogHead h3,
 .patientDrawerHeader h3,
 .dentistModal .detailTitle,
-.adminAppMain .adminSurface .confirmModalCard .modalTitleGroup h3 {
+.confirmDialogOverlay .confirmModalCard .modalTitleGroup h3 {
   font-family: var(--font-display);
   font-weight: 700;
   color: var(--text);
@@ -11364,7 +11503,7 @@ html[data-theme="blue"] .bookingInputSpecial {
 }
 .patientDrawerOverlay.open { opacity: 1; }
 
-.adminAppMain .adminSurface .confirmModalCard {
+.confirmDialogOverlay .confirmModalCard {
   width: min(420px, 100%);
   max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
@@ -11378,31 +11517,31 @@ html[data-theme="blue"] .bookingInputSpecial {
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
 }
 
-.adminAppMain .adminSurface .confirmModalCard .modalHeader {
+.confirmDialogOverlay .confirmModalCard .modalHeader {
   align-items: center;
   padding-bottom: 12px;
   margin-bottom: 12px;
   border-color: var(--line);
 }
 
-.adminAppMain .adminSurface .confirmModalCard .modalTitleGroup h3 {
+.confirmDialogOverlay .confirmModalCard .modalTitleGroup h3 {
   font-size: 18px;
   line-height: 1.25;
 }
 
-.adminAppMain .adminSurface .confirmModalCard .modalToneLabel {
+.confirmDialogOverlay .confirmModalCard .modalToneLabel {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
 }
 
-.adminAppMain .adminSurface .confirmModalCard .modalToneLabel.danger,
-.adminAppMain .adminSurface .confirmModalCard.danger .modalToneLabel,
-.adminAppMain .adminSurface .confirmModalCard.archive .modalToneLabel {
+.confirmDialogOverlay .confirmModalCard .modalToneLabel.danger,
+.confirmDialogOverlay .confirmModalCard.danger .modalToneLabel,
+.confirmDialogOverlay .confirmModalCard.archive .modalToneLabel {
   color: var(--danger);
 }
 
-.adminAppMain .adminSurface .confirmModalCard .modalClose {
+.confirmDialogOverlay .confirmModalCard .modalClose {
   width: 34px;
   height: 34px;
   border-color: var(--line);
@@ -11410,20 +11549,20 @@ html[data-theme="blue"] .bookingInputSpecial {
   transition: none;
 }
 
-.adminAppMain .adminSurface .confirmModalCard .modalClose:hover {
+.confirmDialogOverlay .confirmModalCard .modalClose:hover {
   border-color: var(--line);
   background: var(--surface);
   color: var(--muted);
 }
 
-.adminAppMain .adminSurface .confirmModalCard .confirmModalBody p {
+.confirmDialogOverlay .confirmModalCard .confirmModalBody p {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
 }
 
-.adminAppMain .adminSurface .confirmModalCard .confirmModalActions {
+.confirmDialogOverlay .confirmModalCard .confirmModalActions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -11433,7 +11572,7 @@ html[data-theme="blue"] .bookingInputSpecial {
   border-top: 1px solid var(--line);
 }
 
-.adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn,
+.confirmDialogOverlay .confirmModalCard .confirmModalActions .btn,
 .adminAppMain .adminSurface .addPatientModal .modalFoot .btn,
 .adminAppMain .acctDialogActions .btn,
 .patientDrawer .actionColumn .btn,
@@ -11446,8 +11585,8 @@ html[data-theme="blue"] .bookingInputSpecial {
   transition: none;
 }
 
-.adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn.danger,
-.adminAppMain .adminSurface .confirmModalCard .confirmModalActions .btn.archiveButton {
+.confirmDialogOverlay .confirmModalCard .confirmModalActions .btn.danger,
+.confirmDialogOverlay .confirmModalCard .confirmModalActions .btn.archiveButton {
   color: var(--button-danger-color);
   border-color: var(--button-danger-border);
   background: var(--button-danger-background);
@@ -11462,7 +11601,7 @@ html[data-theme="blue"] .bookingInputSpecial {
     padding: 16px;
   }
 
-  .adminAppMain .adminSurface .confirmModalCard {
+  .confirmDialogOverlay .confirmModalCard {
     padding: 16px;
   }
 }
@@ -12634,10 +12773,6 @@ html body .patientListPage .typeBadge.ortho {
   overflow: hidden;
   padding: 20px;
   background: rgba(0, 0, 0, 0.58);
-}
-
-.adminAppMain .adminSurface.servicesAdminPage > .modalOverlay.servicesAdminConfirmOverlay:has(.confirmModalCard) {
-  z-index: 1500;
 }
 
 .servicesAdminModal {
@@ -16966,6 +17101,448 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   align-items: start;
 }
 
+.patientDentalRecordsPage {
+  max-width: 1440px;
+}
+
+.patientDentalRecordsHeader {
+  margin: 0 0 22px;
+}
+
+.patientDentalRecordsHeader h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.patientDentalRecordsHeader p,
+.patientDentalRecordsSignIn {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.patientDentalRecordsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.patientDentalRecordsCard {
+  min-width: 0;
+  padding: clamp(18px, 2.2vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.patientDentalRecordsCard > h2 {
+  margin: 0 0 18px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.patientDentalChartCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.patientDentalChartCard > h2 {
+  align-self: stretch;
+}
+
+.patientDentalChartFrame {
+  width: min(100%, 430px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.patientDentalChartSurface { position: relative; }
+
+.patientDentalChartImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+.patientDentalChartOverlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+.patientProcedureHistoryCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.patientProcedureTableWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.patientProcedureTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.patientProcedureTable th:nth-child(1),
+.patientProcedureTable td:nth-child(1) { width: 32%; }
+.patientProcedureTable th:nth-child(2),
+.patientProcedureTable td:nth-child(2) { width: 18%; }
+.patientProcedureTable th:nth-child(3),
+.patientProcedureTable td:nth-child(3) { width: 20%; }
+.patientProcedureTable th:nth-child(4),
+.patientProcedureTable td:nth-child(4) { width: 30%; }
+
+.patientProcedureTable th,
+.patientProcedureTable td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.patientProcedureTable th {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  white-space: normal;
+}
+
+.patientProcedureTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.patientProcedureTable .toothNumberDisplay {
+  display: block;
+  min-width: 0;
+}
+
+.patientProcedureTable .toothNumberDisplay.hasTreatmentColor {
+  display: inline-flex;
+  flex-wrap: wrap;
+}
+
+.patientProcedureTable .dentalProcedureBadge {
+  white-space: normal;
+}
+
+.patientProcedureTable .toothNumberDisplayItem {
+  display: inline;
+}
+
+.patientProcedureTable .toothNumberDisplayItem > strong {
+  margin-right: 0.25em;
+}
+
+.patientProcedureEmpty {
+  padding: 22px 14px !important;
+  color: var(--muted);
+  text-align: center;
+}
+
+.patientProcedureFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.patientProcedureRecordCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.patientProcedureRecordCount svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.patientProcedurePagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.patientProcedurePagination button,
+.patientProcedurePagination > span {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+}
+
+.patientProcedurePagination button {
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.patientProcedurePagination button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.patientProcedurePagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.patientProcedurePagination button svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.patientProcedurePagination > span {
+  border-color: var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+@media (max-width: 900px) {
+  .patientDentalRecordsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .patientProcedureTable {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .patientProcedureTable th,
+  .patientProcedureTable td {
+    padding: 9px 5px;
+  }
+
+  .patientProcedureTable th {
+    font-size: 8.5px;
+    letter-spacing: 0.025em;
+  }
+}
+
+.patientAppointmentsPage .bookingHero {
+  margin-bottom: 24px;
+  padding: clamp(20px, 3vw, 32px);
+  border-color: var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.patientAppointmentsPage .bookingHeroGrid {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+}
+
+.patientAppointmentsPage .bookingHeroGrid > div:first-child {
+  align-self: center;
+}
+
+.patientAppointmentsPage .bookingHero h1 {
+  margin-bottom: 0;
+  font-size: clamp(28px, 3.5vw, 38px);
+  font-weight: 600;
+}
+
+.patientAppointmentsPage .bookingHero .heroEyebrow {
+  font-size: 11px;
+  letter-spacing: 0.11em;
+}
+
+.appointmentsHeaderIllustration {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.appointmentsHeaderIllustration svg {
+  width: 46px;
+  height: 46px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.appointmentsHeaderIllustration .appointmentsCalendarAccent {
+  color: var(--success);
+  stroke: currentColor;
+  stroke-width: 2.5;
+}
+
+.patientAppointmentsPage .appointmentStatusSection {
+  margin-top: 0;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs {
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab.active {
+  border-color: var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab .appointmentStatusCount {
+  min-width: 20px;
+  height: 20px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: inherit;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab.active .appointmentStatusCount {
+  background: color-mix(in srgb, var(--button-primary-color) 12%, transparent);
+}
+
+.patientAppointmentsPage .appointmentStatusPanel {
+  padding: clamp(18px, 2.4vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.patientAppointmentsPage .appointmentStatusPanel .cardHeader {
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.patientAppointmentsPage .appointmentStatusHeading .title {
+  margin: 0;
+}
+
+.patientAppointmentsPage .appointmentStatusPanel > .badge {
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.patientAppointmentsPage .appointmentEmptyState {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.patientAppointmentsPage .appointmentEmptyState svg {
+  width: 40px;
+  height: 40px;
+  stroke: var(--accent);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.patientAppointmentsPage .appointmentEmptyState p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.patientAppointmentsPage .appointmentChangeActions {
+  margin: 16px 0 24px;
+}
+
+.patientAppointmentsPage .appointmentChangeButton svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+@media (max-width: 640px) {
+  .patientAppointmentsPage .bookingHeroGrid {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+
+  .appointmentsHeaderIllustration {
+    width: 58px;
+    height: 58px;
+  }
+
+  .appointmentsHeaderIllustration svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .patientAppointmentsPage .appointmentStatusPanel .cardHeader {
+    align-items: flex-start;
+  }
+}
+
 .bookingPage .card.bookingFormCard {
   padding: clamp(20px, 2.8vw, 28px);
   border: 1px solid var(--line);
@@ -16985,6 +17562,17 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   margin-bottom: 18px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
+}
+
+.bookingPage .bookingFormCard > .bookingProfileHeader {
+  align-items: center;
+}
+
+.bookingPage .bookingProfileHeaderMain {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
 }
 
 .bookingPage .bookingFormCard .cardHeader .title {
@@ -17073,22 +17661,29 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 }
 
 .bookingPage .bookingProfileBack {
-  grid-column: 1 / -1;
-  justify-self: start;
-  width: 32px;
-  min-height: 32px;
-  margin-bottom: 0;
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 44px;
+  min-height: 44px;
+  margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 8px 0 0 8px;
   background: transparent;
   color: var(--text);
   box-shadow: none;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
 }
 
 .bookingPage .bookingProfileBack:hover:not(:disabled) {
   border: 0;
-  background: transparent;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--accent);
 }
 
@@ -17638,33 +18233,6 @@ html[data-theme="blue"] .bookingPage .bookingDateInputShell input[type="date"] {
   font-weight: 600;
 }
 
-.bookingPage .bookingReviewClose {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 23px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.bookingPage .bookingReviewClose:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.bookingPage .bookingReviewClose:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 .bookingPage .bookingReviewModalContent {
   min-height: 0;
   overflow-y: auto;
@@ -17754,6 +18322,8 @@ html[data-theme="blue"] .bookingPage .bookingDateInputShell input[type="date"] {
 .bookingPage .bookingReviewModalActions {
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 24px 20px;
@@ -17762,6 +18332,27 @@ html[data-theme="blue"] .bookingPage .bookingDateInputShell input[type="date"] {
 
 .bookingPage .bookingReviewModalActions .bookingPrimaryBtn {
   justify-self: auto;
+}
+
+.bookingPage .bookingReviewModalActions .bookingReviewCancelBtn {
+  min-height: 42px;
+  padding: 10px 18px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.bookingPage .bookingReviewModalActions .bookingReviewCancelBtn:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  color: var(--danger);
+}
+
+.bookingPage .bookingReviewModalActions .bookingReviewCancelBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .bookingPage .bookingReviewDetails {
@@ -17933,27 +18524,32 @@ html[data-theme="blue"] .bookingPage .bookingDateInputShell input[type="date"] {
   margin: 20px 0;
 }
 
-.bookingPage .appointmentChangeButton {
-  min-height: 46px;
-  padding: 11px 26px;
-  border: 1px solid #d6aa24;
-  border-radius: 999px;
-  background: #f2c94c;
-  color: #302400;
+.patientAppointmentsPage .appointmentChangeButton {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--button-primary-background);
+  border-radius: 10px;
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
 }
 
-.bookingPage .appointmentChangeButton:hover {
-  background: #e8ba32;
-  transform: translateY(-1px);
+.patientAppointmentsPage .appointmentChangeButton:hover {
+  border-color: var(--button-primary-hover-background);
+  background: var(--button-primary-hover-background);
+  transform: none;
 }
 
-.bookingPage .appointmentChangeButton:focus-visible {
-  outline: 2px solid #9a7410;
+.patientAppointmentsPage .appointmentChangeButton:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -18305,7 +18901,7 @@ html[data-theme="blue"] .bookingPage .bookingDateInputShell input[type="date"] {
 }
 
 .patientDashboardPage .bookingPage .bookingInfoGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .patientDashboardPage .bookingPage .bookingServiceSelector {
@@ -18680,11 +19276,13 @@ html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout span {
 .appearanceModalOverlay {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: 3100;
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(15, 18, 22, 0.48);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .appearanceModal {
@@ -18859,10 +19457,11 @@ html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout span {
 }
 
 #root .logoutConfirmOverlay {
-  z-index: 1100;
+  z-index: 3000;
   padding: 16px;
-  background: color-mix(in srgb, var(--background) 72%, transparent);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 #root .logoutConfirmOverlay .confirmModalCard.logoutConfirmModal {
@@ -19079,25 +19678,6 @@ html[data-dashboard="true"] .adminSidebarActions .adminSidebarLogout span {
   border: 0;
   background: transparent;
   color: var(--accent);
-}
-
-.bookingPage .bookingReviewModalActions .bookingBackAction {
-  min-height: 32px;
-  padding: 4px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-weight: 500;
-  box-shadow: none;
-}
-
-.bookingPage .bookingReviewModalActions .bookingBackAction:hover:not(:disabled) {
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  box-shadow: none;
 }
 
 html[data-theme] .mascotTourBtn.topdentBackAction {
@@ -20242,6 +20822,207 @@ html[data-theme] .mascotTourBtn.topdentBackAction .backArrowIcon {
   margin-bottom: 12px;
 }
 
+.bookingSuccessOverlay {
+  --booking-success-yellow: #FFC94D;
+  --booking-success-yellow-hover: #F2B936;
+  --booking-success-yellow-text: #24271F;
+  position: fixed;
+  inset: 0;
+  z-index: 3200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 18, 22, 0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.bookingSuccessModal {
+  display: flex;
+  width: min(100%, 640px);
+  max-height: min(820px, calc(100dvh - 48px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 94%, var(--primary) 6%);
+  color: var(--text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+}
+
+.bookingSuccessModal > h2 {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.bookingSuccessStatus {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bookingSuccessCheck {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+  color: var(--success);
+}
+
+.bookingSuccessCheck svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bookingSuccessStatus h3 {
+  margin: 1px 0 4px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.bookingSuccessStatus p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bookingSuccessContent {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 28px;
+  overscroll-behavior: contain;
+}
+
+.bookingSuccessSection {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.bookingSuccessSection:last-child {
+  border-bottom: 0;
+}
+
+.bookingSuccessSection > h3 {
+  margin: 0 0 7px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bookingSuccessSection dl {
+  display: grid;
+  margin: 0;
+}
+
+.bookingSuccessSection dl > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  padding: 7px 0;
+}
+
+.bookingSuccessSection dt {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bookingSuccessSection dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.bookingSuccessFooter {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  padding: 16px 28px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.bookingSuccessAppointmentsButton {
+  min-height: 44px;
+  padding: 11px 22px;
+  border: 1px solid var(--booking-success-yellow);
+  border-radius: 9px;
+  background: var(--booking-success-yellow);
+  color: var(--booking-success-yellow-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bookingSuccessAppointmentsButton:hover:not(:disabled) {
+  border-color: var(--booking-success-yellow-hover);
+  background: var(--booking-success-yellow-hover);
+  color: var(--booking-success-yellow-text);
+}
+
+@media (max-width: 520px) {
+  .bookingSuccessOverlay {
+    padding: 12px;
+  }
+
+  .bookingSuccessModal {
+    max-height: calc(100dvh - 24px);
+    border-radius: 13px;
+  }
+
+  .bookingSuccessModal > h2 {
+    padding: 18px 18px 14px;
+    font-size: 19px;
+  }
+
+  .bookingSuccessStatus {
+    padding: 15px 18px;
+  }
+
+  .bookingSuccessContent {
+    padding: 0 18px;
+  }
+
+  .bookingSuccessSection {
+    padding: 13px 0;
+  }
+
+  .bookingSuccessSection dl > div {
+    grid-template-columns: minmax(108px, 0.75fr) minmax(0, 1.25fr);
+    gap: 10px;
+  }
+
+  .bookingSuccessFooter {
+    padding: 14px 18px 18px;
+  }
+
+  .bookingSuccessAppointmentsButton {
+    width: 100%;
+  }
+}
+
 .queueLayout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -20629,6 +21410,1557 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
   }
 }
 
+.patientAppointmentsPage .appointmentStatusPanel .detailedList {
+  gap: 0;
+  margin: 0;
+}
+
+.patientAppointmentsPage .appointmentStatusPanel .detailedList > .appointmentRowItem {
+  list-style: none;
+}
+
+.patientAppointmentsPage .appointmentStatusPanel .detailedList > .bookingShowcase {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 18px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.patientAppointmentsPage .appointmentRow {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(360px, 1.8fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.patientAppointmentsPage .appointmentIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.patientAppointmentsPage .appointmentServiceIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--accent);
+}
+
+.patientAppointmentsPage .appointmentServiceIcon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.patientAppointmentsPage .appointmentIdentityText {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.patientAppointmentsPage .appointmentIdentityText .detailTitle {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentDentist,
+.patientAppointmentsPage .appointmentDate {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.patientAppointmentsPage .appointmentMetaItem {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 1px 12px;
+}
+
+.patientAppointmentsPage .appointmentMetaItem + .appointmentMetaItem {
+  border-left: 1px solid var(--line);
+}
+
+.patientAppointmentsPage .appointmentMetaItem > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-top: 2px;
+  stroke: var(--muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.patientAppointmentsPage .appointmentMetaItem > span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.patientAppointmentsPage .appointmentMetaItem small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.patientAppointmentsPage .appointmentMetaItem strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.patientAppointmentsPage .appointmentRowStatus {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.patientAppointmentsPage .appointmentRowStatus .statusPill {
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.patientAppointmentsPage .appointmentCheckedIn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentCheckedIn i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.patientAppointmentsPage .appointmentDetailsToggle {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.patientAppointmentsPage .appointmentDetailsToggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.patientAppointmentsPage .appointmentDetailsToggle svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  transition: transform 0.16s ease;
+}
+
+.patientAppointmentsPage .appointmentDetailsToggle.open svg {
+  transform: rotate(180deg);
+}
+
+.patientAppointmentsPage .appointmentRequestLine,
+.patientAppointmentsPage .appointmentNotes {
+  margin: 12px 0 0 52px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.patientAppointmentsPage .appointmentRequestLine > strong:first-child,
+.patientAppointmentsPage .appointmentNotes > strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.patientAppointmentsPage .appointmentRequestStatus.status-approved,
+.patientAppointmentsPage .appointmentRequestStatus.status-accepted,
+.patientAppointmentsPage .appointmentRequestStatus.status-completed {
+  color: var(--success);
+}
+
+.patientAppointmentsPage .appointmentRequestStatus.status-declined,
+.patientAppointmentsPage .appointmentRequestStatus.status-rejected,
+.patientAppointmentsPage .appointmentRequestStatus.status-cancelled {
+  color: var(--danger);
+}
+
+.patientAppointmentsPage .appointmentRequestStatus.status-pending,
+.patientAppointmentsPage .appointmentRequestStatus.status-pending-review {
+  color: var(--accent);
+}
+
+.patientAppointmentsPage .appointmentExpandedDetails {
+  margin: 14px 0 0 52px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.patientAppointmentsPage .appointmentExpandedDetails .appointmentNotes,
+.patientAppointmentsPage .appointmentExpandedDetails .appointmentRequestLine {
+  margin: 0 0 10px;
+}
+
+.patientAppointmentsPage .appointmentRowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.patientAppointmentsPage .appointmentRowActions .btn {
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.patientAppointmentsPage .recordPagination {
+  gap: 10px;
+  padding: 14px 0 0;
+  font-size: 12px;
+}
+
+.patientAppointmentsPage .recordPaginationControls {
+  gap: 7px;
+}
+
+.patientAppointmentsPage .recordPaginationControls .btn {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+@media (max-width: 1100px) {
+  .patientAppointmentsPage .appointmentRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px 18px;
+  }
+
+  .patientAppointmentsPage .appointmentMeta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .patientAppointmentsPage .appointmentRowStatus {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .patientAppointmentsPage .appointmentStatusPanel {
+    padding: 16px;
+  }
+
+  .patientAppointmentsPage .appointmentStatusPanel .detailedList > .bookingShowcase {
+    padding: 15px 0;
+  }
+
+  .patientAppointmentsPage .appointmentRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px 10px;
+  }
+
+  .patientAppointmentsPage .appointmentMeta {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .patientAppointmentsPage .appointmentMetaItem {
+    padding: 0;
+  }
+
+  .patientAppointmentsPage .appointmentMetaItem + .appointmentMetaItem {
+    border-left: 0;
+  }
+
+  .patientAppointmentsPage .appointmentMetaItem > span {
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .patientAppointmentsPage .appointmentRowStatus {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .patientAppointmentsPage .appointmentRowStatus .statusPill {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .patientAppointmentsPage .appointmentCheckedIn {
+    font-size: 10px;
+  }
+
+  .patientAppointmentsPage .appointmentRequestLine,
+  .patientAppointmentsPage .appointmentNotes,
+  .patientAppointmentsPage .appointmentExpandedDetails {
+    margin-left: 0;
+  }
+
+  .patientAppointmentsPage .recordPagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.bookingPage .bookingPageHeading {
+  margin: 0 0 20px;
+}
+
+.bookingPage .bookingPageHeading h1 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(25px, 3vw, 32px);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.bookingPage .bookingPageHeading p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.bookingPage .bookingFormCard {
+  min-width: 0;
+}
+
+.bookingPage .bookingInfoGrid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.bookingPage .bookingPageSection {
+  min-width: 0;
+  padding: clamp(14px, 1.8vw, 20px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.bookingPage .bookingSectionHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.bookingPage .bookingSectionIcon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.bookingPage .bookingSectionIcon svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bookingPage .bookingSectionHeading {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.bookingPage .bookingSectionHeading h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.bookingPage .bookingSectionHeading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.bookingPage .bookingPatientSection .bookingSectionHeader {
+  align-items: center;
+}
+
+.bookingPage .bookingPatientSection .bookingSecondaryBtn {
+  min-height: 36px;
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.bookingPage .bookingPatientDetails {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.3fr) minmax(56px, 0.5fr) minmax(115px, 1fr) minmax(150px, 1.2fr) minmax(180px, 1.5fr);
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.bookingPage .bookingPatientDetails > div {
+  min-width: 0;
+  padding: 13px 14px 0 0;
+}
+
+.bookingPage .bookingPatientDetails dt {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.bookingPage .bookingPatientDetails dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookingPage .bookingServicesSection .bookingSectionHeader {
+  align-items: center;
+}
+
+.bookingPage .bookingServicesSection .bookingServiceCount {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bookingPage .bookingServicesSection .bookingServiceOptionGrid {
+  margin-top: 0;
+  grid-auto-rows: minmax(46px, auto);
+}
+
+.bookingPage .bookingServicesSection .bookingServiceOption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookingPage .bookingServicesSection .bookingServiceOption strong {
+  flex: 0 0 auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bookingPage .bookingInfoSchedule {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.bookingPage .bookingInfoSchedule .bookingSectionHeader {
+  margin-bottom: 0;
+}
+
+.bookingPage .bookingScheduleControls {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bookingPage .bookingScheduleControls > .bookingFieldCard,
+.bookingPage .bookingScheduleControls .bookingTimeSlotField > .bookingFieldCard {
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bookingPage .bookingScheduleControls .detailLabel {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bookingPage .bookingScheduleControls .bookingFieldHint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.bookingPage .bookingTimeSlotField {
+  min-width: 0;
+}
+
+.bookingPage .bookingScheduleControls .bookingDateInputShell,
+.bookingPage .bookingScheduleControls .bookingAppointmentForm .input,
+.bookingPage .bookingScheduleControls .input {
+  width: 100%;
+  min-height: 42px;
+}
+
+.bookingPage .bookingScheduleControls select.input {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bookingPage .bookingNotesSection .bookingSectionHeader {
+  margin-bottom: 14px;
+}
+
+.bookingPage .bookingNotesField {
+  display: block;
+  margin: 0;
+}
+
+.bookingPage .bookingAppointmentForm .bookingNotesField textarea.input {
+  min-height: 112px;
+  padding: 12px 13px;
+  border-color: var(--line);
+  border-radius: 9px;
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bookingPage .bookingAppointmentForm > .bookingConsentCard {
+  padding: 2px 3px;
+}
+
+@media (max-width: 1100px) {
+  .bookingPage .bookingPatientDetails {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .bookingPage .bookingPatientSection .bookingSectionHeader {
+    flex-wrap: wrap;
+  }
+
+  .bookingPage .bookingPatientSection .bookingSecondaryBtn {
+    margin-left: 33px;
+  }
+
+  .bookingPage .bookingPatientDetails {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bookingPage .bookingServicesSection .bookingServiceOptionGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bookingPage .bookingScheduleControls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .bookingPage .bookingPatientDetails {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 380px) {
+  .bookingPage .bookingServicesSection .bookingSectionHeader {
+    flex-wrap: wrap;
+  }
+
+  .bookingPage .bookingServicesSection .bookingServiceCount {
+    margin-left: 33px;
+  }
+}
+
+.patientAppointmentsPage .appointmentStatusPanel,
+.patientAppointmentsPage .appointmentStatusPanel .detailedList,
+.patientAppointmentsPage .appointmentStatusPanel .detailedList > .bookingShowcase {
+  overflow: visible;
+}
+
+.patientAppointmentsPage .appointmentActionMenu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.patientAppointmentsPage .appointmentActionMenuTrigger {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.patientAppointmentsPage .appointmentActionMenuTrigger:hover,
+.patientAppointmentsPage .appointmentActionMenuTrigger[aria-expanded="true"] {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--text);
+}
+
+.patientAppointmentsPage .appointmentActionMenuTrigger:focus-visible,
+.patientAppointmentsPage .appointmentActionMenuItems button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.patientAppointmentsPage .appointmentActionMenuTrigger svg {
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
+}
+
+.patientAppointmentsPage .appointmentActionMenuItems {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  width: max-content;
+  min-width: 190px;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.patientAppointmentsPage .appointmentActionMenuItems button {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.patientAppointmentsPage .appointmentActionMenuItems button:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.patientAppointmentsPage .appointmentActionMenuItems button.appointmentActionMenuCancel {
+  color: var(--danger);
+}
+
+.patientAppointmentsPage .appointmentActionMenuItems svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.appointmentRequestOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.48);
+  overscroll-behavior: contain;
+}
+
+.appointmentRequestModal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(620px, 100%);
+  max-height: min(780px, calc(100vh - 40px));
+  max-height: min(780px, calc(100dvh - 40px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.appointmentRequestModalHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 20px 22px 17px;
+  border-bottom: 1px solid var(--line);
+}
+
+.appointmentRequestModalIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+}
+
+.appointmentRequestModalIcon.danger {
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+}
+
+.appointmentRequestModalIcon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.appointmentRequestModalHeader > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-top: 1px;
+}
+
+.appointmentRequestModalHeader h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.appointmentRequestModalHeader p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.appointmentRequestModalClose {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  margin: -2px -4px 0 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.appointmentRequestModalClose:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--text);
+}
+
+.appointmentRequestModalClose svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.appointmentRequestModalBody {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-height: 0;
+  padding: 20px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.appointmentRequestModalBody .error {
+  margin: 0;
+}
+
+.appointmentRequestFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.appointmentRequestFields .bookingFieldCard,
+.appointmentRequestReason {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.appointmentRequestFields .detailLabel,
+.appointmentRequestReason .detailLabel,
+.appointmentSuggestedSlots > .detailLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.appointmentRequestModal .input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.appointmentRequestModal textarea.input {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.appointmentSuggestedSlots {
+  display: grid;
+  gap: 9px;
+}
+
+.appointmentSuggestedSlots > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appointmentSuggestedSlot {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.appointmentSuggestedSlot:hover,
+.appointmentSuggestedSlot.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--text);
+}
+
+.appointmentRequestModalFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 22px 19px;
+  border-top: 1px solid var(--line);
+}
+
+.appointmentRequestModalFooter button {
+  min-height: 40px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.appointmentRequestSubmit {
+  border-color: var(--button-primary-background) !important;
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+}
+
+.appointmentRequestSubmit:hover {
+  background: var(--button-primary-hover-background);
+}
+
+.appointmentRequestSubmit.danger {
+  border-color: var(--button-danger-border) !important;
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+}
+
+.appointmentRequestCancel {
+  margin-left: auto;
+  border-color: var(--line) !important;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.appointmentRequestCancel:hover {
+  background: color-mix(in srgb, var(--text) 5%, var(--surface));
+}
+
+.appointmentRequestCancel.danger {
+  border-color: var(--button-danger-border) !important;
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+}
+
+@media (max-width: 700px) {
+  .patientAppointmentsPage .appointmentRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .patientAppointmentsPage .appointmentMeta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .patientAppointmentsPage .appointmentRowStatus {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .appointmentRequestOverlay {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .appointmentRequestModal {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 14px;
+  }
+
+  .appointmentRequestModalHeader {
+    gap: 10px;
+    padding: 15px 15px 13px;
+  }
+
+  .appointmentRequestModalHeader h2 {
+    font-size: 15px;
+  }
+
+  .appointmentRequestModalBody {
+    gap: 15px;
+    padding: 16px 15px;
+  }
+
+  .appointmentRequestFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .appointmentRequestModalFooter {
+    padding: 12px 15px 15px;
+  }
+
+  .appointmentRequestModalFooter button {
+    min-width: 0;
+    padding: 9px 11px;
+    font-size: 11px;
+  }
+}
+
+.patientAppointmentsPage .appointmentsPageHeading {
+  margin: 0 0 26px;
+}
+
+.patientAppointmentsPage .appointmentsPageHeading h1 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.patientAppointmentsPage .appointmentsPageHeading p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 9px;
+  margin: 0 0 18px;
+  overflow-x: auto;
+  padding: 2px 2px 7px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab {
+  flex: 0 0 auto;
+  min-height: 39px;
+  gap: 9px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 3%, var(--surface));
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab .appointmentStatusCount {
+  min-width: 20px;
+  height: 20px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: inherit;
+}
+
+.patientAppointmentsPage .appointmentStatusTabs > .appointmentStatusTab.active .appointmentStatusCount {
+  background: color-mix(in srgb, var(--accent-text) 14%, transparent);
+}
+
+.patientAppointmentsPage .appointmentStatusPanel {
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.patientAppointmentsPage .appointmentTableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.patientAppointmentsPage .appointmentTable {
+  width: 100%;
+  min-width: 700px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: var(--text);
+  text-align: left;
+}
+
+.patientAppointmentsPage .appointmentTable th {
+  height: 44px;
+  padding: 11px 16px;
+  background: color-mix(in srgb, var(--text) 4%, var(--surface));
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.patientAppointmentsPage .appointmentTable th:nth-child(1) { width: 34%; }
+.patientAppointmentsPage .appointmentTable th:nth-child(2) { width: 27%; }
+.patientAppointmentsPage .appointmentTable th:nth-child(3) { width: 18%; }
+.patientAppointmentsPage .appointmentTable th:nth-child(4) { width: 21%; }
+
+.patientAppointmentsPage .appointmentTable td {
+  min-width: 0;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.patientAppointmentsPage .appointmentTableServiceMain {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.patientAppointmentsPage .appointmentTableTooth {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.patientAppointmentsPage .appointmentTableServiceMain > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.patientAppointmentsPage .appointmentTableServiceMain strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentTableServiceMain small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 5px 0 0 29px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsToggle svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  transform: rotate(0);
+  transition: transform 0.16s ease;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsToggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.patientAppointmentsPage .appointmentTableDateTime {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.patientAppointmentsPage .appointmentTableDateTime > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  line-height: 1.55;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentTableDateTime > span + span {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.patientAppointmentsPage .appointmentTableDateTime svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.patientAppointmentsPage .appointmentTableStatus .statusPill {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentTableActions {
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentTableActions button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.patientAppointmentsPage .appointmentTableReschedule {
+  border-color: var(--button-primary-background);
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+}
+
+.patientAppointmentsPage .appointmentTableReschedule:hover {
+  border-color: var(--button-primary-hover-background);
+  background: var(--button-primary-hover-background);
+  color: var(--button-primary-color);
+}
+
+.patientAppointmentsPage .appointmentTableCancel {
+  margin-left: 6px;
+  border-color: var(--button-danger-border) !important;
+  background: var(--button-danger-background);
+  color: var(--button-danger-color);
+}
+
+.patientAppointmentsPage .appointmentTableCancel:hover {
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+}
+
+.patientAppointmentsPage .appointmentTableNoAction {
+  color: var(--muted);
+}
+
+.patientAppointmentsPage .appointmentTableMessage {
+  height: 90px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsRow td {
+  padding: 13px 18px 14px 45px;
+  background: color-mix(in srgb, var(--text) 2%, var(--surface));
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsRow p {
+  margin: 0 0 5px;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsRow p:last-child {
+  margin-bottom: 0;
+}
+
+.patientAppointmentsPage .appointmentTableDetailsRow p > strong:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.patientAppointmentsPage .appointmentTable .recordPaginationListItem {
+  list-style: none;
+}
+
+.patientAppointmentsPage .appointmentTable > tbody > tr:last-child:not(.appointmentTableDetailsRow) > td[colspan="4"] {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.patientAppointmentsPage .appointmentTable .recordPagination {
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 13px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.patientAppointmentsPage .appointmentTable .recordPaginationControls {
+  gap: 7px;
+}
+
+.patientAppointmentsPage .appointmentTable .recordPaginationControls .btn {
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.patientAppointmentsPage .appointmentTable .recordPaginationControls label {
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.patientAppointmentsPage .appointmentTable .recordPaginationControls select {
+  min-width: 52px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .patientAppointmentsPage .appointmentsPageHeading {
+    margin-bottom: 20px;
+  }
+
+  .patientAppointmentsPage .appointmentTable {
+    min-width: 680px;
+  }
+
+  .patientAppointmentsPage .appointmentTable th,
+  .patientAppointmentsPage .appointmentTable td {
+    padding-right: 11px;
+    padding-left: 11px;
+  }
+
+  .patientAppointmentsPage .appointmentTableActions button {
+    min-height: 30px;
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .patientAppointmentsPage .appointmentTableCancel {
+    margin-left: 3px;
+  }
+
+  .patientAppointmentsPage .appointmentTable .recordPagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.globalSuccessOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 20, 16, 0.48);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.globalSuccessDialog {
+  position: relative;
+  display: flex;
+  width: min(440px, 100%);
+  max-height: min(82vh, 760px);
+  max-height: min(82dvh, 760px);
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
+  padding: 34px 32px 28px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.globalSuccessClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.globalSuccessClose:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--text) 5%, var(--surface));
+  color: var(--text);
+}
+
+.globalSuccessClose svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.globalSuccessIcon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--success) 13%, var(--surface));
+  color: var(--success);
+}
+
+.globalSuccessIcon svg {
+  width: 30px;
+  height: 30px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.globalSuccessDialog h2 {
+  margin: 18px 0 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.globalSuccessDialog > p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.globalSuccessContent {
+  width: 100%;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.globalSuccessOkay {
+  min-width: 112px;
+  min-height: 40px;
+  margin-top: 24px;
+  padding: 9px 22px;
+  border: 1px solid var(--button-primary-background);
+  border-radius: 8px;
+  background: var(--button-primary-background);
+  color: var(--button-primary-color);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.globalSuccessOkay:hover {
+  border-color: var(--button-primary-hover-background);
+  background: var(--button-primary-hover-background);
+}
+
+.globalSuccessOkay:focus-visible,
+.globalSuccessClose:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.globalSuccessOkay:active {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.16);
+}
+
+.globalSuccessContent .bookingSuccessSection {
+  padding: 13px 0;
+  border-top: 1px solid var(--line);
+}
+
+.globalSuccessContent .bookingSuccessSection > h3 {
+  color: var(--text);
+}
+
+.globalSuccessContent .bookingSuccessSection dt {
+  color: var(--muted);
+}
+
+.globalSuccessContent .bookingSuccessSection dd {
+  color: var(--text);
+}
+
+@media (max-width: 520px) {
+  .globalSuccessOverlay {
+    padding: 14px;
+  }
+
+  .globalSuccessDialog {
+    max-height: calc(100vh - 28px);
+    max-height: calc(100dvh - 28px);
+    padding: 32px 20px 22px;
+    border-radius: 15px;
+  }
+
+  .globalSuccessDialog h2 {
+    font-size: 18px;
+  }
+
+  .globalSuccessDialog > p {
+    font-size: 13px;
+  }
+}
 .patientDentalRecordPage .patientRecordSection { margin-top: 18px; }
 .patientRecordFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; margin: 16px 0; }
 .patientRecordFacts dt { color: var(--muted); font-size: 12px; }

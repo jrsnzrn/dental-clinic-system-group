@@ -1,4 +1,3 @@
-import SuccessDialog from "../../components/SuccessDialog";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,6 +16,7 @@ import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { logAdminAction } from "../../utils/audit";
+import { notifySuccess } from "../../utils/successDialog";
 import {
   formatScheduleSummary,
   formatTimestamp,
@@ -165,7 +165,6 @@ export default function Archive({ adminRole, search }) {
   const [confirmRestoreRows, setConfirmRestoreRows] = useState(null);
   const [detailRow, setDetailRow] = useState(null);
   const [restoring, setRestoring] = useState(false);
-  const [success, setSuccess] = useState("");
   const { section = "patients" } = useParams();
   const isAdmin = adminRole === "admin";
 
@@ -448,7 +447,6 @@ export default function Archive({ adminRole, search }) {
     setConfirmRestoreRows(null);
     setRestoring(true);
     setError("");
-    setSuccess("");
 
     const results = await Promise.allSettled(rowsToRestore.map((row) => row.restore(false)));
     const succeededRows = rowsToRestore.filter((_, index) => results[index].status === "fulfilled");
@@ -470,7 +468,7 @@ export default function Archive({ adminRole, search }) {
         setSelectionMode(succeededRows.length !== rowsToRestore.length);
       } else {
         setSelectionMode(false);
-        setSuccess(`${succeededRows.length} record${succeededRows.length === 1 ? "" : "s"} restored.`);
+        notifySuccess(`${succeededRows.length} record${succeededRows.length === 1 ? "" : "s"} restored.`);
       }
     } finally {
       setRestoring(false);
@@ -503,7 +501,6 @@ export default function Archive({ adminRole, search }) {
       </nav>
 
       {error ? <div className="error">{error}</div> : null}
-      <SuccessDialog message={success} onConfirm={() => setSuccess("")} />
 
       <section className="archiveSection">
         {loading ? <SkeletonList count={2} /> : null}
