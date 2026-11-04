@@ -29,7 +29,7 @@ const COLLECTIONS_BY_CATEGORY = {
   Services: ["bookings", "clinicServices"],
   Dentists: ["bookings", "dentists"],
 };
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 const CHART_COLORS = ["#FFC94D", "#6BB58B", "#D7C8A3", "#9AA39B", "#E1A468"];
 const DEFAULT_SORT = {
   Appointments: { key: "sortDate", direction: "desc" },
@@ -314,7 +314,9 @@ function ReportsTable({ columns, rows, page, setPage, sort, setSort }) {
           >
             Previous
           </button>
-          <span>Page {currentPage} of {pageCount}</span>
+          <label>Page <select className="input" aria-label="Select report page" value={currentPage} onChange={event => setPage(Number(event.target.value))}>
+            {Array.from({ length: pageCount }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+          </select> of {pageCount}</label>
           <button
             type="button"
             className="reportsPageButton"

@@ -1,3 +1,6 @@
+import PaginatedRecords from "../../components/PaginatedRecords";
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
@@ -1657,6 +1660,8 @@ export default function Patients({
   const persistedPendingProcedures = savedProcedureHistory.filter(isPendingProcedure);
   const displayedPendingProcedures = [...persistedPendingProcedures, ...pendingChartProcedures];
   const recordedProcedureHistory = savedProcedureHistory.filter((plan) => !isPendingProcedure(plan));
+  const patientPage = useRecordPagination(filteredPatientCards, JSON.stringify([search, typeFilter]));
+  const dentistPage = useRecordPagination(visibleDentistAppointments, JSON.stringify([dentistSearch, dentistPatientTypeFilter, completedOnly]));
   const isDentist = adminRole === ROLES.DENTIST;
   const canEditDentalChart = adminRole === ROLES.ADMIN || adminRole === ROLES.DENTIST;
   const canEditPatientProfile = adminRole === ROLES.ADMIN || adminRole === ROLES.RECEPTIONIST;
@@ -1711,7 +1716,7 @@ export default function Patients({
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleDentistAppointments.map((booking, index) => {
+                    {dentistPage.items.map((booking, index) => {
                       const linkedPatient = booking.patient || patients.find((patient) =>
                         bookingMatchesPatient(booking, patient)
                       ) || null;
@@ -1739,7 +1744,7 @@ export default function Patients({
                               </span>
                             </td>
                           ) : (
-                            <td data-label="#">{index + 1}</td>
+                            <td data-label="#">{dentistPage.startIndex + index + 1}</td>
                           )}
                           <td data-label="Patient">
                             {patientRecordId ? (
@@ -1794,6 +1799,7 @@ export default function Patients({
                     })}
                   </tbody>
                 </table>
+              <RecordPagination pagination={dentistPage} />
               </div>
             ) : (
               completedOnly ? (
@@ -1873,7 +1879,7 @@ export default function Patients({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredPatientCards.map((patient) => {
+                  {patientPage.items.map((patient) => {
                     const type = normalizePatientType(patient.patientType);
                     const eligibleAppointments = patient.eligibleDentistAppointments || [];
                     const actionsOpen = openPatientActionsId === patient.id;
@@ -1960,6 +1966,7 @@ export default function Patients({
                   })}
                 </tbody>
               </table>
+              <RecordPagination pagination={patientPage} />
             </div>
           ) : (
             <EmptyState
@@ -2311,7 +2318,7 @@ export default function Patients({
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {displayedPendingProcedures.map((entry, index) => {
+                                    <PaginatedRecords items={displayedPendingProcedures} tableColumns={isEditingDentalChart ? 5 : 4} resetKey={selectedPatientId}>{(entry, index) => {
                                       const tooth = entry.toothNumbers?.[0] || "—";
                                       const isDraft = pendingChartProcedures.some((draft) => draft.createdAt === entry.createdAt);
                                       return (
@@ -2336,7 +2343,7 @@ export default function Patients({
                                           ) : null}
                                         </tr>
                                       );
-                                    })}
+                                    }}</PaginatedRecords>
                                   </tbody>
                                 </table>
                               </div>
@@ -2426,14 +2433,14 @@ export default function Patients({
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {recordedProcedureHistory.map((entry, index) => (
+                                  <PaginatedRecords items={recordedProcedureHistory} tableColumns={4} resetKey={selectedPatientId}>{(entry, index) => (
                                     <tr key={`${entry.createdAt || entry.title}-${index}`}>
                                       <td data-label="Tooth Number">{entry.toothNumbers?.join(", ") || "—"}</td>
                                       <td data-label="Procedure">{entry.title || "Procedure"}</td>
                                       <td data-label="Procedure Date">{entry.targetDate || "—"}</td>
                                       <td data-label="Procedure Notes">{entry.instructions || "—"}</td>
                                     </tr>
-                                  ))}
+                                  )}</PaginatedRecords>
                                 </tbody>
                               </table>
                             </div>
@@ -2587,7 +2594,7 @@ export default function Patients({
                       </div>
                       {(selectedPatient.treatmentPlans || []).length ? (
                         <div className="itemList">
-                          {selectedPatient.treatmentPlans.map((plan, index) => (
+                          <PaginatedRecords items={selectedPatient.treatmentPlans} resetKey={selectedPatientId} label="procedures">{(plan, index) => (
                             <article key={`${plan.title}-${index}`} className="itemCard">
                               <div className="itemTop">
                                 <strong>{plan.title}</strong>
@@ -2672,7 +2679,7 @@ export default function Patients({
                                 </div>
                               ) : null}
                             </article>
-                          ))}
+                          )}</PaginatedRecords>
                         </div>
                       ) : (
                         <div className="emptyBlock">
@@ -2689,7 +2696,7 @@ export default function Patients({
                       </div>
                       {(selectedPatient.careRecommendations || []).length ? (
                         <div className="itemList">
-                          {selectedPatient.careRecommendations.map((entry, index) => (
+                          <PaginatedRecords items={selectedPatient.careRecommendations} resetKey={selectedPatientId} label="care records">{(entry, index) => (
                             <article key={`${entry.recommendation}-${index}`} className="itemCard">
                               <div className="itemTop">
                                 <strong>{entry.recommendation}</strong>
@@ -2716,7 +2723,7 @@ export default function Patients({
                                 </div>
                               ) : null}
                             </article>
-                          ))}
+                          )}</PaginatedRecords>
                         </div>
                       ) : (
                         <div className="emptyBlock">
@@ -2741,7 +2748,7 @@ export default function Patients({
 
                   {sortedTimeline.length ? (
                     <ol className="timelineStack">
-                      {sortedTimeline.map((entry, index) => (
+                      <PaginatedRecords items={sortedTimeline} list resetKey={selectedPatientId} label="visit records">{(entry, index) => (
                         <li key={entry.id || `timeline-${index}`} className="timelineRow">
                           <span className={`timelineDot ${getAppointmentStatusClass(entry.status) || "active"}`} aria-hidden="true" />
                           <div className="timelineBody">
@@ -2755,7 +2762,7 @@ export default function Patients({
                             ) : null}
                           </div>
                         </li>
-                      ))}
+                      )}</PaginatedRecords>
                     </ol>
                   ) : (
                     <EmptyState

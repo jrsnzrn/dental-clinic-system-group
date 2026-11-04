@@ -20278,3 +20278,27 @@ html[data-theme] .mascotTourBtn.topdentBackAction .backArrowIcon {
     justify-self: stretch;
   }
 }
+
+.paymentsChargeBreakdown {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.paymentsChargeBreakdown h3 { margin: 0 0 12px; font-size: 15px; }
+.paymentsReceiptPhotos { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.paymentsReceiptPhotos figure { margin: 0; width: min(100%, 220px); overflow-wrap: anywhere; }
+.paymentsReceiptPhotos img { display: block; width: 100%; max-height: 280px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.paymentsReceiptPhotos figcaption { font-size: 12px; margin: 6px 0; }
+.paymentReceipts > .drawerNote { margin-top: 12px; }
+.paymentReceipts .paymentsChargeBreakdown { margin-top: 12px; }
+
+.recordPagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 8px; color: var(--muted); font-size: 13px; }
+.recordPaginationControls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.recordPaginationControls label { display: flex; align-items: center; gap: 7px; }
+.recordPaginationControls select { width: auto; min-width: 65px; }
+.recordPaginationControls .btn { min-height: 36px; padding: 7px 12px; }
+.recordPaginationListItem { list-style: none; width: 100%; }
+.bookingStaffPromotion { margin: 16px 0; }
+.reportsPagination label { display: flex; align-items: center; gap: 6px; }
+.reportsPagination select { width: auto; min-width: 60px; }

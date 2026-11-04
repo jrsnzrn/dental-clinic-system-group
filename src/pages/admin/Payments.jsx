@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import PaginatedRecords from "../../components/PaginatedRecords";
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   onSnapshot,
@@ -7,6 +10,8 @@ import { httpsCallable } from "firebase/functions";
 import EmptyState from "../../components/EmptyState";
 import BackArrow from "../../components/BackArrow";
 import PaymentReceipts from "../../components/PaymentReceipts";
+import PaymentChargeBreakdown from "../../components/PaymentChargeBreakdown";
+import BookingPromotionSelect from "../../components/BookingPromotionSelect";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { db, functions } from "../../firebase";
 import { logAdminAction } from "../../utils/audit";
@@ -17,9 +22,12 @@ import {
   recordRegularPayment,
 } from "../../utils/paymentTransactions";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
+import { calculateCharges } from "../../utils/paymentPricing";
+import { MAX_RECEIPT_PHOTOS, prepareReceiptPhoto } from "../../utils/receiptPhotos";
 
 const DETAIL_PAYMENT_METHODS = ["Cash", "GCash", "Maya", "Bank Transfer", "Card"];
 const COMPLETE_PAID_APPOINTMENT = httpsCallable(functions, "completePaidAppointment");
+const GET_BOOKING_PAYMENT_PROMOTION = httpsCallable(functions, "getBookingPaymentPromotion");
 
 function toAmount(value) {
   const amount = Number(value);
@@ -59,7 +67,7 @@ function paymentStatus(totalCost, amountPaid, pending = false) {
 }
 
 function isFullyPaid(row) {
-  return row.totalCost > 0 && row.balance <= 0.005 && row.amountPaid + 0.005 >= row.totalCost;
+  return (row.totalCost > 0 || row.chargeBreakdown?.grossTotal > 0) && row.balance <= 0.005 && row.amountPaid + 0.005 >= row.totalCost;
 }
 
 function paymentStatusLabel(row, patientType = row?.patientType) {
@@ -172,6 +180,7 @@ function makeRegularPaymentRows(payments, patients, bookings, summaries) {
         appointmentTime: booking?.time || group.summary?.appointmentTime || transaction.appointmentTime || "",
         selectedDentist: booking?.selectedDentist || group.summary?.selectedDentist || transaction.selectedDentist || "",
         totalCost: group.totalCost,
+        chargeBreakdown: group.summary?.chargeBreakdown || transaction.chargeBreakdown,
         amountPaid: group.amountPaid,
         balance,
         status: paymentStatus(
@@ -349,6 +358,7 @@ function makeUnpaidRegularRows(summaries, payments, patients, bookings) {
         appointmentTime: booking?.time || summary.appointmentTime || "",
         selectedDentist: booking?.selectedDentist || summary.selectedDentist || "",
         totalCost,
+        chargeBreakdown: summary.chargeBreakdown,
         amountPaid,
         balance: Math.max(0, totalCost - amountPaid),
         status: paymentStatus(totalCost, amountPaid, Boolean(summary.appointmentId && amountPaid === 0)),
@@ -452,10 +462,15 @@ export default function Payments() {
     paymentDate: new Date().toISOString().slice(0, 10),
     referenceNumber: "",
     additionalServices: [],
+    serviceCharges: {},
+    receiptPhotos: [],
     method: "Cash",
   });
   const [savingDetails, setSavingDetails] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [receiptPhotoLoading, setReceiptPhotoLoading] = useState(false);
+  const [promotionSaving, setPromotionSaving] = useState(false);
+  const [paymentPromotion, setPaymentPromotion] = useState({ bookingId: "", promotion: null, error: "" });
   const unsubscribeRef = useRef([]);
   const submissionLockRef = useRef(false);
   const loadError = Object.values(loadErrors).join(" ");
@@ -512,6 +527,15 @@ export default function Payments() {
     listen("bracesAccounts", setBracesAccounts);
   }
 
+  const closePatientDetails = useCallback(() => {
+    if (submissionLockRef.current || receiptPhotoLoading) return;
+    setSelectedPatientId("");
+    setSelectedPatientFallback(null);
+    setSelectedPaymentRowId("");
+    setSelectedTreatmentId("");
+    setDetailError("");
+  }, [receiptPhotoLoading]);
+
   useEffect(() => {
     load();
     return () => unsubscribeRef.current.forEach((unsubscribe) => unsubscribe());
@@ -526,7 +550,7 @@ export default function Payments() {
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [selectedPatientId]);
+  }, [selectedPatientId, closePatientDetails]);
 
   const regularRows = useMemo(
     () => [
@@ -616,9 +640,36 @@ export default function Payments() {
   const isBracesInstallment = selectedPaymentRow?.source === "Ortho" && selectedPatientType === "Ortho";
   const selectedPaymentCompleted = isFullyPaid(selectedPaymentRow || {});
   const selectedBooking = bookings.find((booking) => booking.id === selectedPaymentRow?.appointmentId);
+  const promotionId = selectedBooking?.promotionId || "";
+  const promotionBookingId = selectedBooking?.id || "";
+  useEffect(() => {
+    if (!promotionId || !promotionBookingId) return;
+    let active = true;
+    GET_BOOKING_PAYMENT_PROMOTION({ bookingId: promotionBookingId }).then(result => {
+      if (active) setPaymentPromotion({ bookingId: promotionBookingId, promotion: result.data.promotion, error: "" });
+    }).catch(error => {
+      if (active) setPaymentPromotion({ bookingId: promotionBookingId, promotion: null, error: error.message || "The booking promotion could not be loaded." });
+    });
+    return () => { active = false; };
+  }, [promotionId, promotionBookingId]);
+  const promotionLoading = Boolean(promotionId && paymentPromotion.bookingId !== promotionBookingId);
+  const promotionError = promotionId && paymentPromotion.bookingId === promotionBookingId ? paymentPromotion.error : "";
+  const promotion = promotionId && paymentPromotion.bookingId === promotionBookingId ? paymentPromotion.promotion : null;
+  const serviceNames = [...new Set([
+    ...(detailDraft.treatmentName || "Dental treatment").split(",").map(name => name.trim()).filter(Boolean),
+    ...detailDraft.additionalServices,
+  ])];
+  const previousDiscount = regularTreatmentSummaries.filter(summary =>
+    summary.appointmentId === selectedBooking?.id && summary.treatmentId !== selectedPaymentRow?.treatmentId &&
+    summary.chargeBreakdown?.promotionId === promotionId
+  ).reduce((sum, summary) => sum + (Number(summary.chargeBreakdown?.discountAmount) || 0), 0);
+  const chargeBreakdown = calculateCharges(serviceNames.map(name => ({ name, amount: detailDraft.serviceCharges?.[name] || 0 })), promotion, previousDiscount);
+  const priorPaid = isBracesInstallment ? detailBracesSummary?.amountPaid || 0 : selectedPaymentRow?.amountPaid || 0;
+  const calculatedTotal = isBracesInstallment ? Number(detailDraft.totalCost) || 0 : chargeBreakdown.totalCost;
+  const paymentBalance = Math.max(0, calculatedTotal - priorPaid);
   const canEditAppointmentCharge = selectedPaymentRow?.source !== "Appointment" || selectedPaymentRow.paymentReady === true;
   const hasValidAppointmentCharge = selectedPaymentRow?.source !== "Appointment" ||
-    (selectedPaymentRow.paymentReady === true && Number(detailDraft.totalCost) > 0);
+    (selectedPaymentRow.paymentReady === true && chargeBreakdown.grossTotal > 0);
   const canRecordSelectedPayment = selectedPaymentRow?.source !== "Appointment" || hasValidAppointmentCharge;
   const selectedPatientTransactions = useMemo(() => {
     if (!selectedPatientRecord) return [];
@@ -671,7 +722,12 @@ export default function Payments() {
     return [...uniqueRows.values()];
   }, [filteredRows, paymentTab]);
 
+  const paymentPage = useRecordPagination(tabRows, JSON.stringify([search, paymentTab]));
   function openPatientDetails(row) {
+    const names = [...new Set((row.treatmentName || "Dental treatment").split(",").map(name => name.trim()).filter(Boolean))];
+    const serviceCharges = row.chargeBreakdown?.serviceCharges
+      ? Object.fromEntries(row.chargeBreakdown.serviceCharges.map(line => [line.name, String(line.amount)]))
+      : Object.fromEntries(names.map((name, index) => [name, index === 0 ? String(row.totalCost || "") : ""]));
     const patientRecord = row.patientRecord || {
       id: row.patientId,
       name: row.patientName,
@@ -690,40 +746,56 @@ export default function Payments() {
       paymentDate: new Date().toISOString().slice(0, 10),
       referenceNumber: "",
       additionalServices: Array.isArray(row.additionalServices) ? row.additionalServices : [],
+      serviceCharges,
+      receiptPhotos: [],
       method: DETAIL_PAYMENT_METHODS.includes(row.method) ? row.method : "Cash",
     });
     setDetailError("");
   }
 
-  function closePatientDetails() {
-    if (submissionLockRef.current) return;
-    setSelectedPatientId("");
-    setSelectedPatientFallback(null);
-    setSelectedPaymentRowId("");
-    setSelectedTreatmentId("");
+  async function importReceiptPhotos(event) {
+    const files = [...event.target.files];
+    event.target.value = "";
+    if (detailDraft.receiptPhotos.length + files.length > MAX_RECEIPT_PHOTOS) {
+      setDetailError("Attach up to three receipt photos for this payment.");
+      return;
+    }
+    setReceiptPhotoLoading(true);
     setDetailError("");
+    try {
+      const photos = await Promise.all(files.map(prepareReceiptPhoto));
+      setDetailDraft(current => ({ ...current, receiptPhotos: [...current.receiptPhotos, ...photos] }));
+    } catch (error) {
+      setDetailError(error.message);
+    } finally {
+      setReceiptPhotoLoading(false);
+    }
   }
 
   async function saveSelectedPaymentDetails(event) {
     event.preventDefault();
-    if (submissionLockRef.current || !selectedPatientRecord || selectedPaymentCompleted) return;
+    if (submissionLockRef.current || receiptPhotoLoading || promotionSaving || !selectedPatientRecord || selectedPaymentCompleted || promotionLoading || promotionError) return;
     setDetailError("");
     if (!canRecordSelectedPayment) {
       setDetailError("Payment can be recorded after the dentist marks the treatment as completed and sends it to Payments, and a valid charge is available.");
       return;
     }
-    const totalCost = Number(detailDraft.totalCost);
+    const totalCost = calculatedTotal;
     const amount = detailDraft.amount === "" ? 0 : Number(detailDraft.amount);
-    if (!Number.isFinite(totalCost) || totalCost <= 0) {
-      setDetailError("Enter a total fee greater than zero.");
+    if (!Number.isFinite(totalCost) || (isBracesInstallment ? totalCost <= 0 : chargeBreakdown.grossTotal <= 0)) {
+      setDetailError("Enter service charges greater than zero.");
       return;
     }
     if (!Number.isFinite(amount) || amount < 0 || !detailDraft.paymentDate) {
       setDetailError("Enter a valid payment amount and date.");
       return;
     }
-    if (detailDraft.referenceNumber && !/^\d{13}$/.test(detailDraft.referenceNumber)) {
-      setDetailError("Reference number must contain exactly 13 digits.");
+    if (amount > paymentBalance) {
+      setDetailError("Amount received cannot exceed the outstanding balance.");
+      return;
+    }
+    if (detailDraft.method !== "Cash" && detailDraft.receiptPhotos.length && amount <= 0) {
+      setDetailError("Enter the amount received before saving receipt photos.");
       return;
     }
 
@@ -745,6 +817,7 @@ export default function Payments() {
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
           additionalServices: detailDraft.additionalServices,
+          receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
         });
         await logAdminAction({
           action: amount > 0 ? "log_braces_payment" : "update_braces_account",
@@ -772,9 +845,11 @@ export default function Payments() {
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
           additionalServices: detailDraft.additionalServices,
+          chargeBreakdown,
+          receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
           allowZeroAmount: true,
         });
-        if (amount > 0 && selectedPaymentRow.appointmentId) {
+        if ((amount > 0 || totalCost === 0) && selectedPaymentRow.appointmentId) {
           try {
             await COMPLETE_PAID_APPOINTMENT({ bookingId: selectedPaymentRow.appointmentId });
           } catch (error) {
@@ -790,7 +865,7 @@ export default function Payments() {
           details: { treatmentId: selectedPaymentRow.treatmentId, totalCost },
         });
       }
-      setDetailDraft((current) => ({ ...current, amount: "" }));
+      setDetailDraft((current) => ({ ...current, amount: "", receiptPhotos: [], referenceNumber: "" }));
       if (completionWarning) setDetailError(completionWarning);
     } catch (error) {
       console.error("Patient payment details could not be saved:", error);
@@ -864,7 +939,7 @@ export default function Payments() {
               This appointment is in the payment queue, but payment entry is disabled until its treatment details and charge are ready.
             </p>
           ) : null}
-          {!selectedPaymentCompleted && selectedPaymentRow?.source === "Appointment" && selectedPaymentRow.paymentReady && Number(detailDraft.totalCost) <= 0 ? (
+          {!selectedPaymentCompleted && selectedPaymentRow?.source === "Appointment" && selectedPaymentRow.paymentReady && chargeBreakdown.grossTotal <= 0 ? (
             <p className="paymentsDetailNote" role="status">Treatment is ready. Enter a valid final charge before recording payment.</p>
           ) : null}
 
@@ -888,13 +963,19 @@ export default function Payments() {
                       <div className="detailRow" key={label}><dt>{label}</dt><dd>{value}</dd></div>
                     ))}
                   </dl>
-                  <PaymentReceipts payments={selectedRecordTransactions} patientName={selectedPatientRecord.name} booking={selectedBooking} />
+                  <PaymentChargeBreakdown breakdown={selectedPaymentRow.chargeBreakdown} paid={selectedPaymentRow.amountPaid} />
                 </>
               ) : (
                 <>
               <h2>Record a payment</h2>
+              {selectedBooking ? <BookingPromotionSelect key={selectedBooking.id} booking={selectedBooking}
+                disabled={savingDetails || selectedPatientTransactions.some(payment => payment.appointmentId === selectedBooking.id) ||
+                  regularTreatmentSummaries.some(summary => summary.appointmentId === selectedBooking.id && summary.chargeBreakdown?.grossTotal > 0)}
+                onBusyChange={setPromotionSaving}
+                onChange={promotion => setPaymentPromotion({ bookingId: selectedBooking.id, promotion, error: "" })} /> : null}
               <form className="paymentsDetailsForm" onSubmit={saveSelectedPaymentDetails}>
                 <div className="paymentsDetailsFields">
+                  {isBracesInstallment ? (
                   <label className="paymentsField">
                     <span>Total fee (₱)</span>
                     <input
@@ -908,16 +989,26 @@ export default function Payments() {
                       required
                     />
                   </label>
+                  ) : serviceNames.map(name => (
+                    <label className="paymentsField" key={name}>
+                      <span>{name} charge (₱)</span>
+                      <input className="input" type="number" min="0" step="0.01" value={detailDraft.serviceCharges?.[name] ?? ""}
+                        disabled={!canEditAppointmentCharge || savingDetails}
+                        onChange={event => setDetailDraft(current => ({ ...current, serviceCharges: { ...current.serviceCharges, [name]: event.target.value } }))}
+                        required />
+                    </label>
+                  ))}
+                  {!isBracesInstallment ? <div className="paymentsField paymentsFieldWide">
+                    {promotionLoading ? <p role="status">Loading booking promotion…</p> : promotionError ? <p className="formError" role="alert">{promotionError}</p> : <PaymentChargeBreakdown breakdown={chargeBreakdown} paid={priorPaid} received={Number(detailDraft.amount) || 0} />}
+                  </div> : null}
                   <label className="paymentsField">
-                    <span>Amount (₱)</span>
+                    <span>Amount received (₱)</span>
                     <input
                       className="input"
                       type="number"
                       min="0"
                       step="0.01"
-                      max={isBracesInstallment
-                        ? Math.max(0, Number(detailDraft.totalCost) - (detailBracesSummary?.amountPaid || 0))
-                        : Math.max(0, Number(detailDraft.totalCost) - (selectedPaymentRow?.amountPaid || 0))}
+                      max={paymentBalance}
                       value={detailDraft.amount}
                       disabled={!canRecordSelectedPayment}
                       onChange={(event) => setDetailDraft((current) => ({ ...current, amount: event.target.value }))}
@@ -950,19 +1041,37 @@ export default function Payments() {
                     <input
                       className="input"
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={13}
+                      maxLength={100}
                       value={detailDraft.referenceNumber}
                       disabled={!canRecordSelectedPayment}
                       onChange={(event) =>
                         setDetailDraft((current) => ({
                           ...current,
-                          referenceNumber: event.target.value.replace(/\D/g, "").slice(0, 13),
+                          referenceNumber: event.target.value.slice(0, 100),
                         }))
                       }
                     />
                   </label>
+                  {detailDraft.method !== "Cash" ? (
+                    <div className="paymentsField paymentsFieldWide">
+                      <label className="paymentsField">
+                        <span>Receipt photos (optional, up to 3)</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={importReceiptPhotos}
+                          disabled={receiptPhotoLoading || savingDetails || !canRecordSelectedPayment} />
+                      </label>
+                      {receiptPhotoLoading ? <p role="status">Preparing receipt photos…</p> : null}
+                      <div className="paymentsReceiptPhotos">
+                        {detailDraft.receiptPhotos.map((photo, index) => (
+                          <figure key={`${photo.name}-${index}`}>
+                            <img src={photo.dataUrl} alt={`Receipt preview: ${photo.name}`} />
+                            <figcaption>{photo.name}</figcaption>
+                            <button type="button" className="btn secondary" disabled={savingDetails || receiptPhotoLoading}
+                              onClick={() => setDetailDraft(current => ({ ...current, receiptPhotos: current.receiptPhotos.filter((_, photoIndex) => photoIndex !== index) }))}>Remove photo</button>
+                          </figure>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="paymentsField paymentsFieldWide paymentsAdditionalServiceField">
                     <span>Additional Service</span>
                     <div className="paymentsAdditionalServiceOptions" role="group" aria-label="Additional Service">
@@ -987,10 +1096,10 @@ export default function Payments() {
                   </div>
                 </div>
                 <footer className="paymentsDetailsActions">
-                  <button type="submit" className="btn btnPrimary" disabled={savingDetails || !canRecordSelectedPayment}>
+                  <button type="submit" className="btn btnPrimary" disabled={savingDetails || receiptPhotoLoading || promotionSaving || promotionLoading || Boolean(promotionError) || !canRecordSelectedPayment}>
                     {savingDetails ? "Updating..." : "Update"}
                   </button>
-                  <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails}>Cancel</button>
+                  <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails || receiptPhotoLoading}>Cancel</button>
                 </footer>
               </form>
                 </>
@@ -1003,21 +1112,21 @@ export default function Payments() {
                 <table className="paymentsInlineHistoryTable">
                   <thead><tr><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th></tr></thead>
                   <tbody>
-                    {selectedRecordTransactions
-                      .map((transaction) => (
+                    <PaginatedRecords items={selectedRecordTransactions} tableColumns={4} resetKey={selectedPaymentRow?.appointmentId || selectedTreatmentId} label="payments">{(transaction) => (
                         <tr key={`${transaction.ledgerSource}:${transaction.id}`}>
                           <td>{paymentDateSortValue(transaction) ? formatDateLabel(paymentDateSortValue(transaction)) : "—"}</td>
                           <td>{transaction.method || transaction.paymentMethod || "—"}</td>
                           <td>{transaction.referenceNumber || "—"}</td>
                           <td>{formatCurrency(transaction.amount ?? transaction.paid)}</td>
                         </tr>
-                      ))}
+                      )}</PaginatedRecords>
                   </tbody>
                 </table>
                 {!selectedRecordTransactions.length ? (
                   <p className="paymentsDetailNote">No payment history is recorded for this booking or treatment.</p>
                 ) : null}
               </div>
+              <PaymentReceipts payments={selectedRecordTransactions} patientName={selectedPatientRecord.name} booking={selectedBooking} />
             </section>
           </div>
         </section>
@@ -1078,7 +1187,7 @@ export default function Payments() {
                 </thead>
               )}
               <tbody>
-                {tabRows.map((row) => (
+                {paymentPage.items.map((row) => (
                   <tr
                     key={row.id}
                     className="paymentsClickableRow"
@@ -1138,6 +1247,7 @@ export default function Payments() {
                 ))}
               </tbody>
             </table>
+              <RecordPagination pagination={paymentPage} />
           </div>
         ) : (
           <EmptyState

@@ -2211,7 +2211,8 @@ exports.createBooking = onCall(
     const dentistId = String(payload.dentistId || "").trim();
     const date = String(payload.date || "").trim();
     const time = String(payload.time || "").trim();
-    const promotionId = String(payload.promotionId || "").trim();
+    // Promotions are assigned by staff after the booking is created.
+    const promotionId = "";
     const selectedServices = Array.isArray(payload.selectedServices)
       ? payload.selectedServices.map((entry) => String(entry || "").trim()).filter(Boolean)
       : [];
@@ -2311,7 +2312,7 @@ exports.createBooking = onCall(
         if (promotion.status !== "active" || (promotion.startDate && date < promotion.startDate) || (promotion.endDate && date > promotion.endDate) || !applicable) {
           throw new HttpsError("failed-precondition", "This promotion is not active for the selected appointment date and services.");
         }
-        selectedPromotion = { id: promotionId, title: String(promotion.title || "Promotion"), discountType: promotion.discountType === "fixed" ? "fixed" : "percentage", discountValue: Number(promotion.discountValue || 0) };
+        selectedPromotion = { id: promotionId, title: String(promotion.title || "Promotion"), discountType: promotion.discountType === "fixed" ? "fixed" : "percentage", discountValue: Number(promotion.discountValue || 0), services: promotion.services || [] };
       }
 
       const closures = closuresSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
@@ -2434,7 +2435,7 @@ exports.createBooking = onCall(
         service,
         services: selectedServices,
         serviceCount: selectedServices.length,
-        ...(selectedPromotion ? { promotionId: selectedPromotion.id, promotionTitle: selectedPromotion.title, promotionDiscountType: selectedPromotion.discountType, promotionDiscountValue: selectedPromotion.discountValue } : {}),
+        ...(selectedPromotion ? { promotionId: selectedPromotion.id, promotionTitle: selectedPromotion.title, promotionDiscountType: selectedPromotion.discountType, promotionDiscountValue: selectedPromotion.discountValue, promotionServices: selectedPromotion.services } : {}),
         estimatedDurationMinutes: durationMinutes,
         estimatedEndTime: minutesToTime(endMinutes),
         date,
@@ -3211,6 +3212,77 @@ exports.recordBookingProcedures = onCall(
   }
 );
 
+exports.setBookingPromotion = onCall({}, async (request) => {
+  const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const promotionId = String(request.data?.promotionId || "").trim();
+  if (!bookingId) throw new HttpsError("invalid-argument", "Booking ID is required.");
+  let selected = null;
+  await db.runTransaction(async transaction => {
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnapshot = await transaction.get(bookingRef);
+    if (!bookingSnapshot.exists) throw new HttpsError("not-found", "Booking could not be found.");
+    const booking = bookingSnapshot.data();
+    if (booking.archiveStatus === "Archived" || ["completed", "cancelled", "no-show"].includes(booking.status)) {
+      throw new HttpsError("failed-precondition", "Promotions can only be changed for active bookings.");
+    }
+    const summaries = await transaction.get(db.collection("paymentTreatmentSummaries").where("appointmentId", "==", bookingId));
+    const payments = await transaction.get(db.collection("payments").where("appointmentId", "==", bookingId).limit(1));
+    if (!payments.empty || summaries.docs.some(entry => Number(entry.data().amountPaid) > 0 || entry.data().chargeBreakdown?.grossTotal > 0)) {
+      throw new HttpsError("failed-precondition", "Choose the promotion before saving charges or recording payments for this booking.");
+    }
+    const oldId = String(booking.promotionId || "");
+    const refs = [...new Set([oldId, promotionId].filter(Boolean))].map(id => db.collection("promotions").doc(id));
+    const snapshots = await Promise.all(refs.map(ref => transaction.get(ref)));
+    if (promotionId) {
+      const snapshot = snapshots.find(entry => entry.id === promotionId);
+      if (!snapshot?.exists) throw new HttpsError("not-found", "Promotion could not be found.");
+      const promotion = snapshot.data();
+      const services = getBookingServices(booking).map(normalizeText);
+      if (promotion.status !== "active" || (promotion.startDate && booking.date < promotion.startDate) ||
+        (promotion.endDate && booking.date > promotion.endDate) ||
+        !(promotion.services || []).some(name => services.includes(normalizeText(name)))) {
+        throw new HttpsError("failed-precondition", "This promotion does not apply to the booking date and services.");
+      }
+      selected = { id: promotionId, title: promotion.title || "Promotion", discountType: promotion.discountType,
+        discountValue: Number(promotion.discountValue) || 0, services: promotion.services || [] };
+    }
+    transaction.update(bookingRef, {
+      promotionId, promotionTitle: selected?.title || "", promotionDiscountType: selected?.discountType || "",
+      promotionDiscountValue: selected?.discountValue || 0, promotionServices: selected?.services || [],
+      promotionAssignedBy: staff.uid, promotionAssignedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    if (oldId !== promotionId) snapshots.forEach(snapshot => {
+      if (!snapshot.exists) return;
+      transaction.update(snapshot.ref, { usageCount: Math.max(0, Number(snapshot.data().usageCount || 0) + (snapshot.id === promotionId ? 1 : -1)) });
+    });
+  });
+  await writeStaffAuditLog(staff, { action: "set_booking_promotion", targetType: "booking", targetId: bookingId,
+    targetLabel: bookingId, details: { promotionId, promotionTitle: selected?.title || "None" } });
+  return { success: true, promotion: selected };
+});
+
+exports.getBookingPaymentPromotion = onCall({}, async (request) => {
+  await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  if (!bookingId) throw new HttpsError("invalid-argument", "Booking ID is required.");
+  const snapshot = await db.collection("bookings").doc(bookingId).get();
+  if (!snapshot.exists) throw new HttpsError("not-found", "Booking could not be found.");
+  const booking = snapshot.data();
+  if (!booking.promotionId) return { promotion: null };
+  let services = booking.promotionServices;
+  if (!Array.isArray(services)) {
+    const promotionSnapshot = await db.collection("promotions").doc(booking.promotionId).get();
+    if (!promotionSnapshot.exists) throw new HttpsError("failed-precondition", "This booking's promotion is missing. Restore the promotion before calculating its discount.");
+    services = promotionSnapshot.data().services || [];
+  }
+  return { promotion: {
+    id: booking.promotionId, title: booking.promotionTitle || "Promotion",
+    discountType: booking.promotionDiscountType, discountValue: booking.promotionDiscountValue,
+    services,
+  } };
+});
+
 exports.completePaidAppointment = onCall(
   {},
   async (request) => {
@@ -3236,7 +3308,8 @@ exports.completePaidAppointment = onCall(
       const summariesSnapshot = await transaction.get(summariesQuery);
       const summaries = summariesSnapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
       if (!summaries.length || summaries.some((summary) =>
-        !summary.treatmentId || !Number.isFinite(Number(summary.totalCost)) || Number(summary.totalCost) <= 0
+        !summary.treatmentId || !Number.isFinite(Number(summary.totalCost)) || Number(summary.totalCost) < 0 ||
+        (Number(summary.totalCost) === 0 && !(summary.chargeBreakdown?.grossTotal > 0 && summary.chargeBreakdown?.discountAmount === summary.chargeBreakdown?.grossTotal))
       )) return;
 
       const paymentQueries = [...new Set(summaries.map((summary) => summary.treatmentId))]

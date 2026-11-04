@@ -1,5 +1,7 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../../firebase";
 import { getAuditActionLabel } from "../../utils/audit";
 import { ROLE_LABELS } from "../../utils/rbac";
@@ -71,7 +73,7 @@ export default function Logs() {
   const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
-    const logsQuery = query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(80));
+    const logsQuery = query(collection(db, "auditLogs"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
       setLogs(
         snapshot.docs.map((entry) => ({
@@ -120,6 +122,7 @@ export default function Logs() {
     [logs]
   );
 
+  const recordsPage = useRecordPagination(filteredLogs, JSON.stringify([search, roleFilter, actionFilter, targetFilter, dateFilter]));
   return (
     <div className="container adminSurface auditPage">
       <header className="auditPageHeading">
@@ -182,7 +185,7 @@ export default function Logs() {
               <div style={{ textAlign: "right" }}>Meta</div>
             </div>
 
-            {filteredLogs.map((log) => {
+            {recordsPage.items.map((log) => {
               const hasDetails = log.details && Object.keys(log.details).length > 0;
 
               return (
@@ -233,6 +236,7 @@ export default function Logs() {
           </div>
         )}
       </div>
+      <RecordPagination pagination={recordsPage} label="activity records" />
     </div>
   );
 }

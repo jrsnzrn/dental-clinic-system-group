@@ -8,7 +8,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  where,
 } from "firebase/firestore";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -109,8 +108,6 @@ export default function Book() {
 
   const [selectedServices, setSelectedServices] = useState(["Cleaning"]);
   const [clinicServices, setClinicServices] = useState([]);
-  const [promotions, setPromotions] = useState([]);
-  const [promotionId, setPromotionId] = useState("");
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [selectedDentistId, setSelectedDentistId] = useState("");
@@ -154,11 +151,6 @@ export default function Book() {
   const upcomingDates = useMemo(() => generateUpcomingDates(new Date(`${datePageStart}T00:00:00`), 8), [datePageStart]);
   const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
   const selectedClosure = useMemo(() => getActiveClosureForDate(clinicClosures, date), [clinicClosures, date]);
-  const availablePromotions = useMemo(() => promotions.filter((promotion) =>
-    promotion.status === "active" && (!promotion.startDate || promotion.startDate <= date) && (!promotion.endDate || promotion.endDate >= date) &&
-    (promotion.services || []).some((name) => selectedServices.includes(name))
-  ), [date, promotions, selectedServices]);
-  const selectedPromotion = availablePromotions.find((promotion) => promotion.id === promotionId) || null;
   const service = selectedServices.join(", ");
   const appointmentDurationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
   const selectedTimeEnd = time ? minutesToTime(timeToMinutes(time) + appointmentDurationMinutes) : "";
@@ -245,16 +237,7 @@ export default function Book() {
     };
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(query(collection(db, "promotions"), where("status", "==", "active")), (snapshot) => {
-      setPromotions(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    }, (snapshotError) => console.error("Promotions could not be loaded:", snapshotError));
-    return () => unsubscribe();
-  }, []);
 
-  useEffect(() => {
-    if (!availablePromotions.some((promotion) => promotion.id === promotionId)) setPromotionId("");
-  }, [availablePromotions, promotionId]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "dentists"), (snap) => {
@@ -545,7 +528,6 @@ export default function Book() {
       requestedEnd,
       requestedTimeRange: selectedTimeRange,
       hasDuplicateWarning: duplicateWarning,
-      promotion: selectedPromotion,
     });
     setBookingStep("review");
   }
@@ -578,7 +560,6 @@ export default function Book() {
         date,
         time,
         selectedServices,
-        promotionId: bookingConfirmation.promotion?.id || "",
         notes: notes.trim(),
         privacyConsentAccepted: true,
       });
@@ -593,7 +574,6 @@ export default function Book() {
             startingRate: serviceOption?.startingRate || "",
           };
         }),
-        promotion: bookingConfirmation.promotion?.title || "",
         dentist: selectedDentistRecord.name,
         date,
         timeRange: bookingConfirmation.requestedTimeRange,
@@ -853,10 +833,6 @@ export default function Book() {
                     </dl>
                   </section>
                   <section className="bookingReviewSection">
-                    <h4>Promotion</h4>
-                    <p>{submittedAppointment.promotion || "None"}</p>
-                  </section>
-                  <section className="bookingReviewSection">
                     <h4>Notes</h4>
                     <p>{submittedAppointment.notes || "None"}</p>
                   </section>
@@ -921,30 +897,6 @@ export default function Book() {
                         })}
                       </div>
                     </div>
-
-                    {availablePromotions.length > 0 ? (
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Promotion (optional)</span>
-                        <select
-                          className="input bookingInputSpecial"
-                          value={promotionId}
-                          onChange={(e) => setPromotionId(e.target.value)}
-                          disabled={!user || saving}
-                        >
-                          <option value="">No promotion</option>
-                          {availablePromotions.map((promotion) => (
-                            <option key={promotion.id} value={promotion.id}>
-                              {promotion.title} · {promotion.discountType === "percentage"
-                                ? `${promotion.discountValue}% off`
-                                : `₱${promotion.discountValue} off`}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedPromotion?.description ? (
-                          <span className="bookingFieldHint">{selectedPromotion.description}</span>
-                        ) : null}
-                      </label>
-                    ) : null}
                   </section>
 
                   <section className="bookingInfoSection bookingInfoSchedule">
@@ -1235,15 +1187,7 @@ export default function Book() {
                           ) : null}
                         </section>
 
-                        <section className="bookingReviewModalSection">
-                          <h4>Promotion</h4>
-                          <dl className="bookingReviewModalRows">
-                            <div>
-                              <dt>Selected promotion</dt>
-                              <dd>{bookingConfirmation.promotion?.title || "No promotion"}</dd>
-                            </div>
-                          </dl>
-                        </section>
+
                       </div>
 
                       {error ? <div className="error" role="alert">{error}</div> : null}

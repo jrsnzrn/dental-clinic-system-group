@@ -1,11 +1,13 @@
+import PaginatedRecords from "./PaginatedRecords";
 import { formatCurrency } from "../utils/braces";
 import { formatDateLabel, formatTimestamp } from "../utils/schedule";
+import PaymentChargeBreakdown from "./PaymentChargeBreakdown";
 
 export default function PaymentReceipts({ payments, patientName, booking }) {
   return (
     <section className="paymentReceipts" aria-label="Payment receipts">
       <h3>Payment receipts</h3>
-      {payments.length ? payments.map((payment) => (
+      {payments.length ? <PaginatedRecords items={payments} resetKey={booking?.id || patientName} label="receipts">{(payment) => (
         <article className="drawerNote" key={payment.id} aria-label={`Receipt ${payment.id}`}>
           <dl className="appointmentPaymentDetails">
             {[
@@ -23,8 +25,23 @@ export default function PaymentReceipts({ payments, patientName, booking }) {
               <div className="detailRow" key={label}><dt>{label}</dt><dd>{value}</dd></div>
             ))}
           </dl>
+          <PaymentChargeBreakdown breakdown={payment.chargeBreakdown}
+            paid={Number(payment.amountPaidBefore) || 0}
+            received={Number(payment.amount) || 0} />
+          {payment.receiptPhotos?.length ? (
+            <div className="paymentsReceiptPhotos">
+              {payment.receiptPhotos.map((photo, index) => (
+                <figure key={`${payment.id}-${index}`}>
+                  <a href={photo.dataUrl} download={photo.name || `receipt-${payment.id}-${index + 1}.jpg`}>
+                    <img src={photo.dataUrl} alt={`Payment receipt ${index + 1} for ${payment.patientName || patientName || "patient"}`} loading="lazy" />
+                    <span>Download receipt photo {index + 1}</span>
+                  </a>
+                </figure>
+              ))}
+            </div>
+          ) : null}
         </article>
-      )) : <p>No payment receipts are linked to this record.</p>}
+      )}</PaginatedRecords> : <p>No payment receipts are linked to this record.</p>}
     </section>
   );
 }

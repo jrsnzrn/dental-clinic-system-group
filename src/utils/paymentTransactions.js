@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { buildBracesAccount } from "./braces";
+import { validateReceiptPhotos } from "./receiptPhotos";
 
 function toAmount(value) {
   const amount = Number(value);
@@ -68,17 +69,23 @@ export async function recordRegularPayment(payment) {
   const treatmentId = String(payment.treatmentId || paymentRef.id);
   const paymentData = { ...payment };
   delete paymentData.allowZeroAmount;
+  validateReceiptPhotos(payment.receiptPhotos || []);
+  if (payment.chargeBreakdown && Math.abs(requestedTotalCost - payment.chargeBreakdown.totalCost) > 0.005) {
+    throw new Error("The total fee does not match the service charge calculation.");
+  }
+  const fullyDiscounted = requestedTotalCost === 0 && payment.chargeBreakdown?.grossTotal > 0 &&
+    payment.chargeBreakdown.discountAmount === payment.chargeBreakdown.grossTotal;
 
   if (
     !patientId ||
     !treatmentId ||
     (amount <= 0 && !allowZeroAmount) ||
-    requestedTotalCost <= 0
+    (requestedTotalCost <= 0 && !fullyDiscounted)
   ) {
     throw new Error("A patient, treatment, positive total cost, and valid payment amount are required.");
   }
-  if (referenceNumber && !/^\d{13}$/.test(referenceNumber)) {
-    throw new Error("The reference number must contain exactly 13 digits.");
+  if (referenceNumber.length > 100) {
+    throw new Error("The reference number must be 100 characters or fewer.");
   }
 
   const summaryRef = doc(
@@ -101,6 +108,9 @@ export async function recordRegularPayment(payment) {
     getDocs(treatmentSummariesQuery),
     getDocs(treatmentPaymentsQuery),
   ]);
+  const appointmentSummaries = payment.appointmentId && payment.chargeBreakdown?.discountType === "fixed"
+    ? await getDocs(query(collection(db, "paymentTreatmentSummaries"), where("appointmentId", "==", payment.appointmentId)))
+    : { docs: [] };
   const matchingSummary = summariesSnapshot.docs.find((entry) => {
     const data = entry.data();
     return data.patientId === patientId || (payment.uid && data.uid === payment.uid);
@@ -112,9 +122,15 @@ export async function recordRegularPayment(payment) {
       return data.patientId === patientId || (payment.uid && data.uid === payment.uid);
     })
     .map((entry) => entry.ref);
-  const summaryRefs = [...new Map([summaryRef, targetSummaryRef].map((ref) => [ref.path, ref])).values()];
+  const summaryRefs = [...new Map([summaryRef, targetSummaryRef, ...appointmentSummaries.docs.map(entry => entry.ref)].map((ref) => [ref.path, ref])).values()];
 
   await runTransaction(db, async (transaction) => {
+    if (payment.appointmentId && payment.chargeBreakdown) {
+      const bookingSnapshot = await transaction.get(doc(db, "bookings", payment.appointmentId));
+      if (!bookingSnapshot.exists() || (bookingSnapshot.data().promotionId || "") !== (payment.chargeBreakdown.promotionId || "")) {
+        throw new Error("The booking promotion changed. Reopen the payment before saving charges.");
+      }
+    }
     const [summarySnapshots, paymentSnapshots] = await Promise.all([
       Promise.all(summaryRefs.map((ref) => transaction.get(ref))),
       Promise.all(relatedPaymentRefs.map((ref) => transaction.get(ref))),
@@ -131,6 +147,13 @@ export async function recordRegularPayment(payment) {
       0
     );
     const summary = summarySnapshot.exists() ? summarySnapshot.data() : null;
+    if (payment.chargeBreakdown?.discountType === "fixed") {
+      const otherDiscounts = summarySnapshots.filter(snapshot => snapshot.ref.path !== targetSummaryRef.path && snapshot.exists())
+        .reduce((sum, snapshot) => sum + toAmount(snapshot.data().chargeBreakdown?.discountAmount), 0);
+      if (otherDiscounts + payment.chargeBreakdown.discountAmount > payment.chargeBreakdown.discountValue + 0.005) {
+        throw new Error("This promotion was applied to another service. Reopen the payment to refresh its discount.");
+      }
+    }
     const amountPaid = Math.max(ledgerTotal, toAmount(summary?.amountPaid));
     const totalCost = allowZeroAmount
       ? requestedTotalCost
@@ -153,10 +176,13 @@ export async function recordRegularPayment(payment) {
     if (amount > 0) {
       transaction.set(paymentRef, {
         ...paymentData,
+        referenceNumber,
         patientType,
         treatmentId,
         totalCost,
         amount,
+        amountPaidBefore: amountPaid,
+        balanceAfterPayment: Math.max(0, totalCost - nextAmountPaid),
         createdAt: now,
       });
     }
@@ -170,6 +196,7 @@ export async function recordRegularPayment(payment) {
       appointmentId: payment.appointmentId || summarySnapshot.data()?.appointmentId || "",
       treatmentName: payment.treatmentName || summarySnapshot.data()?.treatmentName || "",
       additionalServices: payment.additionalServices || summarySnapshot.data()?.additionalServices || [],
+      ...(payment.chargeBreakdown ? { chargeBreakdown: payment.chargeBreakdown } : {}),
       procedureName: summarySnapshot.data()?.procedureName || payment.treatmentName || "",
       totalCost,
       amountPaid: nextAmountPaid,
@@ -193,14 +220,16 @@ export async function recordBracesPayment({
   additionalServices = [],
   method,
   notes,
+  receiptPhotos = [],
 }) {
+  validateReceiptPhotos(receiptPhotos);
   const amount = toAmount(rawAmount);
   const normalizedReferenceNumber = String(referenceNumber || "").trim();
   if (!patient?.id || !accountId || Number(rawAmount) < 0 || !paymentDate) {
     throw new Error("A braces account, non-negative payment amount, and payment date are required.");
   }
-  if (normalizedReferenceNumber && !/^\d{13}$/.test(normalizedReferenceNumber)) {
-    throw new Error("The reference number must contain exactly 13 digits.");
+  if (normalizedReferenceNumber.length > 100) {
+    throw new Error("The reference number must be 100 characters or fewer.");
   }
 
   const accountRef = doc(db, "bracesAccounts", accountId);
@@ -254,6 +283,7 @@ export async function recordBracesPayment({
           paymentDate,
           ...(normalizedReferenceNumber ? { referenceNumber: normalizedReferenceNumber } : {}),
           additionalServices,
+          receiptPhotos,
           method: method || "Cash",
           notes: String(notes || "").trim(),
           createdAt: serverTimestamp(),

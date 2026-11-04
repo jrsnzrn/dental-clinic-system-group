@@ -278,8 +278,35 @@ service cloud.firestore {
         resource.data.uid == request.auth.uid
       );
 
-      allow create, update: if isAdminOrReceptionist();
+      allow create, update: if isAdminOrReceptionist() && validReceiptPhotos(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    function validReceiptPhoto(photo) {
+      return photo is map && photo.keys().hasOnly(["name", "dataUrl"]) &&
+        photo.name is string && photo.name.size() <= 150 &&
+        photo.dataUrl is string && photo.dataUrl.size() <= 200000 &&
+        photo.dataUrl.matches("^data:image/jpeg;base64,[A-Za-z0-9+/=]+$");
+    }
+
+    function validReceiptPhotos(data) {
+      let photos = data.get("receiptPhotos", []);
+      return photos is list && photos.size() <= 3 &&
+        (photos.size() < 1 || validReceiptPhoto(photos[0])) &&
+        (photos.size() < 2 || validReceiptPhoto(photos[1])) &&
+        (photos.size() < 3 || validReceiptPhoto(photos[2]));
+    }
+
+    function validChargeBreakdown(data) {
+      let breakdown = data.get("chargeBreakdown", null);
+      return breakdown == null || (breakdown is map &&
+        breakdown.serviceCharges is list && breakdown.serviceCharges.size() <= 30 &&
+        breakdown.grossTotal is number && breakdown.grossTotal > 0 &&
+        breakdown.eligibleTotal is number && breakdown.eligibleTotal >= 0 && breakdown.eligibleTotal <= breakdown.grossTotal &&
+        breakdown.discountAmount is number && breakdown.discountAmount >= 0 && breakdown.discountAmount <= breakdown.eligibleTotal &&
+        breakdown.totalCost == data.totalCost &&
+        data.totalCost >= breakdown.grossTotal - breakdown.discountAmount - 0.005 &&
+        data.totalCost <= breakdown.grossTotal - breakdown.discountAmount + 0.005);
     }
 
     match /payments/{id} {
@@ -299,6 +326,10 @@ service cloud.firestore {
           "paymentDate",
           "referenceNumber",
           "additionalServices",
+          "chargeBreakdown",
+          "balanceAfterPayment",
+          "amountPaidBefore",
+          "receiptPhotos",
           "method",
           "notes",
           "createdAt"
@@ -307,8 +338,8 @@ service cloud.firestore {
         request.resource.data.treatmentId is string &&
         request.resource.data.patientType in ["Regular", "Ortho"] &&
         request.resource.data.get("referenceNumber", "") is string &&
-        (request.resource.data.get("referenceNumber", "") == "" ||
-          request.resource.data.referenceNumber.matches("^[0-9]{13}$")) &&
+        request.resource.data.get("referenceNumber", "").size() <= 100 &&
+        validReceiptPhotos(request.resource.data) && validChargeBreakdown(request.resource.data) &&
         request.resource.data.get("additionalServices", []) is list &&
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
@@ -331,6 +362,7 @@ service cloud.firestore {
           "treatmentName",
           "procedureName",
           "additionalServices",
+          "chargeBreakdown",
           "totalCost",
           "amountPaid",
           "remainingBalance",
@@ -341,8 +373,11 @@ service cloud.firestore {
         request.resource.data.treatmentId is string &&
         request.resource.data.patientType in ["Regular", "Ortho"] &&
         request.resource.data.get("additionalServices", []) is list &&
+        validChargeBreakdown(request.resource.data) &&
         request.resource.data.totalCost is number &&
-        request.resource.data.totalCost > 0 &&
+        (request.resource.data.totalCost > 0 ||
+          (request.resource.data.totalCost == 0 && request.resource.data.get("chargeBreakdown", null) is map &&
+            request.resource.data.chargeBreakdown.grossTotal > 0)) &&
         request.resource.data.amountPaid is number &&
         request.resource.data.amountPaid >= 0 &&
         request.resource.data.amountPaid <= request.resource.data.totalCost &&

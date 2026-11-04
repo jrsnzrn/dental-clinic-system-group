@@ -1,3 +1,5 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -12,6 +14,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PaymentReceipts from "../../components/PaymentReceipts";
+import BookingPromotionSelect from "../../components/BookingPromotionSelect";
 import EmptyState from "../../components/EmptyState";
 import BookingToolbar from "../../components/BookingToolbar";
 import { SkeletonList } from "../../components/LoadingSkeleton";
@@ -373,6 +376,7 @@ function BookingDetailDrawer({
               </div>
             ) : null}
 
+              {!["completed", "cancelled", "no-show"].includes(status) ? <BookingPromotionSelect key={booking.id} booking={booking} /> : null}
               {status === "completed" ? (
                 <div className="drawerNote bookingPaymentNote">
                   <span className="drawerNoteLabel">Payment details</span>
@@ -1033,7 +1037,15 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       .sort((left, right) => compareBookings(left, right, sortBy)),
     [activeBookings, searchTerm, selectedDate, sortBy, status]
   );
+  const bookingPage = useRecordPagination(activeItems, JSON.stringify([searchTerm, selectedDate, sortBy, status]));
+  const setBookingPage = bookingPage.setPage;
   const selectedDateCount = selectedDate ? calendarCounts.get(selectedDate) || 0 : 0;
+
+  useEffect(() => {
+    if (!highlightedBookingIds.length) return;
+    const index = activeItems.findIndex(booking => booking.id === highlightedBookingIds[0]);
+    if (index >= 0) setBookingPage(Math.floor(index / 20) + 1);
+  }, [activeItems, highlightedBookingIds, setBookingPage]);
 
   useEffect(() => {
     if (!highlightedBookingIds.length) return undefined;
@@ -1044,7 +1056,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
     });
     const timeoutId = window.setTimeout(() => setHighlightedBookingIds([]), 7000);
     return () => window.clearTimeout(timeoutId);
-  }, [activeItems, highlightedBookingIds]);
+  }, [activeItems, highlightedBookingIds, bookingPage.page]);
 
   if (!BOOKING_FILTERS[status]) {
     return <Navigate to="/admin/bookings/pending" replace />;
@@ -1154,7 +1166,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                   </tr>
                 </thead>
                 <tbody>
-                  {activeItems.map((booking) => (
+                  {bookingPage.items.map((booking) => (
                     <BookingRow
                       key={booking.id}
                       booking={booking}
@@ -1164,6 +1176,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                   ))}
                 </tbody>
               </table>
+              <RecordPagination pagination={bookingPage} />
             </div>
           ) : (
             <EmptyState

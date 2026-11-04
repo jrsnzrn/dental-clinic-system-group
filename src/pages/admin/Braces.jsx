@@ -1,3 +1,6 @@
+import PaginatedRecords from "../../components/PaginatedRecords";
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
@@ -546,6 +549,7 @@ export default function Braces() {
     setBracesWorkspaceOpen(false);
   }
 
+  const bracesPage = useRecordPagination(filteredPatients, search);
   return (
     <div className="container adminSurface">
       <section className="bracesReferenceCard" aria-labelledby="bracesReferenceTitle">
@@ -694,7 +698,7 @@ export default function Braces() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPatients.map((patient) => {
+                {bracesPage.items.map((patient) => {
                   const bracesAccount = patient.bracesAccount;
 
                   return (
@@ -729,6 +733,7 @@ export default function Braces() {
                 })}
               </tbody>
             </table>
+              <RecordPagination pagination={bracesPage} />
           </div>
         ) : (
           <EmptyState
@@ -1115,7 +1120,7 @@ export default function Braces() {
 
                       {selectedPatient.bracesPayments.length ? (
                         <div className="historyList">
-                          {selectedPatient.bracesPayments.map((payment) => (
+                          <PaginatedRecords items={selectedPatient.bracesPayments} resetKey={selectedPatient.id} label="payments">{(payment) => (
                             <div key={payment.id || `${payment.paymentDate}-${payment.amount}`} className="historyRow bracesHistoryRow">
                               <div>
                                 <strong>{formatCurrency(payment.amount)}</strong>
@@ -1126,7 +1131,7 @@ export default function Braces() {
                                 <span className="statusPill active">{payment.method || "Cash"}</span>
                               </div>
                             </div>
-                          ))}
+                          )}</PaginatedRecords>
                         </div>
                       ) : (
                         <EmptyState
@@ -1147,7 +1152,7 @@ export default function Braces() {
 
                       {selectedPatient.bracesAdjustments.length ? (
                         <div className="historyList">
-                          {selectedPatient.bracesAdjustments.map((adjustment) => (
+                          <PaginatedRecords items={selectedPatient.bracesAdjustments} resetKey={selectedPatient.id} label="adjustments">{(adjustment) => (
                             <div key={adjustment.id || `${adjustment.adjustmentDate}-${adjustment.adjustmentTime}`} className="historyRow bracesHistoryRow">
                               <div>
                                 <strong>{adjustment.notes || "Braces adjustment visit"}</strong>
@@ -1163,7 +1168,7 @@ export default function Braces() {
                                 </span>
                               </div>
                             </div>
-                          ))}
+                          )}</PaginatedRecords>
                         </div>
                       ) : (
                         <EmptyState

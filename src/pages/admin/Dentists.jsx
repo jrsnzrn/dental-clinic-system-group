@@ -1,3 +1,5 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -334,6 +336,7 @@ export default function Dentists() {
   }
 
   // The dentist currently open in the modal (if any)
+  const dentistPage = useRecordPagination(visibleDentists);
   const openDentist = visibleDentists.find((entry) => entry.id === expandedDentistId) || null;
   const openDetailDraft = openDentist
     ? detailDrafts[openDentist.id] || {
@@ -373,7 +376,7 @@ export default function Dentists() {
                 </tr>
               </thead>
               <tbody>
-                {visibleDentists.map((dentist) => {
+                {dentistPage.items.map((dentist) => {
                   const isOpen = expandedDentistId === dentist.id;
                   const rowSchedule = normalizeSchedule(draftSchedules[dentist.id] || dentist.schedule);
                   const isActiveToday = rowSchedule[todayKey]?.active;
@@ -406,6 +409,7 @@ export default function Dentists() {
                 })}
               </tbody>
             </table>
+              <RecordPagination pagination={dentistPage} />
           </div>
         ) : (
           <div className="emptyEditorState" style={{ marginTop: 16 }}>

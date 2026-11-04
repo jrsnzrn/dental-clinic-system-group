@@ -1,3 +1,4 @@
+import PaginatedRecords from "../components/PaginatedRecords";
 import { useEffect, useMemo, useState } from "react";
 import {
   doc,
@@ -192,7 +193,8 @@ export default function MyAppointments() {
       setUser(nextUser);
       setError("");
       setSuccess("");
-      setLoading(!nextUser);
+      setLoading(Boolean(nextUser));
+      if (!nextUser) setBookings([]);
     });
 
     return () => unsubAuth();
@@ -200,8 +202,6 @@ export default function MyAppointments() {
 
   useEffect(() => {
     if (!user) {
-      setBookings([]);
-      setLoading(false);
       return;
     }
 
@@ -466,14 +466,14 @@ export default function MyAppointments() {
             <div className="emptyEditorState">Loading your appointments...</div>
           ) : activeStatusGroup.bookings.length ? (
             <ul className="list detailedList">
-              {activeStatusGroup.bookings.map((booking) => (
+              {<PaginatedRecords items={activeStatusGroup.bookings} list resetKey={activeStatusGroup.label} label="appointments">{(booking) => (
                 <AppointmentCard
                   key={booking.id}
                   booking={booking}
                   onStartReschedule={startReschedule}
                   onStartCancellation={startCancellation}
                 />
-              ))}
+              )}</PaginatedRecords>}
             </ul>
           ) : (
             <div className="emptyEditorState">No {activeStatusGroup.label.toLowerCase()} appointments right now.</div>

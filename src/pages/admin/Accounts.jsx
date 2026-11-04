@@ -1,3 +1,5 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
@@ -364,6 +366,7 @@ export default function Accounts() {
     };
   }, [pendingAction]);
 
+  const accountPage = useRecordPagination(visibleAccounts, JSON.stringify([searchTerm, roleFilter]));
   return (
     <div className="container adminSurface acctPage">
       {success ? (
@@ -463,7 +466,7 @@ export default function Accounts() {
               </div>
             </div>
             <ul className="acctList">
-              {visibleAccounts.map((account) => (
+              {accountPage.items.map((account) => (
                 <AccountRow
                   key={account.id}
                   account={account}
@@ -476,6 +479,7 @@ export default function Accounts() {
                 />
               ))}
             </ul>
+              <RecordPagination pagination={accountPage} />
           </>
         ) : null}
       </section>

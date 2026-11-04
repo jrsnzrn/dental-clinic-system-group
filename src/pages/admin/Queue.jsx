@@ -1,3 +1,5 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -269,6 +271,7 @@ export default function Queue() {
   );
   const calendarDays = useMemo(() => getMonthCalendarDays(calendarMonth), [calendarMonth]);
 
+  const queuePage = useRecordPagination(visibleRecords, JSON.stringify([search, selectedDate]));
   async function runQueueAction(bookingId, action) {
     if (actionPendingId) return "Another queue action is already processing.";
     setActionPendingId(bookingId);
@@ -383,7 +386,7 @@ export default function Queue() {
               <tbody>
                 {loadingBookings ? (
                   <tr><td className="queueEmptyCell" colSpan="7">Loading appointments…</td></tr>
-                ) : visibleRecords.length ? visibleRecords.map((booking) => {
+                ) : visibleRecords.length ? queuePage.items.map((booking) => {
                   const queueStatus = getQueueStatus(booking);
                   const status = String(booking.status || "").toLowerCase();
                   const isApproved = status === "approved";
@@ -466,6 +469,7 @@ export default function Queue() {
                 )}
               </tbody>
             </table>
+              <RecordPagination pagination={queuePage} />
           </div>
         </section>
 

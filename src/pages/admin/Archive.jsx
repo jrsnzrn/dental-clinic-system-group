@@ -1,3 +1,5 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useParams } from "react-router-dom";
 import {
@@ -289,9 +291,6 @@ export default function Archive({ adminRole, search }) {
       );
   }, [accounts, term]);
 
-  if (!ARCHIVE_FILTERS[section] || (["accounts", "promotions"].includes(section) && !isAdmin)) {
-    return <Navigate to="/admin/archive/all" replace />;
-  }
 
   async function restorePatient(id, refresh = true) {
     if (!isAdmin) {
@@ -406,8 +405,9 @@ export default function Archive({ adminRole, search }) {
         ...rows.promotions,
       ]
     : rows[section];
-  const selectedCurrentRows = currentRows.filter((row) => selectedIds.includes(row.id));
-  const allCurrentRowsSelected = currentRows.length > 0 && currentRows.every((row) => selectedIds.includes(row.id));
+  const archivePage = useRecordPagination(currentRows || [], JSON.stringify([section, term]));
+  const selectedCurrentRows = (currentRows || []).filter((row) => selectedIds.includes(row.id));
+  const allCurrentRowsSelected = archivePage.items.length > 0 && archivePage.items.every((row) => selectedIds.includes(row.id));
   const archiveCategories = [
     { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length + rows.promotions.length },
     ...(isAdmin ? [{ section: "accounts", label: "Staff accounts", count: rows.accounts.length }] : []),
@@ -424,7 +424,7 @@ export default function Archive({ adminRole, search }) {
   }
 
   function toggleAllCurrentRows() {
-    const currentIds = new Set(currentRows.map((row) => row.id));
+    const currentIds = new Set(archivePage.items.map((row) => row.id));
     setSelectedIds((selected) =>
       allCurrentRowsSelected
         ? selected.filter((id) => !currentIds.has(id))
@@ -474,6 +474,10 @@ export default function Archive({ adminRole, search }) {
     } finally {
       setRestoring(false);
     }
+  }
+
+  if (!ARCHIVE_FILTERS[section] || (["accounts", "promotions"].includes(section) && !isAdmin)) {
+    return <Navigate to="/admin/archive/all" replace />;
   }
 
   return (
@@ -544,7 +548,7 @@ export default function Archive({ adminRole, search }) {
                   checked={allCurrentRowsSelected}
                   ref={(node) => {
                     if (node) {
-                      node.indeterminate = selectedCurrentRows.length > 0 && !allCurrentRowsSelected;
+                      node.indeterminate = archivePage.items.some(row => selectedIds.includes(row.id)) && !allCurrentRowsSelected;
                     }
                   }}
                   onChange={toggleAllCurrentRows}
@@ -553,7 +557,7 @@ export default function Archive({ adminRole, search }) {
               </label>
             ) : null}
             <ul className="archiveList">
-              {currentRows.map((row) => (
+              {archivePage.items.map((row) => (
                 <ArchiveRow
                   key={row.id}
                   {...row}
@@ -564,6 +568,7 @@ export default function Archive({ adminRole, search }) {
                 />
               ))}
             </ul>
+            <RecordPagination pagination={archivePage} label="archived records" />
           </>
         ) : null}
       </section>

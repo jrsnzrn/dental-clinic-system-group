@@ -1,3 +1,5 @@
+import RecordPagination from "../../components/RecordPagination";
+import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
 import {
   addDoc,
@@ -335,6 +337,8 @@ export default function ServicesAdmin() {
     }
   }
 
+  const servicePage = useRecordPagination(filteredServices, JSON.stringify([search, statusFilter]));
+  const closurePage = useRecordPagination(normalizedClosures);
   return (
     <div className="container adminSurface servicesAdminPage">
       <label className="servicesAdminTopSearch adminSearchField">
@@ -380,8 +384,9 @@ export default function ServicesAdmin() {
         ) : !serviceLoadError && filteredServices.length === 0 ? (
           <EmptyState title="No matching services" message="Try another search or status filter." compact />
         ) : !serviceLoadError ? (
+          <>
           <ul className="servicesAdminList">
-            {filteredServices.map((service) => (
+            {servicePage.items.map((service) => (
               <li
                 className="servicesAdminRow"
                 key={service.id}
@@ -416,6 +421,8 @@ export default function ServicesAdmin() {
               </li>
             ))}
           </ul>
+              <RecordPagination pagination={servicePage} />
+          </>
         ) : null}
       </section>
 
@@ -478,8 +485,9 @@ export default function ServicesAdmin() {
         ) : !closureLoadError && normalizedClosures.length === 0 ? (
           <EmptyState title="No clinic closures yet" message="Add holidays or emergency closures here so booking is automatically blocked on those dates." compact />
         ) : !closureLoadError ? (
+          <>
           <ul className="servicesAdminClosureList">
-            {normalizedClosures.map((closure) => (
+            {closurePage.items.map((closure) => (
               <li key={closure.id}>
                 <div>
                   <strong>{closure.label}</strong>
@@ -500,6 +508,8 @@ export default function ServicesAdmin() {
               </li>
             ))}
           </ul>
+              <RecordPagination pagination={closurePage} />
+          </>
         ) : null}
       </section>
 
