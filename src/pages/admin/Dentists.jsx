@@ -409,7 +409,7 @@ export default function Dentists() {
                 })}
               </tbody>
             </table>
-              <RecordPagination pagination={dentistPage} />
+              {dentistPage.pageCount > 1 ? <RecordPagination pagination={dentistPage} /> : null}
           </div>
         ) : (
           <div className="emptyEditorState" style={{ marginTop: 16 }}>
@@ -477,10 +477,10 @@ export default function Dentists() {
                 </div>
 
                 <div className="addDentistActions">
+                  <button className="btn btnShine" type="submit">Add</button>
                   <button className="btn secondary" type="button" onClick={() => setAddModalOpen(false)}>
                     Cancel
                   </button>
-                  <button className="btn btnShine" type="submit">Add Dentist</button>
                 </div>
               </form>
             </>,

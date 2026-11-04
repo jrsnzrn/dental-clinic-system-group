@@ -126,6 +126,7 @@ export default function Accounts() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState(emptyDraft());
   const [showForm, setShowForm] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [listError, setListError] = useState("");
@@ -183,6 +184,7 @@ export default function Accounts() {
     function onKeyDown(event) {
       if (event.key === "Escape") {
         setMenuId("");
+        setShowPassword(false);
         setShowForm(false);
       }
     }
@@ -196,10 +198,12 @@ export default function Accounts() {
 
   function openForm() {
     setFormError("");
+    setShowPassword(false);
     setShowForm(true);
   }
 
   function closeForm() {
+    setShowPassword(false);
     setShowForm(false);
     setFormError("");
   }
@@ -244,6 +248,7 @@ export default function Accounts() {
         `${ROLE_LABELS[draft.role]} account created for ${created.name || draft.name.trim()} (${created.email || draft.email.trim()}).`
       );
       setDraft(emptyDraft());
+      setShowPassword(false);
       setShowForm(false);
       await loadStaffAccounts();
     } catch (err) {
@@ -505,7 +510,7 @@ export default function Accounts() {
                 <span>Full name</span>
                 <input
                   className="input"
-                  placeholder="Maria Santos"
+                  placeholder="(Firstname, Lastname)"
                   value={draft.name}
                   onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
                   autoFocus
@@ -523,14 +528,39 @@ export default function Accounts() {
               </label>
               <label className="acctField">
                 <span>Temporary password</span>
-                <input
-                  className="input"
-                  type="password"
-                  placeholder="Temporary password"
-                  autoComplete="new-password"
-                  value={draft.password}
-                  onChange={(e) => setDraft((current) => ({ ...current, password: e.target.value }))}
-                />
+                <div className="acctPasswordInput">
+                  <input
+                    className="input"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Temporary password"
+                    autoComplete="new-password"
+                    value={draft.password}
+                    onChange={(e) => setDraft((current) => ({ ...current, password: e.target.value }))}
+                  />
+                  <button
+                    className="acctPasswordToggle"
+                    type="button"
+                    aria-label={showPassword ? "Hide temporary password" : "Show temporary password"}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((current) => !current)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      {showPassword ? (
+                        <>
+                          <path d="M3 3l18 18" />
+                          <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                          <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9.5 7-.4 1-1.3 2.3-2.6 3.5" />
+                          <path d="M6.2 6.2C3.9 7.7 2.8 9.7 2.5 12c.5 1.3 3.9 7 9.5 7 1.2 0 2.3-.3 3.3-.7" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                </div>
               </label>
               <label className="acctField">
                 <span>Role</span>
@@ -539,7 +569,6 @@ export default function Accounts() {
                   value={draft.role}
                   onChange={(e) => setDraft((current) => ({ ...current, role: e.target.value }))}
                 >
-                  <option value={ROLES.ADMIN}>{ROLE_LABELS[ROLES.ADMIN]}</option>
                   <option value={ROLES.RECEPTIONIST}>{ROLE_LABELS[ROLES.RECEPTIONIST]}</option>
                   <option value={ROLES.DENTIST}>{ROLE_LABELS[ROLES.DENTIST]}</option>
                 </select>
@@ -549,11 +578,11 @@ export default function Accounts() {
             {formError ? <div className="error acctBanner">{formError}</div> : null}
 
             <div className="acctDialogActions">
-              <button className="btn secondary" type="button" onClick={closeForm}>
-                Cancel
-              </button>
               <button className="btn btnShine" type="submit" disabled={submitting}>
                 {submitting ? "Creating..." : "Create account"}
+              </button>
+              <button className="btn secondary" type="button" onClick={closeForm}>
+                Cancel
               </button>
             </div>
           </form>

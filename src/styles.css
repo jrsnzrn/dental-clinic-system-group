@@ -7214,7 +7214,7 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
 @media (max-width: 640px) {
   .modalOverlay.addPatientModalOverlay {
     align-items: flex-start;
-    padding: 10px;
+    padding: 5px;
   }
   .modalCard.addPatientModal {
     max-height: calc(100vh - 20px);
@@ -7544,23 +7544,27 @@ html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--bu
 
 .dentistRecordsActions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
-.dentistAddButton {
+.adminAppMain .adminSurface .dentistAddButton {
   min-height: 40px;
   padding: 8px 14px;
-  border-color: var(--accent);
+  border-color: #FFC94D;
   border-radius: 9px;
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-  color: var(--text);
+  background: #FFC94D;
+  color: #24271F;
   transition: none;
 }
 
-.dentistAddButton:hover,
-.dentistAddButton:active {
+.adminAppMain .adminSurface .dentistAddButton:hover,
+.adminAppMain .adminSurface .dentistAddButton:active {
+  border-color: #F2B936;
+  background: #F2B936;
+  color: #24271F;
   filter: none;
   transform: none;
 }
@@ -9147,6 +9151,52 @@ html[data-theme="blue"] .adminSurface form .btn[type="submit"] { color: var(--bu
   min-width: 0;
 }
 
+.acctPasswordInput {
+  position: relative;
+}
+
+.acctPasswordInput .input {
+  width: 100%;
+  padding-right: 46px;
+}
+
+.acctPasswordToggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  translate: 0 -50%;
+}
+
+.acctPasswordToggle:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+}
+
+.acctPasswordToggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.acctPasswordToggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .acctField > span {
   font-size: 13px;
   font-weight: 700;
@@ -9592,10 +9642,10 @@ html[data-theme="blue"] .acctOverlay {
 .archiveCategoryTabs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   width: 100%;
   margin: 0 0 20px;
-  padding: 0 0 12px;
+  padding: 0;
   overflow-x: auto;
   border-bottom: 1px solid var(--line);
 }
@@ -9605,23 +9655,28 @@ html[data-theme="blue"] .acctOverlay {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 38px;
-  padding: 7px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
+  flex: none;
+  padding: 9px 13px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
   text-decoration: none;
   white-space: nowrap;
 }
 
-.archiveCategoryTab:hover,
+.archiveCategoryTab:hover {
+  color: var(--muted);
+}
+
 .archiveCategoryTab.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-bottom-color: var(--accent);
   color: var(--text);
+  font-weight: 650;
 }
 
 .archiveCategoryTab:focus-visible {
@@ -11825,12 +11880,26 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
   width: min(360px, calc(100vw - 24px));
   max-height: min(440px, calc(100vh - 88px));
   max-height: min(440px, calc(100dvh - 88px));
-  overflow-y: auto;
+  overflow-y: scroll;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.staffNotificationPanel.expanded {
+  position: fixed;
+  top: 72px;
+  left: calc(50% + 130px);
+  right: auto;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 24px));
+  height: min(640px, calc(100vh - 88px));
+  height: min(640px, calc(100dvh - 88px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .staffNotificationHead {
@@ -11857,6 +11926,12 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
   list-style: none;
 }
 
+.staffNotificationPanel.expanded ul {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: scroll;
+}
+
 .staffNotificationPanel li + li {
   border-top: 1px solid var(--line);
 }
@@ -11866,7 +11941,18 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
   transition: none;
 }
 
-.staffNotificationHead button {
+.staffNotificationActions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.staffNotificationHead button,
+.staffNotificationPanel .staffNotificationSeeAll {
   padding: 4px 0;
   border: 0;
   background: transparent;
@@ -11874,6 +11960,10 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.staffNotificationPanel .staffNotificationSeeAll:hover {
+  color: var(--primary-hover);
 }
 
 .staffNotificationHead button:disabled {
@@ -11936,6 +12026,11 @@ html[data-dashboard="true"] .adminSidebarLink.active:hover svg {
 
   .staffNotificationPanel {
     right: -54px;
+  }
+
+  .staffNotificationPanel.expanded {
+    left: 50%;
+    width: min(640px, calc(100vw - 24px));
   }
 }
 
@@ -15529,7 +15624,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
   height: 54px;
   flex: 0 0 54px;
   place-items: center;
-  padding: 13px;
+  padding: 10px;
   border-radius: 16px;
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   color: var(--status-warning);
@@ -15550,8 +15645,8 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .overviewDashboard .overviewWelcomeTooth svg {
-  width: 100%;
-  height: 100%;
+  width: 44px;
+  height: 44px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;

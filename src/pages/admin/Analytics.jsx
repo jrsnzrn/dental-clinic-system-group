@@ -393,7 +393,7 @@ export default function Overview() {
       <header className="overviewWelcome">
         <span className="overviewWelcomeTooth" aria-hidden="true">{icons.dentists}</span>
         <div>
-          <h1>Hi{userName ? `, ${userName}` : ""}! <span aria-hidden="true">👋</span></h1>
+          <h1>Hi{userName ? `, ${userName}` : ""}!</h1>
           <p>Here's what's happening at your dental clinic today.</p>
         </div>
       </header>
