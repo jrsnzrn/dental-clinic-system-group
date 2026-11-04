@@ -79,6 +79,20 @@ function hasProfileText(value) {
   return String(value ?? "").trim().length > 0;
 }
 
+function getPhilippineMobileDigits(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  const nationalNumber = digits.startsWith("63") ? digits.slice(2) : digits;
+  return nationalNumber.startsWith("0") ? nationalNumber.slice(1) : nationalNumber;
+}
+
+function isValidPhilippineMobile(value) {
+  return /^9\d{9}$/.test(getPhilippineMobileDigits(value));
+}
+
+function toStoredPhilippineMobile(value) {
+  return `0${getPhilippineMobileDigits(value)}`;
+}
+
 function generateUpcomingDates(startDate, count = 12) {
   const dates = [];
   const cursor = new Date(startDate);
@@ -445,8 +459,8 @@ export default function Book() {
       setError("Please enter a valid age between 1 and 99.");
       return;
     }
-    if (!hasProfileText(profileDraft.phone)) {
-      setError("Please enter your phone number.");
+    if (!isValidPhilippineMobile(profileDraft.phone)) {
+      setError("Enter a valid Philippine mobile number with 10 digits after +63, starting with 9.");
       return;
     }
 
@@ -458,7 +472,7 @@ export default function Book() {
       lastName: profileDraft.lastName.trim(),
       fullName: normalizedFullName,
       age: String(profileDraft.age).trim(),
-      phone: profileDraft.phone.trim(),
+      phone: toStoredPhilippineMobile(profileDraft.phone),
       updatedAt: serverTimestamp(),
     };
     const nextProfile = patientProfile
@@ -723,31 +737,21 @@ export default function Book() {
   return (
     <>
     <div className="container bookingPage">
-      <div className="hero bookingHero">
-        <div className="bookingHeroGrid">
-          <div>
-            <h1>Book an Appointment</h1>
-            <p>
-              Choose your services, dentist, and a time that works for you.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid" style={{ marginTop: 18, gridTemplateColumns: "1fr" }}>
+      <div className="grid" style={{ marginTop: 0, gridTemplateColumns: "1fr" }}>
         <div className="card bookingFormCard">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">{profileReady ? "Appointment Form" : editingProfile ? "Update Profile" : "Patient Sign-up First"}</h3>
-              <p className="sub">
-                {profileReady
-                  ? "Your patient details are locked to this Google account for cleaner tracking."
-                  : editingProfile ? "Update your patient details, then return to your appointment."
-                  : "Before booking, complete your patient profile so the same Gmail cannot create appointments under different names."}
-              </p>
+          {!profileReady ? (
+            <div className="cardHeader">
+              <div>
+                <h3 className="title">{editingProfile ? "Update Profile" : "Patient Sign-up First"}</h3>
+                <p className="sub">
+                  {editingProfile
+                    ? "Update your patient details, then return to your appointment."
+                    : "Before booking, complete your patient profile so the same Gmail cannot create appointments under different names."}
+                </p>
+              </div>
+              <span className="badge">Signed in</span>
             </div>
-            <span className="badge">Signed in</span>
-          </div>
+          ) : null}
 
           {success && !profileReady ? (
             <div className="successBanner">
@@ -760,73 +764,102 @@ export default function Book() {
 
           {!loadingProfile && !profileReady ? (
             <form className="form bookingProfileForm" onSubmit={saveProfile} style={{ marginTop: 12 }}>
-              <button type="button" className="backLink appBackAction topdentBackAction bookingProfileBack"
-                onClick={backToBooking} disabled={savingProfile} aria-label="Back to Book Appointment">
+              <button
+                type="button"
+                className="appBackAction topdentBackAction bookingProfileBack"
+                onClick={backToBooking}
+                disabled={savingProfile}
+                aria-label="Back to Book Appointment"
+              >
                 <BackArrow />
-                <span>Back to Book Appointment</span>
               </button>
-              <input
-                className="input"
-                placeholder="First name"
 
-                value={profileDraft.firstName}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, firstName: e.target.value }))}
-                disabled={savingProfile || loadingProfile}
-              />
+              <label className="bookingProfileField">
+                <span>FIRST NAME</span>
+                <input
+                  className="input"
+                  value={profileDraft.firstName}
+                  onChange={(e) => setProfileDraft((current) => ({ ...current, firstName: e.target.value }))}
+                  disabled={savingProfile || loadingProfile}
+                />
+              </label>
 
-              <input
-                className="input"
-                placeholder="Middle name"
-                value={profileDraft.middleName}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, middleName: e.target.value }))}
-                disabled={savingProfile || loadingProfile}
-              />
+              <label className="bookingProfileField">
+                <span>MIDDLE NAME</span>
+                <input
+                  className="input"
+                  value={profileDraft.middleName}
+                  onChange={(e) => setProfileDraft((current) => ({ ...current, middleName: e.target.value }))}
+                  disabled={savingProfile || loadingProfile}
+                />
+              </label>
 
-              <input
-                className="input"
-                placeholder="Last name"
-                value={profileDraft.lastName}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, lastName: e.target.value }))}
-                disabled={savingProfile || loadingProfile}
-              />
+              <label className="bookingProfileField">
+                <span>LAST NAME</span>
+                <input
+                  className="input"
+                  value={profileDraft.lastName}
+                  onChange={(e) => setProfileDraft((current) => ({ ...current, lastName: e.target.value }))}
+                  disabled={savingProfile || loadingProfile}
+                />
+              </label>
 
-              <input
-                className="input bookingAgeInput"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={2}
-                placeholder="Age"
-                value={profileDraft.age}
-                onChange={(e) => setProfileDraft((current) => ({
-                  ...current,
-                  age: e.target.value.replace(/\D/g, "").slice(0, 2),
-                }))}
-                disabled={savingProfile || loadingProfile}
-              />
+              <label className="bookingProfileField">
+                <span>AGE</span>
+                <input
+                  className="input bookingAgeInput"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={2}
+                  value={profileDraft.age}
+                  onChange={(e) => setProfileDraft((current) => ({
+                    ...current,
+                    age: e.target.value.replace(/\D/g, "").slice(0, 2),
+                  }))}
+                  disabled={savingProfile || loadingProfile}
+                />
+              </label>
 
-              <input
-                className="input"
-                placeholder="Phone number"
-                value={profileDraft.phone}
-                onChange={(e) => setProfileDraft((current) => ({ ...current, phone: e.target.value }))}
-                disabled={savingProfile || loadingProfile}
-              />
+              <label className="bookingProfileField bookingProfileFull">
+                <span>CONTACT NUMBER</span>
+                <span className="bookingContactInput">
+                  <span className="bookingContactPrefix" aria-hidden="true">+63</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={getPhilippineMobileDigits(profileDraft.phone)}
+                    onChange={(e) => setProfileDraft((current) => ({
+                      ...current,
+                      phone: e.target.value.replace(/\D/g, "").slice(0, 10),
+                    }))}
+                    disabled={savingProfile || loadingProfile}
+                    aria-label="Contact number after +63"
+                    aria-describedby="booking-contact-hint"
+                    aria-invalid={Boolean(profileDraft.phone) && !isValidPhilippineMobile(profileDraft.phone)}
+                  />
+                </span>
+                <span className="bookingFieldHint" id="booking-contact-hint">
+                  Enter 10 digits starting with 9.
+                </span>
+              </label>
 
-              <dl className="bookingProfileFacts">
-                <div>
-                  <dt>Email</dt>
-                  <dd>{user.email || profileDraft.email}</dd>
-                </div>
-                <div>
-                  <dt>Patient type</dt>
-                  <dd>{profileDraft.patientType || "New Patient"}</dd>
-                </div>
-              </dl>
-              <p className="bookingFieldHint">Patient type is assigned by clinic staff after your profile is reviewed.</p>
+              <label className="bookingProfileField bookingProfileFull">
+                <span>EMAIL</span>
+                <input className="input" value={user.email || profileDraft.email} readOnly />
+              </label>
+
+              <label className="bookingProfileField bookingProfileFull">
+                <span>PATIENT TYPE</span>
+                <input className="input" value={profileDraft.patientType || "New Patient"} readOnly />
+                <span className="bookingFieldHint">
+                  Patient type is assigned by clinic staff after your profile is reviewed.
+                </span>
+              </label>
 
               <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile}>
-                {savingProfile ? "Saving..." : loadingProfile ? "Loading..." : "Save Patient Profile"}
+                {savingProfile ? "Saving..." : loadingProfile ? "Loading..." : "Update"}
               </button>
             </form>
           ) : null}
@@ -877,10 +910,6 @@ export default function Book() {
               </section>
             ) : (
               <form className="form bookingAppointmentForm" onSubmit={submit}>
-                <div className="bookingScreenHeader">
-                  <h4>Patient and appointment details</h4>
-                  <p>Choose your services and a time that works for you.</p>
-                </div>
                 <div className="bookingInfoGrid">
                   <section className="bookingInfoSection bookingInfoServices">
                     <div className="editorPreview bookingPatientSummary">
@@ -934,21 +963,53 @@ export default function Book() {
                   </section>
 
                   <section className="bookingInfoSection bookingInfoSchedule">
-                    <div className="bookingDatePanel">
-                      <div className="bookingDatePanelHeader">
-                        <div>
-                          <span className="detailLabel">Choose appointment day</span>
-                          <strong className="detailTitle">{formatDateLabel(date)}</strong>
-                          <p className="detailSubtitle">
-                            Use the arrows to browse suggested clinic days.
-                          </p>
-                        </div>
-                        <div className="bookingDateHighlight">
-                          <span>Clinic days</span>
-                          <strong>{selectedClosure ? selectedClosure.label : "Monday to Saturday"}</strong>
-                        </div>
-                      </div>
+                    <div className="bookingScheduleHeading">Dentist and day</div>
 
+                    <div className="bookingScheduleControls">
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Day</span>
+                        <span className="bookingDateInputShell">
+                          <span>{formatDateLabel(date)}</span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="5" width="17" height="16" rx="2" />
+                            <path d="M7.5 3.5v3M16.5 3.5v3M3.5 9.5h17M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
+                          </svg>
+                          <input
+                            type="date"
+                            aria-label="Choose appointment day"
+                            min={todayStr}
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            disabled={!user || saving}
+                          />
+                        </span>
+                      </label>
+
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Available dentist</span>
+                        <div className="bookingSelectShell">
+                          <select
+                            className="input bookingInputSpecial"
+                            value={selectedDentistId}
+                            onChange={(e) => setSelectedDentistId(e.target.value)}
+                            disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
+                          >
+                            {availableDentists.length ? (
+                              availableDentists.map((dentist) => (
+                                <option key={dentist.id} value={dentist.id}>
+                                  {dentist.name}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">No dentist available on this day</option>
+                            )}
+                          </select>
+                        </div>
+                      </label>
+                    </div>
+
+                    <details className="bookingSuggestedDates">
+                      <summary>Suggested clinic days</summary>
                       <div className="bookingDateNavigator">
                         <button
                           type="button"
@@ -995,143 +1056,107 @@ export default function Book() {
                           <span>Next</span>
                         </button>
                       </div>
-                    </div>
+                    </details>
 
-                    {date && isSunday(date) ? (
-                      <div className="error">Closed on Sundays. Choose Monday to Saturday.</div>
-                    ) : null}
-                    {selectedClosure ? (
-                      <div className="error">{selectedClosure.label} blocks booking on this date. Please choose another day.</div>
-                    ) : null}
-                    {duplicateWarning ? (
-                      <div className="detailNote historyPanel reschedulePanel attention">
-                        <span className="detailLabel">Duplicate booking warning</span>
-                        <p>
-                          You already have another booking for one of the selected services on <strong>{formatDateLabel(date)}</strong>. The clinic may review duplicate requests more carefully.
-                        </p>
-                      </div>
-                    ) : null}
-                    {availabilityError ? <div className="error">{availabilityError}</div> : null}
+                        {date && isSunday(date) ? (
+                          <div className="error">Closed on Sundays. Choose Monday to Saturday.</div>
+                        ) : null}
+                        {selectedClosure ? (
+                          <div className="error">{selectedClosure.label} blocks booking on this date. Please choose another day.</div>
+                        ) : null}
+                        {duplicateWarning ? (
+                          <div className="detailNote historyPanel reschedulePanel attention">
+                            <span className="detailLabel">Duplicate booking warning</span>
+                            <p>
+                              You already have another booking for one of the selected services on <strong>{formatDateLabel(date)}</strong>. The clinic may review duplicate requests more carefully.
+                            </p>
+                          </div>
+                        ) : null}
+                        {availabilityError ? <div className="error">{availabilityError}</div> : null}
 
-                    <div className="bookingFlowGrid">
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Available dentist</span>
-                        <div className="bookingSelectShell">
-                          <select
-                            className="input bookingInputSpecial"
-                            value={selectedDentistId}
-                            onChange={(e) => setSelectedDentistId(e.target.value)}
-                            disabled={!user || saving || isSunday(date) || Boolean(selectedClosure) || !availableDentists.length}
-                          >
-                            {availableDentists.length ? (
-                              availableDentists.map((dentist) => (
-                                <option key={dentist.id} value={dentist.id}>
-                                  {dentist.name}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">No dentist available on this day</option>
-                            )}
-                          </select>
-                        </div>
-                      </label>
-
-                      <label className="bookingFieldCard">
-                        <span className="detailLabel">Choose time slot</span>
-                        <div className="bookingSelectShell">
-                          <select
-                            className="input bookingInputSpecial"
-                            value={time}
-                            onChange={(e) => setTime(e.target.value)}
-                            disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
-                          >
-                            {slotOptions.length ? (
-                              slotOptions.map((slot) => (
-                                <option key={slot.value} value={slot.value} disabled={slot.disabled}>
-                                  {slot.disabled
-                                    ? `${slot.label} (${slot.disabledReason})`
-                                    : slot.label}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">{!selectedServices.length
-                                ? "Choose a service first"
+                        <div className="bookingTimeSlotField">
+                          <label className="bookingFieldCard">
+                            <span className="detailLabel">Choose time slot</span>
+                            <div className="bookingSelectShell">
+                              <select
+                                className="input bookingInputSpecial"
+                                value={time}
+                                onChange={(e) => setTime(e.target.value)}
+                                disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId}
+                              >
+                                {slotOptions.length ? (
+                                  slotOptions.map((slot) => (
+                                    <option key={slot.value} value={slot.value} disabled={slot.disabled}>
+                                      {slot.disabled
+                                        ? `${slot.label} (${slot.disabledReason})`
+                                        : slot.label}
+                                    </option>
+                                  ))
+                                ) : (
+                                  <option value="">{!selectedServices.length
+                                    ? "Choose a service first"
+                                    : loadingAvailability
+                                      ? "Loading available times…"
+                                      : availabilityError
+                                        ? "Could not load available times"
+                                        : "No available times on this date"}</option>
+                                )}
+                              </select>
+                            </div>
+                            <span className="bookingFieldHint">
+                              {!selectedServices.length
+                                ? "Select at least one service to see available appointment times."
                                 : loadingAvailability
-                                  ? "Loading available times…"
+                                  ? "Loading live slot availability..."
                                   : availabilityError
-                                    ? "Could not load available times"
-                                    : "No available times on this date"}</option>
-                            )}
-                          </select>
-                        </div>
-                        <span className="bookingFieldHint">
-                          {!selectedServices.length
-                            ? "Select at least one service to see available appointment times."
-                            : loadingAvailability
-                              ? "Loading live slot availability..."
-                              : availabilityError
-                                ? "Availability could not be checked. Refresh the page and try again."
-                                : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
-                        </span>
-                      </label>
-                    </div>
-
-                    {!loadingDentists && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
-                      <EmptyState
-                        compact
-                        title="No dentist available on this day"
-                        message="Try another clinic day or choose a different date so the booking can continue."
-                      />
-                    ) : null}
-
-                    {selectedServices.length > 0 && !loadingDentists && !loadingAvailability && !availabilityError && selectedDentistId && !availableSlots.length && !isSunday(date) && !selectedClosure ? (
-                      <EmptyState
-                        compact
-                        title="No available time slots"
-                        message="This dentist has no open slots left on the selected day. Pick another date or another dentist."
-                      />
-                    ) : null}
-
-                    {blockedRanges.length ? (
-                      <div className="detailNote historyPanel">
-                        <span className="detailLabel">Taken times for {selectedDentist || "this dentist"}</span>
-                        <div className="inlineActionRow" style={{ marginTop: 10 }}>
-                          {blockedRanges.map((range, index) => (
-                            <span key={`${range.start}-${range.end}-${index}`} className="statusPill active">
-                              {formatTimeLabel(range.start)} - {formatTimeLabel(range.end)}
+                                    ? "Availability could not be checked. Refresh the page and try again."
+                                    : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
                             </span>
-                          ))}
+                          </label>
                         </div>
-                      </div>
-                    ) : null}
+
+                        {!loadingDentists && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
+                          <EmptyState
+                            compact
+                            title="No dentist available on this day"
+                            message="Try another clinic day or choose a different date so the booking can continue."
+                          />
+                        ) : null}
+
+                        {selectedServices.length > 0 && !loadingDentists && !loadingAvailability && !availabilityError && selectedDentistId && !availableSlots.length && !isSunday(date) && !selectedClosure ? (
+                          <EmptyState
+                            compact
+                            title="No available time slots"
+                            message="This dentist has no open slots left on the selected day. Pick another date or another dentist."
+                          />
+                        ) : null}
+
+                        {blockedRanges.length ? (
+                          <div className="detailNote historyPanel">
+                            <span className="detailLabel">Taken times for {selectedDentist || "this dentist"}</span>
+                            <div className="inlineActionRow" style={{ marginTop: 10 }}>
+                              {blockedRanges.map((range, index) => (
+                                <span key={`${range.start}-${range.end}-${index}`} className="statusPill active">
+                                  {formatTimeLabel(range.start)} - {formatTimeLabel(range.end)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                   </section>
                 </div>
 
-                <div className="bookingMiniSummary">
-                  <div className="bookingMiniSummaryCard">
-                    <span className="detailLabel">Services</span>
-                    <strong>
-                      {selectedServices.length} service{selectedServices.length === 1 ? "" : "s"}
-                    </strong>
-                  </div>
-                  <div className="bookingMiniSummaryCard">
-                    <span className="detailLabel">Time slot</span>
-                    <strong>{selectedTimeRange || "Choose time"}</strong>
-                  </div>
-                  <div className="bookingMiniSummaryCard">
-                    <span className="detailLabel">Dentist</span>
-                    <strong>{selectedDentist || "Choose dentist"}</strong>
-                  </div>
-                </div>
-
-                <textarea
-                  className="input"
-                  rows={4}
-                  placeholder="Notes (optional)"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  disabled={!user || saving}
-                />
+                <label className="bookingNotesField">
+                  <span className="detailLabel">Notes (Optional)</span>
+                  <textarea
+                    className="input"
+                    rows={4}
+                    placeholder="Share any details that may help the clinic prepare."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    disabled={!user || saving}
+                  />
+                </label>
 
                 <label className="bookingConsentCard">
                   <input
@@ -1148,7 +1173,6 @@ export default function Book() {
                 <button
                   type="submit"
                   className="btn btnShine bookingPrimaryBtn"
-
                   disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || !availableSlots.length || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
                 >
                   Review Appointment Details

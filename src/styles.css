@@ -16840,38 +16840,15 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 
 /* Public booking flow */
 .bookingPage {
-  width: min(100%, 1080px);
-  max-width: 1080px;
-  padding: 40px 32px 64px;
-}
-
-.bookingPage .bookingHero {
-  max-width: 1040px;
-  margin: 0 auto 18px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-}
-
-.bookingPage .bookingHeroGrid {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
-.bookingPage .bookingHero h1 {
-  margin: 0 0 8px;
-  font-size: clamp(26px, 3vw, 36px);
-  font-weight: 600;
-}
-
-.bookingPage .bookingHero p {
-  font-size: 14px;
-  line-height: 1.5;
+  width: 100%;
+  max-width: 1280px;
+  padding: 28px clamp(16px, 2.4vw, 36px) 48px;
+  color: var(--text);
 }
 
 .bookingPage > .grid {
   display: block;
-  max-width: 1040px;
+  max-width: none;
   margin: 0 auto !important;
 }
 
@@ -16887,7 +16864,8 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   padding: clamp(20px, 2.8vw, 28px);
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 94%, var(--text));
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
 @media (max-width: 900px) {
@@ -16916,45 +16894,114 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 .bookingPage .bookingProfileForm {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px 18px;
 }
 
 .bookingPage .bookingProfileForm .bookingAgeInput {
-  width: 110px;
+  width: 100%;
 }
 
-.bookingPage .bookingProfileForm input:nth-of-type(6),
-.bookingPage .bookingProfileForm > label,
-.bookingPage .bookingProfileForm > button {
-  grid-column: 1 / -1;
-}
-
-.bookingPage .bookingProfileFacts {
-  grid-column: 1 / -1;
+.bookingPage .bookingProfileField {
   display: grid;
-  gap: 12px;
-  margin: 6px 0 0;
+  min-width: 0;
+  gap: 7px;
 }
 
-.bookingPage .bookingProfileFacts dt {
+.bookingPage .bookingProfileField > span:first-child {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
 }
 
-.bookingPage .bookingProfileFacts dd {
-  margin: 3px 0 0;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.bookingPage .bookingProfileForm > .bookingFieldHint {
+.bookingPage .bookingProfileField.bookingProfileFull {
   grid-column: 1 / -1;
-  margin: 0 0 4px;
+}
+
+.bookingPage .bookingContactInput {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid var(--appt-stroke);
+  border-radius: 12px;
+  background: transparent;
+  transition: border-color 0.3s var(--appt-ease), box-shadow 0.3s var(--appt-ease);
+}
+
+.bookingPage .bookingContactInput:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
+}
+
+.bookingPage .bookingContactPrefix {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: stretch;
+  padding: 0 13px;
+  border-right: 1px solid var(--line);
+  color: var(--text);
+  font: inherit;
+}
+
+.bookingPage .bookingContactInput input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 0 12px 12px 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+
+.bookingPage .bookingContactInput input:focus {
+  box-shadow: none;
+}
+
+.bookingPage .bookingContactInput input[aria-invalid="true"] {
+  color: var(--danger);
 }
 
 .bookingPage .bookingProfileBack {
+  grid-column: 1 / -1;
   justify-self: start;
-  margin-bottom: 8px;
+  width: 32px;
+  min-height: 32px;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+}
+
+.bookingPage .bookingProfileBack:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+}
+
+.bookingPage .bookingProfileBack .backArrowIcon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.bookingPage .bookingProfileBack:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.bookingPage .bookingProfileForm > .bookingPrimaryBtn {
+  grid-column: 1 / -1;
+  justify-self: end;
 }
 
 .bookingPage .bookingPatientSummary {
@@ -16967,7 +17014,7 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 97%, var(--text));
+  background: var(--card);
 }
 
 .bookingPage .bookingPatientSummary > div {
@@ -17013,10 +17060,10 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 .bookingPage .bookingServiceSelector,
 .bookingPage .bookingDatePanel {
   min-width: 0;
-  padding: 14px;
+  padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 97%, var(--text));
+  border-radius: 12px;
+  background: var(--card);
 }
 
 .bookingPage .bookingFieldHeader,
@@ -17042,27 +17089,32 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 .bookingPage .bookingServiceOptionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: minmax(44px, auto);
-  gap: 8px;
-  margin-top: 12px;
+  grid-auto-rows: minmax(42px, auto);
+  gap: 9px;
+  margin-top: 14px;
 }
 
 .bookingPage .bookingServiceOption {
   display: flex;
   min-width: 0;
-  min-height: 44px;
+  min-height: 42px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px 11px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 9px;
+  background: var(--field-bg);
   color: var(--text);
   font: inherit;
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
+}
+
+.bookingPage .bookingServiceOption:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .bookingPage .bookingServiceOption span {
@@ -17093,35 +17145,86 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   outline-offset: 2px;
 }
 
-.bookingPage .bookingDatePanelHeader {
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.bookingPage .bookingDatePanel .detailTitle {
-  display: block;
-  margin-top: 4px;
-  font-size: 16px;
-}
-
-.bookingPage .bookingDatePanel .detailSubtitle {
-  margin: 3px 0 0;
-  color: var(--muted);
-  font-size: 11.5px;
-}
-
-.bookingPage .bookingDateHighlight {
-  color: var(--muted);
-  font-size: 11px;
-  text-align: right;
-}
-
-.bookingPage .bookingDateHighlight strong {
-  display: block;
-  margin-top: 3px;
+.bookingPage .bookingScheduleHeading {
   color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.bookingPage .bookingScheduleControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.bookingPage .bookingDateInputShell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.bookingPage .bookingDateInputShell > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookingPage .bookingDateInputShell svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  pointer-events: none;
+}
+
+.bookingPage .bookingDateInputShell input[type="date"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  color-scheme: dark;
+  accent-color: var(--accent);
+}
+
+html[data-theme="light"] .bookingPage .bookingDateInputShell input[type="date"],
+html[data-theme="blue"] .bookingPage .bookingDateInputShell input[type="date"] {
+  color-scheme: light;
+}
+
+.bookingPage .bookingDateInputShell:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.bookingPage .bookingSuggestedDates {
+  display: none;
+}
+
+.bookingPage .bookingTimeSlotField {
+  min-width: 0;
+}
+
+.bookingPage .bookingTimeSlotField .bookingFieldCard {
+  gap: 8px;
 }
 
 .bookingPage .bookingDateNavigator {
@@ -17211,8 +17314,9 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   min-height: 40px;
   padding: 9px 11px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg) 97%, var(--text));
+  border-radius: 9px;
+  background: var(--field-bg);
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -17226,25 +17330,16 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   resize: vertical;
 }
 
-.bookingPage .bookingMiniSummary {
+.bookingPage .bookingNotesField {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 97%, var(--text));
+  grid-column: 1 / -1;
+  gap: 8px;
+  min-width: 0;
 }
 
-.bookingPage .bookingMiniSummaryCard {
-  display: grid;
-  gap: 4px;
-}
-
-.bookingPage .bookingMiniSummaryCard strong {
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
+.bookingPage .bookingNotesField > .detailLabel span {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .bookingPage .bookingConsentCard {
@@ -17294,11 +17389,15 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   min-height: 42px;
   justify-self: start;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 9px;
   border: 1px solid var(--button-primary-background);
   background: var(--button-primary-background);
   color: var(--button-primary-color);
   font-size: 13px;
+}
+
+.bookingPage .bookingAppointmentForm > .bookingPrimaryBtn {
+  justify-self: start;
 }
 
 @media (max-width: 860px) {
@@ -17330,6 +17429,10 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .bookingPage .bookingScheduleControls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .bookingPage .bookingServiceOptionGrid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -17352,20 +17455,8 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
     max-width: 105px;
   }
 
-  .bookingPage .bookingMiniSummary {
-    gap: 6px;
-  }
-
-  .bookingPage .bookingMiniSummaryCard strong {
-    font-size: 11px;
-  }
-
   .bookingPage .bookingFormCard > .cardHeader {
     align-items: flex-start;
-  }
-
-  .bookingPage .bookingMiniSummary {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -17876,7 +17967,7 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   min-height: 0;
   margin: 0;
   padding: 0;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
 }
@@ -17885,7 +17976,7 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   position: fixed;
   inset: 0 auto 0 0;
   display: flex;
-  width: 250px;
+  width: 260px;
   min-height: 0;
   height: 100vh;
   height: 100dvh;
@@ -17896,7 +17987,8 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   border: 0;
   border-right: 1px solid var(--line);
   border-radius: 0;
-  background: color-mix(in srgb, var(--bg) 96%, var(--text));
+  background: var(--surface);
+  color: var(--text);
   overflow-y: auto;
 }
 
@@ -17904,7 +17996,7 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: 11px;
   padding: 0 4px;
 }
 
@@ -17950,6 +18042,11 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 
 .patientDashboardMain .patientSidebarAction {
   width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  border-radius: 8px;
   gap: 12px;
   background: transparent;
   color: var(--muted);
@@ -17957,7 +18054,8 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   font: inherit;
   font-family: var(--font-nav);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 500 !important;
+  line-height: 1.35;
   text-align: left;
 }
 
@@ -17973,14 +18071,21 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 }
 
 .patientDashboardMain .patientSidebarAction:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+  background: transparent;
+}
+
+.patientDashboardMain .patientSidebarAction.patientSidebarLogout:hover:not(:disabled) {
+  color: var(--danger);
 }
 
 .patientDashboardMain .patientSidebarLink {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 42px;
   align-items: center;
+  gap: 12px;
   padding: 9px 12px;
   border: 1px solid transparent;
   border-left: 3px solid transparent;
@@ -17992,11 +18097,44 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   line-height: 1.35;
   overflow-wrap: anywhere;
   text-decoration: none;
+  transition: none;
+}
+
+.patientDashboardMain .patientSidebarLink > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.patientDashboardMain .patientSidebarLink > svg,
+.patientDashboardMain .patientSidebarLink .accountItemIcon,
+.patientDashboardMain .patientSidebarIcon svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.patientDashboardMain .patientSidebarLink .accountItemIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.patientDashboardMain .patientSidebarIcon {
+  display: inline-flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
 }
 
 .patientDashboardMain .patientSidebarLink:hover,
 .patientDashboardMain .patientSidebarLink:focus-visible {
   color: var(--text);
+  background: transparent;
 }
 
 .patientDashboardMain .patientSidebarLink:focus-visible {
@@ -18005,11 +18143,16 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
 }
 
 .patientDashboardMain .patientSidebarLink.active {
-  border-color: var(--line);
-  border-left-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  color: var(--text);
-  font-weight: 600;
+  border-color: transparent;
+  border-left-color: var(--primary-hover);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600 !important;
+}
+
+.patientDashboardMain .patientSidebarLink.active > svg,
+.patientDashboardMain .patientSidebarLink.active .patientSidebarIcon svg {
+  color: var(--on-primary);
 }
 
 .patientDashboardContent {
@@ -18124,8 +18267,8 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   }
 
   .patientDashboardMain .patientSidebarBrand img {
-    width: 36px;
     height: 36px;
+    width: auto;
   }
 
   .patientDashboardMain .patientSidebarNav {
