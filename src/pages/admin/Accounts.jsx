@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../../firebase";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { notifySuccess } from "../../utils/successDialog";
 import { ROLE_LABELS, ROLES } from "../../utils/rbac";
 import { fetchStaffAccounts } from "../../utils/staffAccounts";
 
@@ -130,7 +131,6 @@ export default function Accounts() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [listError, setListError] = useState("");
-  const [success, setSuccess] = useState("");
   const [adminAccounts, setAdminAccounts] = useState([]);
   const [staffAccounts, setStaffAccounts] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
@@ -169,13 +169,6 @@ export default function Accounts() {
     loadStaffAccounts();
   }, []);
 
-  // success message fades out on its own
-  useEffect(() => {
-    if (!success) return undefined;
-    const timer = setTimeout(() => setSuccess(""), 5000);
-    return () => clearTimeout(timer);
-  }, [success]);
-
   // close the row menu on outside click, and the menu / dialog on Escape
   useEffect(() => {
     function onPointerDown(event) {
@@ -211,10 +204,9 @@ export default function Accounts() {
   async function runAccountAction(account, action, successMessage, errorMessage) {
     try {
       setListError("");
-      setSuccess("");
       setUpdatingAccountId(account.id);
       await action();
-      setSuccess(successMessage);
+      notifySuccess(successMessage);
       await loadStaffAccounts();
     } catch (err) {
       setListError(err?.message || errorMessage);
@@ -227,7 +219,6 @@ export default function Accounts() {
   async function handleSubmit(event) {
     event.preventDefault();
     setFormError("");
-    setSuccess("");
 
     if (!draft.name.trim() || !draft.email.trim() || !draft.password.trim()) {
       setFormError("Complete the staff name, email, password, and role first.");
@@ -244,7 +235,7 @@ export default function Accounts() {
       });
 
       const created = result.data || {};
-      setSuccess(
+      notifySuccess(
         `${ROLE_LABELS[draft.role]} account created for ${created.name || draft.name.trim()} (${created.email || draft.email.trim()}).`
       );
       setDraft(emptyDraft());
@@ -343,7 +334,7 @@ export default function Accounts() {
         : action.disabled
           ? "disabled"
           : "enabled";
-      setSuccess(`${succeeded} account${succeeded === 1 ? "" : "s"} ${verb} successfully.`);
+      notifySuccess(`${succeeded} account${succeeded === 1 ? "" : "s"} ${verb} successfully.`);
     }
   }
 
@@ -374,13 +365,6 @@ export default function Accounts() {
   const accountPage = useRecordPagination(visibleAccounts, JSON.stringify([searchTerm, roleFilter]));
   return (
     <div className="container adminSurface acctPage">
-      {success ? (
-        <div className="successBanner acctBanner acctToast" role="status">
-          <span>{success}</span>
-          <button type="button" aria-label="Dismiss" onClick={() => setSuccess("")}>✕</button>
-        </div>
-      ) : null}
-
       <div className="acctBar acctTopToolbar">
         <div className="acctBarLeft">
           <div className="acctSearch adminSearchField">

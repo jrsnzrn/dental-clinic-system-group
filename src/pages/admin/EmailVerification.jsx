@@ -10,6 +10,7 @@ import {
   hasFreshStaffMfa,
   requiresStaffMfa,
 } from "../../utils/rbac";
+import { notifySuccess } from "../../utils/successDialog";
 
 const REQUEST_EMAIL_VERIFICATION_CODE = httpsCallable(
   functions,
@@ -98,7 +99,6 @@ export default function EmailVerification() {
   const [verifying, setVerifying] = useState(false);
   const [emailHint, setEmailHint] = useState("");
   const [code, setCode] = useState("");
-  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const navigate = useNavigate();
@@ -175,7 +175,6 @@ export default function EmailVerification() {
     }
 
     setError("");
-    setStatus("");
     setSending(true);
     try {
       await user.getIdToken(true);
@@ -187,7 +186,7 @@ export default function EmailVerification() {
       }
       setEmailHint(result.data?.emailHint || maskEmail(user.email || ""));
       setCooldownSeconds(Number(result.data?.resendAfterSeconds) || RESEND_COOLDOWN_SECONDS);
-      setStatus("A 6-digit verification code has been sent to your email.");
+      notifySuccess("A 6-digit verification code has been sent to your email.", "Verification Code Sent!");
     } catch (requestError) {
       logVerificationError("Staff email verification code request failed:", requestError);
       if (requestError?.code === "functions/resource-exhausted") {
@@ -261,7 +260,6 @@ export default function EmailVerification() {
   async function verifyCode(event) {
     event.preventDefault();
     setError("");
-    setStatus("");
 
     if (!/^\d{6}$/.test(code.trim())) {
       setError("Please enter the 6-digit verification code.");
@@ -284,7 +282,7 @@ export default function EmailVerification() {
         throw new Error("Email verification could not be confirmed. Please try again.");
       }
       await freshUser.getIdToken(true);
-      setStatus("Your email has been verified.");
+      notifySuccess("Your email has been verified.", "Email Verified!");
       await continueAfterVerification(profile);
     } catch (verificationError) {
       logVerificationError("Staff email verification failed:", verificationError);
@@ -364,7 +362,6 @@ export default function EmailVerification() {
             </div>
           </div>
 
-          {status ? <div className="successBanner" role="status">{status}</div> : null}
           {error ? <div className="error" id="verificationCodeError" role="alert">{error}</div> : null}
 
           <button className="btn btnWide" type="submit" disabled={verifying || sending}>

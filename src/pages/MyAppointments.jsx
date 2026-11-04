@@ -1,5 +1,7 @@
 import PaginatedRecords from "../components/PaginatedRecords";
+import ModalPortal from "../components/ModalPortal";
 import { useEffect, useMemo, useState } from "react";
+import { notifySuccess } from "../utils/successDialog";
 import {
   doc,
   onSnapshot,
@@ -74,90 +76,124 @@ function getNextBookableDates(count = 10) {
   return result;
 }
 
-function AppointmentCard({ booking, onStartReschedule, onStartCancellation }) {
+function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const isCompleted = ["pending_payment", "completed"].includes(booking.status);
-  const isCheckedIn = Boolean(booking.checkedInAt);
-  const appointmentTimeRange = getBookingTimeRange(booking);
   const canRequestChanges =
     !isCompleted &&
     booking.status !== "cancelled" &&
     booking.archiveStatus !== "Archived";
+  const hasAdditionalDetails = Boolean(
+    booking.notes ||
+    booking.cancellationRequest ||
+    booking.rescheduleRequest ||
+    booking.checkedInAt ||
+    booking.createdAt
+  );
+  const detailsId = `appointment-details-${booking.id}`;
+  const rescheduleStatusClass = String(booking.rescheduleRequest?.status || "pending")
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
 
   return (
-    <li className="item detailedItem bookingShowcase">
-      <div className="detailContent">
-        <div className="detailTopRow">
-          <div>
-            <strong className="detailTitle">{booking.service || "Consultation"}</strong>
-            <p className="detailSubtitle">
-              {booking.selectedDentist || "Clinic dentist"} • {formatDateLabel(booking.date)} • {appointmentTimeRange}
-            </p>
-          </div>
-          <div className="statusStack">
-            <span className={`statusPill ${getAppointmentStatusClass(booking.status)}`}>
-              {formatAppointmentStatusLabel(booking.status)}
+    <>
+      <tr className="appointmentTableRow">
+        <td className="appointmentTableService">
+          <div className="appointmentTableServiceMain">
+            <svg className="appointmentTableTooth" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3.2c-2.2-1.1-6-.7-7.4 2.2-1.4 2.9.4 7.3 1.7 10.1 1 2.2 1.5 5.2 2.8 5.2 1.1 0 1.3-4.1 2.9-4.1s1.8 4.1 2.9 4.1c1.3 0 1.8-3 2.8-5.2 1.3-2.8 3.1-7.2 1.7-10.1C18 2.5 14.2 2.1 12 3.2Z" />
+            </svg>
+            <span>
+              <strong>{booking.service || "Consultation"}</strong>
+              <small>{booking.selectedDentist || "Clinic dentist"}</small>
             </span>
-            {isCheckedIn ? <span className="statusPill approved">Checked In</span> : null}
           </div>
-        </div>
-
-        <div className="detailGrid">
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Time slot</span>
-            <strong>{appointmentTimeRange}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Booked at</span>
-            <strong>{formatTimestamp(booking.createdAt)}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Appointment notes</span>
-            <strong>{booking.notes || "No notes added"}</strong>
-          </div>
-          <div className="detailBox luxeBox">
-            <span className="detailLabel">Check-in</span>
-            <strong>{isCheckedIn ? formatTimestamp(booking.checkedInAt) : "Waiting for visit"}</strong>
-          </div>
-        </div>
-
-        {booking.rescheduleRequest ? (
-          <div className="detailNote historyPanel" style={{ marginTop: 14 }}>
-            <span className="detailLabel">Reschedule request</span>
-            <p>
-              Requested for {formatDateLabel(booking.rescheduleRequest.requestedDate)} at{" "}
-              {formatTimeLabel(booking.rescheduleRequest.requestedTime)}
-            </p>
-            <p>
-              Status: <strong>{formatAppointmentStatusLabel(booking.rescheduleRequest.status || "pending")}</strong>
-              {booking.rescheduleRequest.reason ? ` • ${booking.rescheduleRequest.reason}` : ""}
-            </p>
-          </div>
-        ) : null}
-
-        {booking.cancellationRequest ? (
-          <div className="detailNote historyPanel attention" style={{ marginTop: 14 }}>
-            <span className="detailLabel">Cancellation request</span>
-            <p>
-              Status: <strong>{formatAppointmentStatusLabel(booking.cancellationRequest.status || "pending")}</strong>
-            </p>
-            <p>{booking.cancellationRequest.reason || "No reason provided."}</p>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="actionColumn actionColumnFriendly">
-        {canRequestChanges ? (
-          <>
-            <button className="btn btnShine patientActionBtn" type="button" onClick={() => onStartReschedule(booking)}>
-              Request Reschedule
+          {hasAdditionalDetails ? (
+            <button
+              className="appointmentTableDetailsToggle"
+              type="button"
+              aria-expanded={detailsOpen}
+              aria-controls={detailsId}
+              aria-label={`${detailsOpen ? "Hide" : "Show"} details for ${booking.service || "appointment"}`}
+              onClick={() => setDetailsOpen((open) => !open)}
+            >
+              {detailsOpen ? "Hide details" : "View details"}
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m6 8 4 4 4-4" />
+              </svg>
             </button>
-            <button className="btn secondary patientActionBtn" type="button" onClick={() => onStartCancellation(booking)}>
-              Request Cancellation
-            </button>
-          </>
-        ) : null}
-      </div>
-    </li>
+          ) : null}
+        </td>
+        <td className="appointmentTableDateTime">
+          <span>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="3" y="4.5" width="14" height="13" rx="2" />
+              <path d="M3 8h14M7 2.5v4M13 2.5v4" />
+            </svg>
+            {formatDateLabel(booking.date)}
+          </span>
+          <span>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="10" cy="10" r="7" />
+              <path d="M10 6v4l2.5 1.5" />
+            </svg>
+            {getBookingTimeRange(booking)}
+          </span>
+        </td>
+        <td className="appointmentTableStatus">
+          <span className={`statusPill ${getAppointmentStatusClass(booking.status)}`}>
+            {formatAppointmentStatusLabel(booking.status)}
+          </span>
+        </td>
+        <td className="appointmentTableActions">
+          {canRequestChanges ? (
+            <>
+              <button
+                className="appointmentTableReschedule"
+                type="button"
+                onClick={() => onStartReschedule(booking)}
+              >
+                Reschedule
+              </button>
+              <button
+                className="appointmentTableCancel"
+                type="button"
+                onClick={() => onStartCancellation(booking)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : <span className="appointmentTableNoAction">—</span>}
+        </td>
+      </tr>
+      {detailsOpen ? (
+        <tr className="appointmentTableDetailsRow">
+          <td colSpan="4" id={detailsId}>
+            {booking.checkedInAt ? <p><strong>Checked in:</strong> {formatTimestamp(booking.checkedInAt)}</p> : null}
+            {booking.createdAt ? <p><strong>Booked:</strong> {formatTimestamp(booking.createdAt)}</p> : null}
+            {booking.notes ? <p><strong>Appointment notes:</strong> {booking.notes}</p> : null}
+            {booking.rescheduleRequest ? (
+              <p>
+                <strong>Reschedule Request:</strong> Requested for {formatDateLabel(booking.rescheduleRequest.requestedDate)} at{" "}
+                {formatTimeLabel(booking.rescheduleRequest.requestedTime)} · Status:{" "}
+                <strong className={`appointmentRequestStatus status-${rescheduleStatusClass}`}>
+                  {formatAppointmentStatusLabel(booking.rescheduleRequest.status || "pending")}
+                </strong>
+                {booking.rescheduleRequest.reason ? ` · ${booking.rescheduleRequest.reason}` : ""}
+              </p>
+            ) : null}
+            {booking.cancellationRequest ? (
+              <p>
+                <strong>Cancellation Request:</strong> {booking.cancellationRequest.reason || "No reason provided."} · Status:{" "}
+                <strong className={`appointmentRequestStatus status-${String(booking.cancellationRequest.status || "pending").toLowerCase().replace(/[\s_]+/g, "-")}`}>
+                  {formatAppointmentStatusLabel(booking.cancellationRequest.status || "pending")}
+                </strong>
+              </p>
+            ) : null}
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 
@@ -176,7 +212,6 @@ export default function MyAppointments() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [editingBookingId, setEditingBookingId] = useState("");
   const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [requestMode, setRequestMode] = useState("reschedule");
@@ -189,10 +224,30 @@ export default function MyAppointments() {
   const [clinicClosures, setClinicClosures] = useState([]);
 
   useEffect(() => {
+    if (!requestFormOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event) {
+      if (event.key === "Escape") {
+        setRequestFormOpen(false);
+        setEditingBookingId("");
+        setError("");
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [requestFormOpen]);
+
+  useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setError("");
-      setSuccess("");
       setLoading(Boolean(nextUser));
       if (!nextUser) setBookings([]);
     });
@@ -244,13 +299,6 @@ export default function MyAppointments() {
   }, []);
 
   const groupedBookings = useMemo(() => buildStatusGroups(bookings), [bookings]);
-  const requestableBookings = useMemo(
-    () => bookings.filter((booking) =>
-      !["pending_payment", "completed", "cancelled"].includes(booking.status) &&
-      booking.archiveStatus !== "Archived"
-    ),
-    [bookings]
-  );
   const [activeStatusTab, setActiveStatusTab] = useState("pending");
   const appointmentStatusTabs = [
     { id: "pending", label: "Pending", bookings: groupedBookings.pending, subtitle: "Appointments waiting for clinic approval." },
@@ -260,6 +308,7 @@ export default function MyAppointments() {
     { id: "cancelled", label: "Cancelled", bookings: groupedBookings.cancelled, subtitle: "Appointments cancelled by the clinic or patient flow." },
   ];
   const activeStatusGroup = appointmentStatusTabs.find((tab) => tab.id === activeStatusTab) || appointmentStatusTabs[0];
+  const editingBooking = bookings.find((booking) => booking.id === editingBookingId);
   /* ---------- Reschedule suggestions ---------- */
   const rescheduleSuggestions = useMemo(() => {
     if (!editingBookingId) return [];
@@ -310,7 +359,6 @@ export default function MyAppointments() {
       reason: booking.rescheduleRequest?.reason || "",
     });
     setError("");
-    setSuccess("");
   }
 
   function startCancellation(booking) {
@@ -323,12 +371,16 @@ export default function MyAppointments() {
       reason: booking.cancellationRequest?.reason || "",
     });
     setError("");
-    setSuccess("");
+  }
+
+  function closeRequestModal() {
+    setRequestFormOpen(false);
+    setEditingBookingId("");
+    setError("");
   }
 
   async function submitAppointmentRequest(bookingId) {
     setError("");
-    setSuccess("");
 
     if (!rescheduleDraft.reason.trim()) {
       setError(
@@ -351,7 +403,10 @@ export default function MyAppointments() {
 
         setEditingBookingId("");
         setRequestFormOpen(false);
-        setSuccess("Your cancellation request was sent successfully. The clinic can now review it.");
+        notifySuccess(
+          "Your cancellation request was sent successfully. The clinic can now review it.",
+          "Cancellation Request Sent!"
+        );
       } catch (requestError) {
         console.error(requestError);
         setError("Could not send the cancellation request. Please try again.");
@@ -383,7 +438,10 @@ export default function MyAppointments() {
 
       setEditingBookingId("");
       setRequestFormOpen(false);
-      setSuccess("Your reschedule request was sent successfully. The clinic can now review the new schedule.");
+      notifySuccess(
+        "Your reschedule request was sent successfully. The clinic can now review the new schedule.",
+        "Reschedule Request Sent!"
+      );
     } catch (requestError) {
       console.error(requestError);
       setError("Could not send the reschedule request. Please try again.");
@@ -392,45 +450,25 @@ export default function MyAppointments() {
 
   if (!user) {
     return (
-      <div className="container bookingPage">
-        <div className="hero bookingHero">
-          <div className="bookingHeroGlow" />
-          <div className="bookingHeroGrid">
-            <div>
-              <span className="heroEyebrow">Appointments</span>
-              <h1>My Appointments</h1>
-              <p>Sign in first to view your appointment statuses and request a reschedule or cancellation.</p>
-            </div>
-          </div>
-        </div>
+      <div className="container bookingPage patientAppointmentsPage">
+        <header className="appointmentsPageHeading">
+          <h1>My Appointments</h1>
+          <p>View and manage your appointment requests, schedules, and history.</p>
+        </header>
       </div>
     );
   }
 
   return (
-    <div className="container bookingPage">
-      <div className="hero bookingHero">
-        <div className="bookingHeroGlow" />
-        <div className="bookingHeroGrid">
-          <div>
-            <span className="heroEyebrow">Appointments Hub</span>
-            <h1>My Appointments</h1>
-            <p>Track every pending, approved, completed, and cancelled appointment in one place, then request a reschedule or cancellation without making a duplicate booking.</p>
-          </div>
-        </div>
-      </div>
+    <div className="container bookingPage patientAppointmentsPage">
+      <header className="appointmentsPageHeading">
+        <h1>My Appointments</h1>
+        <p>View and manage your appointment requests, schedules, and history.</p>
+      </header>
 
-      {success ? (
-        <div className="successBanner" style={{ marginTop: 18 }}>
-          <strong>{success}</strong>
-          <span>The clinic can review your request from the booking dashboard.</span>
-        </div>
-      ) : null}
+      {error && !requestFormOpen ? <div className="error" style={{ marginTop: 18 }}>{error}</div> : null}
 
-      {error ? <div className="error" style={{ marginTop: 18 }}>{error}</div> : null}
-
-      {/* ===================== APPOINTMENT LISTS ===================== */}
-      <div className="appointmentStatusSection" style={{ marginTop: 18 }}>
+      <div className="appointmentStatusSection">
         <div className="appointmentStatusTabs" role="group" aria-label="Filter appointments by status">
           {appointmentStatusTabs.map((tab) => (
             <button
@@ -450,202 +488,202 @@ export default function MyAppointments() {
 
         <div
           id="appointment-status-panel"
-          className="card adminRecordsCard appointmentStatusPanel"
+          className="appointmentStatusPanel"
           aria-label={`${activeStatusGroup.label} appointments`}
-          tabIndex={0}
         >
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">{activeStatusGroup.label}</h3>
-              <p className="sub">{activeStatusGroup.subtitle}</p>
-            </div>
-            <span className="badge">{activeStatusGroup.bookings.length} records</span>
+          <div className="appointmentTableWrap">
+            <table className="appointmentTable" aria-label={`${activeStatusGroup.label} appointments`}>
+              <thead>
+                <tr>
+                  <th scope="col">Service</th>
+                  <th scope="col">Date and Time</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td className="appointmentTableMessage" colSpan="4">Loading your appointments...</td></tr>
+                ) : activeStatusGroup.bookings.length ? (
+                  <PaginatedRecords
+                    items={activeStatusGroup.bookings}
+                    tableColumns={4}
+                    resetKey={activeStatusGroup.label}
+                    label="appointments"
+                  >
+                    {(booking) => (
+                      <AppointmentTableRow
+                        key={booking.id}
+                        booking={booking}
+                        onStartReschedule={startReschedule}
+                        onStartCancellation={startCancellation}
+                      />
+                    )}
+                  </PaginatedRecords>
+                ) : (
+                  <tr>
+                    <td className="appointmentTableMessage" colSpan="4">
+                      No {activeStatusGroup.label.toLowerCase()} appointments right now.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-
-          {loading ? (
-            <div className="emptyEditorState">Loading your appointments...</div>
-          ) : activeStatusGroup.bookings.length ? (
-            <ul className="list detailedList">
-              {<PaginatedRecords items={activeStatusGroup.bookings} list resetKey={activeStatusGroup.label} label="appointments">{(booking) => (
-                <AppointmentCard
-                  key={booking.id}
-                  booking={booking}
-                  onStartReschedule={startReschedule}
-                  onStartCancellation={startCancellation}
-                />
-              )}</PaginatedRecords>}
-            </ul>
-          ) : (
-            <div className="emptyEditorState">No {activeStatusGroup.label.toLowerCase()} appointments right now.</div>
-          )}
         </div>
       </div>
 
-      <div className="appointmentChangeActions">
-        <button
-          className="appointmentChangeButton"
-          type="button"
-          aria-expanded={requestFormOpen}
-          aria-controls="appointment-change-form"
-          onClick={() => setRequestFormOpen((isOpen) => !isOpen)}
-        >
-          {requestFormOpen ? "Close Request Form" : "Request a Change"}
-        </button>
-      </div>
-
       {requestFormOpen ? (
-        <section id="appointment-change-form" className="card appointmentChangeForm">
-          <div className="cardHeader">
-            <div>
-              <h3 className="title">
-                {!editingBookingId
-                  ? "Request a Change"
-                  : requestMode === "cancel"
-                    ? "Request a Cancellation"
-                    : "Request a New Schedule"}
-              </h3>
-              <p className="sub">
-                {!editingBookingId
-                  ? "Choose Request Reschedule or Request Cancellation on an appointment above to open its request form."
-                  : requestMode === "cancel"
-                    ? "Send a cancellation reason for the clinic to review."
-                    : "Choose a new date and time, then send your reschedule request for review."}
-              </p>
-            </div>
-            {editingBookingId ? (
-              <button
-                className="searchClearBtn"
-                type="button"
-                onClick={() => {
-                  setEditingBookingId("");
-                  setRequestFormOpen(false);
-                }}
-              >
-                Close
-              </button>
-            ) : null}
-          </div>
-
-          {editingBookingId ? (
-            <>
-              {requestMode === "reschedule" ? (
-                <div className="bookingFlowGrid">
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Requested date</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="date"
-                      value={rescheduleDraft.requestedDate}
-                      onChange={(event) =>
-                        setRescheduleDraft((current) => ({ ...current, requestedDate: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="bookingFieldCard">
-                    <span className="detailLabel">Requested time</span>
-                    <input
-                      className="input bookingInputSpecial"
-                      type="time"
-                      value={rescheduleDraft.requestedTime}
-                      onChange={(event) =>
-                        setRescheduleDraft((current) => ({ ...current, requestedTime: event.target.value }))
-                      }
-                    />
-                  </label>
+        <ModalPortal>
+          <div
+            className="appointmentRequestOverlay"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) closeRequestModal();
+            }}
+          >
+            <section
+              className="appointmentRequestModal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="appointment-request-title"
+            >
+              <header className="appointmentRequestModalHeader">
+                <span className={`appointmentRequestModalIcon${requestMode === "cancel" ? " danger" : ""}`} aria-hidden="true">
+                  {requestMode === "cancel" ? (
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 3 22 21H2L12 3Z" />
+                      <path d="M12 9v5m0 3h.01" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24">
+                      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+                      <path d="M7.5 3.5v3M16.5 3.5v3M3.5 9.5h17" />
+                    </svg>
+                  )}
+                </span>
+                <div>
+                  <h2 id="appointment-request-title">
+                    {requestMode === "cancel" ? "Cancel Appointment?" : "Request a New Schedule"}
+                  </h2>
+                  <p>
+                    {requestMode === "cancel"
+                      ? `Send a cancellation request for ${editingBooking?.service || "this appointment"}? The clinic will review your request.`
+                      : "Choose a new date and time, then send your request to the clinic for review."}
+                  </p>
                 </div>
-              ) : null}
+                <button
+                  className="appointmentRequestModalClose"
+                  type="button"
+                  aria-label="Close dialog"
+                  onClick={closeRequestModal}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="m5 5 10 10M15 5 5 15" />
+                  </svg>
+                </button>
+              </header>
 
-              <textarea
-                className="input"
-                rows={4}
-                placeholder={requestMode === "cancel" ? "Reason for cancellation (required)" : "Reason for reschedule (required)"}
-                value={rescheduleDraft.reason}
-                onChange={(event) =>
-                  setRescheduleDraft((current) => ({ ...current, reason: event.target.value }))
-                }
+              <div className="appointmentRequestModalBody">
+                {error ? <div className="error" role="alert">{error}</div> : null}
 
-                style={{ marginTop: 14 }}
-              />
-
-              {requestMode === "reschedule" && rescheduleSuggestions.length ? (
-                <div className="detailNote historyPanel" style={{ marginTop: 14 }}>
-                  <span className="detailLabel">Suggested reschedule slots</span>
-                  <div className="inlineActionRow">
-                    {rescheduleSuggestions.map((option) => (
-                      <button
-                        key={`${option.date}-${option.time}`}
-                        className="btn secondary btnSoft"
-                        type="button"
-                        onClick={() =>
-                          setRescheduleDraft((current) => ({
-                            ...current,
-                            requestedDate: option.date,
-                            requestedTime: option.time,
-                          }))
+                {requestMode === "reschedule" ? (
+                  <>
+                    <div className="appointmentRequestFields">
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Requested Date</span>
+                        <input
+                          className="input bookingInputSpecial"
+                          type="date"
+                          value={rescheduleDraft.requestedDate}
+                          onChange={(event) =>
+                            setRescheduleDraft((current) => ({ ...current, requestedDate: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Requested Time</span>
+                        <input
+                          className="input bookingInputSpecial"
+                          type="time"
+                          value={rescheduleDraft.requestedTime}
+                          onChange={(event) =>
+                            setRescheduleDraft((current) => ({ ...current, requestedTime: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label className="appointmentRequestReason">
+                      <span className="detailLabel">Reason for Reschedule</span>
+                      <textarea
+                        className="input"
+                        rows={4}
+                        placeholder="Reason for reschedule (required)"
+                        value={rescheduleDraft.reason}
+                        onChange={(event) =>
+                          setRescheduleDraft((current) => ({ ...current, reason: event.target.value }))
                         }
-                      >
-                        {formatDateLabel(option.date)} • {formatTimeLabel(option.time)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <button
-                className="btn btnShine bookingPrimaryBtn"
-                type="button"
-                style={{ marginTop: 14 }}
-                onClick={() => submitAppointmentRequest(editingBookingId)}
-              >
-                {requestMode === "cancel" ? "Send Cancellation Request" : "Send Reschedule Request"}
-              </button>
-            </>
-          ) : (
-            <div className="appointmentChangeSelector">
-              <div className="appointmentChangeMode" role="group" aria-label="Change request type">
-                <button
-                  className={`appointmentStatusTab${requestMode === "reschedule" ? " active" : ""}`}
-                  type="button"
-                  aria-pressed={requestMode === "reschedule"}
-                  onClick={() => setRequestMode("reschedule")}
-                >
-                  Reschedule
-                </button>
-                <button
-                  className={`appointmentStatusTab${requestMode === "cancel" ? " active" : ""}`}
-                  type="button"
-                  aria-pressed={requestMode === "cancel"}
-                  onClick={() => setRequestMode("cancel")}
-                >
-                  Cancel
-                </button>
+                      />
+                    </label>
+                    {rescheduleSuggestions.length ? (
+                      <div className="appointmentSuggestedSlots">
+                        <span className="detailLabel">Suggested Reschedule Slots</span>
+                        <div>
+                          {rescheduleSuggestions.map((option) => (
+                            <button
+                              key={`${option.date}-${option.time}`}
+                              className={`appointmentSuggestedSlot${rescheduleDraft.requestedDate === option.date && rescheduleDraft.requestedTime === option.time ? " selected" : ""}`}
+                              type="button"
+                              aria-pressed={rescheduleDraft.requestedDate === option.date && rescheduleDraft.requestedTime === option.time}
+                              onClick={() =>
+                                setRescheduleDraft((current) => ({
+                                  ...current,
+                                  requestedDate: option.date,
+                                  requestedTime: option.time,
+                                }))
+                              }
+                            >
+                              {formatDateLabel(option.date)} · {formatTimeLabel(option.time)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <label className="appointmentRequestReason">
+                    <span className="detailLabel">Reason for Cancellation</span>
+                    <textarea
+                      className="input"
+                      rows={4}
+                      placeholder="Reason for cancellation (required)"
+                      value={rescheduleDraft.reason}
+                      onChange={(event) =>
+                        setRescheduleDraft((current) => ({ ...current, reason: event.target.value }))
+                      }
+                    />
+                  </label>
+                )}
               </div>
-              <label className="bookingFieldCard">
-                <span className="detailLabel">Choose an appointment</span>
-                <select
-                  className="input bookingInputSpecial"
-                  value=""
-                  onChange={(event) => {
-                    const selectedBooking = requestableBookings.find((booking) => booking.id === event.target.value);
-                    if (!selectedBooking) return;
-                    if (requestMode === "cancel") startCancellation(selectedBooking);
-                    else startReschedule(selectedBooking);
-                  }}
-                  disabled={!requestableBookings.length}
+
+              <footer className="appointmentRequestModalFooter">
+                <button
+                  className={`appointmentRequestSubmit${requestMode === "cancel" ? " danger" : ""}`}
+                  type="button"
+                  onClick={() => submitAppointmentRequest(editingBookingId)}
                 >
-                  <option value="">
-                    {requestableBookings.length ? "Select an appointment" : "No appointments available for changes"}
-                  </option>
-                  {requestableBookings.map((booking) => (
-                    <option key={booking.id} value={booking.id}>
-                      {booking.service || "Consultation"} · {formatDateLabel(booking.date)} · {getBookingTimeRange(booking)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-        </section>
+                  {requestMode === "cancel" ? "Confirm Cancellation" : "Send Reschedule Request"}
+                </button>
+                <button
+                  className={`appointmentRequestCancel${requestMode === "reschedule" ? " danger" : ""}`}
+                  type="button"
+                  onClick={closeRequestModal}
+                >
+                  {requestMode === "cancel" ? "Keep Appointment" : "Cancel"}
+                </button>
+              </footer>
+            </section>
+          </div>
+        </ModalPortal>
       ) : null}
     </div>
   );

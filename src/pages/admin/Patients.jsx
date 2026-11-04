@@ -21,6 +21,9 @@ import { auth, db, functions } from "../../firebase";
 import { useNavigate, useParams } from "react-router-dom";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import BackArrow from "../../components/BackArrow";
+import ToothNumberDisplay from "../../components/ToothNumberDisplay";
+import DentalTreatmentOverlay, { DentalProcedureLegend } from "../../components/DentalTreatmentOverlay";
+import ProcedureBadge from "../../components/ProcedureBadge";
 import EmptyState from "../../components/EmptyState";
 import { SkeletonList } from "../../components/LoadingSkeleton";
 import { logAdminAction } from "../../utils/audit";
@@ -35,6 +38,7 @@ import { buildPatientTimeline, buildTreatmentProgress, getLatestBooking, isInact
 import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 import { PUBLIC_SERVICE_CATALOG } from "../../utils/clinic";
+import { getLatestToothTreatments } from "../../utils/dentalTreatments";
 import {
   createEmptyDentalChart,
   DENTAL_CHART_IMAGE,
@@ -44,6 +48,7 @@ import {
   getClosestToothFromPoint,
 } from "../../utils/teeth";
 import { getAdminProfile, ROLES } from "../../utils/rbac";
+import { notifySuccess } from "../../utils/successDialog";
 
 const PATIENT_TYPES = ["Regular", "Ortho"];
 const PATIENT_BRACES_TYPES = [
@@ -944,12 +949,6 @@ export default function Patients({
   }, [selectedPatient]);
 
   useEffect(() => {
-    if (!notice || notice.type !== "success") return undefined;
-    const timer = setTimeout(() => setNotice(null), 5000);
-    return () => clearTimeout(timer);
-  }, [notice]);
-
-  useEffect(() => {
     setActivePatientView(PATIENT_VIEWS.DETAILS);
   }, [selectedPatientId]);
 
@@ -1137,7 +1136,7 @@ export default function Patients({
       await load();
       setEditErrors({});
       setIsEditing(false);
-      setNotice({ type: "success", text: "Patient details saved." });
+      notifySuccess("Patient details saved.");
     } catch (error) {
       console.error(error);
       setNotice({ type: "error", text: "Could not save changes. Please try again." });
@@ -1303,7 +1302,7 @@ export default function Patients({
       setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
       setIsEditingDentalChart(false);
       await load();
-      setNotice({ type: "success", text: "Dental chart changes saved." });
+      notifySuccess("Dental chart changes saved.");
     } catch (error) {
       console.error(error);
       setNotice({ type: "error", text: "Could not save dental chart changes. Please try again." });
@@ -1604,10 +1603,7 @@ export default function Patients({
                 }
               : entry
           ));
-          setNotice({
-            type: "success",
-            text: `Treatment for ${patientName} moved to Completed and Payments.`,
-          });
+          notifySuccess(`Treatment for ${patientName} moved to Completed and Payments.`);
         } catch (error) {
           console.error("Dentist treatment completion could not be recorded:", error);
           setNotice({
@@ -1660,6 +1656,8 @@ export default function Patients({
   const persistedPendingProcedures = savedProcedureHistory.filter(isPendingProcedure);
   const displayedPendingProcedures = [...persistedPendingProcedures, ...pendingChartProcedures];
   const recordedProcedureHistory = savedProcedureHistory.filter((plan) => !isPendingProcedure(plan));
+  const chartDisplayProcedures = [...recordedProcedureHistory, ...pendingChartProcedures];
+  const chartTreatmentByTooth = getLatestToothTreatments(chartDisplayProcedures);
   const patientPage = useRecordPagination(filteredPatientCards, JSON.stringify([search, typeFilter]));
   const dentistPage = useRecordPagination(visibleDentistAppointments, JSON.stringify([dentistSearch, dentistPatientTypeFilter, completedOnly]));
   const isDentist = adminRole === ROLES.DENTIST;
@@ -2283,13 +2281,18 @@ export default function Patients({
                             >
                               <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
                               <div className="toothViewerOverlay">
+                                <DentalTreatmentOverlay procedures={chartDisplayProcedures} />
                                 {TOOTH_IDS.map((tooth) => (
                                   <button
                                     key={tooth}
                                     type="button"
-                                    className={`toothMarker ${selectedTeeth.includes(tooth) ? "active" : ""}`}
+                                    className={`toothMarker${chartTreatmentByTooth.has(tooth) ? " hasTreatment" : ""}${selectedTeeth.includes(tooth) ? " active" : ""}`}
                                     data-tooth-id={tooth}
-                                    style={{ top: TOOTH_MARKERS[tooth]?.top, left: TOOTH_MARKERS[tooth]?.left }}
+                                    style={{
+                                      top: TOOTH_MARKERS[tooth]?.top,
+                                      left: TOOTH_MARKERS[tooth]?.left,
+                                      "--treatment-color": chartTreatmentByTooth.get(tooth)?.color,
+                                    }}
                                     disabled={!isEditingDentalChart}
                                     tabIndex={isEditingDentalChart ? 0 : -1}
                                     aria-pressed={selectedTeeth.includes(tooth)}
@@ -2298,6 +2301,7 @@ export default function Patients({
                                 ))}
                               </div>
                             </div>
+                            <DentalProcedureLegend />
                           </div>
                         </div>
                         <section className="dentistEditorSection dentalChartSection pendingProceduresSection" aria-labelledby="pendingProcedureTitle">
@@ -2323,7 +2327,7 @@ export default function Patients({
                                       const isDraft = pendingChartProcedures.some((draft) => draft.createdAt === entry.createdAt);
                                       return (
                                         <tr key={entry.createdAt || `${entry.title}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
-                                          <td data-label="Tooth Number">{tooth}</td>
+                                          <td data-label="Tooth Number"><ToothNumberDisplay toothNumber={tooth} /></td>
                                           <td data-label="Procedure">{entry.title}</td>
                                           <td data-label="Scheduled Date">{entry.targetDate}</td>
                                           <td data-label="Notes">{entry.instructions || "—"}</td>
@@ -2426,19 +2430,21 @@ export default function Patients({
                               <table className="patientTable dentalChartTable">
                                 <thead>
                                   <tr>
-                                    <th>Tooth Number</th>
-                                    <th>Procedure</th>
-                                    <th>Procedure Date</th>
-                                    <th>Procedure Notes</th>
+                                    <th>TOOTH NUMBER</th>
+                                    <th>PROCEDURE</th>
+                                    <th>PROCEDURE DATE</th>
+                                    <th>PROCEDURE NOTES</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   <PaginatedRecords items={recordedProcedureHistory} tableColumns={4} resetKey={selectedPatientId}>{(entry, index) => (
                                     <tr key={`${entry.createdAt || entry.title}-${index}`}>
-                                      <td data-label="Tooth Number">{entry.toothNumbers?.join(", ") || "—"}</td>
-                                      <td data-label="Procedure">{entry.title || "Procedure"}</td>
-                                      <td data-label="Procedure Date">{entry.targetDate || "—"}</td>
-                                      <td data-label="Procedure Notes">{entry.instructions || "—"}</td>
+                                      <td data-label="TOOTH NUMBER">
+                                        <ToothNumberDisplay toothNumbers={entry.toothNumbers} procedure={entry.title} />
+                                      </td>
+                                      <td data-label="PROCEDURE"><ProcedureBadge procedure={entry.title} /></td>
+                                      <td data-label="PROCEDURE DATE">{entry.targetDate || "—"}</td>
+                                      <td data-label="PROCEDURE NOTES">{entry.instructions || "—"}</td>
                                     </tr>
                                   )}</PaginatedRecords>
                                 </tbody>

@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import NavBar, { PatientDashboardHeader, PatientSidebarActions } from "./components/NavBar";
+import GlobalSuccessDialog from "./components/GlobalSuccessDialog";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
@@ -310,6 +311,7 @@ function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }
         ) : children}
       </div>
       {!showPatientLayout && !showStaffAuthLayout ? <Footer isAdmin={isAdmin} theme={theme} onThemeChange={onThemeChange} /> : null}
+      <GlobalSuccessDialog />
     </>
   );
 }

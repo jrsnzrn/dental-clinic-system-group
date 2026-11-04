@@ -40,6 +40,10 @@ export const TOOTH_LABELS = {
   "48": "Lower right third molar",
 };
 
+export function getToothName(toothNumber) {
+  return TOOTH_LABELS[String(toothNumber ?? "").trim()] || "";
+}
+
 export const TOOTH_MARKERS = {
   "18": { top: "46.73%", left: "28.30%" },
   "17": { top: "41.36%", left: "28.06%" },

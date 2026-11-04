@@ -1,3 +1,7 @@
+import { useEffect, useId, useRef } from "react";
+import ModalPortal from "./ModalPortal";
+import { isTopmostModal } from "../utils/modalUtils";
+
 export default function ConfirmDialog({
   open,
   title = "Confirm action",
@@ -12,6 +16,19 @@ export default function ConfirmDialog({
   onConfirm,
   onClose,
 }) {
+  const titleId = useId();
+  const overlayRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape" && isTopmostModal(overlayRef.current)) onClose?.();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const toneLabel =
@@ -22,34 +39,48 @@ export default function ConfirmDialog({
         : "Confirmation";
 
   return (
-    <div className={`modalOverlay ${overlayClassName}`} onClick={onClose}>
-      <div className={`modalCard confirmModalCard ${tone} ${className}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modalHeader">
-          <div className="modalTitleGroup">
-            {icon ? <span className="confirmModalIcon" aria-hidden="true">{icon}</span> : null}
-            <span className={`modalToneLabel ${tone}`}>{toneLabel}</span>
-            <h3>{title}</h3>
+    <ModalPortal>
+      <div
+        ref={overlayRef}
+        className={`modalOverlay confirmDialogOverlay ${overlayClassName}`}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose?.();
+        }}
+      >
+        <div
+          className={`modalCard confirmModalCard ${tone} ${className}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="modalHeader">
+            <div className="modalTitleGroup">
+              {icon ? <span className="confirmModalIcon" aria-hidden="true">{icon}</span> : null}
+              <span className={`modalToneLabel ${tone}`}>{toneLabel}</span>
+              <h3 id={titleId}>{title}</h3>
+            </div>
+            <button className="modalClose" type="button" onClick={onClose} aria-label="Close confirmation dialog">
+              {closeIcon}
+            </button>
           </div>
-          <button className="modalClose" type="button" onClick={onClose} aria-label="Close confirmation dialog">
-            {closeIcon}
-          </button>
-        </div>
-        <div className="confirmModalBody">
-          <p>{message}</p>
-        </div>
-        <div className="confirmModalActions">
-          <button className="btn secondary btnSoft" type="button" onClick={onClose}>
-            {cancelLabel}
-          </button>
-          <button
-            className={`btn ${tone === "danger" ? "danger" : tone === "archive" ? "archiveButton" : "btnShine"}`}
-            type="button"
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
+          <div className="confirmModalBody">
+            <p>{message}</p>
+          </div>
+          <div className="confirmModalActions">
+            <button className="btn secondary btnSoft" type="button" onClick={onClose}>
+              {cancelLabel}
+            </button>
+            <button
+              className={`btn ${tone === "danger" ? "danger" : tone === "archive" ? "archiveButton" : "btnShine"}`}
+              type="button"
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
