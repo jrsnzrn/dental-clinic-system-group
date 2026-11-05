@@ -6812,11 +6812,34 @@ input[type="date"].input { min-height: 48px; }
   overflow-wrap: anywhere;
 }
 
-.bookingManagementPage .bookingsTable th:nth-child(1) { width: 25%; }
+.bookingManagementPage .bookingsTable th:nth-child(1) { width: 24%; }
 .bookingManagementPage .bookingsTable th:nth-child(2) { width: 17%; }
-.bookingManagementPage .bookingsTable th:nth-child(3) { width: 18%; }
-.bookingManagementPage .bookingsTable th:nth-child(4) { width: 20%; }
-.bookingManagementPage .bookingsTable th:nth-child(5) { width: 20%; }
+.bookingManagementPage .bookingsTable th:nth-child(3) { width: 16%; }
+.bookingManagementPage .bookingsTable th:nth-child(4) { width: 18%; }
+.bookingManagementPage .bookingsTable th:nth-child(5) { width: 12%; }
+.bookingManagementPage .bookingsTable th:nth-child(6) { width: 13%; }
+
+.bookingRequestIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.bookingRequestIndicator svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bookingRequestIndicator.cancellation { color: color-mix(in srgb, var(--danger) 78%, var(--text)); }
+.bookingRequestIndicator.reschedule { color: var(--warning); }
+.bookingNoRequest { color: var(--muted); }
 
 .bookingManagementPage .bookingNameCell {
   white-space: normal;
@@ -11907,7 +11930,7 @@ html[data-theme="blue"] .bookingInputSpecial {
   background: var(--secondary);
 }
 
-.bookingDetailsModal .bookingCancellationNotice {
+.bookingDetailsModal .bookingRequestNotice {
   flex: 0 0 auto;
   display: grid;
   gap: 6px;
@@ -11918,12 +11941,17 @@ html[data-theme="blue"] .bookingInputSpecial {
   overflow-wrap: anywhere;
 }
 
-.bookingDetailsModal .bookingCancellationNotice.attention {
+.bookingDetailsModal .bookingRequestNotice.cancellationPending {
   border-color: var(--button-danger-border);
   background: var(--button-danger-background);
 }
 
-.bookingCancellationHeading {
+.bookingDetailsModal .bookingRequestNotice.reschedulePending {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--line));
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.bookingRequestHeading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -11932,23 +11960,27 @@ html[data-theme="blue"] .bookingInputSpecial {
   font-size: 14px;
 }
 
-.bookingCancellationHeading span {
+.bookingRequestHeading span {
   padding: 2px 8px;
   border: 1px solid currentColor;
   border-radius: 999px;
   font-size: 12px;
 }
 
-.bookingCancellationNotice.attention .bookingCancellationHeading span {
+.bookingRequestNotice.cancellationPending .bookingRequestHeading span {
   color: var(--button-danger-color);
 }
 
-.bookingCancellationNotice p {
+.bookingRequestNotice.reschedulePending .bookingRequestHeading span {
+  color: var(--warning);
+}
+
+.bookingRequestNotice p {
   margin: 0;
   font-size: 13px;
 }
 
-.bookingCancellationNotice small {
+.bookingRequestNotice small {
   color: var(--muted);
   font-size: 12px;
 }
@@ -22961,6 +22993,21 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
   color: var(--muted);
   font-size: 13px;
   text-align: center;
+}
+
+.patientAppointmentsPage .appointmentOfferCard {
+  margin-block: 16px;
+  padding: 16px;
+  border-color: var(--button-secondary-border);
+}
+
+.patientAppointmentsPage .appointmentOfferCard h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.patientAppointmentsPage .appointmentOfferCard p {
+  margin: 8px 0;
 }
 
 .patientAppointmentsPage .appointmentTableDetailsRow td {

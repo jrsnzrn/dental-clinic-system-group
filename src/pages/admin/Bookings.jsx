@@ -23,7 +23,7 @@ import BookingPromotionSelect from "../../components/BookingPromotionSelect";
 import EmptyState from "../../components/EmptyState";
 import BookingToolbar from "../../components/BookingToolbar";
 import { SkeletonList } from "../../components/LoadingSkeleton";
-import { formatAppointmentStatusLabel, getAppointmentStatusClass, hasPendingCancellationRequest } from "../../utils/appointmentStatus";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass, getRescheduleRequestBlockLabel, hasPendingCancellationRequest, isCurrentAppointmentSlot } from "../../utils/appointmentStatus";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
@@ -31,6 +31,9 @@ const ARCHIVE_BOOKING = httpsCallable(functions, "archiveBooking");
 const TOGGLE_BOOKING_CHECK_IN = httpsCallable(functions, "toggleBookingCheckIn");
 const REASSIGN_BOOKING_DENTIST = httpsCallable(functions, "reassignBookingDentist");
 const RESCHEDULE_BOOKING = httpsCallable(functions, "rescheduleBooking");
+const APPROVE_RESCHEDULE = httpsCallable(functions, "approveReschedule");
+const DECLINE_RESCHEDULE = httpsCallable(functions, "declineReschedule");
+const OFFER_RESCHEDULE = httpsCallable(functions, "offerReschedule");
 const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
 const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
 const WALK_IN_PATIENT_TYPES = ["Regular", "Ortho"];
@@ -185,6 +188,8 @@ function getBookingServices(booking) {
 
 function BookingRow({ booking, onOpen, highlighted }) {
   const reschedule = booking.rescheduleRequest;
+  const cancellationPending = hasPendingCancellationRequest(booking);
+  const reschedulePending = reschedule?.status === "pending" && !getRescheduleRequestBlockLabel(booking);
   const displayStatus = booking.status === "approved" && booking.checkedInAt
     ? "checked_in"
     : booking.status || "pending";
@@ -215,12 +220,19 @@ function BookingRow({ booking, onOpen, highlighted }) {
         <span className={`bookingTableStatus bookingTableStatus-${getAppointmentStatusClass(displayStatus)}`}>
           {formatAppointmentStatusLabel(displayStatus)}
         </span>
-        {reschedule?.status === "pending" ? (
-          <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
-        ) : null}
-        {hasPendingCancellationRequest(booking) ? (
-          <span className="bookingTableStatus bookingTableStatus-cancelled">Cancellation requested</span>
-        ) : null}
+      </td>
+      <td data-label="Request">
+        {cancellationPending ? (
+          <span className="bookingRequestIndicator cancellation">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m8 8 4 4m0-4-4 4" /></svg>
+            Cancellation
+          </span>
+        ) : reschedulePending ? (
+          <span className="bookingRequestIndicator reschedule">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l2.5 1.5" /></svg>
+            Reschedule
+          </span>
+        ) : <span className="bookingNoRequest" aria-label="No pending request">—</span>}
       </td>
     </tr>
   );
@@ -247,14 +259,30 @@ function BookingDetailDrawer({
   onCancel,
   onArchive,
   onReschedule,
+  onAcceptReschedule,
+  onRemoveReschedule,
+  onOfferReschedule,
   onReassign,
   actionError,
 }) {
   const reschedule = booking?.rescheduleRequest;
+  const offer = booking?.rescheduleOffer;
+  const offerId = offer?.id;
+  const offerExpiresAt = offer?.expiresAt?.toMillis();
+  const [expiredOfferId, setExpiredOfferId] = useState(null);
+  useEffect(() => {
+    if (!open || !offerId || !offerExpiresAt) return;
+    const timer = setTimeout(() => setExpiredOfferId(offerId), Math.max(0, offerExpiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [open, offerId, offerExpiresAt]);
   const cancellation = booking?.cancellationRequest;
   const cancellationPending = hasPendingCancellationRequest(booking);
   const busy = Boolean(pendingAction || checkingIn);
   const status = booking?.status || "pending";
+  const reschedulePending = reschedule?.status === "pending";
+  const rescheduleBlockLabel = getRescheduleRequestBlockLabel(booking);
+  const canAcceptReschedule = reschedulePending && !rescheduleBlockLabel && !booking?.checkedInAt &&
+    ["pending", "approved"].includes(status);
   const headingStatus = booking?.checkedInAt ? "checked_in" : status;
   const headingClass = getAppointmentStatusClass(headingStatus);
   const headingLabel = status === "completed" ? "Complete" : formatAppointmentStatusLabel(headingStatus);
@@ -317,13 +345,41 @@ function BookingDetailDrawer({
             <div className="patientDrawerBody">
               {actionError ? <div className="formError" role="alert">{actionError}</div> : null}
               {cancellation ? (
-                <section className={`bookingCancellationNotice${cancellationPending ? " attention" : ""}`} aria-label="Patient cancellation request">
-                  <div className="bookingCancellationHeading">
+                <section className={`bookingRequestNotice${cancellationPending ? " cancellationPending" : ""}`} aria-label="Patient cancellation request">
+                  <div className="bookingRequestHeading">
                     <strong>Patient cancellation request</strong>
                     <span>{formatAppointmentStatusLabel(cancellation.status)}</span>
                   </div>
                   <p>{cancellation.reason || "No reason provided."}</p>
                   {cancellation.requestedAt ? <small>Requested {formatTimestamp(cancellation.requestedAt)}</small> : null}
+                </section>
+              ) : null}
+              {reschedule ? (
+                <section className={`bookingRequestNotice${canAcceptReschedule ? " reschedulePending" : ""}`} aria-label="Patient reschedule request">
+                  <div className="bookingRequestHeading">
+                    <strong>Patient reschedule request</strong>
+                    <span>{rescheduleBlockLabel || formatAppointmentStatusLabel(reschedule.status)}</span>
+                  </div>
+                  <p>Reason: {reschedule.reason || "No reason provided."}</p>
+                  <small>Requested time: {formatDateLabel(reschedule.requestedDate)} at {formatTimeLabel(reschedule.requestedTime)}</small>
+                  {reschedulePending && isCurrentAppointmentSlot(booking, reschedule.requestedDate, reschedule.requestedTime) ? (
+                    <div>
+                      <button type="button" className="btn secondary patientActionBtn" onClick={onRemoveReschedule} disabled={busy}>
+                        Remove request
+                      </button>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+              {offer ? (
+                <section className="bookingRequestNotice" aria-label="Alternate appointment offer">
+                  <div className="bookingRequestHeading">
+                    <strong>Alternate time offered</strong>
+                    <span>{offer.status === "pending" && expiredOfferId === offerId
+                      ? "Expired" : formatAppointmentStatusLabel(offer.status)}</span>
+                  </div>
+                  <p>{formatDateLabel(offer.date)} at {formatTimeLabel(offer.time)}</p>
+                  <small>Respond by {formatTimestamp(offer.expiresAt)}</small>
                 </section>
               ) : null}
               <dl className="detailList">
@@ -436,20 +492,6 @@ function BookingDetailDrawer({
                 </div>
               ) : null}
 
-              {reschedule ? (
-                <div className={`drawerReschedule ${reschedule.status === "pending" ? "attention" : ""}`}>
-                  <span className="drawerNoteLabel">Reschedule request</span>
-                  <p>
-                    Requested for <strong>{formatDateLabel(reschedule.requestedDate)}</strong> at{" "}
-                    <strong>{formatTimeLabel(reschedule.requestedTime)}</strong>
-                  </p>
-                  <p>
-                    Status: <strong>{formatAppointmentStatusLabel(reschedule.status || "pending")}</strong>
-                    {reschedule.reason ? ` • ${reschedule.reason}` : ""}
-                  </p>
-
-                </div>
-              ) : null}
             </div>
 
             {status === "completed" || status === "cancelled" ? (
@@ -465,10 +507,10 @@ function BookingDetailDrawer({
             ) : null}
 
             {status === "pending" || (status === "approved" && !booking.checkedInAt) || cancellationPending ? (
-              <div className={`actionColumn actionColumnFriendly${cancellationPending ? " bookingCancellationActions" : ""}`}>
+              <div className={`actionColumn actionColumnFriendly${cancellationPending || canAcceptReschedule ? " bookingCancellationActions" : ""}`}>
                 {status === "pending" ? (
                   <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove} disabled={busy} aria-busy={Boolean(pendingAction)}>
-                    {pendingAction ? <LoadingIndicator>Approving…</LoadingIndicator> : cancellationPending ? "Approve booking" : "Approve"}
+                    {pendingAction ? <LoadingIndicator>Approving…</LoadingIndicator> : cancellationPending || canAcceptReschedule ? "Approve booking" : "Approve"}
                   </button>
                 ) : null}
 
@@ -483,17 +525,30 @@ function BookingDetailDrawer({
                     >
                       {checkingIn ? <LoadingIndicator>Checking in…</LoadingIndicator> : "Mark as Check-in"}
                     </button>
-                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule} disabled={busy}>
-                      Reschedule
-                    </button>
+                    {!canAcceptReschedule && !cancellationPending ? (
+                      <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReschedule} disabled={busy}>
+                        Reschedule
+                      </button>
+                    ) : null}
                     <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign} disabled={busy}>
                       Reassign dentist
                     </button>
                   </>
                 ) : null}
-                <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
-                  {cancellationPending ? "Accept request" : "Cancel"}
-                </button>
+                {canAcceptReschedule ? (
+                  <>
+                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onAcceptReschedule} disabled={busy}>
+                      Accept reschedule
+                    </button>
+                    <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onOfferReschedule} disabled={busy}>
+                      Offer another time
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
+                    {cancellationPending ? "Accept cancellation" : "Cancel"}
+                  </button>
+                )}
               </div>
             ) : null}
           </div>
@@ -503,7 +558,7 @@ function BookingDetailDrawer({
   );
 }
 
-function RescheduleModal({ open, booking, onClose, onSave }) {
+function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
   const [saving, setSaving] = useState(false);
@@ -526,10 +581,10 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const onKey = (e) => e.key === "Escape" && !saving && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, saving]);
 
   function submit() {
     if (!newDate || !newTime) {
@@ -559,19 +614,19 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
 
   return (
     <>
-      <div className={`patientDrawerOverlay rescheduleOverlay ${open ? "open" : ""}`} onClick={onClose} />
+      <div className={`patientDrawerOverlay rescheduleOverlay ${open ? "open" : ""}`} onClick={() => { if (!saving) onClose(); }} />
       <div className={`patientDrawer rescheduleModal ${open ? "open" : ""}`} role="dialog" aria-modal="true">
         {booking ? (
           <div className="patientDrawerInner">
             <div className="patientDrawerHeader">
               <div>
-                <span className="heroEyebrow">{isCancelled ? "Reschedule & restore" : "Reschedule"}</span>
+                <span className="heroEyebrow">{offerMode ? "Offer another time" : isCancelled ? "Reschedule & restore" : "Reschedule"}</span>
                 <h3>{booking.fullName || "No name"}</h3>
                 <div className="patientRecordPeek">
                   <span>Current: {getBookingDateTimeLabel(booking)}</span>
                 </div>
               </div>
-              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close">
+              <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close" disabled={saving}>
                 ×
               </button>
             </div>
@@ -588,6 +643,7 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
             </div>
 
             {isCancelled ? <p className="rescheduleHint">Saving will also restore this booking as approved.</p> : null}
+            {offerMode ? <p className="rescheduleHint">The patient keeps their current appointment until they accept an available time.</p> : null}
 
             {formError ? (
               <div className="formError" role="alert">
@@ -597,7 +653,7 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
 
             <div className="actionColumn actionColumnFriendly">
               <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving}>
-                {saving ? <LoadingIndicator>Saving schedule…</LoadingIndicator> : "Save new schedule"}
+                {saving ? <LoadingIndicator>Saving…</LoadingIndicator> : offerMode ? "Send offer" : "Save new schedule"}
               </button>
               <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>
                 Cancel
@@ -608,9 +664,11 @@ function RescheduleModal({ open, booking, onClose, onSave }) {
       </div>
       <ConfirmDialog
         open={confirmOpen}
-        title="Confirm reschedule"
-        message={`Reschedule ${booking?.fullName || "this patient"} to ${formatDateLabel(newDate)} at ${formatTimeLabel(newTime)}?`}
-        confirmLabel="Confirm reschedule"
+        title={offerMode ? "Confirm alternate time offer" : "Confirm reschedule"}
+        message={offerMode
+          ? `Email the patient an offer for ${formatDateLabel(newDate)} at ${formatTimeLabel(newTime)}?`
+          : `Reschedule ${booking?.fullName || "this patient"} to ${formatDateLabel(newDate)} at ${formatTimeLabel(newTime)}?`}
+        confirmLabel={offerMode ? "Send offer" : "Confirm reschedule"}
         onClose={() => setConfirmOpen(false)}
         onConfirm={confirmReschedule}
       />
@@ -703,6 +761,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [rescheduleId, setRescheduleId] = useState(null);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleOfferMode, setRescheduleOfferMode] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reassignId, setReassignId] = useState(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
@@ -904,9 +963,10 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
     () => bookings.find((booking) => booking.id === reassignId) || null,
     [bookings, reassignId]
   );
-  function openReschedule(id) {
+  function openReschedule(id, offerMode = false) {
     setDrawerOpen(false);
     setRescheduleId(id);
+    setRescheduleOfferMode(offerMode);
     setRescheduleOpen(true);
   }
   function closeReschedule() {
@@ -928,6 +988,16 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   }
 
   async function saveReschedule(booking, date, time) {
+    if (rescheduleOfferMode) {
+      const result = await OFFER_RESCHEDULE({ bookingId: booking.id, date, time });
+      closeReschedule();
+      if (result.data?.emailSent) {
+        setActionSuccess("Alternate time offered and emailed to the patient.");
+      } else {
+        setActionError("The offer appears in My Appointments, but the email could not be sent. You can send the offer again.");
+      }
+      return;
+    }
     await RESCHEDULE_BOOKING({ bookingId: booking.id, date, time });
     closeReschedule();
     setActionSuccess(`Appointment rescheduled to ${formatDateLabel(date)} at ${formatTimeLabel(time)}.`);
@@ -962,8 +1032,8 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
     }
   }
 
-  async function setStatus(id, nextStatus) {
-    await SET_BOOKING_STATUS({ bookingId: id, status: nextStatus });
+  async function setStatus(id, nextStatus, options) {
+    await SET_BOOKING_STATUS({ bookingId: id, status: nextStatus, ...options });
   }
 
   async function archiveBooking(id) {
@@ -1200,6 +1270,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                     <th>Dentist</th>
                     <th>Date &amp; time</th>
                     <th>Status</th>
+                    <th>Request</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1306,6 +1377,39 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
           }, "Approving appointment…", `Appointment for ${selectedBooking.fullName || "the patient"} approved successfully.`)
         }
         onReschedule={() => selectedBooking && openReschedule(selectedBooking.id)}
+        onOfferReschedule={() => selectedBooking && openReschedule(selectedBooking.id, true)}
+        onRemoveReschedule={() => {
+          if (!selectedBooking) return;
+          const bookingId = selectedBooking.id;
+          openConfirm({
+            title: "Remove this reschedule request?",
+            message: "The request matches the current appointment. Removing it will keep the appointment at its current time.",
+            confirmLabel: "Remove request",
+            tone: "danger",
+            successMessage: "The reschedule request was removed. The appointment stays at its current time.",
+            action: () => DECLINE_RESCHEDULE({ bookingId, removeSameSlot: true }),
+          });
+        }}
+        onAcceptReschedule={() => {
+          const booking = selectedBooking;
+          if (!booking) return;
+          const { requestedDate, requestedTime, requestedAt } = booking.rescheduleRequest;
+          openConfirm({
+            title: "Accept this reschedule request?",
+            message: `Move the appointment to ${formatDateLabel(requestedDate)} at ${formatTimeLabel(requestedTime)}?`,
+            confirmLabel: "Confirm",
+            successMessage: "Reschedule request accepted. The appointment time has been updated.",
+            action: async () => {
+              await APPROVE_RESCHEDULE({
+                bookingId: booking.id,
+                requestedDate,
+                requestedTime,
+                requestedAt: requestedAt?.toMillis?.() ?? null,
+              });
+              closeDrawer();
+            },
+          });
+        }}
         onReassign={() => selectedBooking && openReassign(selectedBooking.id)}
         onCheckIn={() => {
           const b = selectedBooking;
@@ -1332,11 +1436,12 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
           openConfirm({
             title: cancellationPending ? "Accept this cancellation request?" : "Cancel this booking?",
             message: "This booking will remain in the Cancelled tab until you choose to archive it.",
-            confirmLabel: cancellationPending ? "Accept and cancel booking" : "Cancel",
-            showCancelButton: false,
+            confirmLabel: "Confirm",
             successMessage: "Appointment cancelled successfully. It is now in the Cancelled tab.",
             tone: "danger",
-            action: () => setStatus(b.id, "cancelled"),
+            action: () => setStatus(b.id, "cancelled", cancellationPending
+              ? { cancellationRequestedAt: b.cancellationRequest.requestedAt?.toMillis?.() ?? null }
+              : undefined),
           });
         }}
         onArchive={() => {
@@ -1360,6 +1465,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       <RescheduleModal
         open={rescheduleOpen}
         booking={rescheduleBooking}
+        offerMode={rescheduleOfferMode}
         onClose={closeReschedule}
         onSave={saveReschedule}
       />

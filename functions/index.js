@@ -2670,6 +2670,7 @@ exports.setBookingStatus = onCall(
     const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
     const bookingId = String(request.data?.bookingId || "").trim();
     const nextStatus = String(request.data?.status || "").trim().toLowerCase();
+    const cancellationRequestedAt = request.data?.cancellationRequestedAt;
 
     if (!bookingId) {
       throw new HttpsError("invalid-argument", "Booking ID is required.");
@@ -2690,6 +2691,12 @@ exports.setBookingStatus = onCall(
       }
 
       const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      const cancellation = booking.cancellationRequest;
+      if (nextStatus === "cancelled" && cancellationRequestedAt !== undefined &&
+        (!cancellation || String(cancellation.status || "pending").trim().toLowerCase() !== "pending" ||
+          (cancellation.requestedAt?.toMillis?.() ?? null) !== cancellationRequestedAt)) {
+        throw new HttpsError("failed-precondition", "The cancellation request was withdrawn or changed. Review the latest booking details.");
+      }
       if (booking.status === "completed") {
         throw new HttpsError("failed-precondition", "A completed appointment cannot be reopened.");
       }
@@ -4503,28 +4510,17 @@ exports.approveReschedule = onCall(
         throw new HttpsError("failed-precondition", "This booking has no pending reschedule request.");
       }
 
-      const oldLocks = await getLockSnapshots(transaction, booking);
-      const slot = await validateStaffBookingSlot(transaction, {
-        bookingId,
-        booking,
-        nextDate: requestedDate,
-        nextTime: requestedTime,
-      });
-      const now = admin.firestore.FieldValue.serverTimestamp();
+      assertBookingCanBeRescheduled(booking);
 
-      deleteOwnedLocks(transaction, oldLocks.lockRefs, oldLocks.lockSnaps, bookingId);
-      slot.lockRefs.forEach((lockRef) => {
-        transaction.set(lockRef, {
-          bookingId,
-          dentistId: slot.window.dentistId,
-          date: slot.window.date,
-          time: slot.window.time,
-          startMinutes: slot.window.startMinutes,
-          endMinutes: slot.window.endMinutes,
-          uid: booking.uid || "",
-          updatedAt: now,
-        });
-      });
+      if ((request.data?.requestedDate !== undefined && request.data.requestedDate !== requestedDate) ||
+        (request.data?.requestedTime !== undefined && request.data.requestedTime !== requestedTime) ||
+        (request.data?.requestedAt !== undefined &&
+          request.data.requestedAt !== (rescheduleRequest.requestedAt?.toMillis?.() ?? null))) {
+        throw new HttpsError("failed-precondition", "The requested time changed. Reopen the booking and review the latest request.");
+      }
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      const schedule = await moveBookingToRequestedSlot(transaction, bookingRef, booking, requestedDate, requestedTime, now);
 
       const approvedRequest = {
         ...rescheduleRequest,
@@ -4533,12 +4529,8 @@ exports.approveReschedule = onCall(
         reviewedBy: staff.uid,
       };
       const updatePayload = {
-        date: requestedDate,
-        time: requestedTime,
-        estimatedEndTime: slot.estimatedEndTime,
-        appointmentAt: slot.appointmentAt,
+        ...schedule,
         rescheduleRequest: approvedRequest,
-        statusUpdatedAt: now,
       };
 
       transaction.update(bookingRef, updatePayload);
@@ -4568,11 +4560,164 @@ exports.approveReschedule = onCall(
   }
 );
 
+function assertBookingCanBeRescheduled(booking) {
+  if (booking.archiveStatus === "Archived" || booking.checkedInAt ||
+    !["pending", "approved"].includes(booking.status || "pending") ||
+    booking.cancellationRequest?.status === "pending") {
+    throw new HttpsError("failed-precondition", "This booking cannot be rescheduled in its current state.");
+  }
+}
+
+async function moveBookingToRequestedSlot(transaction, bookingRef, booking, date, time, now) {
+  if (date === booking.date && time === booking.time) {
+    throw new HttpsError("failed-precondition", "The requested time is the same as the current appointment.");
+  }
+  const oldLocks = await getLockSnapshots(transaction, booking);
+  const slot = await validateStaffBookingSlot(transaction, {
+    bookingId: bookingRef.id,
+    booking,
+    nextDate: date,
+    nextTime: time,
+  });
+
+  deleteOwnedLocks(transaction, oldLocks.lockRefs, oldLocks.lockSnaps, bookingRef.id);
+  slot.lockRefs.forEach((lockRef) => {
+    transaction.set(lockRef, {
+      bookingId: bookingRef.id,
+      dentistId: slot.window.dentistId,
+      date: slot.window.date,
+      time: slot.window.time,
+      startMinutes: slot.window.startMinutes,
+      endMinutes: slot.window.endMinutes,
+      uid: booking.uid || "",
+      updatedAt: now,
+    });
+  });
+
+  return {
+    date,
+    time,
+    estimatedEndTime: slot.estimatedEndTime,
+    appointmentAt: slot.appointmentAt,
+    statusUpdatedAt: now,
+  };
+}
+
+exports.offerReschedule = onCall({ secrets: [gmailEmail, gmailAppPassword] }, async (request) => {
+  const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const date = String(request.data?.date || "").trim();
+  const time = String(request.data?.time || "").trim();
+  if (!bookingId || bookingId.includes("/")) throw new HttpsError("invalid-argument", "A booking ID is required.");
+  const ref = db.collection("bookings").doc(bookingId);
+  const offerId = crypto.randomUUID();
+  const { booking, offer } = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) throw new HttpsError("not-found", "Booking could not be found.");
+    const booking = snapshot.data();
+    assertBookingCanBeRescheduled(booking);
+    if (booking.rescheduleRequest?.status !== "pending" || !booking.uid || !String(booking.email || "").trim()) {
+      throw new HttpsError("failed-precondition", "A pending patient request and a patient email are required.");
+    }
+    if ((date === booking.date && time === booking.time) ||
+      (date === booking.rescheduleRequest.requestedDate && time === booking.rescheduleRequest.requestedTime)) {
+      throw new HttpsError("invalid-argument", "Choose a time different from the original and requested appointments.");
+    }
+    const slot = await validateStaffBookingSlot(transaction, { bookingId, booking, nextDate: date, nextTime: time });
+    const originalAt = createManilaAppointmentDate(booking.date, booking.time).getTime();
+    const expiresAt = Math.min(Date.now() + 24 * 60 * 60 * 1000, originalAt, slot.appointmentAt.toMillis());
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      throw new HttpsError("failed-precondition", "Both appointment times must still be in the future.");
+    }
+    const offer = {
+      id: offerId,
+      date,
+      time,
+      status: "pending",
+      expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
+      originalDate: booking.date,
+      originalTime: booking.time,
+      dentistId: booking.dentistId,
+      requestDate: booking.rescheduleRequest.requestedDate || "",
+      requestTime: booking.rescheduleRequest.requestedTime || "",
+      requestAt: booking.rescheduleRequest.requestedAt || null,
+      offeredBy: staff.uid,
+      offeredAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    transaction.update(ref, { rescheduleOffer: offer });
+    return { booking, offer };
+  });
+
+  const deadline = offer.expiresAt.toDate().toLocaleString("en-PH", {
+    dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
+  });
+  try {
+    const mailer = createTransporter();
+    await mailer.transporter.sendMail({
+      from: mailer.senderEmail,
+      to: String(booking.email).trim(),
+      subject: "TopDent: Alternative appointment time",
+      text: [
+        `Hello ${booking.fullName || "Patient"},`,
+        `We could not confirm the time you requested. The clinic can offer ${formatScheduleLabel(offer)} (Philippine time) instead.`,
+        `Please respond by ${deadline} (Philippine time) in My Appointments: https://practicefirebase-e1c25.web.app/my-appointments`,
+        `If you decline or do not respond by the deadline, your original appointment at ${formatScheduleLabel(booking)} remains scheduled.`,
+        "The alternative is subject to availability when you accept.",
+      ].join("\n\n"),
+    });
+    return { emailSent: true };
+  } catch (error) {
+    console.error("Reschedule offer email failed", { bookingId, offerId, code: error.code });
+    return { emailSent: false };
+  }
+});
+
+exports.respondToRescheduleOffer = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in to respond to the offer.");
+  const { bookingId, offerId, accept } = request.data || {};
+  if (typeof bookingId !== "string" || !bookingId || bookingId.includes("/") ||
+    typeof offerId !== "string" || !offerId || typeof accept !== "boolean") {
+    throw new HttpsError("invalid-argument", "A booking, offer, and response are required.");
+  }
+  const ref = db.collection("bookings").doc(bookingId);
+  const updated = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const booking = snapshot.data();
+    if (!booking || booking.uid !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "You can only respond to offers for your own bookings.");
+    }
+    const offer = booking.rescheduleOffer;
+    if (offer?.id === offerId && offer.status === (accept ? "accepted" : "declined")) return booking;
+    assertBookingCanBeRescheduled(booking);
+    if (offer?.id !== offerId || offer.status !== "pending" || offer.expiresAt.toMillis() <= Date.now() ||
+      offer.originalDate !== booking.date || offer.originalTime !== booking.time || offer.dentistId !== booking.dentistId ||
+      booking.rescheduleRequest?.status !== "pending" ||
+      offer.requestDate !== (booking.rescheduleRequest.requestedDate || "") ||
+      offer.requestTime !== (booking.rescheduleRequest.requestedTime || "") ||
+      offer.requestAt?.toMillis?.() !== booking.rescheduleRequest.requestedAt?.toMillis?.()) {
+      throw new HttpsError("failed-precondition", "This offer is no longer active. Your booking has not been moved.");
+    }
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const schedule = accept
+      ? await moveBookingToRequestedSlot(transaction, ref, booking, offer.date, offer.time, now)
+      : {};
+    transaction.update(ref, {
+      ...schedule,
+      rescheduleOffer: { ...offer, status: accept ? "accepted" : "declined", respondedAt: now },
+      rescheduleRequest: { ...booking.rescheduleRequest, status: accept ? "approved" : "declined", reviewedAt: now },
+    });
+    return { ...booking, ...schedule };
+  });
+  if (accept && updated.status === "approved") await syncPatientRecordFromBookingServer({ ...updated, id: bookingId });
+  return { success: true };
+});
+
 exports.declineReschedule = onCall(
   {},
   async (request) => {
     const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
     const bookingId = String(request.data?.bookingId || "").trim();
+    const removeSameSlot = request.data?.removeSameSlot === true;
 
     if (!bookingId) {
       throw new HttpsError("invalid-argument", "Booking ID is required.");
@@ -4594,8 +4739,13 @@ exports.declineReschedule = onCall(
         throw new HttpsError("failed-precondition", "This booking has no pending reschedule request.");
       }
 
+      if (removeSameSlot && (!rescheduleRequest.requestedDate || !rescheduleRequest.requestedTime ||
+        rescheduleRequest.requestedDate !== booking.date || rescheduleRequest.requestedTime !== booking.time)) {
+        throw new HttpsError("failed-precondition", "The request no longer matches the current appointment.");
+      }
+
       transaction.update(bookingRef, {
-        rescheduleRequest: {
+        rescheduleRequest: removeSameSlot ? admin.firestore.FieldValue.delete() : {
           ...rescheduleRequest,
           status: "declined",
           reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -4605,7 +4755,7 @@ exports.declineReschedule = onCall(
     });
 
     await writeStaffAuditLog(staff, {
-      action: "decline_reschedule_request",
+      action: removeSameSlot ? "remove_same_slot_reschedule_request" : "decline_reschedule_request",
       targetType: "booking",
       targetId: bookingId,
       targetLabel: getBookingTargetLabel(booking),

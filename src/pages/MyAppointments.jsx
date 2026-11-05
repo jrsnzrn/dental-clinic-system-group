@@ -1,20 +1,24 @@
 import LoadingIndicator from "../components/LoadingIndicator";
 import PaginatedRecords from "../components/PaginatedRecords";
 import ModalPortal from "../components/ModalPortal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import PatientPaymentReceipts from "../components/PatientPaymentReceipts";
 import { useEffect, useMemo, useState } from "react";
 import { notifySuccess } from "../utils/successDialog";
 import {
   doc,
+  deleteField,
   onSnapshot,
   query,
   collection,
   updateDoc,
   serverTimestamp,
+  runTransaction,
   where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase";
 import {
   formatDateLabel,
   formatTimeLabel,
@@ -23,7 +27,21 @@ import {
 } from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
 import { BOOKING_SLOT_INTERVAL_MINUTES, getActiveClosureForDate } from "../utils/clinic";
-import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../utils/appointmentStatus";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass, getRescheduleRequestBlockLabel, hasPendingCancellationRequest, isCurrentAppointmentSlot } from "../utils/appointmentStatus";
+
+const RESPOND_TO_RESCHEDULE_OFFER = httpsCallable(functions, "respondToRescheduleOffer");
+
+function hasActiveRescheduleOffer(booking) {
+  const offer = booking.rescheduleOffer;
+  const request = booking.rescheduleRequest;
+  return offer?.status === "pending" && offer.expiresAt?.toMillis() > Date.now() &&
+    ["pending", "approved"].includes(booking.status) && !booking.checkedInAt &&
+    !isArchivedBooking(booking) && booking.cancellationRequest?.status !== "pending" &&
+    booking.date === offer.originalDate && booking.time === offer.originalTime && booking.dentistId === offer.dentistId &&
+    request?.status === "pending" && (request.requestedDate || "") === offer.requestDate &&
+    (request.requestedTime || "") === offer.requestTime &&
+    request.requestedAt?.toMillis?.() === offer.requestAt?.toMillis?.();
+}
 
 function pad(n) {
   return String(n).padStart(2, "0");
@@ -78,13 +96,11 @@ function getNextBookableDates(count = 10) {
   return result;
 }
 
-function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation }) {
+function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation, onWithdraw }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const isCompleted = ["pending_payment", "completed"].includes(booking.status);
-  const canRequestChanges =
-    !isCompleted &&
-    booking.status !== "cancelled" &&
-    booking.archiveStatus !== "Archived";
+  const canRequestChanges = ["pending", "approved"].includes(booking.status) && !isArchivedBooking(booking);
+  const cancellationPending = hasPendingCancellationRequest(booking);
+  const reschedulePending = booking.rescheduleRequest?.status === "pending";
   const hasAdditionalDetails = Boolean(
     booking.notes ||
     booking.cancellationRequest ||
@@ -93,6 +109,7 @@ function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation }
     booking.createdAt
   );
   const detailsId = `appointment-details-${booking.id}`;
+  const rescheduleBlockLabel = getRescheduleRequestBlockLabel(booking);
   const rescheduleStatusClass = String(booking.rescheduleRequest?.status || "pending")
     .toLowerCase()
     .replace(/[\s_]+/g, "-");
@@ -151,7 +168,20 @@ function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation }
           </span>
         </td>
         <td className="appointmentTableActions">
-          {canRequestChanges ? (
+          {canRequestChanges && (cancellationPending || reschedulePending) ? (
+            <>
+              {reschedulePending ? (
+                <button className="appointmentTableReschedule" type="button" onClick={() => onWithdraw(booking, "rescheduleRequest")}>
+                  Withdraw reschedule
+                </button>
+              ) : null}
+              {cancellationPending ? (
+                <button className="appointmentTableCancel" type="button" onClick={() => onWithdraw(booking, "cancellationRequest")}>
+                  Withdraw cancellation
+                </button>
+              ) : null}
+            </>
+          ) : canRequestChanges ? (
             <>
               <button
                 className="appointmentTableReschedule"
@@ -182,7 +212,7 @@ function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation }
                 <strong>Reschedule Request:</strong> Requested for {formatDateLabel(booking.rescheduleRequest.requestedDate)} at{" "}
                 {formatTimeLabel(booking.rescheduleRequest.requestedTime)} · Status:{" "}
                 <strong className={`appointmentRequestStatus status-${rescheduleStatusClass}`}>
-                  {formatAppointmentStatusLabel(booking.rescheduleRequest.status || "pending")}
+                  {rescheduleBlockLabel || formatAppointmentStatusLabel(booking.rescheduleRequest.status || "pending")}
                 </strong>
                 {booking.rescheduleRequest.reason ? ` · ${booking.rescheduleRequest.reason}` : ""}
               </p>
@@ -220,6 +250,7 @@ export default function MyAppointments() {
   const [error, setError] = useState("");
   const [editingBookingId, setEditingBookingId] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [withdrawal, setWithdrawal] = useState(null);
   const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [requestMode, setRequestMode] = useState("reschedule");
   const [rescheduleDraft, setRescheduleDraft] = useState({
@@ -308,6 +339,7 @@ export default function MyAppointments() {
 
   const groupedBookings = useMemo(() => buildStatusGroups(bookings), [bookings]);
   const [activeStatusTab, setActiveStatusTab] = useState("pending");
+  const [respondingToOffer, setRespondingToOffer] = useState(false);
   const appointmentStatusTabs = [
     { id: "pending", label: "Pending", bookings: groupedBookings.pending, subtitle: "Appointments waiting for clinic approval." },
     { id: "approved", label: "Approved", bookings: groupedBookings.approved, subtitle: "Confirmed appointments ready for your visit." },
@@ -335,6 +367,7 @@ export default function MyAppointments() {
 
       const bookingDuration = Number(booking.estimatedDurationMinutes || BOOKING_SLOT_INTERVAL_MINUTES);
       for (const slot of buildSlots(availability.schedule.start, availability.schedule.end, bookingDuration)) {
+        if (isCurrentAppointmentSlot(booking, date, slot)) continue;
         const conflict = bookings.some((entry) => {
           if (
             entry.id === booking.id ||
@@ -363,7 +396,7 @@ export default function MyAppointments() {
     setRequestFormOpen(true);
     setRescheduleDraft({
       requestedDate: booking.date || "",
-      requestedTime: booking.time || "09:00",
+      requestedTime: "",
       reason: booking.rescheduleRequest?.reason || "",
     });
     setError("");
@@ -391,6 +424,11 @@ export default function MyAppointments() {
   async function submitAppointmentRequest(bookingId) {
     if (sendingRequest) return;
     setError("");
+    const booking = bookings.find((entry) => entry.id === bookingId);
+    if (hasPendingCancellationRequest(booking) || booking?.rescheduleRequest?.status === "pending") {
+      setError("Withdraw your pending request before submitting another one.");
+      return;
+    }
 
     if (!rescheduleDraft.reason.trim()) {
       setError(
@@ -427,8 +465,13 @@ export default function MyAppointments() {
       return;
     }
 
-    if (!rescheduleDraft.requestedDate) {
-      setError("Please choose a new date for the reschedule request.");
+    const { requestedDate, requestedTime } = rescheduleDraft;
+    if (!requestedDate || !requestedTime) {
+      setError("Please choose a date and time for the reschedule request.");
+      return;
+    }
+    if (isCurrentAppointmentSlot(booking, requestedDate, requestedTime)) {
+      setError("Choose a date or time different from your current appointment.");
       return;
     }
 
@@ -464,6 +507,51 @@ export default function MyAppointments() {
     }
   }
 
+  async function withdrawRequest() {
+    if (!withdrawal || sendingRequest) return;
+    const { booking, field } = withdrawal;
+    setSendingRequest(true);
+    setError("");
+    try {
+      const ref = doc(db, "bookings", booking.id);
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(ref);
+        const current = snapshot.data()?.[field];
+        if (current?.status !== "pending" ||
+          current.requestedAt?.toMillis?.() !== booking[field]?.requestedAt?.toMillis?.()) {
+          throw new Error("This request changed. Check the latest appointment details.");
+        }
+        transaction.update(ref, { [field]: deleteField() });
+      });
+      setWithdrawal(null);
+      notifySuccess("Your appointment is unchanged. You can now submit a different request.", "Request withdrawn");
+    } catch (withdrawError) {
+      setWithdrawal(null);
+      setError(withdrawError?.message || "Could not withdraw the request. Please try again.");
+    } finally {
+      setSendingRequest(false);
+    }
+  }
+
+  async function respondToOffer(booking, accept) {
+    if (respondingToOffer) return;
+    setRespondingToOffer(true);
+    setError("");
+    try {
+      await RESPOND_TO_RESCHEDULE_OFFER({ bookingId: booking.id, offerId: booking.rescheduleOffer.id, accept });
+      notifySuccess(
+        accept ? "Your appointment has moved to the offered time." : "Your original appointment is still scheduled.",
+        accept ? "Alternate time accepted" : "Alternate time declined"
+      );
+    } catch (offerError) {
+      setError(offerError?.code === "functions/already-exists"
+        ? "That time is no longer available. Your original appointment is still scheduled."
+        : offerError?.message || "Could not respond to the offer. Please try again.");
+    } finally {
+      setRespondingToOffer(false);
+    }
+  }
+
   if (!authReady) return <div className="sessionLoading"><LoadingIndicator>Loading your appointments…</LoadingIndicator></div>;
 
   if (!user) {
@@ -485,6 +573,25 @@ export default function MyAppointments() {
       </header>
 
       {error && !requestFormOpen ? <div className="error" style={{ marginTop: 18 }}>{error}</div> : null}
+
+      {bookings.filter(hasActiveRescheduleOffer).map((booking) => {
+        const offer = booking.rescheduleOffer;
+        const deadline = offer.expiresAt.toDate().toLocaleString("en-PH", {
+          dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
+        });
+        return (
+          <section key={booking.id} className="card appointmentOfferCard" aria-label="Alternate appointment offer">
+            <h2>Alternate time offered</h2>
+            <p>{booking.service || "Appointment"} · <strong>{formatDateLabel(offer.date)} at {formatTimeLabel(offer.time)}</strong></p>
+            <p>Respond by {deadline} (Philippine time). If you decline or the offer expires, your original appointment on {formatDateLabel(booking.date)} at {formatTimeLabel(booking.time)} stays scheduled.</p>
+            <p>The alternate time is subject to availability when you accept.</p>
+            <div className="actionColumn actionColumnFriendly">
+              <button type="button" className="btn" disabled={respondingToOffer} onClick={() => respondToOffer(booking, true)}>Accept alternate time</button>
+              <button type="button" className="btn secondary" disabled={respondingToOffer} onClick={() => respondToOffer(booking, false)}>Decline offer</button>
+            </div>
+          </section>
+        );
+      })}
 
       <div className="appointmentStatusSection">
         <div className="appointmentStatusTabs" role="group" aria-label="Filter appointments by status">
@@ -545,6 +652,7 @@ export default function MyAppointments() {
                         booking={booking}
                         onStartReschedule={startReschedule}
                         onStartCancellation={startCancellation}
+                        onWithdraw={(booking, field) => setWithdrawal({ booking, field })}
                       />
                     )}
                   </PaginatedRecords>
@@ -560,6 +668,16 @@ export default function MyAppointments() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(withdrawal)}
+        title={withdrawal?.field === "cancellationRequest" ? "Withdraw cancellation request?" : "Withdraw reschedule request?"}
+        message="Your appointment will stay at its current date and time."
+        confirmLabel="Withdraw request"
+        confirmDisabled={sendingRequest}
+        onClose={() => { if (!sendingRequest) setWithdrawal(null); }}
+        onConfirm={withdrawRequest}
+      />
 
       {requestFormOpen ? (
         <ModalPortal>

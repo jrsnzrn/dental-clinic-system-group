@@ -33,3 +33,18 @@ export function hasPendingCancellationRequest(booking) {
     booking.archiveStatus !== "Archived" &&
     ["pending", "approved"].includes(String(booking.status || "pending").trim().toLowerCase()));
 }
+
+export function isCurrentAppointmentSlot(booking, date, time) {
+  return Boolean(date && time && booking?.date === date && booking?.time === time);
+}
+
+export function getRescheduleRequestBlockLabel(booking) {
+  const request = booking?.rescheduleRequest;
+  if (request?.status !== "pending") return "";
+  if (booking.status === "cancelled") return "Booking cancelled";
+  if (hasPendingCancellationRequest(booking)) return "Cancellation takes priority";
+  if (isCurrentAppointmentSlot(booking, request.requestedDate, request.requestedTime)) {
+    return "Same as current appointment";
+  }
+  return "";
+}
