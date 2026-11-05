@@ -130,22 +130,8 @@ service cloud.firestore {
       return bookingRequest is map && bookingRequest.get("status", "") == "pending";
     }
 
-    function isDifferentRescheduleSlot(reschedule) {
-      return reschedule.requestedDate.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") &&
-        reschedule.requestedTime.matches("^([01][0-9]|2[0-3]):[0-5][0-9]$") &&
-        (reschedule.requestedDate != resource.data.date || reschedule.requestedTime != resource.data.time);
-    }
-
-    function patientBookingRequestChangeIsValid(field, otherField) {
-      let next = request.resource.data;
-      return (!(field in next) && isPendingBookingRequest(resource.data, field)) ||
-        (resource.data.get("status", "pending") in ["pending", "approved"] &&
-          resource.data.get("archiveStatus", "") != "Archived" &&
-          !isPendingBookingRequest(resource.data, field) &&
-          !isPendingBookingRequest(resource.data, otherField) &&
-          !isPendingBookingRequest(next, otherField) &&
-          isPendingBookingRequest(next, field) &&
-          (field != "rescheduleRequest" || isDifferentRescheduleSlot(next[field])));
+    function isBookingRequestWithdrawal(field) {
+      return !(field in request.resource.data) && isPendingBookingRequest(resource.data, field);
     }
 
     function patientOwnBookingUpdateIsValid() {
@@ -156,9 +142,9 @@ service cloud.firestore {
           "cancellationRequest"
         ]) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["cancellationRequest"]) ||
-          patientBookingRequestChangeIsValid("cancellationRequest", "rescheduleRequest")) &&
+          isBookingRequestWithdrawal("cancellationRequest")) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["rescheduleRequest"]) ||
-          patientBookingRequestChangeIsValid("rescheduleRequest", "cancellationRequest")) &&
+          isBookingRequestWithdrawal("rescheduleRequest")) &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.patientProfileId == resource.data.patientProfileId &&
         request.resource.data.patientType == resource.data.patientType &&

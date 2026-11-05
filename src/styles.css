@@ -6812,24 +6812,18 @@ input[type="date"].input { min-height: 48px; }
   overflow-wrap: anywhere;
 }
 
-.bookingManagementPage .bookingsTable th:nth-child(1) { width: 24%; }
+.bookingManagementPage .bookingsTable th:nth-child(1) { width: 25%; }
 .bookingManagementPage .bookingsTable th:nth-child(2) { width: 17%; }
-.bookingManagementPage .bookingsTable th:nth-child(3) { width: 16%; }
-.bookingManagementPage .bookingsTable th:nth-child(4) { width: 18%; }
-.bookingManagementPage .bookingsTable th:nth-child(5) { width: 12%; }
-.bookingManagementPage .bookingsTable th:nth-child(6) { width: 13%; }
+.bookingManagementPage .bookingsTable th:nth-child(3) { width: 18%; }
+.bookingManagementPage .bookingsTable th:nth-child(4) { width: 20%; }
+.bookingManagementPage .bookingsTable th:nth-child(5) { width: 20%; }
 
-.bookingRequestIndicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-}
-
-.bookingRequestIndicator svg {
+.bookingManagementPage .bookingRequestAlert {
   width: 16px;
   height: 16px;
-  flex: 0 0 16px;
+  margin-inline-start: 6px;
+  vertical-align: middle;
+  color: var(--warning);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -6837,9 +6831,9 @@ input[type="date"].input { min-height: 48px; }
   stroke-linejoin: round;
 }
 
-.bookingRequestIndicator.cancellation { color: color-mix(in srgb, var(--danger) 78%, var(--text)); }
-.bookingRequestIndicator.reschedule { color: var(--warning); }
-.bookingNoRequest { color: var(--muted); }
+.bookingManagementPage .bookingRequestAlert.cancellation {
+  color: color-mix(in srgb, var(--danger) 78%, var(--text));
+}
 
 .bookingManagementPage .bookingNameCell {
   white-space: normal;
@@ -7405,8 +7399,8 @@ input[type="date"].input { min-height: 48px; }
 .drawerReschedule.attention { padding: 12px 14px; border: 1px solid rgba(214, 69, 112, 0.4); border-radius: 12px; background: transparent; }
 
 /* Reschedule + payment popups */
-.patientDrawerOverlay.rescheduleOverlay { z-index: 70; }
-.patientDrawer.rescheduleModal { z-index: 80; width: min(440px, calc(100% - 32px)); }
+.patientDrawerOverlay.rescheduleOverlay { z-index: 1510; }
+.patientDrawer.rescheduleModal { z-index: 1511; width: min(440px, calc(100% - 32px)); }
 .rescheduleFields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rescheduleFields label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .rescheduleFields input,
@@ -22996,9 +22990,38 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
 }
 
 .patientAppointmentsPage .appointmentOfferCard {
+  display: grid;
+  gap: 16px;
   margin-block: 16px;
-  padding: 16px;
+  padding: clamp(16px, 3vw, 24px);
   border-color: var(--button-secondary-border);
+  background: var(--surface);
+}
+
+.appointmentOfferHeading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.appointmentOfferIcon {
+  display: grid;
+  flex: 0 0 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--button-secondary-color);
+  background: var(--button-secondary-background);
+}
+
+.appointmentOfferIcon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .patientAppointmentsPage .appointmentOfferCard h2 {
@@ -23006,8 +23029,51 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
   font-size: 18px;
 }
 
-.patientAppointmentsPage .appointmentOfferCard p {
-  margin: 8px 0;
+.appointmentOfferHeading p,
+.appointmentOfferNote p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.appointmentOfferTimes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 10px;
+  max-width: 680px;
+  margin: 0;
+}
+
+.appointmentOfferTimes > div {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.appointmentOfferTimes .appointmentOfferProposed {
+  border-color: var(--button-secondary-border);
+  background: var(--button-secondary-background);
+}
+
+.appointmentOfferTimes dt,
+.appointmentOfferTimes .appointmentOfferService {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.appointmentOfferTimes dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+
+.appointmentOfferNote strong {
+  color: var(--text);
+}
+
+.appointmentOfferActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .patientAppointmentsPage .appointmentTableDetailsRow td {

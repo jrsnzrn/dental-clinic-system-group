@@ -1,4 +1,5 @@
 import RecordPagination from "../../components/RecordPagination";
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { linkedDentistNameFields, formatStaffDisplayName } from "../../utils/staffProfile";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useState } from "react";
@@ -15,12 +16,10 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
-import ConfirmDialog from "../../components/ConfirmDialog";
 import {
   DAY_ORDER,
   createDefaultSchedule,
   getDentistScheduleStatus,
-  normalizeScheduleExceptions,
   normalizeSchedule,
 } from "../../utils/schedule";
 import { logAdminAction } from "../../utils/audit";
@@ -35,9 +34,11 @@ export default function Dentists() {
   const [expandedDentistId, setExpandedDentistId] = useState("");
   const [detailDrafts, setDetailDrafts] = useState({});
   const [draftSchedules, setDraftSchedules] = useState({});
-  const [exceptionDrafts, setExceptionDrafts] = useState({});
-  const [confirmState, setConfirmState] = useState(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [savingAction, setSavingAction] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
+  const saving = Boolean(savingAction);
 
   const [name, setName] = useState("");
   const [specialization, setSpecialization] = useState("");
@@ -68,19 +69,6 @@ export default function Dentists() {
         const next = { ...current };
         nextDentists.forEach((dentist) => {
           next[dentist.id] = current[dentist.id] || normalizeSchedule(dentist.schedule);
-        });
-        return next;
-      });
-      setExceptionDrafts((current) => {
-        const next = { ...current };
-        nextDentists.forEach((dentist) => {
-          next[dentist.id] = current[dentist.id] || {
-            date: "",
-            label: "",
-            active: false,
-            start: "09:00",
-            end: "18:00",
-          };
         });
         return next;
       });
@@ -116,7 +104,7 @@ export default function Dentists() {
     if (!expandedDentistId && !addModalOpen) return;
 
     const onKeyDown = (event) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !saving) {
         setExpandedDentistId("");
         setAddModalOpen(false);
       }
@@ -124,12 +112,29 @@ export default function Dentists() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addModalOpen, expandedDentistId]);
+  }, [addModalOpen, expandedDentistId, saving]);
 
-  async function addDentist(e) {
-    e.preventDefault();
-    if (!name.trim()) return;
+  function clearSaveFeedback() {
+    setSaveError("");
+    setSaveSuccess("");
+  }
 
+  async function runSave(action, save, successMessage) {
+    if (saving) return;
+    setSavingAction(action);
+    clearSaveFeedback();
+    try {
+      await save();
+      setSaveSuccess(successMessage);
+    } catch (error) {
+      console.error("Dentist changes could not be saved:", error);
+      setSaveError(error?.message || "Could not save. Please try again.");
+    } finally {
+      setSavingAction("");
+    }
+  }
+
+  async function addDentist() {
     const schedule = createDefaultSchedule();
     const linkedStaff = staffAccounts.find((entry) => entry.id === linkedStaffUid) || null;
 
@@ -267,79 +272,10 @@ export default function Dentists() {
     });
   }
 
-  function updateExceptionDraft(dentistId, field, value) {
-    setExceptionDrafts((current) => ({
-      ...current,
-      [dentistId]: {
-        ...current[dentistId],
-        [field]: value,
-      },
-    }));
-  }
-
-  async function addException(dentist) {
-    const draft = exceptionDrafts[dentist.id];
-    if (!draft?.date || !draft?.label) return;
-
-    const currentExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions);
-    const nextExceptions = [
-      ...currentExceptions.filter((entry) => entry.date !== draft.date),
-      {
-        date: draft.date,
-        label: draft.label,
-        type: "exception",
-        active: draft.active,
-        start: draft.start,
-        end: draft.end,
-      },
-    ];
-
-    await updateDoc(doc(db, "dentists", dentist.id), {
-      scheduleExceptions: nextExceptions,
-    });
-
-    await logAdminAction({
-      action: "add_dentist_schedule_exception",
-      targetType: "dentist",
-      targetId: dentist.id,
-      targetLabel: dentist.name || "Dentist",
-      details: {
-        date: draft.date,
-        label: draft.label,
-        active: draft.active,
-      },
-    });
-
-    setExceptionDrafts((current) => ({
-      ...current,
-      [dentist.id]: {
-        date: "",
-        label: "",
-        active: false,
-        start: "09:00",
-        end: "18:00",
-      },
-    }));
-  }
-
-  async function removeException(dentist, date) {
-    const nextExceptions = normalizeScheduleExceptions(dentist.scheduleExceptions).filter(
-      (entry) => entry.date !== date
-    );
-    await updateDoc(doc(db, "dentists", dentist.id), { scheduleExceptions: nextExceptions });
-  }
-
   const visibleDentists = useMemo(
     () => dentists.filter((dentist) => dentist.archiveStatus !== "Archived"),
     [dentists]
   );
-
-  async function handleConfirmAction() {
-    if (!confirmState?.action) return;
-    const action = confirmState.action;
-    setConfirmState(null);
-    await action();
-  }
 
   // The dentist currently open in the modal (if any)
   const dentistPage = useRecordPagination(visibleDentists);
@@ -354,7 +290,6 @@ export default function Dentists() {
   const openSchedule = openDentist
     ? normalizeSchedule(draftSchedules[openDentist.id] || openDentist.schedule)
     : null;
-  const openExceptions = openDentist ? normalizeScheduleExceptions(openDentist.scheduleExceptions) : [];
 
   return (
     <div className="container adminSurface dentistManagementPage">
@@ -362,11 +297,16 @@ export default function Dentists() {
         <div className="cardHeader dentistRecordsHeader">
           <div className="dentistRecordsActions">
             <span className="badge">{visibleDentists.length} records</span>
-            <button className="btn dentistAddButton" type="button" onClick={() => setAddModalOpen(true)}>
+            <button className="btn dentistAddButton" type="button" disabled={saving} onClick={() => {
+              clearSaveFeedback();
+              setAddModalOpen(true);
+            }}>
               + Add Dentist
             </button>
           </div>
         </div>
+
+        {!addModalOpen && !openDentist && saveSuccess ? <p role="status">{saveSuccess}</p> : null}
 
         {visibleDentists.length ? (
           <div className="dentistTableWrap">
@@ -391,11 +331,15 @@ export default function Dentists() {
                     <tr
                       key={dentist.id}
                       className={`patientTableRow ${isOpen ? "selectedRecord" : ""}`}
-                      onClick={() => setExpandedDentistId(isOpen ? "" : dentist.id)}
+                      onClick={() => {
+                        clearSaveFeedback();
+                        setExpandedDentistId(isOpen ? "" : dentist.id);
+                      }}
                       tabIndex={0}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
+                          clearSaveFeedback();
                           setExpandedDentistId(isOpen ? "" : dentist.id);
                         }
                       }}
@@ -428,10 +372,13 @@ export default function Dentists() {
       {addModalOpen
         ? createPortal(
             <>
-              <div className="dentistModalOverlay" onClick={() => setAddModalOpen(false)} />
+              <div className="dentistModalOverlay" onClick={() => { if (!saving) setAddModalOpen(false); }} />
               <form
                 className="schedulerPanel dentistModal addDentistDialog"
-                onSubmit={addDentist}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (name.trim()) runSave("add", addDentist, "Dentist added.");
+                }}
                 onClick={(event) => event.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -447,6 +394,7 @@ export default function Dentists() {
                     className="patientDrawerCloseBtn"
                     onClick={() => setAddModalOpen(false)}
                     aria-label="Close Add Dentist form"
+                    disabled={saving}
                   >
                     ×
                   </button>
@@ -458,6 +406,8 @@ export default function Dentists() {
                     aria-label="Dentist Name"
                     placeholder="Dentist Name"
                     value={name}
+                    required
+                    disabled={saving}
                     onChange={(event) => setName(event.target.value)}
                   />
                   <input
@@ -465,12 +415,14 @@ export default function Dentists() {
                     aria-label="Specialization"
                     placeholder="Specialization (e.g. Orthodontist)"
                     value={specialization}
+                    disabled={saving}
                     onChange={(event) => setSpecialization(event.target.value)}
                   />
                   <select
                     className="input"
                     aria-label="Link dentist staff account"
                     value={linkedStaffUid}
+                    disabled={saving}
                     onChange={(event) => setLinkedStaffUid(event.target.value)}
                   >
                     <option value="">Link dentist staff account</option>
@@ -482,9 +434,12 @@ export default function Dentists() {
                   </select>
                 </div>
 
+                {saveError ? <p className="formError" role="alert">{saveError}</p> : null}
                 <div className="addDentistActions">
-                  <button className="btn btnShine" type="submit">Add</button>
-                  <button className="btn secondary" type="button" onClick={() => setAddModalOpen(false)}>
+                  <button className="btn btnShine" type="submit" disabled={saving}>
+                    {savingAction === "add" ? <LoadingIndicator>Adding dentist…</LoadingIndicator> : "Add"}
+                  </button>
+                  <button className="btn secondary" type="button" disabled={saving} onClick={() => setAddModalOpen(false)}>
                     Cancel
                   </button>
                 </div>
@@ -499,7 +454,7 @@ export default function Dentists() {
             <>
               <div
                 className="dentistModalOverlay"
-                onClick={() => setExpandedDentistId("")}
+                onClick={() => { if (!saving) setExpandedDentistId(""); }}
               />
               <div
                 className="schedulerPanel dentistModal"
@@ -520,78 +475,14 @@ export default function Dentists() {
                     className="patientDrawerCloseBtn"
                     onClick={() => setExpandedDentistId("")}
                     aria-label="Close dentist panel"
+                    disabled={saving}
                   >
                     ×
                   </button>
                 </div>
 
-                <details className="dentistExceptions">
-                  <summary>
-                    <span>Schedule Exceptions</span>
-                    <span className="dentistExceptionCount">
-                      {openExceptions.length
-                        ? `${openExceptions.length} exception${openExceptions.length === 1 ? "" : "s"}`
-                        : "No exceptions"}
-                    </span>
-                  </summary>
-                  {openExceptions.length ? (
-                    <ul className="list">
-                      {openExceptions.map((entry) => (
-                        <li key={`${openDentist.id}-${entry.date}`} className="item">
-                          <div className="kv">
-                            <strong>{entry.date} • {entry.label}</strong>
-                            <span>{entry.active ? `${entry.start} - ${entry.end}` : "Unavailable all day"}</span>
-                          </div>
-                          <button className="btn danger" type="button" onClick={() => setConfirmState({
-                            title: "Remove this schedule exception?",
-                            message: `The schedule exception for ${entry.date} will be removed.`,
-                            confirmLabel: "Remove Exception",
-                            tone: "danger",
-                            action: () => removeException(openDentist, entry.date),
-                          })}>
-                            Remove
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="dentistExceptionEmpty">No schedule exceptions yet.</p>
-                  )}
-                  <div className="dentistExceptionForm">
-                    <div className="dentistExceptionFields">
-                      <label>
-                        <span>Date</span>
-                        <input className="input" aria-label="Exception date" type="date" value={exceptionDrafts[openDentist.id]?.date || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "date", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>Label</span>
-                        <input className="input" aria-label="Exception label" placeholder="e.g. Leave, Half-day" value={exceptionDrafts[openDentist.id]?.label || ""} onChange={(event) => updateExceptionDraft(openDentist.id, "label", event.target.value)} />
-                      </label>
-                    </div>
-                    <div className="dentistExceptionFields">
-                      <label>
-                        <span>Availability</span>
-                        <select className="input" value={String(exceptionDrafts[openDentist.id]?.active || false)} onChange={(event) => updateExceptionDraft(openDentist.id, "active", event.target.value === "true")}>
-                          <option value="false">Unavailable all day</option>
-                          <option value="true">Available with custom hours</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>Start time</span>
-                        <input className="input" aria-label="Exception start time" type="time" value={exceptionDrafts[openDentist.id]?.start || "09:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "start", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>End time</span>
-                        <input className="input" aria-label="Exception end time" type="time" value={exceptionDrafts[openDentist.id]?.end || "18:00"} disabled={!exceptionDrafts[openDentist.id]?.active} onChange={(event) => updateExceptionDraft(openDentist.id, "end", event.target.value)} />
-                      </label>
-                    </div>
-                    <div className="dentistEditorActions">
-                      <button className="btn btnShine" type="button" onClick={() => addException(openDentist)}>
-                        Save Exception
-                      </button>
-                    </div>
-                  </div>
-                </details>
+                {saveError ? <p className="formError" role="alert">{saveError}</p> : null}
+                {saveSuccess ? <p role="status">{saveSuccess}</p> : null}
 
                 <section className="dentistEditorSection">
                   <div className="cardHeader dentistEditorSectionHeader">
@@ -608,6 +499,7 @@ export default function Dentists() {
                         className="input"
                         placeholder="Specialization"
                         value={openDetailDraft.specialization}
+                        disabled={saving}
                         onChange={(event) => updateDetailDraft(openDentist.id, "specialization", event.target.value)}
                       />
                     </label>
@@ -616,6 +508,7 @@ export default function Dentists() {
                       <select
                         className="input"
                         value={openDetailDraft.linkedStaffUid || ""}
+                        disabled={saving}
                         onChange={(event) => updateDetailDraft(openDentist.id, "linkedStaffUid", event.target.value)}
                       >
                         <option value="">No linked dentist login</option>
@@ -629,12 +522,14 @@ export default function Dentists() {
                   </div>
 
                   <div className="inlineActionRow dentistEditorActions">
-                    <button className="btn btnShine" type="button" onClick={() => saveDentistDetails(openDentist)}>
-                      Save Dentist Details
+                    <button className="btn btnShine" type="button" disabled={saving}
+                      onClick={() => runSave("details", () => saveDentistDetails(openDentist), "Dentist details saved.")}>
+                      {savingAction === "details" ? <LoadingIndicator>Saving details…</LoadingIndicator> : "Save Dentist Details"}
                     </button>
                     <button
                       className="btn secondary"
                       type="button"
+                      disabled={saving}
                       onClick={() =>
                         setDetailDrafts((current) => ({
                           ...current,
@@ -666,6 +561,7 @@ export default function Dentists() {
                           <input
                             type="checkbox"
                             checked={openSchedule[day.key].active}
+                            disabled={saving}
                             onChange={(event) =>
                               updateDraftSchedule(openDentist.id, day.key, "active", event.target.checked)
                             }
@@ -678,7 +574,7 @@ export default function Dentists() {
                           type="time"
                           aria-label={`${day.label} start time`}
                           value={openSchedule[day.key].start}
-                          disabled={!openSchedule[day.key].active}
+                          disabled={saving || !openSchedule[day.key].active}
                           onChange={(event) =>
                             updateDraftSchedule(openDentist.id, day.key, "start", event.target.value)
                           }
@@ -689,7 +585,7 @@ export default function Dentists() {
                           type="time"
                           aria-label={`${day.label} end time`}
                           value={openSchedule[day.key].end}
-                          disabled={!openSchedule[day.key].active}
+                          disabled={saving || !openSchedule[day.key].active}
                           onChange={(event) =>
                             updateDraftSchedule(openDentist.id, day.key, "end", event.target.value)
                           }
@@ -699,12 +595,14 @@ export default function Dentists() {
                   </div>
 
                   <div className="schedulerActions dentistEditorActions">
-                    <button className="btn btnShine" type="button" onClick={() => saveSchedule(openDentist)}>
-                      Save Schedule
+                    <button className="btn btnShine" type="button" disabled={saving}
+                      onClick={() => runSave("schedule", () => saveSchedule(openDentist), "Schedule saved.")}>
+                      {savingAction === "schedule" ? <LoadingIndicator>Saving schedule…</LoadingIndicator> : "Save Schedule"}
                     </button>
                     <button
                       className="btn secondary"
                       type="button"
+                      disabled={saving}
                       onClick={() =>
                         setDraftSchedules((current) => ({
                           ...current,
@@ -722,15 +620,6 @@ export default function Dentists() {
             document.body
           )
         : null}
-      <ConfirmDialog
-        open={Boolean(confirmState)}
-        title={confirmState?.title}
-        message={confirmState?.message}
-        confirmLabel={confirmState?.confirmLabel}
-        tone={confirmState?.tone}
-        onClose={() => setConfirmState(null)}
-        onConfirm={handleConfirmAction}
-      />
     </div>
   );
 }

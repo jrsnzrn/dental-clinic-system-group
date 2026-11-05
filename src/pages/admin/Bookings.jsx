@@ -34,6 +34,7 @@ const RESCHEDULE_BOOKING = httpsCallable(functions, "rescheduleBooking");
 const APPROVE_RESCHEDULE = httpsCallable(functions, "approveReschedule");
 const DECLINE_RESCHEDULE = httpsCallable(functions, "declineReschedule");
 const OFFER_RESCHEDULE = httpsCallable(functions, "offerReschedule");
+const GET_RESCHEDULE_OFFER_AVAILABILITY = httpsCallable(functions, "getRescheduleOfferAvailability");
 const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
 const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
 const WALK_IN_PATIENT_TYPES = ["Regular", "Ortho"];
@@ -51,6 +52,10 @@ const BOOKING_FILTERS = {
     label: "Pending",
     emptyText: "No pending bookings right now.",
   },
+  requests: {
+    label: "Requests",
+    emptyText: "No pending cancellation or reschedule requests.",
+  },
   approved: {
     label: "Approved",
     emptyText: "No approved bookings yet.",
@@ -67,7 +72,7 @@ const BOOKING_FILTERS = {
   completed: { label: "Completed", emptyText: "No completed treatments or appointments yet." },
 };
 
-const BOOKING_STATUS_FILTERS = ["calendar", "pending", "approved", "checked-in", "cancelled", "completed"];
+const BOOKING_STATUS_FILTERS = ["calendar", "pending", "requests", "approved", "checked-in", "cancelled", "completed"];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 function timestampMillis(value) {
   if (!value) return null;
@@ -186,10 +191,18 @@ function getBookingServices(booking) {
   return services.map((service) => String(service).trim()).filter(Boolean).join(", ") || "Not set";
 }
 
-function BookingRow({ booking, onOpen, highlighted }) {
-  const reschedule = booking.rescheduleRequest;
-  const cancellationPending = hasPendingCancellationRequest(booking);
-  const reschedulePending = reschedule?.status === "pending" && !getRescheduleRequestBlockLabel(booking);
+function getPendingBookingRequest(booking) {
+  if (hasPendingCancellationRequest(booking)) return "cancellation";
+  if (["pending", "approved"].includes(booking.status || "pending") && !booking.checkedInAt &&
+    booking.rescheduleRequest?.status === "pending" && !getRescheduleRequestBlockLabel(booking)) {
+    return "reschedule";
+  }
+  return "";
+}
+
+function BookingRow({ booking, onOpen, highlighted, showRequestType }) {
+  const request = getPendingBookingRequest(booking);
+  const requestLabel = request ? `Pending ${request} request` : "";
   const displayStatus = booking.status === "approved" && booking.checkedInAt
     ? "checked_in"
     : booking.status || "pending";
@@ -208,7 +221,22 @@ function BookingRow({ booking, onOpen, highlighted }) {
       }}
     >
       <td className="bookingNameCell" data-label="Patient">
-        <strong>{booking.fullName || "No name"}</strong>
+        <strong>
+          {booking.fullName || "No name"}
+          {requestLabel ? (
+            <svg
+              className={`bookingRequestAlert${request === "cancellation" ? " cancellation" : ""}`}
+              viewBox="0 0 20 20"
+              role="img"
+              aria-label={requestLabel}
+            >
+              <title>{requestLabel}</title>
+              <circle cx="10" cy="10" r="7" />
+              <path d="M10 6.5v4M10 13.5h.01" />
+            </svg>
+          ) : null}
+        </strong>
+        {showRequestType && requestLabel ? <small>{requestLabel}</small> : null}
       </td>
       <td data-label="Service">{booking.service || "Not set"}</td>
       <td data-label="Dentist">{booking.selectedDentist || "Not assigned"}</td>
@@ -220,19 +248,6 @@ function BookingRow({ booking, onOpen, highlighted }) {
         <span className={`bookingTableStatus bookingTableStatus-${getAppointmentStatusClass(displayStatus)}`}>
           {formatAppointmentStatusLabel(displayStatus)}
         </span>
-      </td>
-      <td data-label="Request">
-        {cancellationPending ? (
-          <span className="bookingRequestIndicator cancellation">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m8 8 4 4m0-4-4 4" /></svg>
-            Cancellation
-          </span>
-        ) : reschedulePending ? (
-          <span className="bookingRequestIndicator reschedule">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l2.5 1.5" /></svg>
-            Reschedule
-          </span>
-        ) : <span className="bookingNoRequest" aria-label="No pending request">—</span>}
       </td>
     </tr>
   );
@@ -344,7 +359,12 @@ function BookingDetailDrawer({
 
             <div className="patientDrawerBody">
               {actionError ? <div className="formError" role="alert">{actionError}</div> : null}
-              {cancellation ? (
+              {status === "cancelled" && booking.cancellationReason ? (
+                <section className="bookingRequestNotice" aria-label="Patient cancellation">
+                  <strong>Cancelled by patient</strong>
+                  <p>{booking.cancellationReason}</p>
+                </section>
+              ) : cancellation ? (
                 <section className={`bookingRequestNotice${cancellationPending ? " cancellationPending" : ""}`} aria-label="Patient cancellation request">
                   <div className="bookingRequestHeading">
                     <strong>Patient cancellation request</strong>
@@ -564,20 +584,46 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [offerAvailability, setOfferAvailability] = useState(null);
+  const [offerAvailabilityVersion, setOfferAvailabilityVersion] = useState(0);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const isCancelled = booking?.status === "cancelled";
+  const bookingId = booking?.id;
+  const requestedDate = booking?.rescheduleRequest?.requestedDate || "";
+  const requestedTime = booking?.rescheduleRequest?.requestedTime || "";
+  const selectedDate = offerMode ? requestedDate : newDate;
+  const offerAvailabilityKey = `${bookingId}:${requestedDate}:${requestedTime}:${offerAvailabilityVersion}`;
+  const currentAvailability = offerAvailability?.key === offerAvailabilityKey ? offerAvailability : null;
+  const availableOfferTimes = currentAvailability?.slots || [];
 
   // Prefill each time the popup opens
   useEffect(() => {
     if (!open || !booking) return;
     setNewDate(booking.date && booking.date >= todayStr ? booking.date : "");
-    setNewTime(booking.time || "");
+    setNewTime(offerMode ? "" : booking.time || "");
+    setOfferAvailability(null);
     setFormError("");
     setSaving(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, booking?.id]);
+  }, [open, booking?.id, offerMode]);
+
+  useEffect(() => {
+    if (!open || !offerMode || !bookingId || !requestedDate) return;
+    let cancelled = false;
+    GET_RESCHEDULE_OFFER_AVAILABILITY({ bookingId, date: requestedDate })
+      .then(({ data }) => {
+        if (!cancelled) {
+          setNewTime("");
+          setOfferAvailability({ key: offerAvailabilityKey, slots: data.availableSlots });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setOfferAvailability({ key: offerAvailabilityKey, error: error.message || "Could not load available times." });
+      });
+    return () => { cancelled = true; };
+  }, [open, offerMode, bookingId, requestedDate, offerAvailabilityKey]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -587,12 +633,16 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
   }, [open, onClose, saving]);
 
   function submit() {
-    if (!newDate || !newTime) {
+    if (!selectedDate || !newTime) {
       setFormError("Choose both a date and a time.");
       return;
     }
-    if (newDate < todayStr) {
+    if (selectedDate < todayStr) {
       setFormError("The new date can't be in the past.");
+      return;
+    }
+    if (offerMode && !availableOfferTimes.includes(newTime)) {
+      setFormError("Choose one of the available times.");
       return;
     }
     setFormError("");
@@ -604,10 +654,14 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
     setSaving(true);
     setFormError("");
     try {
-      await onSave(booking, newDate, newTime);
+      await onSave(booking, selectedDate, newTime);
     } catch (error) {
       console.error(error);
       setFormError(error?.message || "The booking could not be rescheduled.");
+      if (offerMode && error?.code === "functions/already-exists") {
+        setNewTime("");
+        setOfferAvailabilityVersion((current) => current + 1);
+      }
       setSaving(false);
     }
   }
@@ -624,6 +678,7 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
                 <h3>{booking.fullName || "No name"}</h3>
                 <div className="patientRecordPeek">
                   <span>Current: {getBookingDateTimeLabel(booking)}</span>
+                  {offerMode && booking.selectedDentist ? <span>Dentist: {booking.selectedDentist}</span> : null}
                 </div>
               </div>
               <button type="button" className="patientDrawerCloseBtn" onClick={onClose} aria-label="Close" disabled={saving}>
@@ -633,17 +688,29 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
 
             <div className="rescheduleFields">
               <label>
-                New date
-                <input type="date" min={todayStr} value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                {offerMode ? "Requested date" : "New date"}
+                <input type="date" min={todayStr} value={selectedDate} readOnly={offerMode} onChange={(e) => setNewDate(e.target.value)} />
               </label>
               <label>
-                New time
-                <input type="time" step="900" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+                {offerMode ? "Available time" : "New time"}
+                {offerMode ? (
+                  <select value={newTime} disabled={saving || !availableOfferTimes.length} onChange={(e) => setNewTime(e.target.value)}>
+                    <option value="">Choose a time</option>
+                    {availableOfferTimes.map((time) => <option key={time} value={time}>{formatTimeLabel(time)}</option>)}
+                  </select>
+                ) : <input type="time" step="900" value={newTime} onChange={(e) => setNewTime(e.target.value)} />}
               </label>
             </div>
 
             {isCancelled ? <p className="rescheduleHint">Saving will also restore this booking as approved.</p> : null}
-            {offerMode ? <p className="rescheduleHint">The patient keeps their current appointment until they accept an available time.</p> : null}
+            {offerMode && requestedDate && !currentAvailability ? <LoadingIndicator>Checking available times…</LoadingIndicator> : null}
+            {offerMode && (currentAvailability?.error || (currentAvailability && !availableOfferTimes.length)) ? (
+              <p className="rescheduleHint" role="status">
+                {currentAvailability.error || "No alternate times are available for this dentist on the requested date."}{" "}
+                <button type="button" className="btn secondary" onClick={() => setOfferAvailabilityVersion((current) => current + 1)}>Refresh times</button>
+              </p>
+            ) : null}
+            {offerMode ? <p className="rescheduleHint">The patient has up to 2 hours to respond. The offer expires at least 1 hour before the earlier appointment. Their current booking stays in place unless they accept an available time.</p> : null}
 
             {formError ? (
               <div className="formError" role="alert">
@@ -652,7 +719,7 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
             ) : null}
 
             <div className="actionColumn actionColumnFriendly">
-              <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving}>
+              <button className="btn btnShine patientActionBtn" type="button" onClick={submit} disabled={saving || (offerMode && !availableOfferTimes.includes(newTime))}>
                 {saving ? <LoadingIndicator>Saving…</LoadingIndicator> : offerMode ? "Send offer" : "Save new schedule"}
               </button>
               <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>
@@ -666,7 +733,7 @@ function RescheduleModal({ open, booking, offerMode, onClose, onSave }) {
         open={confirmOpen}
         title={offerMode ? "Confirm alternate time offer" : "Confirm reschedule"}
         message={offerMode
-          ? `Email the patient an offer for ${formatDateLabel(newDate)} at ${formatTimeLabel(newTime)}?`
+          ? `Email the patient an offer for ${formatDateLabel(selectedDate)} at ${formatTimeLabel(newTime)}?`
           : `Reschedule ${booking?.fullName || "this patient"} to ${formatDateLabel(newDate)} at ${formatTimeLabel(newTime)}?`}
         confirmLabel={offerMode ? "Send offer" : "Confirm reschedule"}
         onClose={() => setConfirmOpen(false)}
@@ -998,7 +1065,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       }
       return;
     }
-    await RESCHEDULE_BOOKING({ bookingId: booking.id, date, time });
+    await RESCHEDULE_BOOKING({ bookingId: booking.id, date, time, restoreCancelled: booking.status === "cancelled" });
     closeReschedule();
     setActionSuccess(`Appointment rescheduled to ${formatDateLabel(date)} at ${formatTimeLabel(time)}.`);
   }
@@ -1129,7 +1196,9 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const activeItems = useMemo(
     () => activeBookings
       .filter((booking) => {
-        if (status === "completed") {
+        if (status === "requests") {
+          if (!getPendingBookingRequest(booking)) return false;
+        } else if (status === "completed") {
           if (String(booking.status || "").toLowerCase() !== "completed") return false;
         } else if (status === "checked-in") {
           if (booking.status !== "approved" || !booking.checkedInAt) return false;
@@ -1226,7 +1295,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
 
       <div className="bookingManagementGrid">
         <section className="bookingListPanel" aria-label="Appointment list">
-          <nav className="bookingStatusFilters" aria-label="Filter appointments by status">
+          <nav className="bookingStatusFilters" aria-label="Filter appointments">
             {BOOKING_STATUS_FILTERS.map((filter) => (
               <NavLink
                 key={filter}
@@ -1270,7 +1339,6 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                     <th>Dentist</th>
                     <th>Date &amp; time</th>
                     <th>Status</th>
-                    <th>Request</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1280,6 +1348,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                       booking={booking}
                       onOpen={openBooking}
                       highlighted={highlightedBookingIds.includes(booking.id)}
+                      showRequestType={status === "requests"}
                     />
                   ))}
                 </tbody>

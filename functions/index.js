@@ -840,14 +840,16 @@ async function validateStaffBookingSlot(transaction, {
 function buildAvailabilityResponse({
   dentist,
   date,
-  selectedServices,
   serviceOptions,
   bookings,
   duplicateWarning,
   closure,
+  rescheduleBooking,
 }) {
   const schedule = getDentistDaySchedule(dentist, date);
-  const durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
+  const durationMinutes = rescheduleBooking
+    ? getStoredBookingDurationMinutes(rescheduleBooking)
+    : BOOKING_SLOT_INTERVAL_MINUTES;
 
   if (closure || !schedule.active) {
     return {
@@ -875,6 +877,7 @@ function buildAvailabilityResponse({
   const manilaNow = getManilaNowContext();
   const normalizedDentistBookings = bookings
     .filter((booking) => {
+      if (rescheduleBooking && booking.id === rescheduleBooking.id) return false;
       if (!isActiveBooking(booking)) return false;
       const bookingDentistId = String(booking.dentistId || "").trim();
       if (bookingDentistId) return bookingDentistId === dentist.id;
@@ -882,7 +885,9 @@ function buildAvailabilityResponse({
     })
     .map((booking) => {
       const start = timeToMinutes(booking.time);
-      const end = start + getBookingDurationMinutes(booking, serviceOptions);
+      const end = start + (rescheduleBooking
+        ? getStoredBookingDurationMinutes(booking)
+        : getBookingDurationMinutes(booking, serviceOptions));
       return {
         id: booking.id || "",
         start,
@@ -891,6 +896,7 @@ function buildAvailabilityResponse({
     });
 
   const slotOptions = generateSlots(scheduleStart, scheduleEnd)
+    .filter((slot) => !rescheduleBooking || date !== rescheduleBooking.date || slot !== rescheduleBooking.time)
     .map((slot) => {
       const slotStart = timeToMinutes(slot);
       const slotEnd = slotStart + durationMinutes;
@@ -2151,12 +2157,102 @@ exports.getBookingAvailability = onCall(
   return buildAvailabilityResponse({
     dentist,
     date,
-    selectedServices,
     serviceOptions,
     bookings,
     duplicateWarning,
     closure,
   });
+});
+
+function getPatientRescheduleInput(request) {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in to reschedule your appointment.");
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const date = String(request.data?.date || "").trim();
+  if (!bookingId || bookingId.includes("/") || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new HttpsError("invalid-argument", "A booking and valid date are required.");
+  }
+  const appointmentDate = createManilaAppointmentDate(date, "12:00");
+  if (!Number.isFinite(appointmentDate.getTime()) || appointmentDate.toISOString().slice(0, 10) !== date ||
+    date < getManilaNowContext().date) {
+    throw new HttpsError("invalid-argument", "Choose today or a future appointment date.");
+  }
+  if (appointmentDate.getUTCDay() === 0) {
+    throw new HttpsError("invalid-argument", "Choose an appointment date from Monday to Saturday.");
+  }
+  return { bookingId, date };
+}
+
+function getPatientRescheduleBooking(snapshot, uid) {
+  const booking = snapshot.data();
+  if (!booking || booking.uid !== uid) {
+    throw new HttpsError("permission-denied", "You can only reschedule your own appointments.");
+  }
+  assertBookingCanBeRescheduled(booking);
+  if (booking.rescheduleRequest?.status === "pending") {
+    throw new HttpsError("failed-precondition", "Withdraw your pending reschedule request before submitting another one.");
+  }
+  if (!booking.dentistId) throw new HttpsError("failed-precondition", "This booking is missing an assigned dentist.");
+  return { ...booking, id: snapshot.id };
+}
+
+exports.getRescheduleAvailability = onCall({ enforceAppCheck: true }, async (request) => {
+  const { bookingId, date } = getPatientRescheduleInput(request);
+  await assertRateLimit({
+    uid: request.auth.uid,
+    scope: "reschedule_availability",
+    minIntervalMs: 0,
+    windowMs: BOOKING_AVAILABILITY_WINDOW_MS,
+    maxCalls: BOOKING_AVAILABILITY_MAX_CALLS,
+  });
+  const snapshot = await db.collection("bookings").doc(bookingId).get();
+  const booking = getPatientRescheduleBooking(snapshot, request.auth.uid);
+  return { availableSlots: await loadRescheduleSlots(booking, date) };
+});
+
+async function loadRescheduleSlots(booking, date) {
+  const [dentist, closures, bookings] = await Promise.all([
+    db.collection("dentists").doc(booking.dentistId).get(),
+    db.collection("clinicClosures").where("date", "==", date).get(),
+    db.collection("bookings").where("date", "==", date).get(),
+  ]);
+  if (!dentist.exists || dentist.data().archiveStatus === "Archived") {
+    throw new HttpsError("failed-precondition", "The assigned dentist is no longer active.");
+  }
+  const { availableSlots } = buildAvailabilityResponse({
+    dentist: { ...dentist.data(), id: dentist.id },
+    date,
+    bookings: bookings.docs.map((entry) => ({ ...entry.data(), id: entry.id })),
+    closure: getActiveClosureForDate(closures.docs.map((entry) => entry.data()), date),
+    rescheduleBooking: booking,
+  });
+  return availableSlots;
+}
+
+exports.requestReschedule = onCall({ enforceAppCheck: true }, async (request) => {
+  const { bookingId, date } = getPatientRescheduleInput(request);
+  const time = String(request.data?.time || "").trim();
+  const reason = String(request.data?.reason || "").trim();
+  if (!/^([01]\d|2[0-3]):(00|15|30|45)$/.test(time) || !reason) {
+    throw new HttpsError("invalid-argument", "Choose an available time and enter a reason.");
+  }
+  const ref = db.collection("bookings").doc(bookingId);
+  await db.runTransaction(async (transaction) => {
+    const booking = getPatientRescheduleBooking(await transaction.get(ref), request.auth.uid);
+    if (date === booking.date && time === booking.time) {
+      throw new HttpsError("invalid-argument", "Choose a date or time different from your current appointment.");
+    }
+    await validateStaffBookingSlot(transaction, { bookingId, booking, nextDate: date, nextTime: time });
+    transaction.update(ref, {
+      rescheduleRequest: {
+        requestedDate: date,
+        requestedTime: time,
+        reason,
+        status: "pending",
+        requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    });
+  });
+  return { success: true };
 });
 
 function validateBookingSelection(services, patientType) {
@@ -2700,6 +2796,9 @@ exports.setBookingStatus = onCall(
       if (booking.status === "completed") {
         throw new HttpsError("failed-precondition", "A completed appointment cannot be reopened.");
       }
+      if (booking.status === "cancelled" && booking.cancelledByUid && nextStatus !== "cancelled") {
+        throw new HttpsError("failed-precondition", "The patient has already cancelled this appointment.");
+      }
       if (nextStatus === "no-show" && !isStoredBookingInPast(booking)) {
         throw new HttpsError("failed-precondition", "An appointment can be marked no-show only after its scheduled time has passed.");
       }
@@ -2785,6 +2884,47 @@ exports.setBookingStatus = onCall(
   }
 );
 
+exports.cancelPatientBooking = onCall({ enforceAppCheck: true }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in to cancel your appointment.");
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const reason = String(request.data?.reason || "").trim();
+  if (!bookingId || bookingId.includes("/") || !reason) {
+    throw new HttpsError("invalid-argument", "A booking and cancellation reason are required.");
+  }
+
+  const uid = request.auth.uid;
+  const ref = db.collection("bookings").doc(bookingId);
+  await db.runTransaction(async (transaction) => {
+    const booking = (await transaction.get(ref)).data();
+    if (!booking || booking.uid !== uid) {
+      throw new HttpsError("permission-denied", "You can only cancel your own appointments.");
+    }
+    if (booking.status === "cancelled") return;
+    if (!["pending", "approved"].includes(booking.status) || booking.archiveStatus === "Archived" ||
+      booking.checkedInAt || isStoredBookingInPast(booking)) {
+      throw new HttpsError("failed-precondition", "Only upcoming appointments that have not checked in can be cancelled online.");
+    }
+    if (booking.rescheduleRequest?.status === "pending") {
+      throw new HttpsError("failed-precondition", "Withdraw your reschedule request before cancelling the appointment.");
+    }
+    const { lockRefs, lockSnaps } = await getLockSnapshots(transaction, booking);
+    deleteOwnedLocks(transaction, lockRefs, lockSnaps, bookingId);
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    transaction.update(ref, {
+      status: "cancelled",
+      statusUpdatedAt: now,
+      cancelledAt: now,
+      cancelledByUid: uid,
+      cancellationReason: reason,
+      ...(booking.cancellationRequest?.status === "pending" ? {
+        cancellationRequest: { ...booking.cancellationRequest, status: "cancelled" },
+      } : {}),
+    });
+  });
+  await syncDentistPatientAccess(uid);
+  return { success: true };
+});
+
 exports.rescheduleBooking = onCall({}, async (request) => {
   const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
   const bookingId = String(request.data?.bookingId || "").trim();
@@ -2800,6 +2940,9 @@ exports.rescheduleBooking = onCall({}, async (request) => {
     const bookingSnap = await transaction.get(bookingRef);
     if (!bookingSnap.exists) throw new HttpsError("not-found", "Booking could not be found.");
     const booking = { id: bookingSnap.id, ...bookingSnap.data() };
+    if (booking.status === "cancelled" && booking.cancelledByUid && request.data?.restoreCancelled !== true) {
+      throw new HttpsError("failed-precondition", "The patient has already cancelled this appointment.");
+    }
     if (booking.archiveStatus === "Archived" || ["completed", "no-show"].includes(String(booking.status || "").toLowerCase())) {
       throw new HttpsError("failed-precondition", "This appointment cannot be rescheduled.");
     }
@@ -4603,6 +4746,44 @@ async function moveBookingToRequestedSlot(transaction, bookingRef, booking, date
   };
 }
 
+function assertRescheduleOfferDate(booking, date) {
+  assertBookingCanBeRescheduled(booking);
+  const reschedule = booking.rescheduleRequest;
+  if (reschedule?.status !== "pending" || !booking.uid || !String(booking.email || "").trim()) {
+    throw new HttpsError("failed-precondition", "A pending patient request and a patient email are required.");
+  }
+  if (!date || date !== reschedule.requestedDate) {
+    throw new HttpsError("failed-precondition", "Choose an alternate time on the date the patient requested.");
+  }
+  if (!booking.dentistId) throw new HttpsError("failed-precondition", "This booking is missing an assigned dentist.");
+}
+
+function getRescheduleOfferExpiry(booking, date, time, offeredAt) {
+  const hourMs = 60 * 60 * 1000;
+  const originalAt = createManilaAppointmentDate(booking.date, booking.time).getTime();
+  const alternateAt = createManilaAppointmentDate(date, time).getTime();
+  return Math.min(offeredAt + 2 * hourMs, Math.min(originalAt, alternateAt) - hourMs);
+}
+
+exports.getRescheduleOfferAvailability = onCall(async (request) => {
+  await getStaffContextFromRequest(request, ["admin", "receptionist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const date = String(request.data?.date || "").trim();
+  if (!bookingId || bookingId.includes("/")) throw new HttpsError("invalid-argument", "A booking ID is required.");
+  const snapshot = await db.collection("bookings").doc(bookingId).get();
+  if (!snapshot.exists) throw new HttpsError("not-found", "Booking could not be found.");
+  const booking = { ...snapshot.data(), id: snapshot.id };
+  assertRescheduleOfferDate(booking, date);
+  const availableSlots = await loadRescheduleSlots(booking, date);
+  const now = Date.now();
+  return {
+    availableSlots: availableSlots.filter((time) =>
+      time !== booking.rescheduleRequest.requestedTime &&
+      getRescheduleOfferExpiry(booking, date, time, now) > now
+    ),
+  };
+});
+
 exports.offerReschedule = onCall({ secrets: [gmailEmail, gmailAppPassword] }, async (request) => {
   const staff = await getStaffContextFromRequest(request, ["admin", "receptionist"]);
   const bookingId = String(request.data?.bookingId || "").trim();
@@ -4611,23 +4792,32 @@ exports.offerReschedule = onCall({ secrets: [gmailEmail, gmailAppPassword] }, as
   if (!bookingId || bookingId.includes("/")) throw new HttpsError("invalid-argument", "A booking ID is required.");
   const ref = db.collection("bookings").doc(bookingId);
   const offerId = crypto.randomUUID();
-  const { booking, offer } = await db.runTransaction(async (transaction) => {
+  const { booking, offer, requestedTimeBooked } = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     if (!snapshot.exists) throw new HttpsError("not-found", "Booking could not be found.");
     const booking = snapshot.data();
-    assertBookingCanBeRescheduled(booking);
-    if (booking.rescheduleRequest?.status !== "pending" || !booking.uid || !String(booking.email || "").trim()) {
-      throw new HttpsError("failed-precondition", "A pending patient request and a patient email are required.");
-    }
+    assertRescheduleOfferDate(booking, date);
     if ((date === booking.date && time === booking.time) ||
       (date === booking.rescheduleRequest.requestedDate && time === booking.rescheduleRequest.requestedTime)) {
       throw new HttpsError("invalid-argument", "Choose a time different from the original and requested appointments.");
     }
-    const slot = await validateStaffBookingSlot(transaction, { bookingId, booking, nextDate: date, nextTime: time });
-    const originalAt = createManilaAppointmentDate(booking.date, booking.time).getTime();
-    const expiresAt = Math.min(Date.now() + 24 * 60 * 60 * 1000, originalAt, slot.appointmentAt.toMillis());
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-      throw new HttpsError("failed-precondition", "Both appointment times must still be in the future.");
+    await validateStaffBookingSlot(transaction, { bookingId, booking, nextDate: date, nextTime: time });
+    let requestedTimeBooked = false;
+    try {
+      await validateStaffBookingSlot(transaction, {
+        bookingId,
+        booking,
+        nextDate: date,
+        nextTime: booking.rescheduleRequest.requestedTime || "",
+      });
+    } catch (error) {
+      if (!(error instanceof HttpsError)) throw error;
+      requestedTimeBooked = error.code === "already-exists";
+    }
+    const offeredAt = Date.now();
+    const expiresAt = getRescheduleOfferExpiry(booking, date, time, offeredAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= offeredAt) {
+      throw new HttpsError("failed-precondition", "Both appointment times must be more than one hour away to send an offer.");
     }
     const offer = {
       id: offerId,
@@ -4642,15 +4832,29 @@ exports.offerReschedule = onCall({ secrets: [gmailEmail, gmailAppPassword] }, as
       requestTime: booking.rescheduleRequest.requestedTime || "",
       requestAt: booking.rescheduleRequest.requestedAt || null,
       offeredBy: staff.uid,
-      offeredAt: admin.firestore.FieldValue.serverTimestamp(),
+      offeredAt: admin.firestore.Timestamp.fromMillis(offeredAt),
     };
     transaction.update(ref, { rescheduleOffer: offer });
-    return { booking, offer };
+    return { booking, offer, requestedTimeBooked };
   });
 
-  const deadline = offer.expiresAt.toDate().toLocaleString("en-PH", {
-    dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
+  const scheduleFormat = new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila", hour12: true,
   });
+  const deadline = scheduleFormat.format(offer.expiresAt.toDate());
+  const alternateSchedule = scheduleFormat.format(createManilaAppointmentDate(offer.date, offer.time));
+  const originalSchedule = scheduleFormat.format(createManilaAppointmentDate(booking.date, booking.time));
+  const patientName = String(booking.fullName || "Patient");
+  const safePatientName = patientName.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]);
+  const appointmentsUrl = "https://topdent.website/my-appointments";
+  const intro = requestedTimeBooked
+    ? "Thank you for sending us your preferred time. That slot has already been booked, so we’d be happy to see you at the alternate time below if it works for you."
+    : "Thank you for sending us your preferred time. We’d be happy to see you at the alternate time below if it works for you.";
+  const keepOriginal = "If you decline or do not respond by the deadline, your original appointment remains scheduled.";
+  const replyBy = `If this time works for you, please let us know by ${deadline}.`;
+  const availabilityNote = "The alternate time is subject to availability when you accept.";
   try {
     const mailer = createTransporter();
     await mailer.transporter.sendMail({
@@ -4658,12 +4862,29 @@ exports.offerReschedule = onCall({ secrets: [gmailEmail, gmailAppPassword] }, as
       to: String(booking.email).trim(),
       subject: "TopDent: Alternative appointment time",
       text: [
-        `Hello ${booking.fullName || "Patient"},`,
-        `We could not confirm the time you requested. The clinic can offer ${formatScheduleLabel(offer)} (Philippine time) instead.`,
-        `Please respond by ${deadline} (Philippine time) in My Appointments: https://practicefirebase-e1c25.web.app/my-appointments`,
-        `If you decline or do not respond by the deadline, your original appointment at ${formatScheduleLabel(booking)} remains scheduled.`,
-        "The alternative is subject to availability when you accept.",
+        `Hello ${patientName},`,
+        intro,
+        `Alternate time: ${alternateSchedule}\nOriginal appointment: ${originalSchedule}`,
+        replyBy,
+        `Review your offer in My Appointments: ${appointmentsUrl}`,
+        keepOriginal,
+        availabilityNote,
       ].join("\n\n"),
+      html: createEmailShell({
+        eyebrow: "TopDent Dental Clinic",
+        title: "An alternate appointment time is available",
+        intro: `Hello ${safePatientName}, ${intro}`,
+        detailsHtml: `
+          <p style="margin: 0 0 10px; color: #334155;"><strong>Alternate time:</strong> ${alternateSchedule}</p>
+          <p style="margin: 0 0 10px; color: #334155;"><strong>Original appointment:</strong> ${originalSchedule}</p>
+          <p style="margin: 0; color: #334155;">${replyBy}</p>
+        `,
+        closing: `
+          <a href="${appointmentsUrl}" style="display: inline-block; padding: 10px 18px; border-radius: 8px; background-color: #0f766e; color: #ffffff; font-weight: 700; text-decoration: none;">Review offer in My Appointments</a>
+          <br /><br />${keepOriginal} ${availabilityNote}
+          <br /><br /><strong>Thank you,<br />TopDent Dental Clinic</strong>
+        `,
+      }),
     });
     return { emailSent: true };
   } catch (error) {

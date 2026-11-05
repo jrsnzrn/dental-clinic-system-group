@@ -11,25 +11,31 @@ import {
   onSnapshot,
   query,
   collection,
-  updateDoc,
-  serverTimestamp,
   runTransaction,
   where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
+import { getClinicDate } from "../../functions/bookingWindow.mjs";
 import { auth, db, functions } from "../firebase";
 import {
   formatDateLabel,
   formatTimeLabel,
   formatTimestamp,
-  getClinicAvailability,
 } from "../utils/schedule";
 import { isArchivedBooking, sortBookings } from "../utils/appointments";
-import { BOOKING_SLOT_INTERVAL_MINUTES, getActiveClosureForDate } from "../utils/clinic";
 import { formatAppointmentStatusLabel, getAppointmentStatusClass, getRescheduleRequestBlockLabel, hasPendingCancellationRequest, isCurrentAppointmentSlot } from "../utils/appointmentStatus";
 
 const RESPOND_TO_RESCHEDULE_OFFER = httpsCallable(functions, "respondToRescheduleOffer");
+const GET_RESCHEDULE_AVAILABILITY = httpsCallable(functions, "getRescheduleAvailability");
+const REQUEST_RESCHEDULE = httpsCallable(functions, "requestReschedule");
+const CANCEL_PATIENT_BOOKING = httpsCallable(functions, "cancelPatientBooking");
+const offerDeadlineDate = new Intl.DateTimeFormat("en-PH", {
+  weekday: "long", month: "long", day: "numeric", timeZone: "Asia/Manila",
+});
+const offerDeadlineTime = new Intl.DateTimeFormat("en-PH", {
+  hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Manila",
+});
 
 function hasActiveRescheduleOffer(booking) {
   const offer = booking.rescheduleOffer;
@@ -45,10 +51,6 @@ function hasActiveRescheduleOffer(booking) {
 
 function pad(n) {
   return String(n).padStart(2, "0");
-}
-
-function toLocalISODate(d) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function isSunday(dateStr) {
@@ -73,37 +75,15 @@ function getBookingTimeRange(booking) {
   return `${formatTimeLabel(booking.time)} - ${formatTimeLabel(endTime)}`;
 }
 
-function buildSlots(scheduleStart, scheduleEnd, durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES) {
-  const slots = [];
-  const [startHour = "0", startMinute = "0"] = String(scheduleStart || "09:00").split(":");
-  const [endHour = "0", endMinute = "0"] = String(scheduleEnd || "18:00").split(":");
-  const firstSlot = Math.ceil((Number(startHour) * 60 + Number(startMinute)) / 15) * 15;
-  const end = Number(endHour) * 60 + Number(endMinute);
-  for (let start = firstSlot; start + durationMinutes <= end; start += BOOKING_SLOT_INTERVAL_MINUTES) {
-    slots.push(minutesToTime(start));
-  }
-  return slots;
-}
-
-function getNextBookableDates(count = 10) {
-  const result = [];
-  const cursor = new Date();
-  while (result.length < count) {
-    const iso = toLocalISODate(cursor);
-    if (!isSunday(iso)) result.push(iso);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return result;
-}
-
 function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation, onWithdraw }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const canRequestChanges = ["pending", "approved"].includes(booking.status) && !isArchivedBooking(booking);
+  const canRequestChanges = ["pending", "approved"].includes(booking.status) && !booking.checkedInAt && !isArchivedBooking(booking);
   const cancellationPending = hasPendingCancellationRequest(booking);
   const reschedulePending = booking.rescheduleRequest?.status === "pending";
   const hasAdditionalDetails = Boolean(
     booking.notes ||
     booking.cancellationRequest ||
+    booking.cancellationReason ||
     booking.rescheduleRequest ||
     booking.checkedInAt ||
     booking.createdAt
@@ -180,6 +160,11 @@ function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation, 
                   Withdraw cancellation
                 </button>
               ) : null}
+              {cancellationPending && !reschedulePending ? (
+                <button className="appointmentTableCancel" type="button" onClick={() => onStartCancellation(booking)}>
+                  Cancel appointment
+                </button>
+              ) : null}
             </>
           ) : canRequestChanges ? (
             <>
@@ -217,7 +202,9 @@ function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation, 
                 {booking.rescheduleRequest.reason ? ` · ${booking.rescheduleRequest.reason}` : ""}
               </p>
             ) : null}
-            {booking.cancellationRequest ? (
+            {booking.cancellationReason ? (
+              <p><strong>Cancellation reason:</strong> {booking.cancellationReason}</p>
+            ) : booking.cancellationRequest ? (
               <p>
                 <strong>Cancellation Request:</strong> {booking.cancellationRequest.reason || "No reason provided."} · Status:{" "}
                 <strong className={`appointmentRequestStatus status-${String(booking.cancellationRequest.status || "pending").toLowerCase().replace(/[\s_]+/g, "-")}`}>
@@ -258,8 +245,8 @@ export default function MyAppointments() {
     requestedTime: "09:00",
     reason: "",
   });
-  const [dentists, setDentists] = useState([]);
-  const [clinicClosures, setClinicClosures] = useState([]);
+  const [rescheduleAvailability, setRescheduleAvailability] = useState(null);
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
 
   useEffect(() => {
     if (!requestFormOpen) return undefined;
@@ -324,19 +311,6 @@ export default function MyAppointments() {
     return () => unsubBookings();
   }, [user]);
 
-  useEffect(() => {
-    const unsubDentists = onSnapshot(collection(db, "dentists"), (snapshot) => {
-      setDentists(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    });
-    const unsubClosures = onSnapshot(collection(db, "clinicClosures"), (snapshot) => {
-      setClinicClosures(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    });
-    return () => {
-      unsubDentists();
-      unsubClosures();
-    };
-  }, []);
-
   const groupedBookings = useMemo(() => buildStatusGroups(bookings), [bookings]);
   const [activeStatusTab, setActiveStatusTab] = useState("pending");
   const [respondingToOffer, setRespondingToOffer] = useState(false);
@@ -349,53 +323,42 @@ export default function MyAppointments() {
   ];
   const activeStatusGroup = appointmentStatusTabs.find((tab) => tab.id === activeStatusTab) || appointmentStatusTabs[0];
   const editingBooking = bookings.find((booking) => booking.id === editingBookingId);
-  /* ---------- Reschedule suggestions ---------- */
-  const rescheduleSuggestions = useMemo(() => {
-    if (!editingBookingId) return [];
-    const booking = bookings.find((entry) => entry.id === editingBookingId);
-    if (!booking) return [];
-    const dentist = dentists.find((entry) => entry.name === booking.selectedDentist);
-    if (!dentist) return [];
+  const today = getClinicDate();
+  const availabilityDate = requestFormOpen && requestMode === "reschedule" ? rescheduleDraft.requestedDate : "";
+  const canLoadTimes = Boolean(editingBookingId && availabilityDate && availabilityDate >= today && !isSunday(availabilityDate));
+  const availabilityKey = `${editingBookingId}:${availabilityDate}:${availabilityVersion}`;
+  const currentAvailability = canLoadTimes && rescheduleAvailability?.key === availabilityKey ? rescheduleAvailability : null;
+  const availableTimes = currentAvailability?.slots || [];
 
-    const suggestions = [];
-    const dates = getNextBookableDates(14);
-
-    for (const date of dates) {
-      const closure = getActiveClosureForDate(clinicClosures, date);
-      const availability = getClinicAvailability(dentist, date, clinicClosures);
-      if (closure || !availability.available || !availability.schedule?.active) continue;
-
-      const bookingDuration = Number(booking.estimatedDurationMinutes || BOOKING_SLOT_INTERVAL_MINUTES);
-      for (const slot of buildSlots(availability.schedule.start, availability.schedule.end, bookingDuration)) {
-        if (isCurrentAppointmentSlot(booking, date, slot)) continue;
-        const conflict = bookings.some((entry) => {
-          if (
-            entry.id === booking.id ||
-            entry.archiveStatus === "Archived" ||
-            entry.status === "cancelled" ||
-            entry.selectedDentist !== booking.selectedDentist ||
-            entry.date !== date
-          ) return false;
-          const existingStart = timeToMinutes(entry.time);
-          const existingEnd = existingStart + Number(entry.estimatedDurationMinutes || BOOKING_SLOT_INTERVAL_MINUTES);
-          const candidateStart = timeToMinutes(slot);
-          return candidateStart < existingEnd && candidateStart + bookingDuration > existingStart;
-        });
-        if (!conflict) {
-          suggestions.push({ date, time: slot });
-        }
-        if (suggestions.length >= 6) return suggestions;
+  useEffect(() => {
+    if (!canLoadTimes) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await GET_RESCHEDULE_AVAILABILITY({ bookingId: editingBookingId, date: availabilityDate });
+        if (!cancelled) setRescheduleAvailability({ key: availabilityKey, slots: data.availableSlots });
+      } catch (loadError) {
+        if (!cancelled) setRescheduleAvailability({ key: availabilityKey, error: loadError.message || "Available times could not be loaded." });
       }
-    }
-    return suggestions;
-  }, [bookings, clinicClosures, dentists, editingBookingId]);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [canLoadTimes, availabilityDate, availabilityKey, editingBookingId]);
+
+  function refreshRescheduleTimes(date = rescheduleDraft.requestedDate) {
+    setRescheduleDraft((current) => ({ ...current, requestedDate: date, requestedTime: "" }));
+    setAvailabilityVersion((current) => current + 1);
+  }
 
   function startReschedule(booking) {
     setRequestMode("reschedule");
+    setAvailabilityVersion((current) => current + 1);
     setEditingBookingId(booking.id);
     setRequestFormOpen(true);
     setRescheduleDraft({
-      requestedDate: booking.date || "",
+      requestedDate: booking.date && booking.date >= today ? booking.date : today,
       requestedTime: "",
       reason: booking.rescheduleRequest?.reason || "",
     });
@@ -425,7 +388,7 @@ export default function MyAppointments() {
     if (sendingRequest) return;
     setError("");
     const booking = bookings.find((entry) => entry.id === bookingId);
-    if (hasPendingCancellationRequest(booking) || booking?.rescheduleRequest?.status === "pending") {
+    if ((requestMode === "reschedule" && hasPendingCancellationRequest(booking)) || booking?.rescheduleRequest?.status === "pending") {
       setError("Withdraw your pending request before submitting another one.");
       return;
     }
@@ -433,7 +396,7 @@ export default function MyAppointments() {
     if (!rescheduleDraft.reason.trim()) {
       setError(
         requestMode === "cancel"
-          ? "Please give a reason for the cancellation request."
+          ? "Please give a reason for cancelling the appointment."
           : "Please give a reason for the reschedule request."
       );
       return;
@@ -442,23 +405,18 @@ export default function MyAppointments() {
     if (requestMode === "cancel") {
       setSendingRequest(true);
       try {
-        await updateDoc(doc(db, "bookings", bookingId), {
-          cancellationRequest: {
-            reason: rescheduleDraft.reason.trim(),
-            status: "pending",
-            requestedAt: serverTimestamp(),
-          },
-        });
+        await CANCEL_PATIENT_BOOKING({ bookingId, reason: rescheduleDraft.reason.trim() });
 
         setEditingBookingId("");
         setRequestFormOpen(false);
+        setActiveStatusTab("cancelled");
         notifySuccess(
-          "Your cancellation request was sent successfully. The clinic can now review it.",
-          "Cancellation Request Sent!"
+          "Your appointment has been cancelled and the clinic schedule has been updated.",
+          "Appointment cancelled"
         );
       } catch (requestError) {
         console.error(requestError);
-        setError("Could not send the cancellation request. Please try again.");
+        setError(requestError?.message || "Could not cancel the appointment. Please try again.");
       } finally {
         setSendingRequest(false);
       }
@@ -474,6 +432,10 @@ export default function MyAppointments() {
       setError("Choose a date or time different from your current appointment.");
       return;
     }
+    if (!availableTimes.includes(requestedTime)) {
+      setError("Choose a time from the available options.");
+      return;
+    }
 
     const requestDate = new Date(`${rescheduleDraft.requestedDate}T00:00:00`);
     if (requestDate.getDay() === 0) {
@@ -483,14 +445,11 @@ export default function MyAppointments() {
 
     setSendingRequest(true);
     try {
-      await updateDoc(doc(db, "bookings", bookingId), {
-        rescheduleRequest: {
-          requestedDate: rescheduleDraft.requestedDate,
-          requestedTime: rescheduleDraft.requestedTime,
-          reason: rescheduleDraft.reason.trim(),
-          status: "pending",
-          requestedAt: serverTimestamp(),
-        },
+      await REQUEST_RESCHEDULE({
+        bookingId,
+        date: requestedDate,
+        time: requestedTime,
+        reason: rescheduleDraft.reason.trim(),
       });
 
       setEditingBookingId("");
@@ -501,7 +460,12 @@ export default function MyAppointments() {
       );
     } catch (requestError) {
       console.error(requestError);
-      setError("Could not send the reschedule request. Please try again.");
+      if (requestError?.code === "functions/already-exists") {
+        refreshRescheduleTimes();
+        setError("That time was just booked. Choose another available time.");
+      } else {
+        setError(requestError?.message || "Could not send the reschedule request. Please try again.");
+      }
     } finally {
       setSendingRequest(false);
     }
@@ -576,18 +540,36 @@ export default function MyAppointments() {
 
       {bookings.filter(hasActiveRescheduleOffer).map((booking) => {
         const offer = booking.rescheduleOffer;
-        const deadline = offer.expiresAt.toDate().toLocaleString("en-PH", {
-          dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
-        });
+        const deadline = offer.expiresAt.toDate();
         return (
           <section key={booking.id} className="card appointmentOfferCard" aria-label="Alternate appointment offer">
-            <h2>Alternate time offered</h2>
-            <p>{booking.service || "Appointment"} · <strong>{formatDateLabel(offer.date)} at {formatTimeLabel(offer.time)}</strong></p>
-            <p>Respond by {deadline} (Philippine time). If you decline or the offer expires, your original appointment on {formatDateLabel(booking.date)} at {formatTimeLabel(booking.time)} stays scheduled.</p>
-            <p>The alternate time is subject to availability when you accept.</p>
-            <div className="actionColumn actionColumnFriendly">
-              <button type="button" className="btn" disabled={respondingToOffer} onClick={() => respondToOffer(booking, true)}>Accept alternate time</button>
-              <button type="button" className="btn secondary" disabled={respondingToOffer} onClick={() => respondToOffer(booking, false)}>Decline offer</button>
+            <header className="appointmentOfferHeading">
+              <span className="appointmentOfferIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 4v4m8-4v4M4 11h16m-11 4 2 2 4-4" /></svg>
+              </span>
+              <div>
+                <h2>Would this time work for you?</h2>
+                <p>We found another time for your appointment.</p>
+              </div>
+            </header>
+            <dl className="appointmentOfferTimes">
+              <div className="appointmentOfferProposed">
+                <dt>Offered appointment</dt>
+                <dd>{formatDateLabel(offer.date)} at {formatTimeLabel(offer.time)}</dd>
+                {booking.service ? <dd className="appointmentOfferService">{booking.service}</dd> : null}
+              </div>
+              <div>
+                <dt>Current appointment</dt>
+                <dd>{formatDateLabel(booking.date)} at {formatTimeLabel(booking.time)}</dd>
+              </div>
+            </dl>
+            <div className="appointmentOfferNote">
+              <p>If this time works for you, please let us know by <strong>{offerDeadlineTime.format(deadline)} on {offerDeadlineDate.format(deadline)}</strong>.</p>
+              <p>If you prefer your current appointment, you can keep it. It also stays booked if you don’t reply. We’ll check the new time is still free when you accept.</p>
+            </div>
+            <div className="appointmentOfferActions">
+              <button type="button" className="btn" disabled={respondingToOffer} onClick={() => respondToOffer(booking, true)}>Accept new time</button>
+              <button type="button" className="btn secondary" disabled={respondingToOffer} onClick={() => respondToOffer(booking, false)}>Keep current appointment</button>
             </div>
           </section>
         );
@@ -713,7 +695,7 @@ export default function MyAppointments() {
                   </h2>
                   <p>
                     {requestMode === "cancel"
-                      ? `Send a cancellation request for ${editingBooking?.service || "this appointment"}? The clinic will review your request.`
+                      ? `Cancel ${editingBooking?.service || "this appointment"}? This takes effect immediately and releases the reserved time.`
                       : "Choose a new date and time, then send your request to the clinic for review."}
                   </p>
                 </div>
@@ -740,24 +722,37 @@ export default function MyAppointments() {
                         <input
                           className="input bookingInputSpecial"
                           type="date"
+                          min={today}
                           value={rescheduleDraft.requestedDate}
-                          onChange={(event) =>
-                            setRescheduleDraft((current) => ({ ...current, requestedDate: event.target.value }))
-                          }
+                          onChange={(event) => refreshRescheduleTimes(event.target.value)}
                         />
                       </label>
                       <label className="bookingFieldCard">
-                        <span className="detailLabel">Requested Time</span>
-                        <input
+                        <span className="detailLabel">Available time</span>
+                        <select
                           className="input bookingInputSpecial"
-                          type="time"
+                          disabled={!availableTimes.length}
                           value={rescheduleDraft.requestedTime}
                           onChange={(event) =>
                             setRescheduleDraft((current) => ({ ...current, requestedTime: event.target.value }))
                           }
-                        />
+                        >
+                          <option value="">Choose a time</option>
+                          {availableTimes.map((time) => (
+                            <option key={time} value={time}>{formatTimeLabel(time)}</option>
+                          ))}
+                        </select>
                       </label>
                     </div>
+                    {availabilityDate && isSunday(availabilityDate) ? (
+                      <p>The clinic is closed on Sundays. Choose another date.</p>
+                    ) : canLoadTimes && !currentAvailability ? (
+                      <LoadingIndicator>Checking available times…</LoadingIndicator>
+                    ) : currentAvailability?.error || (currentAvailability && !availableTimes.length) ? (
+                      <p role="status">{currentAvailability.error || "No times are available on this date."}{" "}
+                        <button type="button" className="btn secondary" onClick={() => refreshRescheduleTimes()}>Refresh times</button>
+                      </p>
+                    ) : null}
                     <label className="appointmentRequestReason">
                       <span className="detailLabel">Reason for Reschedule</span>
                       <textarea
@@ -770,30 +765,6 @@ export default function MyAppointments() {
                         }
                       />
                     </label>
-                    {rescheduleSuggestions.length ? (
-                      <div className="appointmentSuggestedSlots">
-                        <span className="detailLabel">Suggested Reschedule Slots</span>
-                        <div>
-                          {rescheduleSuggestions.map((option) => (
-                            <button
-                              key={`${option.date}-${option.time}`}
-                              className={`appointmentSuggestedSlot${rescheduleDraft.requestedDate === option.date && rescheduleDraft.requestedTime === option.time ? " selected" : ""}`}
-                              type="button"
-                              aria-pressed={rescheduleDraft.requestedDate === option.date && rescheduleDraft.requestedTime === option.time}
-                              onClick={() =>
-                                setRescheduleDraft((current) => ({
-                                  ...current,
-                                  requestedDate: option.date,
-                                  requestedTime: option.time,
-                                }))
-                              }
-                            >
-                              {formatDateLabel(option.date)} · {formatTimeLabel(option.time)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
                   </>
                 ) : (
                   <label className="appointmentRequestReason">
@@ -816,7 +787,7 @@ export default function MyAppointments() {
                   className={`appointmentRequestSubmit${requestMode === "cancel" ? " danger" : ""}`}
                   type="button"
                   onClick={() => submitAppointmentRequest(editingBookingId)}
-                  disabled={sendingRequest}
+                  disabled={sendingRequest || (requestMode === "reschedule" && !availableTimes.includes(rescheduleDraft.requestedTime))}
                 >
                   {sendingRequest ? <LoadingIndicator>Sending request…</LoadingIndicator> : requestMode === "cancel" ? "Confirm Cancellation" : "Send Reschedule Request"}
                 </button>
