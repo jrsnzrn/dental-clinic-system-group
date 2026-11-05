@@ -1,3 +1,4 @@
+import LoadingIndicator from "./LoadingIndicator";
 import { useEffect, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -36,7 +37,7 @@ export default function StaffProfileSetupGate({ user, children }) {
     return onSnapshot(doc(db, "admins", user.uid), snapshot => setState({ uid: user.uid, profile: snapshot.data(), error: snapshot.exists() ? "" : "Your staff profile could not be found." }),
       () => setState({ uid: user.uid, error: "Your staff profile could not be checked. Please try again." }));
   }, [user?.uid, retry]);
-  if (state.uid !== user?.uid) return <div className="container" role="status">Checking your staff profile…</div>;
+  if (state.uid !== user?.uid) return <div className="sessionLoading"><LoadingIndicator>Checking your staff profile…</LoadingIndicator></div>;
   if (state.error) return <div className="container"><p className="formError" role="alert">{state.error}</p><button className="btn secondary" type="button" onClick={() => setRetry(value => value + 1)}>Try again</button></div>;
   const required = needsStaffProfileSetup(state.profile, user?.uid);
   // This single gate wraps every protected staff page, including direct URLs.

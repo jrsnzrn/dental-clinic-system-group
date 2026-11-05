@@ -5,6 +5,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const { MAX_BOOKING_SERVICES, BRACES_PACKAGE_INCLUSIONS, BRACES_FREE_PROCEDURES, BRACES_TYPES, canRecordBracesFreeProcedure, getKnownBracesType, isGenericBracesPackage, withBookingCatalogAdditions, getBookableCatalog, getBookingSelectionError, isBracesPackage } = require("./bookingServices.mjs");
 
 admin.initializeApp();
 
@@ -304,6 +305,7 @@ function normalizeClinicService(service = {}) {
     durationMinutes: Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : null,
     startingRate: String(service.startingRate || "").trim(),
     active: service.active !== false,
+    category: String(service.category || ""),
   };
 }
 
@@ -333,14 +335,14 @@ function getBookingServiceOptions(services = []) {
       merged.set(normalizeText(service.name), service);
     });
 
-  (Array.isArray(services) ? services : [])
+  getBookableCatalog(services)
     .map(normalizeClinicService)
-    .filter((service) => service.active && service.name)
+    .filter((service) => service.name)
     .forEach((service) => {
       merged.set(normalizeText(service.name), service);
     });
 
-  return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(merged.values()).filter((service) => service.active).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function normalizeClosure(closure = {}) {
@@ -484,7 +486,7 @@ function getAppointmentServiceAmount(service = {}) {
   }
 
   const startingRate = String(service.startingRate || "").trim();
-  const rate = /^(?:PHP\s*)?([\d,]+(?:\.\d{1,2})?)(?:\s+starting)?$/i.exec(startingRate);
+  const rate = /^(?:PHP\s*)?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:starting|each))?$/i.exec(startingRate);
   if (!rate) return 0;
   const amount = Number(rate[1].replaceAll(",", ""));
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
@@ -593,18 +595,19 @@ This code expires in 5 minutes. If you did not request it, contact the administr
 }
 
 async function syncPatientRecordFromBookingServer(bookingData = {}) {
-  const patientsSnap = await db.collection("patients").get();
-  const match = patientsSnap.docs.find((patientDoc) => {
-    const patient = patientDoc.data() || {};
-    if (bookingData.uid && patient.uid === bookingData.uid) return true;
-    return normalizeText(patient.name) === normalizeText(bookingData.fullName || bookingData.patientKey);
-  });
+  const patients = db.collection("patients");
+  const walkInId = bookingData.walkIn && (bookingData.patientId || bookingData.patientProfileId);
+  const match = walkInId
+    ? await patients.doc(walkInId).get()
+    : bookingData.uid
+      ? (await patients.where("uid", "==", bookingData.uid).limit(1).get()).docs[0]
+      : (await patients.get()).docs.find((entry) => !entry.data()?.uid && normalizeText(entry.data()?.name) === normalizeText(bookingData.fullName || bookingData.patientKey));
 
   const firstName = String(bookingData.firstName || "").trim();
   const middleName = String(bookingData.middleName || "").trim();
   const lastName = String(bookingData.lastName || "").trim();
   const payload = {
-    uid: bookingData.uid || "",
+    ...(bookingData.uid ? { uid: bookingData.uid } : {}),
     firstName,
     middleName,
     lastName,
@@ -628,7 +631,7 @@ async function syncPatientRecordFromBookingServer(bookingData = {}) {
     status: "Active",
   };
 
-  if (match) {
+  if (match?.exists) {
     await match.ref.set(payload, { merge: true });
   } else {
     await db.collection("patients").add({
@@ -1607,8 +1610,8 @@ exports.createStaffAccount = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Email is required.");
   }
 
-  if (password.length < 6) {
-    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  if (password.trim().length < 6) {
+    throw new HttpsError("invalid-argument", "Invalid credentials. The temporary password must be at least 6 characters.");
   }
 
   if (!ALLOWED_ROLES.includes(role)) {
@@ -1630,7 +1633,14 @@ exports.createStaffAccount = onCall(async (request) => {
       disabled: false,
     });
   } catch (error) {
-    throw new HttpsError("already-exists", error.message || "Could not create auth user.");
+    if (error.code === "auth/email-already-exists") {
+      throw new HttpsError("already-exists", "A staff sign-in already uses this email address.");
+    }
+    if (["auth/invalid-email", "auth/invalid-password"].includes(error.code)) {
+      throw new HttpsError("invalid-argument", "Invalid credentials. Check the email and temporary password.");
+    }
+    console.error("Staff sign-in creation failed:", error.code);
+    throw new HttpsError("internal", "Could not create the staff sign-in. Please try again.");
   }
 
   await db.collection("admins").doc(userRecord.uid).set({
@@ -2076,8 +2086,8 @@ exports.getBookingAvailability = onCall(
     throw new HttpsError("invalid-argument", "At least one service is required.");
   }
 
-  if (selectedServices.length > 8) {
-    throw new HttpsError("invalid-argument", "Too many services were requested at once.");
+  if (selectedServices.length > MAX_BOOKING_SERVICES) {
+    throw new HttpsError("invalid-argument", "Choose up to three services per appointment.");
   }
 
   const dentistSnap = await db.collection("dentists").doc(dentistId).get();
@@ -2114,6 +2124,8 @@ exports.getBookingAvailability = onCall(
     );
   }
 
+  validateBookingSelection(selectedServices.map((name) => serviceOptions.find((entry) => entry.name === name)));
+
   const closures = clinicClosuresSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
   const closure = getActiveClosureForDate(closures, date);
   const bookings = bookingsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
@@ -2138,6 +2150,30 @@ exports.getBookingAvailability = onCall(
   });
 });
 
+function validateBookingSelection(services, patientType) {
+  const error = getBookingSelectionError(services, patientType);
+  if (error) throw new HttpsError("invalid-argument", error);
+}
+
+function getBracesPackageDetails(services, bracesType = "") {
+  const selectedPackage = services.find(isBracesPackage);
+  return selectedPackage ? { bracesPackage: { service: selectedPackage.name, type: isGenericBracesPackage(selectedPackage) ? bracesType || selectedPackage.name : selectedPackage.name, inclusions: BRACES_PACKAGE_INCLUSIONS } } : {};
+}
+
+exports.linkWalkInPatientAccount = onCall(async (request) => {
+  const { getVerifiedWalkInEmail, linkWalkInPatient } = await import("./walkInPatientLink.mjs");
+  const email = getVerifiedWalkInEmail(request.auth?.token);
+  if (!request.auth || !email) {
+    throw new HttpsError("permission-denied", "Sign in with a verified Gmail account.");
+  }
+  return linkWalkInPatient({
+    db,
+    uid: request.auth.uid,
+    email,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+});
+
 exports.createStaffWalkInBooking = onCall(
   {},
   async (request) => {
@@ -2150,25 +2186,23 @@ exports.createStaffWalkInBooking = onCall(
     const lastName = String(patientInput.lastName || "").trim();
     const age = String(patientInput.age || "").trim();
     const phone = String(patientInput.phone || "").trim();
-    const email = String(patientInput.email || "").trim();
+    const email = String(patientInput.email || "").trim().toLowerCase();
     const address = String(patientInput.address || "").trim();
     const patientType = String(patientInput.patientType || "Regular").trim();
-    const bracesType = String(patientInput.bracesType || "").trim();
+    const requestedBracesType = String(patientInput.bracesType || "").trim();
+    const bracesType = getKnownBracesType(requestedBracesType);
     const dentistId = String(appointment.dentistId || "").trim();
     const requestedServiceNames = Array.isArray(appointment.services)
       ? appointment.services.map((entry) => String(entry || "").trim()).filter(Boolean)
       : String(appointment.service || "").split(",").map((entry) => entry.trim()).filter(Boolean);
-    const uniqueServiceNames = requestedServiceNames.filter((name, index, names) =>
-      names.findIndex((candidate) => normalizeText(candidate) === normalizeText(name)) === index
-    );
     const date = String(appointment.date || "").trim();
     const time = String(appointment.time || "").trim();
 
-    if (!firstName || !lastName || !age || !phone || !dentistId || !uniqueServiceNames.length || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    if (!firstName || !lastName || !age || !phone || !dentistId || !requestedServiceNames.length || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
       throw new HttpsError("invalid-argument", "Patient details, dentist, at least one service, date, and time are required.");
     }
-    if (uniqueServiceNames.length > 8) {
-      throw new HttpsError("invalid-argument", "Choose no more than eight services.");
+    if (requestedServiceNames.length > MAX_BOOKING_SERVICES) {
+      throw new HttpsError("invalid-argument", "Choose up to three services per appointment.");
     }
     if (!["Regular", "Ortho"].includes(patientType)) {
       throw new HttpsError("invalid-argument", "Choose a valid patient type.");
@@ -2186,10 +2220,16 @@ exports.createStaffWalkInBooking = onCall(
       const serviceOptions = getBookingServiceOptions(
         serviceSnapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
       );
-      const selectedServices = uniqueServiceNames.map((serviceName) =>
+      const selectedServices = requestedServiceNames.map((serviceName) =>
         serviceOptions.find((entry) => normalizeText(entry.name) === normalizeText(serviceName))
       );
       if (selectedServices.some((entry) => !entry)) throw new HttpsError("failed-precondition", "One or more selected services are no longer available.");
+      validateBookingSelection(selectedServices, patientType);
+      const packageService = selectedServices.find(isBracesPackage);
+      const packageType = packageService && (isGenericBracesPackage(packageService) ? bracesType : getKnownBracesType(packageService.name));
+      if (packageService && isGenericBracesPackage(packageService) && !packageType) {
+        throw new HttpsError("invalid-argument", "Choose a valid type of braces.");
+      }
       const serviceNames = selectedServices.map((entry) => entry.name);
 
       const durationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
@@ -2237,7 +2277,7 @@ exports.createStaffWalkInBooking = onCall(
         email,
         address,
         patientType,
-        ...(patientType === "Ortho" && bracesType ? { bracesType } : {}),
+        ...(packageType ? { bracesType: packageType === "Sapphire Plastic" ? "Sapphire" : packageType } : {}),
         preferredDentist: formatStaffDisplayName({ ...slot.dentist, role: "dentist" }),
         authorizedDentistUids: [slot.dentist.linkedStaffUid],
         status: "Active",
@@ -2262,6 +2302,7 @@ exports.createStaffWalkInBooking = onCall(
         service: serviceNames.join(", "),
         services: serviceNames,
         serviceCount: serviceNames.length,
+        ...getBracesPackageDetails(selectedServices, packageType),
         estimatedDurationMinutes: durationMinutes,
         estimatedEndTime: slot.estimatedEndTime,
         date,
@@ -2338,6 +2379,7 @@ exports.createBooking = onCall(
     const selectedServices = Array.isArray(payload.selectedServices)
       ? payload.selectedServices.map((entry) => String(entry || "").trim()).filter(Boolean)
       : [];
+    const requestedBracesType = String(payload.bracesType || "").trim();
     const notes = String(payload.notes || "").trim().slice(0, 1000);
     const privacyConsentAccepted = payload.privacyConsentAccepted === true;
 
@@ -2361,8 +2403,8 @@ exports.createBooking = onCall(
       throw new HttpsError("invalid-argument", "At least one service is required.");
     }
 
-    if (selectedServices.length > 8) {
-      throw new HttpsError("invalid-argument", "Too many services were requested at once.");
+    if (selectedServices.length > MAX_BOOKING_SERVICES) {
+      throw new HttpsError("invalid-argument", "Choose up to three services per appointment.");
     }
 
     if (!privacyConsentAccepted) {
@@ -2428,6 +2470,12 @@ exports.createBooking = onCall(
           "invalid-argument",
           `Unknown service selection: ${unknownServices.join(", ")}.`
         );
+      }
+
+      const selectedServiceRecords = selectedServices.map((name) => serviceOptions.find((entry) => entry.name === name));
+      validateBookingSelection(selectedServiceRecords, patientProfile.patientType || "New Patient");
+      if (requestedBracesType && (!BRACES_TYPES.includes(requestedBracesType) || !selectedServiceRecords.some(isGenericBracesPackage))) {
+        throw new HttpsError("invalid-argument", "Choose a valid type for the braces package.");
       }
 
       let selectedPromotion = null;
@@ -2561,6 +2609,7 @@ exports.createBooking = onCall(
         service,
         services: selectedServices,
         serviceCount: selectedServices.length,
+        ...getBracesPackageDetails(selectedServiceRecords, requestedBracesType || patientProfile.bracesType),
         ...(selectedPromotion ? { promotionId: selectedPromotion.id, promotionTitle: selectedPromotion.title, promotionDiscountType: selectedPromotion.discountType, promotionDiscountValue: selectedPromotion.discountValue, promotionServices: selectedPromotion.services } : {}),
         estimatedDurationMinutes: durationMinutes,
         estimatedEndTime: minutesToTime(endMinutes),
@@ -3085,6 +3134,55 @@ exports.syncDentistPatientAccessAfterProfileChange = onDocumentUpdated("dentists
   await Promise.all(patientUids.map((uid) => syncDentistPatientAccess(uid)));
 });
 
+async function getDentistForTreatment(staff) {
+  const dentistSnapshot = await db.collection("dentists").get();
+  const assignedDentist = dentistSnapshot.docs
+    .map((entry) => ({ id: entry.id, ...entry.data() }))
+    .find((dentist) =>
+      dentist.linkedStaffUid === staff.uid ||
+      (staff.email && normalizeText(dentist.linkedStaffEmail) === normalizeText(staff.email))
+    );
+  if (!assignedDentist) {
+    throw new HttpsError("permission-denied", "This staff account is not linked to a dentist profile.");
+  }
+  return assignedDentist;
+}
+
+function isTreatmentDentist(booking, dentist) {
+  return booking.dentistId ? booking.dentistId === dentist.id
+    : normalizeText(booking.selectedDentist) === normalizeText(dentist.name);
+}
+
+exports.recordBracesFreeProcedure = onCall(async (request) => {
+  const staff = await getStaffContextFromRequest(request, ["dentist"]);
+  const bookingId = String(request.data?.bookingId || "").trim();
+  const procedure = request.data?.procedure;
+  if (!bookingId || !BRACES_FREE_PROCEDURES.includes(procedure)) {
+    throw new HttpsError("invalid-argument", "Select restoration or extraction for this appointment.");
+  }
+  const dentist = await getDentistForTreatment(staff);
+  return db.runTransaction(async (transaction) => {
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const snapshot = await transaction.get(bookingRef);
+    if (!snapshot.exists) throw new HttpsError("not-found", "Appointment could not be found.");
+    const booking = snapshot.data();
+    if (!isTreatmentDentist(booking, dentist)) {
+      throw new HttpsError("permission-denied", "This appointment is assigned to another dentist.");
+    }
+    if (!canRecordBracesFreeProcedure(booking)) {
+      throw new HttpsError("failed-precondition", "The free procedure can be recorded on a checked-in or completed braces appointment.");
+    }
+    if (booking.bracesFreeProcedure?.procedure === procedure) return { procedure };
+    if (booking.bracesFreeProcedure?.procedure) {
+      throw new HttpsError("already-exists", "A free procedure has already been recorded for this package.");
+    }
+    transaction.update(bookingRef, {
+      bracesFreeProcedure: { procedure, recordedByUid: staff.uid, recordedAt: admin.firestore.FieldValue.serverTimestamp() },
+    });
+    return { procedure };
+  });
+});
+
 exports.markDentistTreatmentComplete = onCall(
   {},
   async (request) => {
@@ -3092,16 +3190,7 @@ exports.markDentistTreatmentComplete = onCall(
     const bookingId = String(request.data?.bookingId || "").trim();
     if (!bookingId) throw new HttpsError("invalid-argument", "Booking ID is required.");
 
-    const dentistSnapshot = await db.collection("dentists").get();
-    const assignedDentist = dentistSnapshot.docs
-      .map((entry) => ({ id: entry.id, ...entry.data() }))
-      .find((dentist) =>
-        dentist.linkedStaffUid === staff.uid ||
-        (staff.email && normalizeText(dentist.linkedStaffEmail) === normalizeText(staff.email))
-      );
-    if (!assignedDentist) {
-      throw new HttpsError("permission-denied", "This staff account is not linked to a dentist profile.");
-    }
+    const assignedDentist = await getDentistForTreatment(staff);
 
     let result = { success: true, bookingId, status: "" };
     let updatedBooking = null;
@@ -3111,10 +3200,7 @@ exports.markDentistTreatmentComplete = onCall(
       if (!bookingSnapshot.exists) throw new HttpsError("not-found", "Appointment could not be found.");
 
       const booking = { id: bookingSnapshot.id, ...bookingSnapshot.data() };
-      const isAssigned = booking.dentistId
-        ? booking.dentistId === assignedDentist.id
-        : normalizeText(booking.selectedDentist) === normalizeText(assignedDentist.name);
-      if (!isAssigned) {
+      if (!isTreatmentDentist(booking, assignedDentist)) {
         throw new HttpsError("permission-denied", "This appointment is assigned to another dentist.");
       }
       if (booking.status === "pending_payment") {
@@ -3521,10 +3607,8 @@ exports.toggleBookingCheckIn = onCall(
       const serviceNamesByKey = new Map(serviceNames.map((name) => [normalizeText(name), name]));
       const clinicServicesSnapshot = await transaction.get(db.collection("clinicServices"));
       const clinicServicesByKey = new Map(
-        clinicServicesSnapshot.docs.map((entry) => {
-          const service = entry.data();
-          return [normalizeText(service.name), service];
-        })
+        withBookingCatalogAdditions(clinicServicesSnapshot.docs.map((entry) => entry.data()))
+          .map((service) => [normalizeText(service.name), service])
       );
       const patientQuery = booking.uid
         ? db.collection("patients").where("uid", "==", booking.uid)

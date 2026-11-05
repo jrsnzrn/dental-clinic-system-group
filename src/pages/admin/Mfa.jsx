@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -249,7 +250,7 @@ export default function Mfa() {
     return (
       <div className="authWrap">
         <div className="authCard">
-          <p>Loading...</p>
+          <p><LoadingIndicator>Checking your session…</LoadingIndicator></p>
         </div>
       </div>
     );
@@ -311,7 +312,7 @@ export default function Mfa() {
             type="submit"
             disabled={verifying}
           >
-            {verifying ? "Verifying..." : "Verify Code"}
+            {verifying ? <LoadingIndicator>Verifying…</LoadingIndicator> : "Verify Code"}
           </button>
 
           <button
@@ -321,7 +322,7 @@ export default function Mfa() {
             disabled={sending}
           >
             {sending
-              ? "Sending..."
+              ? <LoadingIndicator>Sending…</LoadingIndicator>
               : "Didn't receive a code? Send again"}
           </button>
 

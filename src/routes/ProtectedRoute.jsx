@@ -1,3 +1,4 @@
+import LoadingIndicator from "../components/LoadingIndicator";
 import { Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
@@ -51,7 +52,7 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
     const next = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate to={`/admin/verify-email?next=${next}`} replace />;
   }
-  if (loading) return null;
+  if (loading) return <div className="sessionLoading"><LoadingIndicator>Checking access…</LoadingIndicator></div>;
   if (!adminProfile) return <Navigate to="/" replace />;
   if (adminProfile.disabled) return <Navigate to="/admin/login" replace />;
   if (requiresStaffMfa(adminProfile) && !hasFreshStaffMfa(adminProfile, loginAuthTime)) {

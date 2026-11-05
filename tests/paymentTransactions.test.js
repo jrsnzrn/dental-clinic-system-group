@@ -1,19 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { calculateCharges } from "../src/utils/paymentPricing.js";
+import { getUnchargedPaymentServices } from "../src/utils/bookingPayments.js";
+import { buildBracesAccount } from "../src/utils/braces.js";
+import { calculateCharges, money } from "../src/utils/paymentPricing.js";
 import { validateReceiptPhotos } from "../src/utils/receiptPhotos.js";
 
 const source = fs.readFileSync(new URL("../src/utils/paymentTransactions.js", import.meta.url), "utf8");
 const body = source.slice(source.indexOf("export async function recordRegularPayment"), source.indexOf("export async function recordBracesPayment")).replace("export ", "");
 
-function harness(initial = []) {
+const bracesBody = source.slice(source.indexOf("export async function recordBracesPayment")).replace("export ", "");
+
+function harness(initial = [], braces = false) {
   const stored = new Map([["bookings/booking", { promotionId: "promo" }], ...initial].map(([path, data]) => [path, structuredClone(data)]));
   const writes = [];
   let sequence = 0;
   const ref = path => ({ path, id: path.split("/").pop() });
   const snapshot = path => ({ ref: ref(path), exists: () => stored.has(path), data: () => stored.get(path) });
-  const record = new Function("collection", "doc", "getDocs", "query", "where", "runTransaction", "serverTimestamp", "db", "toAmount", "makeRegularSummaryId", "validateReceiptPhotos", `${body}; return recordRegularPayment;`)(
+  const record = new Function("collection", "doc", "getDocs", "query", "where", "runTransaction", "serverTimestamp", "db", "toAmount", "makeRegularSummaryId", "validateReceiptPhotos", "getUnchargedPaymentServices", "money", "buildBracesAccount", `${braces ? bracesBody : body}; return ${braces ? "recordBracesPayment" : "recordRegularPayment"};`)(
     (_db, name) => ({ name }),
     (...args) => args.length === 1 ? ref(`${args[0].name}/new-${++sequence}`) : ref(`${args[1]}/${args[2]}`),
     async query => ({ docs: [...stored].filter(([path, data]) => path.startsWith(`${query.collection.name}/`) && data[query.filter.field] === query.filter.value).map(([path]) => snapshot(path)) }),
@@ -21,10 +25,10 @@ function harness(initial = []) {
     (field, _operator, value) => ({ field, value }),
     async (_db, callback) => {
       const pending = [];
-      await callback({ get: async reference => snapshot(reference.path), set: (reference, data) => pending.push([reference.path, data]) });
+      await callback({ get: async reference => snapshot(reference.path), set: (reference, data, options) => pending.push([reference.path, options?.merge ? { ...stored.get(reference.path), ...data } : data]) });
       for (const [path, data] of pending) { stored.set(path, data); writes.push({ path, data }); }
     },
-    () => "timestamp", {}, value => Math.max(0, Number(value) || 0), (patientId, treatmentId) => `${patientId.length}_${patientId}${treatmentId}`, validateReceiptPhotos,
+    () => "timestamp", {}, value => Math.max(0, Number(value) || 0), (patientId, treatmentId) => `${patientId.length}_${patientId}${treatmentId}`, validateReceiptPhotos, getUnchargedPaymentServices, money, buildBracesAccount,
   );
   return { record, stored, writes };
 }
@@ -105,4 +109,19 @@ test("a staff promo change between opening the form and saving rejects stale tot
   const { record, writes } = harness([["bookings/booking", { promotionId: "different-promo" }]]);
   await assert.rejects(record(payment), /promotion changed/);
   assert.equal(writes.length, 0);
+});
+
+test("a priced braces extra increases the account balance once and later installments preserve it", async () => {
+  const { record, stored } = harness([["bracesAccounts/plan", { totalCost: 65000, amountPaid: 12500, additionalServices: ["Veneers"] }]], true);
+  const input = { patient: { id: "p" }, accountId: "plan", amount: 0, paymentDate: "2026-11-05" };
+  const crown = { name: "Emax Crown", amount: 15000 };
+  await record({ ...input, totalCost: 65000, expectedAccountTotal: 65000, additionalServiceCharges: [crown] });
+  assert.equal(stored.get("bracesAccounts/plan").remainingBalance, 67500);
+  await assert.rejects(record({ ...input, additionalServiceCharges: [crown] }), /already on the account/);
+  await record({ ...input, amount: 1000 });
+  const plan = stored.get("bracesAccounts/plan");
+  assert.equal(plan.totalCost, 80000);
+  assert.equal(plan.remainingBalance, 66500);
+  assert.deepEqual(plan.additionalServices, ["Veneers", "Emax Crown"]);
+  assert.deepEqual(plan.additionalServiceCharges, [crown]);
 });

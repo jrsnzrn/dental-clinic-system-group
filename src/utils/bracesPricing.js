@@ -1,9 +1,6 @@
-export const BRACES_TYPES = [
-  "Metal",
-  "Sapphire Plastic",
-  "Ceramic",
-  "Self-Ligating",
-];
+import { BRACES_TYPES, getKnownBracesType } from "../../functions/bookingServices.mjs";
+
+export { BRACES_TYPES };
 
 export const DEFAULT_BRACES_REFERENCE_PRICES = {
   Metal: { downPayment: 5000, totalMin: 50000, totalMax: 60000 },
@@ -13,13 +10,7 @@ export const DEFAULT_BRACES_REFERENCE_PRICES = {
 };
 
 export function normalizeBracesType(value) {
-  const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "");
-  if (normalized === "metalbraces") return "Metal";
-  if (normalized === "ceramicbraces") return "Ceramic";
-  if (normalized === "sapphire" || normalized === "sapphireplastic") return "Sapphire Plastic";
-  if (normalized === "sapphirebraces") return "Sapphire Plastic";
-  if (normalized === "selfligating" || normalized === "selfligatingbraces") return "Self-Ligating";
-  return BRACES_TYPES.find((type) => type.toLowerCase().replace(/[\s-]+/g, "") === normalized) || "Metal";
+  return getKnownBracesType(value) || "Metal";
 }
 
 export function normalizeBracesReferencePrices(value = {}) {

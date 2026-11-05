@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { groupBookingPaymentRows, allocateBookingPayment, groupBookingReceipts } from "../src/utils/bookingPayments.js";
+import { getUnchargedPaymentServices, groupBookingPaymentRows, allocateBookingPayment, groupBookingReceipts } from "../src/utils/bookingPayments.js";
 import { calculateCharges } from "../src/utils/paymentPricing.js";
 
 const row = (treatmentId, extra = {}) => ({ id: treatmentId, patientId: "patient", appointmentId: "booking", source: "Appointment", treatmentId,
@@ -66,4 +66,10 @@ test("receipt allocations appear as one payment; separate payments and bookings 
   assert.equal(receipts[0].amount, 2800);
   assert.equal(receipts[0].treatmentName, "Cleaning, Braces");
   assert.equal(groupBookingReceipts(receipts).length, 3);
+});
+
+test("payment add-ons exclude services already on the charge list", () => {
+  const services = ["Cleaning", "Braces", "Emax Crown", "Veneers"].map((name) => ({ name }));
+  assert.deepEqual(getUnchargedPaymentServices(services, [" cleaning ", "BRACES", "Crowns"]), [{ name: "Veneers" }]);
+  assert.deepEqual(getUnchargedPaymentServices(services, ["Emax Crown"]), [services[0], services[1], services[3]]);
 });

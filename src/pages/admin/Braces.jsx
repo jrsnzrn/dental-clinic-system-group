@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import PaginatedRecords from "../../components/PaginatedRecords";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
@@ -605,7 +606,7 @@ export default function Braces() {
             ))}
             <div className="bracesReferenceActions">
               <button type="submit" className="btn btnPrimary" disabled={savingReferencePrices}>
-                {savingReferencePrices ? "Saving reference prices..." : "Save reference prices"}
+                {savingReferencePrices ? <LoadingIndicator>Saving reference prices…</LoadingIndicator> : "Save reference prices"}
               </button>
             </div>
           </form>
@@ -898,7 +899,7 @@ export default function Braces() {
 
                   {paymentError ? <div className="formError" role="alert">{paymentError}</div> : null}
                   <button className="btn btnShine bookingPrimaryBtn" disabled={savingAccount}>
-                    {savingAccount ? "Saving braces plan..." : selectedPatient.bracesAccount ? "Update Braces Plan" : "Create Braces Plan"}
+                    {savingAccount ? <LoadingIndicator>Saving braces plan…</LoadingIndicator> : selectedPatient.bracesAccount ? "Update Braces Plan" : "Create Braces Plan"}
                   </button>
                 </form>
 
@@ -1025,7 +1026,7 @@ export default function Braces() {
                         }
                         disabled={savingPayment}
                       >
-                        {savingPayment ? "Saving payment..." : "Add Payment to Ledger"}
+                        {savingPayment ? <LoadingIndicator>Saving payment…</LoadingIndicator> : "Add Payment to Ledger"}
                       </button>
                     </div>
 
@@ -1106,7 +1107,7 @@ export default function Braces() {
                         }
                         disabled={savingAdjustment}
                       >
-                        {savingAdjustment ? "Saving adjustment..." : "Add Adjustment Schedule"}
+                        {savingAdjustment ? <LoadingIndicator>Saving adjustment…</LoadingIndicator> : "Add Adjustment Schedule"}
                       </button>
                     </div>
 

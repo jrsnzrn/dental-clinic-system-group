@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -309,14 +310,14 @@ export default function EmailVerification() {
     return (
       <div className="authWrap">
         <div className="authCard verificationCard">
-          <p>Loading...</p>
+          <p><LoadingIndicator>Checking your session…</LoadingIndicator></p>
         </div>
       </div>
     );
   }
 
   const resendLabel = sending
-    ? "Sending..."
+    ? <LoadingIndicator>Sending…</LoadingIndicator>
     : cooldownSeconds > 0
       ? `Resend Code in ${Math.floor(cooldownSeconds / 60)}:${String(cooldownSeconds % 60).padStart(2, "0")}`
       : "Didn't receive a code? Resend Code";
@@ -365,7 +366,7 @@ export default function EmailVerification() {
           {error ? <div className="error" id="verificationCodeError" role="alert">{error}</div> : null}
 
           <button className="btn btnWide" type="submit" disabled={verifying || sending}>
-            {verifying ? "Verifying..." : "Verify Code"}
+            {verifying ? <LoadingIndicator>Verifying…</LoadingIndicator> : "Verify Code"}
           </button>
           <button
             className="textButton"

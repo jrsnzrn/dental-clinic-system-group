@@ -9,8 +9,12 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { withBookingCatalogAdditions, BOOKING_CATALOG_ADDITIONS } from "../../../functions/bookingServices.mjs";
+import LoadingIndicator from "../../components/LoadingIndicator";
+import { compressPhoto } from "../../utils/receiptPhotos";
 import EmptyState from "../../components/EmptyState";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { db } from "../../firebase";
@@ -18,6 +22,7 @@ import {
   CLINIC_SERVICE_IMAGE_OPTIONS,
   formatClosureLabel,
   getClinicServiceImage,
+  getPublicServiceDocumentId,
   getLocalClinicServiceImage,
   normalizeClosure,
   normalizeService,
@@ -60,10 +65,12 @@ export default function ServicesAdmin() {
   const [closureLoadError, setClosureLoadError] = useState("");
   const [serviceError, setServiceError] = useState("");
   const [closureError, setClosureError] = useState("");
+  const [preparingImage, setPreparingImage] = useState(false);
   const [savingService, setSavingService] = useState(false);
   const [savingClosure, setSavingClosure] = useState(false);
   const [busyServiceId, setBusyServiceId] = useState("");
   const [busyClosureId, setBusyClosureId] = useState("");
+  const [closureToCancel, setClosureToCancel] = useState(null);
   const [serviceActionConfirm, setServiceActionConfirm] = useState(null);
 
   useEffect(() => {
@@ -84,7 +91,7 @@ export default function ServicesAdmin() {
     const unsubClosures = onSnapshot(
       query(collection(db, "clinicClosures"), orderBy("date", "asc")),
       (snapshot) => {
-        setClosures(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+        setClosures(snapshot.docs.map((entry) => ({ ...entry.data(), id: entry.id })));
         setClosureLoading(false);
         setClosureLoadError("");
       },
@@ -104,18 +111,18 @@ export default function ServicesAdmin() {
   useEffect(() => {
     if (!serviceModalOpen) return undefined;
     const closeOnEscape = (event) => {
-      if (event.key === "Escape" && !savingService) setServiceModalOpen(false);
+      if (event.key === "Escape" && !savingService && !preparingImage) setServiceModalOpen(false);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [serviceModalOpen, savingService]);
+  }, [serviceModalOpen, savingService, preparingImage]);
 
   const normalizedServices = useMemo(
-    () => services.map((service) => ({ ...service, ...normalizeService(service) })),
+    () => withBookingCatalogAdditions(services).map((service) => normalizeService({ ...service, id: service.id || getPublicServiceDocumentId(service.name) })),
     [services]
   );
   const normalizedClosures = useMemo(
-    () => closures.map((entry) => ({ id: entry.id, ...normalizeClosure(entry) })),
+    () => closures.map(normalizeClosure),
     [closures]
   );
   const filteredServices = useMemo(() => {
@@ -140,7 +147,8 @@ export default function ServicesAdmin() {
     || (editingServiceId && getClinicServiceImage(serviceDraft) === option.image)
   );
   const imageSelectionValue = selectedBuiltinImage?.key
-    || (editingServiceId && serviceDraft.image ? "preserve" : "");
+    || (serviceDraft.image ? "preserve" : "");
+  const isCatalogAddition = BOOKING_CATALOG_ADDITIONS.some((service) => service.name === serviceDraft.name) && Boolean(editingServiceId);
 
   function openAddService() {
     setEditingServiceId("");
@@ -166,15 +174,36 @@ export default function ServicesAdmin() {
   }
 
   function closeServiceModal() {
-    if (savingService) return;
+    if (savingService || preparingImage) return;
     setServiceModalOpen(false);
     setEditingServiceId("");
     setServiceDraft(emptyServiceDraft());
     setServiceError("");
   }
 
+  async function prepareServiceImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || preparingImage || savingService) return;
+    setServiceError("");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 15 * 1024 * 1024) {
+      setServiceError("Choose a JPG, PNG, or WebP image up to 15 MB.");
+      return;
+    }
+    setPreparingImage(true);
+    try {
+      const image = await compressPhoto(file, "This image is too large. Crop it and try again.");
+      setServiceDraft((current) => ({ ...current, image }));
+    } catch (error) {
+      setServiceError(error.message || "Could not prepare this image.");
+    } finally {
+      setPreparingImage(false);
+    }
+  }
+
   async function saveService(event) {
     event.preventDefault();
+    if (savingService || preparingImage) return;
     const normalizedDraft = normalizeService(serviceDraft);
     const payload = {
       name: normalizedDraft.name,
@@ -187,7 +216,7 @@ export default function ServicesAdmin() {
     setServiceError("");
 
     const normalizedName = payload.name.toLowerCase().replace(/\s+/g, " ");
-    const duplicate = services.find((service) =>
+    const duplicate = normalizedServices.find((service) =>
       service.id !== editingServiceId
       && String(service.name || "").trim().toLowerCase().replace(/\s+/g, " ") === normalizedName
     );
@@ -199,7 +228,7 @@ export default function ServicesAdmin() {
     setSavingService(true);
     try {
       if (editingServiceId) {
-        await updateDoc(doc(db, "clinicServices", editingServiceId), {
+        await setDoc(doc(db, "clinicServices", editingServiceId), {
           name: payload.name,
           description: payload.description,
           durationMinutes: payload.durationMinutes,
@@ -207,7 +236,7 @@ export default function ServicesAdmin() {
           category: payload.category,
           image: serviceDraft.image,
           active: payload.active,
-        });
+        }, { merge: true });
         await logAdminAction({
           action: "update_clinic_service",
           targetType: "clinic_service",
@@ -261,9 +290,12 @@ export default function ServicesAdmin() {
     setBusyServiceId(service.id);
     setServiceError("");
     try {
-      await updateDoc(doc(db, "clinicServices", service.id), {
-        active: nextActive,
-      });
+      const serviceRef = doc(db, "clinicServices", service.id);
+      if (services.some((entry) => entry.id === service.id)) {
+        await updateDoc(serviceRef, { active: nextActive });
+      } else {
+        await setDoc(serviceRef, { ...service, active: nextActive }, { merge: true });
+      }
       await logAdminAction({
         action: "toggle_clinic_service",
         targetType: "clinic_service",
@@ -289,24 +321,25 @@ export default function ServicesAdmin() {
 
   async function addClosure(event) {
     event.preventDefault();
-    const payload = normalizeClosure(closureDraft);
-    if (!payload.date || !payload.label) return;
+    if (savingClosure) return;
+    const { date, label, type, notes, active } = normalizeClosure(closureDraft);
+    if (!date || !label) return;
 
     setSavingClosure(true);
     setClosureError("");
     try {
       const created = await addDoc(collection(db, "clinicClosures"), {
-        ...payload,
+        date, label, type, notes, active,
         createdAt: serverTimestamp(),
       });
-      await logAdminAction({
+      setClosureDraft(emptyClosureDraft());
+      void logAdminAction({
         action: "add_clinic_closure",
         targetType: "clinic_closure",
         targetId: created.id,
-        targetLabel: payload.label,
-        details: { date: payload.date, type: payload.type },
+        targetLabel: label,
+        details: { date, type },
       });
-      setClosureDraft(emptyClosureDraft());
     } catch (error) {
       console.error("Could not add clinic closure:", error);
       setClosureError("Could not add this closure. Check your access and try again.");
@@ -316,13 +349,15 @@ export default function ServicesAdmin() {
   }
 
   async function toggleClosure(closure) {
+    if (!closure.id || busyClosureId) return;
     setBusyClosureId(closure.id);
     setClosureError("");
     try {
       await updateDoc(doc(db, "clinicClosures", closure.id), {
         active: !closure.active,
       });
-      await logAdminAction({
+      setClosureToCancel(null);
+      void logAdminAction({
         action: "toggle_clinic_closure",
         targetType: "clinic_closure",
         targetId: closure.id,
@@ -378,7 +413,7 @@ export default function ServicesAdmin() {
         {serviceLoadError ? <p className="servicesAdminMessage isError" role="alert">{serviceLoadError}</p> : null}
         {serviceError && !serviceModalOpen ? <p className="servicesAdminMessage isError" role="alert">{serviceError}</p> : null}
         {serviceLoading ? (
-          <p className="servicesAdminMessage" role="status">Loading services…</p>
+          <p className="servicesAdminMessage"><LoadingIndicator>Loading services…</LoadingIndicator></p>
         ) : !serviceLoadError && services.length === 0 ? (
           <EmptyState title="No services found" message="Services will appear here when clinic service records are available." compact />
         ) : !serviceLoadError && filteredServices.length === 0 ? (
@@ -475,13 +510,13 @@ export default function ServicesAdmin() {
             />
           </label>
           <button className="servicesAdminAddButton" type="submit" disabled={savingClosure}>
-            {savingClosure ? "Adding…" : "Add closure"}
+            {savingClosure ? <LoadingIndicator>Adding…</LoadingIndicator> : "Add closure"}
           </button>
         </form>
         {closureError ? <p className="servicesAdminMessage isError" role="alert">{closureError}</p> : null}
         {closureLoadError ? <p className="servicesAdminMessage isError" role="alert">{closureLoadError}</p> : null}
         {closureLoading ? (
-          <p className="servicesAdminMessage" role="status">Loading closures…</p>
+          <p className="servicesAdminMessage"><LoadingIndicator>Loading closures…</LoadingIndicator></p>
         ) : !closureLoadError && normalizedClosures.length === 0 ? (
           <EmptyState title="No clinic closures yet" message="Add holidays or emergency closures here so booking is automatically blocked on those dates." compact />
         ) : !closureLoadError ? (
@@ -495,14 +530,14 @@ export default function ServicesAdmin() {
                   {closure.notes ? <p>{closure.notes}</p> : null}
                 </div>
                 <div className="servicesAdminClosureActions">
-                  <span className={closure.active ? "isBlocking" : ""}>{closure.active ? "Blocking" : "Inactive"}</span>
+                  <span className={closure.active ? "isBlocking" : ""}>{closure.active ? "Blocking" : "Cancelled"}</span>
                   <button
                     type="button"
                     className="servicesAdminTextButton"
-                    onClick={() => toggleClosure(closure)}
-                    disabled={busyClosureId === closure.id}
+                    onClick={() => closure.active ? setClosureToCancel(closure) : toggleClosure(closure)}
+                    disabled={Boolean(busyClosureId)}
                   >
-                    {busyClosureId === closure.id ? "Saving…" : closure.active ? "Disable" : "Re-enable"}
+                    {busyClosureId === closure.id ? <LoadingIndicator>{closure.active ? "Cancelling…" : "Restoring…"}</LoadingIndicator> : closure.active ? (closure.type === "holiday" ? "Cancel holiday" : "Cancel closure") : "Restore closure"}
                   </button>
                 </div>
               </li>
@@ -543,6 +578,7 @@ export default function ServicesAdmin() {
                   <input
                     required
                     maxLength={100}
+                    readOnly={isCatalogAddition}
                     value={serviceDraft.name}
                     onChange={(event) => setServiceDraft((current) => ({ ...current, name: event.target.value }))}
                   />
@@ -560,7 +596,7 @@ export default function ServicesAdmin() {
                 <label>
                   <span>Service Image</span>
                   <select
-                    required={!editingServiceId}
+                    disabled={savingService || preparingImage}
                     value={imageSelectionValue}
                     onChange={(event) => {
                       const option = CLINIC_SERVICE_IMAGE_OPTIONS.find((entry) => entry.key === event.target.value);
@@ -571,7 +607,7 @@ export default function ServicesAdmin() {
                   >
                     {!imageSelectionValue ? <option value="">Select a service image</option> : null}
                     {imageSelectionValue === "preserve" ? (
-                      <option value="preserve">Keep current image</option>
+                      <option value="preserve">Keep selected image</option>
                     ) : null}
                     {CLINIC_SERVICE_IMAGE_OPTIONS.map((option) => (
                       <option key={option.key} value={option.key}>
@@ -582,6 +618,11 @@ export default function ServicesAdmin() {
                       </option>
                     ))}
                   </select>
+                </label>
+                <label>
+                  <span>Upload custom service image</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={prepareServiceImage} disabled={savingService || preparingImage} />
+                  {preparingImage ? <LoadingIndicator>Preparing image…</LoadingIndicator> : null}
                 </label>
                 <div className="servicesAdminFormGrid">
                   <label>
@@ -622,13 +663,13 @@ export default function ServicesAdmin() {
                       type="button"
                       className="servicesAdminTextButton servicesAdminModalStatusAction"
                       onClick={() => {
-                        const service = services.find((entry) => entry.id === editingServiceId);
+                        const service = normalizedServices.find((entry) => entry.id === editingServiceId);
                         if (service) requestServiceToggle(service);
                       }}
-                      disabled={busyServiceId === editingServiceId || savingService}
+                      disabled={busyServiceId === editingServiceId || savingService || preparingImage}
                     >
                       {busyServiceId === editingServiceId
-                        ? "Saving…"
+                        ? <LoadingIndicator>Saving…</LoadingIndicator>
                         : serviceDraft.active
                           ? "Deactivate"
                           : "Activate"}
@@ -636,10 +677,10 @@ export default function ServicesAdmin() {
                   ) : null}
                 </div>
                 <div className="servicesAdminModalFooterRight">
-                  <button type="submit" className="servicesAdminAddButton" disabled={savingService}>
-                    {savingService ? "Saving…" : editingServiceId ? "Update" : "Add service"}
+                  <button type="submit" className="servicesAdminAddButton" disabled={savingService || preparingImage}>
+                    {savingService ? <LoadingIndicator>{serviceDraft.image.startsWith("data:") ? "Saving service and image…" : "Saving service…"}</LoadingIndicator> : editingServiceId ? "Update" : "Add service"}
                   </button>
-                  <button type="button" className="servicesAdminCancelButton" onClick={closeServiceModal} disabled={savingService}>
+                  <button type="button" className="servicesAdminCancelButton" onClick={closeServiceModal} disabled={savingService || preparingImage}>
                     Cancel
                   </button>
                 </div>
@@ -649,6 +690,21 @@ export default function ServicesAdmin() {
         </div>
       ) : null}
 
+      <ConfirmDialog
+        open={Boolean(closureToCancel)}
+        overlayClassName="servicesAdminConfirmOverlay"
+        title={closureToCancel?.type === "holiday" ? "Cancel this holiday?" : "Cancel this closure?"}
+        message={closureToCancel ? `Remove the booking block for "${closureToCancel.label}" on ${closureToCancel.date}?` : ""}
+        confirmLabel={closureToCancel?.type === "holiday" ? "Cancel holiday" : "Cancel closure"}
+        cancelLabel="Keep closure"
+        tone="danger"
+        onClose={() => setClosureToCancel(null)}
+        onConfirm={() => {
+          const closure = closureToCancel;
+          setClosureToCancel(null);
+          if (closure) void toggleClosure(closure);
+        }}
+      />
       <ConfirmDialog
         open={Boolean(serviceActionConfirm)}
         overlayClassName="servicesAdminConfirmOverlay"

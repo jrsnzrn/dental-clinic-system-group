@@ -246,7 +246,9 @@ export default function Accounts() {
 
     try {
       const profile = buildStaffProfile(draft, draft.role);
-      if (!editingAccountId && (!draft.email.trim() || !draft.password.trim())) throw new Error("Enter an email and temporary password.");
+      if (!editingAccountId && (!draft.email.trim() || draft.password.trim().length < 6)) {
+        throw new Error("Invalid credentials. Enter an email and a temporary password with at least 6 characters.");
+      }
       setSubmitting(true);
       const result = editingAccountId
         ? await UPDATE_STAFF_PROFILE({ uid: editingAccountId, firstName: profile.firstName, middleName: profile.middleName,
@@ -442,7 +444,7 @@ export default function Accounts() {
       <section className="acctListPanel">
         {listError ? <div className="error acctBanner">{listError}</div> : null}
 
-        {loadingStaff ? <p className="acctEmpty">Loading staff accounts...</p> : null}
+        {loadingStaff ? <p className="acctEmpty"><LoadingIndicator>Loading staff accounts…</LoadingIndicator></p> : null}
 
         {!loadingStaff && !listError && allAccounts.length === 0 ? (
           <div className="acctEmpty">
@@ -535,6 +537,7 @@ export default function Accounts() {
                   readOnly={Boolean(editingAccountId)}
                   disabled={submitting}
                   required
+                  onInvalid={() => setFormError("Invalid credentials. Enter a valid staff email address.")}
                   placeholder="staff@topdent.com"
                   value={draft.email}
                   onChange={(e) => setDraft((current) => ({ ...current, email: e.target.value }))}
@@ -550,6 +553,7 @@ export default function Accounts() {
                     autoComplete="new-password"
                     disabled={submitting}
                     minLength={6}
+                    onInvalid={() => setFormError("Invalid credentials. Enter a temporary password with at least 6 characters.")}
                     required
                     value={draft.password}
                     onChange={(e) => setDraft((current) => ({ ...current, password: e.target.value }))}
@@ -593,7 +597,7 @@ export default function Accounts() {
               </label>
             </div>
 
-            {formError ? <div className="error acctBanner">{formError}</div> : null}
+            {formError ? <div className="error acctBanner" role="alert">{formError}</div> : null}
 
             <div className="acctDialogActions">
               <button className="btn btnShine" type="submit" disabled={submitting}>

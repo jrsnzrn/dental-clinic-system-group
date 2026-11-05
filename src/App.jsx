@@ -1,8 +1,11 @@
+import LoadingIndicator from "./components/LoadingIndicator";
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "./firebase";
+
 import NavBar, { PatientDashboardHeader, PatientSidebarActions } from "./components/NavBar";
 import GlobalSuccessDialog from "./components/GlobalSuccessDialog";
 import Footer from "./components/Footer";
@@ -319,12 +322,15 @@ function AppFrame({ user, isAdmin, navBarProps, theme, onThemeChange, children }
   );
 }
 
+const LINK_WALK_IN_PATIENT = httpsCallable(functions, "linkWalkInPatientAccount");
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [adminRole, setAdminRole] = useState("");
+  const [walkInLinkMessage, setWalkInLinkMessage] = useState("");
   const [theme, setTheme] = useState(getInitialTheme);
   const [dentistSearch, setDentistSearch] = useState("");
   const [dentistPatientTypeFilter, setDentistPatientTypeFilter] = useState("All");
@@ -334,6 +340,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
+      setWalkInLinkMessage("");
       if (!u) {
         setUser(null);
         setLoadingAuth(false);
@@ -347,9 +354,11 @@ export default function App() {
       setCheckingAdmin(true);
       try {
         await u.reload();
-        const freshUser = auth.currentUser || u;
+        const freshUser = auth.currentUser;
+        if (freshUser?.uid !== u.uid) return;
         setUser(freshUser);
         const snap = await getDoc(doc(db, "admins", freshUser.uid));
+        if (auth.currentUser?.uid !== u.uid) return;
         if (snap.exists()) {
           const profile = getAdminProfile(snap.data());
           if (profile.disabled) {
@@ -362,14 +371,30 @@ export default function App() {
         } else {
           setIsAdmin(false);
           setAdminRole("");
+          const token = await freshUser.getIdTokenResult();
+          if (auth.currentUser?.uid !== u.uid) return;
+          if (token.signInProvider === "google.com" && freshUser.emailVerified && /@(?:gmail|googlemail)\.com$/i.test(freshUser.email || "")) {
+            try {
+              const result = await LINK_WALK_IN_PATIENT();
+              if (auth.currentUser?.uid === u.uid && result.data?.status === "review") {
+                setWalkInLinkMessage("The clinic needs to review your walk-in record before it can be linked. Please contact the front desk.");
+              }
+            } catch (linkError) {
+              console.error("Could not check the patient’s walk-in records:", linkError);
+              if (auth.currentUser?.uid === u.uid) setWalkInLinkMessage("Could not check for walk-in records. Refresh to try again.");
+            }
+          }
         }
       } catch (error) {
+        if (auth.currentUser?.uid !== u.uid) return;
         console.error("App admin check failed:", error);
         setIsAdmin(false);
         setAdminRole("");
       } finally {
-        setLoadingAuth(false);
-        setCheckingAdmin(false);
+        if (auth.currentUser?.uid === u.uid) {
+          setLoadingAuth(false);
+          setCheckingAdmin(false);
+        }
       }
     });
 
@@ -395,7 +420,7 @@ export default function App() {
   }, [isAdmin]);
 
   if (loadingAuth || checkingAdmin) {
-    return <div style={{ padding: 20 }}>Loading...</div>;
+    return <div className="sessionLoading"><LoadingIndicator>Checking your session…</LoadingIndicator></div>;
   }
 
   const adminRedirect = <Navigate to={getDefaultAdminPath(adminRole)} replace />;
@@ -426,6 +451,7 @@ export default function App() {
             onBookingSortChange: setBookingSortBy,
           }}
         >
+          {walkInLinkMessage ? <div className="container" role="status">{walkInLinkMessage}</div> : null}
           <Routes>
             <Route path="/" element={isAdmin ? adminRedirect : <Home />} />
             <Route path="/services" element={isAdmin ? adminRedirect : <Services />} />

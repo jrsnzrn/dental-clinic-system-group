@@ -1,8 +1,9 @@
+import { groupBookingReceipts } from "./bookingPayments.js";
 import {
   buildBracesAccount,
   getBracesAccountForPatient,
   getBracesPaymentsForPatient,
-} from "./braces";
+} from "./braces.js";
 
 const MANILA_TIME_ZONE = "Asia/Manila";
 
@@ -397,7 +398,9 @@ export function buildPaymentsReport({
   patients = [],
   bookings = [],
   range,
+  allTime = false,
 }) {
+  const includesDate = (value) => allTime || isInRange(value, range);
   const rows = [];
   const matchedRegularTransactionIds = new Set();
 
@@ -414,9 +417,9 @@ export function buildPaymentsReport({
     const total = Number(summary.totalCost) > 0 ? Number(summary.totalCost) : 0;
     const paid = Math.max(Number(summary.amountPaid) || 0, paidFromLedger);
     const balance = Math.max(0, total - paid);
-    const periodPayments = linkedPayments.filter((payment) => isInRange(paymentDate(payment), range));
+    const periodPayments = linkedPayments.filter((payment) => includesDate(paymentDate(payment)));
     const attributionDate = booking?.date || summary.appointmentDate || summary.createdAt || "";
-    if (!isInRange(attributionDate, range) && !periodPayments.length) return;
+    if (!includesDate(attributionDate) && !periodPayments.length) return;
 
     const patient = patients.find((entry) => recordPatientMatch(summary, entry)) ||
       (booking && patients.find((entry) => appointmentPatientMatch(booking, entry)));
@@ -456,7 +459,7 @@ export function buildPaymentsReport({
     orphanRegularGroups.set(key, group);
   });
   orphanRegularGroups.forEach((group) => {
-    const periodPayments = group.payments.filter((payment) => isInRange(paymentDate(payment), range));
+    const periodPayments = group.payments.filter((payment) => includesDate(paymentDate(payment)));
     if (!periodPayments.length) return;
     const total = group.payments.reduce((maximum, payment) => Math.max(maximum, paymentTotal(payment)), 0);
     const paid = group.payments.reduce((sum, payment) => sum + paymentAmount(payment), 0);
@@ -491,12 +494,12 @@ export function buildPaymentsReport({
     const uniquePayments = accountPayments.filter((payment) => !matchedBracesPaymentIds.has(payment.id));
     uniquePayments.forEach((payment) => matchedBracesPaymentIds.add(payment.id));
     const summary = buildBracesAccount(account, uniquePayments);
-    const periodPayments = uniquePayments.filter((payment) => isInRange(paymentDate(payment), range));
+    const periodPayments = uniquePayments.filter((payment) => includesDate(paymentDate(payment)));
     const latestPayment = [...periodPayments].sort((left, right) =>
       toManilaDateKey(paymentDate(right)).localeCompare(toManilaDateKey(paymentDate(left)))
     )[0];
     const attributionDate = account.startDate || account.createdAt || "";
-    if (!isInRange(attributionDate, range) && !periodPayments.length) return;
+    if (!includesDate(attributionDate) && !periodPayments.length) return;
     rows.push(createPaymentRow({
       id: `braces-${account.id}`,
       date: latestPayment ? paymentDate(latestPayment) : attributionDate,
@@ -522,7 +525,7 @@ export function buildPaymentsReport({
     orphanBracesGroups.set(key, group);
   });
   orphanBracesGroups.forEach((group) => {
-    const periodPayments = group.payments.filter((payment) => isInRange(paymentDate(payment), range));
+    const periodPayments = group.payments.filter((payment) => includesDate(paymentDate(payment)));
     if (!periodPayments.length) return;
     const latest = [...periodPayments].sort((left, right) =>
       toManilaDateKey(paymentDate(right)).localeCompare(toManilaDateKey(paymentDate(left)))
@@ -548,7 +551,7 @@ export function buildPaymentsReport({
   });
 
   const collections = [...payments, ...bracesPayments]
-    .filter((payment) => isInRange(paymentDate(payment), range))
+    .filter((payment) => includesDate(paymentDate(payment)))
     .reduce((sum, payment) => sum + paymentAmount(payment), 0);
   const ongoingOrthoPayments = rows.filter((row) =>
     row.source === "Orthodontic account" && row.remainingBalance > 0.005
@@ -576,6 +579,25 @@ export function buildPaymentsReport({
       { key: "status", label: "Payment Status" },
     ],
     rows: rows.map((row) => ({ ...row, sortDate: paymentRowSortDate(row) })),
+  };
+}
+
+export function getPaymentOverview(data) {
+  const { rows } = buildPaymentsReport({ ...data, allTime: true });
+  const transactions = groupBookingReceipts([
+    ...(data.payments || []).map((payment) => ({ ...payment, ledgerSource: "Treatment payment", amount: paymentAmount(payment) })),
+    ...(data.bracesPayments || []).map((payment) => ({ ...payment, ledgerSource: "Braces installment", amount: paymentAmount(payment) })),
+  ].filter((payment) => payment.amount > 0)).map((payment) => ({
+    ...payment,
+    date: paymentDate(payment),
+    patientName: payment.patientName || payment.fullName || data.patients?.find((patient) => recordPatientMatch(payment, patient))?.name || "Patient",
+  })).sort((left, right) => toManilaDateKey(right.date).localeCompare(toManilaDateKey(left.date)));
+  const balances = rows.filter((row) => row.remainingBalance > 0).sort((left, right) => right.remainingBalance - left.remainingBalance);
+  return {
+    received: transactions.reduce((total, payment) => total + payment.amount, 0),
+    outstanding: balances.reduce((total, row) => total + row.remainingBalance, 0),
+    transactions,
+    balances,
   };
 }
 

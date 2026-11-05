@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import CursorAura from "../components/CursorAura";
 import { db } from "../firebase";
+import { getBookableCatalog, BRACES_PACKAGE_INCLUSIONS, isBracesPackage } from "../../functions/bookingServices.mjs";
+import LoadingIndicator from "../components/LoadingIndicator";
 import { getActiveServices, getClinicServiceImage, getLocalClinicServiceImage, PUBLIC_SERVICE_CATALOG } from "../utils/clinic";
 import cleaningImg from "../assets/services/cleaning.jpg";
 import fillingsImg from "../assets/services/fillings.jpg";
@@ -265,7 +267,7 @@ const DEFAULT_ITEMS = PUBLIC_SERVICE_CATALOG.map((service) =>
 /** Use the Firestore catalog for membership while retaining curated presentation fallbacks. */
 function mergeServices(managedServices) {
   const catalogOrder = new Map(PUBLIC_SERVICE_CATALOG.map((service, index) => [key(service.name), index]));
-  const activeServices = getActiveServices(managedServices).sort((left, right) => {
+  const activeServices = getActiveServices(getBookableCatalog(managedServices)).sort((left, right) => {
     const leftOrder = catalogOrder.get(key(left.name));
     const rightOrder = catalogOrder.get(key(right.name));
     if (leftOrder !== undefined && rightOrder !== undefined) return leftOrder - rightOrder;
@@ -281,12 +283,12 @@ function mergeServices(managedServices) {
   return displayedServices.map((service) => {
     const serviceKey = key(service.name);
     const existing = DEFAULT_ITEMS.find((item) => key(item.name) === serviceKey);
-    const source = managedServices.find((entry) => entry.id === service.id) || {};
+    const source = managedServices.find((entry) => entry.id === service.id) || service;
 
     return buildServiceContent({
       name: service.name,
       desc: Object.prototype.hasOwnProperty.call(source, "description")
-        ? service.description
+        ? [service.description, isBracesPackage(service) ? BRACES_PACKAGE_INCLUSIONS.join(" · ") : ""].filter(Boolean).join(" ")
         : existing?.desc ?? "Clinic-managed service available for booking.",
       price: Object.prototype.hasOwnProperty.call(source, "startingRate")
         ? service.startingRate
@@ -304,17 +306,18 @@ function mergeServices(managedServices) {
 /* ------------------------------------------------------------------ */
 
 function useManagedServices() {
-  const [services, setServices] = useState([]);
+  const [services, setServices] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "clinicServices"), orderBy("name", "asc"));
     const unsub = onSnapshot(q, (snapshot) => {
       setServices(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
-    });
+    }, () => setLoadError(true));
     return () => unsub();
   }, []);
 
-  return services;
+  return { services, loadError };
 }
 
 function ServiceImage({ service }) {
@@ -332,7 +335,7 @@ function ServiceImage({ service }) {
   );
 }
 
-function ServiceCard({ service, isActive, onSelect }) {
+function ServiceCard({ service, onSelect }) {
   const types = service.types || [];
 
   return (
@@ -371,8 +374,8 @@ function ServiceCard({ service, isActive, onSelect }) {
 /* ------------------------------------------------------------------ */
 
 export default function Services() {
-  const managedServices = useManagedServices();
-  const items = useMemo(() => mergeServices(managedServices), [managedServices]);
+  const { services: managedServices, loadError } = useManagedServices();
+  const items = useMemo(() => managedServices ? mergeServices(managedServices) : [], [managedServices]);
 
   const [index, setIndex] = useState(0);
   const [carouselState, setCarouselState] = useState({
@@ -384,7 +387,6 @@ export default function Services() {
 
   const total = items.length;
   const safeIndex = Math.min(index, total - 1);
-  const selected = items[safeIndex];
 
   useEffect(() => {
     const track = carouselRef.current;
@@ -453,6 +455,8 @@ export default function Services() {
         <h1 className="svxTitle">Dental care for every smile</h1>
       </header>
 
+      {loadError ? <p className="serviceCatalogStatus" role="alert">Could not load clinic services.</p> : null}
+      {!managedServices && !loadError ? <p className="serviceCatalogStatus"><LoadingIndicator>Loading clinic services…</LoadingIndicator></p> : null}
       <div className="svxCarousel">
         <button
           className="svxCarouselArrow"
@@ -468,7 +472,6 @@ export default function Services() {
             <ServiceCard
               key={item.name}
               service={item}
-              isActive={i === safeIndex}
               onSelect={() => setIndex(i)}
             />
           ))}

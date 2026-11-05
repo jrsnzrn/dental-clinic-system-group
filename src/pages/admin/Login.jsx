@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useState } from "react";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -215,7 +216,7 @@ export default function Login() {
           )}
 
           <button className="btn btnWide" type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? <LoadingIndicator>Signing in…</LoadingIndicator> : "Sign In"}
           </button>
 
           <button className="backButton" type="button" onClick={() => navigate("/admin/forgot-password")}>

@@ -1,3 +1,4 @@
+import { BOOKING_CATALOG_ADDITIONS, getBookableCatalog } from "../../functions/bookingServices.mjs";
 import { normalizeText } from "./appointments";
 import bracesImg from "../assets/services/braces.jpg";
 import cleaningImg from "../assets/services/cleaning.jpg";
@@ -47,7 +48,7 @@ export const PUBLIC_SERVICE_CATALOG = [
   { name: "Teeth Whitening", description: "Whitening treatment designed to brighten your smile in one session.", durationMinutes: 60, startingRate: "PHP 8,000", active: true, category: "General" },
   { name: "Oral Surgery", description: "Minor oral surgical procedures with proper planning and care.", durationMinutes: 60, startingRate: "PHP 5,000 starting", active: true, category: "General" },
   { name: "Veneers", description: "Cosmetic veneer treatment for smile improvement and tooth enhancement.", durationMinutes: 60, startingRate: "Depends on procedure and product", active: true, category: "General" },
-  { name: "Crowns", description: "Dental crowns to restore strength, shape, and appearance of teeth.", durationMinutes: 60, startingRate: "PHP 7,000 starting", active: true, category: "General" },
+  ...BOOKING_CATALOG_ADDITIONS,
   { name: "Dentures", description: "Custom removable replacement for missing teeth.", durationMinutes: 60, startingRate: "PHP 5,000 starting", active: true, category: "General" },
   { name: "Root Canal", description: "Treatment for infected canals to help save the tooth.", durationMinutes: 90, startingRate: "PHP 8,000 per canal", active: true, category: "General" },
   { name: "Braces", description: "Orthodontic treatment for bite alignment and smile correction.", durationMinutes: 60, startingRate: "PHP 5,000 down payment", active: true, category: "General" },
@@ -108,7 +109,7 @@ export function getActiveServices(services = []) {
 }
 
 export function getBookingServiceOptions(services = []) {
-  return getActiveServices(services);
+  return getActiveServices(getBookableCatalog(services));
 }
 
 export function getClinicServiceImage(service = {}) {
@@ -144,6 +145,7 @@ export function getLocalClinicServiceImage(service = {}) {
   };
   if (serviceImagesByName[serviceName]) return serviceImagesByName[serviceName];
 
+  if (serviceName.includes("crown")) return CLINIC_SERVICE_IMAGES.crowns;
   if (serviceName.includes("clean") || serviceName.includes("denture")) return CLINIC_SERVICE_IMAGES.cleaning;
   if (serviceName.includes("extract") || serviceName.includes("surgery")) return CLINIC_SERVICE_IMAGES.extraction;
   if (serviceName.includes("brace")) return CLINIC_SERVICE_IMAGES.braces;

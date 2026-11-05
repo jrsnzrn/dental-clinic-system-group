@@ -1,3 +1,4 @@
+import LoadingIndicator from "./LoadingIndicator";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -279,7 +280,7 @@ function NotificationPopover({
           {error ? (
             <p className="staffNotificationMessage" role="alert">{error}</p>
           ) : loading ? (
-            <p className="staffNotificationMessage" role="status">Loading notifications…</p>
+            <p className="staffNotificationMessage"><LoadingIndicator>Loading notifications…</LoadingIndicator></p>
           ) : notifications.length ? (
             <ul>
               {(showAll ? notifications : compactNotifications).map((item) => (

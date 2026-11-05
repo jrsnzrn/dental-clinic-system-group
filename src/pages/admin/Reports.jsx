@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useMemo, useRef, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { utils as xlsxUtils, writeFile as writeExcelFile } from "xlsx";
@@ -637,7 +638,7 @@ export default function Reports() {
           onClick={() => generateReport()}
           disabled={loading}
         >
-          {loading ? "Generating…" : "Generate Report"}
+          {loading ? <LoadingIndicator>Generating…</LoadingIndicator> : "Generate Report"}
         </button>
         <label className="reportsExportSelect">
           <span className="reportsVisuallyHidden">Export report</span>

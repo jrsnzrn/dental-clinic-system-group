@@ -1,3 +1,4 @@
+import LoadingIndicator from "../components/LoadingIndicator";
 import PaginatedRecords from "../components/PaginatedRecords";
 import ModalPortal from "../components/ModalPortal";
 import PatientPaymentReceipts from "../components/PatientPaymentReceipts";
@@ -106,6 +107,9 @@ function AppointmentTableRow({ booking, onStartReschedule, onStartCancellation }
             </svg>
             <span>
               <strong>{booking.service || "Consultation"}</strong>
+              {booking.bracesPackage?.type && booking.bracesPackage.type !== booking.bracesPackage.service ? (
+                <small>Braces type: {booking.bracesPackage.type}</small>
+              ) : null}
               <small>{booking.selectedDentist || "Clinic dentist"}</small>
             </span>
           </div>
@@ -211,9 +215,11 @@ function buildStatusGroups(bookings) {
 export default function MyAppointments() {
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
+  const [authReady, setAuthReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editingBookingId, setEditingBookingId] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
   const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [requestMode, setRequestMode] = useState("reschedule");
   const [rescheduleDraft, setRescheduleDraft] = useState({
@@ -231,7 +237,7 @@ export default function MyAppointments() {
     document.body.style.overflow = "hidden";
 
     function closeOnEscape(event) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !sendingRequest) {
         setRequestFormOpen(false);
         setEditingBookingId("");
         setError("");
@@ -243,11 +249,12 @@ export default function MyAppointments() {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [requestFormOpen]);
+  }, [requestFormOpen, sendingRequest]);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
+      setAuthReady(true);
       setError("");
       setLoading(Boolean(nextUser));
       if (!nextUser) setBookings([]);
@@ -375,12 +382,14 @@ export default function MyAppointments() {
   }
 
   function closeRequestModal() {
+    if (sendingRequest) return;
     setRequestFormOpen(false);
     setEditingBookingId("");
     setError("");
   }
 
   async function submitAppointmentRequest(bookingId) {
+    if (sendingRequest) return;
     setError("");
 
     if (!rescheduleDraft.reason.trim()) {
@@ -393,6 +402,7 @@ export default function MyAppointments() {
     }
 
     if (requestMode === "cancel") {
+      setSendingRequest(true);
       try {
         await updateDoc(doc(db, "bookings", bookingId), {
           cancellationRequest: {
@@ -411,6 +421,8 @@ export default function MyAppointments() {
       } catch (requestError) {
         console.error(requestError);
         setError("Could not send the cancellation request. Please try again.");
+      } finally {
+        setSendingRequest(false);
       }
       return;
     }
@@ -426,6 +438,7 @@ export default function MyAppointments() {
       return;
     }
 
+    setSendingRequest(true);
     try {
       await updateDoc(doc(db, "bookings", bookingId), {
         rescheduleRequest: {
@@ -446,8 +459,12 @@ export default function MyAppointments() {
     } catch (requestError) {
       console.error(requestError);
       setError("Could not send the reschedule request. Please try again.");
+    } finally {
+      setSendingRequest(false);
     }
   }
+
+  if (!authReady) return <div className="sessionLoading"><LoadingIndicator>Loading your appointments…</LoadingIndicator></div>;
 
   if (!user) {
     return (
@@ -514,7 +531,7 @@ export default function MyAppointments() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td className="appointmentTableMessage" colSpan="4">Loading your appointments...</td></tr>
+                  <tr><td className="appointmentTableMessage" colSpan="4"><LoadingIndicator>Loading your appointments…</LoadingIndicator></td></tr>
                 ) : activeStatusGroup.bookings.length ? (
                   <PaginatedRecords
                     items={activeStatusGroup.bookings}
@@ -681,8 +698,9 @@ export default function MyAppointments() {
                   className={`appointmentRequestSubmit${requestMode === "cancel" ? " danger" : ""}`}
                   type="button"
                   onClick={() => submitAppointmentRequest(editingBookingId)}
+                  disabled={sendingRequest}
                 >
-                  {requestMode === "cancel" ? "Confirm Cancellation" : "Send Reschedule Request"}
+                  {sendingRequest ? <LoadingIndicator>Sending request…</LoadingIndicator> : requestMode === "cancel" ? "Confirm Cancellation" : "Send Reschedule Request"}
                 </button>
                 <button
                   className={`appointmentRequestCancel${requestMode === "reschedule" ? " danger" : ""}`}

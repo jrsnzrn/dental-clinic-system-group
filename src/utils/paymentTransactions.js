@@ -8,6 +8,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { getUnchargedPaymentServices } from "./bookingPayments.js";
+import { money } from "./paymentPricing.js";
 import { buildBracesAccount } from "./braces";
 import { validateReceiptPhotos } from "./receiptPhotos";
 
@@ -214,10 +216,12 @@ export async function recordBracesPayment({
   accountId,
   amount: rawAmount,
   totalCost: rawTotalCost,
+  expectedAccountTotal,
+  additionalServiceCharges = [],
   bracesType,
   paymentDate,
   referenceNumber,
-  additionalServices = [],
+  additionalServices,
   method,
   notes,
   receiptPhotos = [],
@@ -263,7 +267,19 @@ export async function recordBracesPayment({
     const account = { id: accountSnapshot.id, ...accountSnapshot.data() };
     const ledgerTotal = existingPayments.reduce((sum, entry) => sum + toAmount(entry.amount), 0);
     const amountPaidBefore = Math.max(ledgerTotal, toAmount(account.amountPaid));
-    const totalCost = toAmount(rawTotalCost) || toAmount(account.totalCost);
+    const existingExtras = Array.isArray(account.additionalServices) ? account.additionalServices : [];
+    if (expectedAccountTotal !== undefined && money(expectedAccountTotal) !== money(account.totalCost)) {
+      throw new Error("The braces total changed. Reopen the account before saving.");
+    }
+    const newExtras = getUnchargedPaymentServices(additionalServiceCharges, existingExtras);
+    if (newExtras.length !== additionalServiceCharges.length || newExtras.some((line) => !money(line.amount))) {
+      throw new Error("An additional service is already on the account or has an invalid charge.");
+    }
+    if (new Set(newExtras.map((line) => line.name.trim().toLowerCase())).size !== newExtras.length) {
+      throw new Error("Choose each additional service only once.");
+    }
+    const totalCost = money((toAmount(rawTotalCost) || toAmount(account.totalCost)) + newExtras.reduce((sum, line) => sum + money(line.amount), 0));
+    const addedServiceNames = newExtras.map((line) => line.name);
 
     if (amount > Math.max(0, totalCost - amountPaidBefore)) {
       throw new Error("Payment amount cannot exceed the outstanding braces balance.");
@@ -282,7 +298,7 @@ export async function recordBracesPayment({
           amount,
           paymentDate,
           ...(normalizedReferenceNumber ? { referenceNumber: normalizedReferenceNumber } : {}),
-          additionalServices,
+          additionalServices: addedServiceNames.length ? addedServiceNames : additionalServices || [],
           receiptPhotos,
           method: method || "Cash",
           notes: String(notes || "").trim(),
@@ -308,7 +324,8 @@ export async function recordBracesPayment({
         totalCost,
         ...(account.listedCost ? { listedCost: updatedAccount.listedCost } : {}),
         ...(bracesType ? { bracesType } : {}),
-        additionalServices,
+        additionalServices: [...new Set([...(additionalServices || existingExtras), ...addedServiceNames])],
+        ...(newExtras.length ? { additionalServiceCharges: [...(account.additionalServiceCharges || []), ...newExtras] } : {}),
         amountPaid: summary.amountPaid,
         remainingBalance: summary.remainingBalance,
         expectedPaidByNow: summary.expectedPaidByNow,

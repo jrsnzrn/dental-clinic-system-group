@@ -1,6 +1,13 @@
+import { isCrownTypeService } from "../../functions/bookingServices.mjs";
 import { money } from "./paymentPricing.js";
 
 const namesOf = value => String(value || "").split(",").map(name => name.trim()).filter(Boolean);
+
+export function getUnchargedPaymentServices(services, chargedNames) {
+  const key = (name) => name.trim().toLowerCase().replace(/\s+/g, " ");
+  const charged = new Set(chargedNames.map(key));
+  return services.filter((service) => !charged.has(key(service.name)) && !(charged.has("crowns") && isCrownTypeService(service)));
+}
 
 export function groupBookingPaymentRows(rows) {
   const groups = new Map();

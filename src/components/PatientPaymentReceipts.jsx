@@ -1,3 +1,4 @@
+import LoadingIndicator from "./LoadingIndicator";
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, or, query, where } from "firebase/firestore";
 import { db } from "../firebase";
@@ -39,7 +40,7 @@ export default function PatientPaymentReceipts({ patientId = "", uid = "", patie
 
   return (
     <div className="patientPaymentReceipts">
-      {loading ? <p role="status">Loading payment receipts…</p> : null}
+      {loading ? <p><LoadingIndicator>Loading payment receipts…</LoadingIndicator></p> : null}
       {error ? <div className="formError" role="alert">{error} <button type="button" className="btn secondary" onClick={() => setRetry(value => value + 1)}>Try again</button></div> : null}
       {!loading ? <PaymentReceipts payments={receipts} patientName={patientName} bookings={bookings || current.bookings?.records || []} /> : null}
     </div>

@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -146,7 +147,7 @@ function QueueRescheduleModal({ booking, onClose, onSave }) {
             {formError ? <div className="formError" role="alert">{formError}</div> : null}
             <div className="actionColumn actionColumnFriendly">
               <button className="btn btnShine patientActionBtn" type="submit" disabled={saving}>
-                {saving ? "Saving..." : "Save new schedule"}
+                {saving ? <LoadingIndicator>Saving…</LoadingIndicator> : "Save new schedule"}
               </button>
               <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onClose} disabled={saving}>Cancel</button>
             </div>
@@ -322,8 +323,8 @@ export default function Queue() {
   async function handleConfirmAction() {
     if (!confirmState || actionPendingId) return;
     const pending = confirmState;
-    setConfirmState(null);
     await runQueueAction(pending.bookingId, pending.action);
+    setConfirmState(null);
   }
 
   async function startTreatment(booking) {
@@ -364,6 +365,7 @@ export default function Queue() {
         </label>
       </div>
 
+      {actionPendingId && !confirmState && !rescheduleBooking ? <div className="queueError"><LoadingIndicator>Updating appointment…</LoadingIndicator></div> : null}
       {actionError ? <div className="formError queueError" role="alert">{actionError}</div> : null}
       {bookingsError ? <div className="formError queueError" role="alert">{bookingsError}</div> : null}
       {dentistsError ? <div className="formError queueError" role="alert">{dentistsError}</div> : null}
@@ -385,7 +387,7 @@ export default function Queue() {
               </thead>
               <tbody>
                 {loadingBookings ? (
-                  <tr><td className="queueEmptyCell" colSpan="7">Loading appointments…</td></tr>
+                  <tr><td className="queueEmptyCell" colSpan="7"><LoadingIndicator>Loading appointments…</LoadingIndicator></td></tr>
                 ) : visibleRecords.length ? queuePage.items.map((booking) => {
                   const queueStatus = getQueueStatus(booking);
                   const status = String(booking.status || "").toLowerCase();
@@ -528,9 +530,10 @@ export default function Queue() {
           open
           title={confirmState.title}
           message={confirmState.message}
-          confirmLabel={actionPendingId === confirmState.bookingId ? "Working…" : confirmState.confirmLabel}
+          confirmLabel={actionPendingId === confirmState.bookingId ? <LoadingIndicator>Updating…</LoadingIndicator> : confirmState.confirmLabel}
+          confirmDisabled={Boolean(actionPendingId)}
           tone={confirmState.tone}
-          onClose={() => setConfirmState(null)}
+          onClose={() => { if (!actionPendingId) setConfirmState(null); }}
           onConfirm={handleConfirmAction}
         />
       ) : null}

@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import PaginatedRecords from "../../components/PaginatedRecords";
@@ -70,7 +71,7 @@ export default function StaffDashboard({ uid, role }) {
       <header className="staffDashboardPanelHeader"><div><h2 id="staff-dashboard-appointments">{dentist ? "Your appointments" : "Clinic appointments"}</h2><p>{formatDateLabel(date)}</p></div>
         <input type="search" className="input" placeholder="Search patient or service" aria-label="Search dashboard appointments" value={search} onChange={event => setSearch(event.target.value)} />
       </header>
-      {loading ? <div className="staffDashboardEmpty" role="status">Loading appointments…</div> : data.error ? <div className="staffDashboardEmpty">Appointment details are unavailable until the connection is restored.</div> : rows.length ? <div className="staffDashboardTableScroll"><table className="staffDashboardTable">
+      {loading ? <div className="staffDashboardEmpty"><LoadingIndicator>Loading appointments…</LoadingIndicator></div> : data.error ? <div className="staffDashboardEmpty">Appointment details are unavailable until the connection is restored.</div> : rows.length ? <div className="staffDashboardTableScroll"><table className="staffDashboardTable">
         <thead><tr><th scope="col">Time</th><th scope="col">Patient</th><th scope="col">Service</th>{!dentist ? <th scope="col">Dentist</th> : null}<th scope="col">Status</th><th scope="col">Record</th></tr></thead>
         <tbody><PaginatedRecords items={rows} tableColumns={dentist ? 5 : 6} resetKey={`${date}-${search}`} label="appointments" hideSinglePageControls>{booking => {
           const status = getDashboardStatus(booking);

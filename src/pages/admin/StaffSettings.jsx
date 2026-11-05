@@ -76,7 +76,7 @@ export default function StaffSettings({ uid }) {
     <header className="staffSettingsHeading"><span>Account</span><h1>Settings</h1><p>Keep your personal and contact details up to date.</p></header>
     {setupRequired ? <div className="staffProfileSetupNotice" role="status"><strong>Complete your profile to continue</strong><p>Review your name, enter your nickname, age, and gender, then select Save and continue. Middle name and contact number are optional.</p></div> : null}
     {loadError ? <div className="formError" role="alert">{loadError} <button className="btn secondary" onClick={() => setRetry(value => value + 1)}>Try again</button></div> : null}
-    {!draft || !profile ? !loadError ? <p role="status">Loading your account details…</p> : null : <>
+    {!draft || !profile ? !loadError ? <p><LoadingIndicator>Loading your account details…</LoadingIndicator></p> : null : <>
       <section className="staffSettingsPanel" aria-labelledby="staff-settings-profile"><h2 id="staff-settings-profile">Personal details</h2><p>Your title updates automatically based on your role and gender.</p>
         <form onSubmit={save} aria-busy={saving}>
           <fieldset disabled={saving || Boolean(loadError)} className="staffSettingsFields">

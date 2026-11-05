@@ -5,6 +5,10 @@ export async function prepareReceiptPhoto(file) {
     throw new Error("Choose a JPG, PNG, or WebP receipt photo.");
   }
   if (file.size > 15 * 1024 * 1024) throw new Error("Each receipt photo must be smaller than 15 MB.");
+  return { name: file.name.slice(0, 150), dataUrl: await compressPhoto(file, "This receipt photo is too large. Crop it and try again.") };
+}
+
+export async function compressPhoto(file, sizeError) {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -20,9 +24,9 @@ export async function prepareReceiptPhoto(file) {
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     for (const quality of [0.85, 0.7, 0.55, 0.4]) {
       const dataUrl = canvas.toDataURL("image/jpeg", quality);
-      if (dataUrl.length <= 200000) return { name: file.name.slice(0, 150), dataUrl };
+      if (dataUrl.length <= 200000) return dataUrl;
     }
-    throw new Error("This receipt photo is too large. Crop it and try again.");
+    throw new Error(sizeError);
   } finally {
     URL.revokeObjectURL(url);
   }

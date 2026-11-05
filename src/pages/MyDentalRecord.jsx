@@ -1,3 +1,4 @@
+import LoadingIndicator from "../components/LoadingIndicator";
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -111,7 +112,7 @@ export default function MyDentalRecord() {
   const errors = Object.values(current.errors || {}).filter(Boolean);
 
   if (!authReady) {
-    return <div className="container"><p role="status">Loading your dental record…</p></div>;
+    return <div className="container"><p><LoadingIndicator>Loading your dental record…</LoadingIndicator></p></div>;
   }
 
   if (!user) {
@@ -139,7 +140,7 @@ export default function MyDentalRecord() {
         <p>Review your patient details, dental chart, and treatment history.</p>
       </header>
 
-      {loading ? <p role="status">Loading your saved records…</p> : null}
+      {loading ? <div className="sessionLoading"><LoadingIndicator>Loading your saved records…</LoadingIndicator></div> : <>
       {errors.map((error) => <p className="error" role="alert" key={error}>{error}</p>)}
 
       <section className="card patientDentalRecordsCard patientRecordSection" aria-labelledby="record-patient-heading">
@@ -245,7 +246,7 @@ export default function MyDentalRecord() {
           </footer>
         </section>
       </div>
-
+      </>}
     </div>
   );
 }

@@ -74,7 +74,7 @@ service cloud.firestore {
           (data.patientType == "Regular" && !data.keys().hasAny(["bracesType"])) ||
           (
             data.patientType == "Ortho" &&
-            data.bracesType in ["Metal", "Ceramic", "Self-Ligating", "Sapphire"]
+            (!data.keys().hasAny(["bracesType"]) || data.bracesType in ["Metal", "Ceramic", "Self-Ligating", "Sapphire"])
           )
         );
     }
@@ -113,7 +113,7 @@ service cloud.firestore {
     }
 
     function patientProfileSelfUpdateKeysAreSafe() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         "email",
         "firstName",
         "middleName",
@@ -127,7 +127,7 @@ service cloud.firestore {
 
     function patientOwnBookingUpdateIsValid() {
       return request.auth.uid == resource.data.uid &&
-        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "notes",
           "rescheduleRequest",
           "cancellationRequest"
@@ -141,8 +141,8 @@ service cloud.firestore {
         request.resource.data.time == resource.data.time &&
         request.resource.data.status == resource.data.status &&
         request.resource.data.checkedInAt == resource.data.checkedInAt &&
-        request.resource.data.privacyConsentAccepted == resource.data.privacyConsentAccepted &&
-        request.resource.data.privacyConsentText == resource.data.privacyConsentText;
+        request.resource.data.get("privacyConsentAccepted", null) == resource.data.get("privacyConsentAccepted", null) &&
+        request.resource.data.get("privacyConsentText", null) == resource.data.get("privacyConsentText", null);
     }
 
     match /admins/{uid} {

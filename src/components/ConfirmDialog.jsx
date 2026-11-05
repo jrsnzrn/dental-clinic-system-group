@@ -6,6 +6,8 @@ export default function ConfirmDialog({
   open,
   title = "Confirm action",
   message = "",
+  children,
+  confirmDisabled = false,
   confirmLabel = "Continue",
   cancelLabel = "Cancel",
   showCancelButton = true,
@@ -66,7 +68,8 @@ export default function ConfirmDialog({
             </button>
           </div>
           <div className="confirmModalBody">
-            <p>{message}</p>
+            {message ? <p>{message}</p> : null}
+            {children}
           </div>
           <div className="confirmModalActions">
             {showCancelButton ? (
@@ -77,7 +80,8 @@ export default function ConfirmDialog({
             <button
               className={`btn ${tone === "danger" ? "danger" : tone === "archive" ? "archiveButton" : "btnShine"}`}
               type="button"
-              onClick={onConfirm}
+              disabled={confirmDisabled}
+            onClick={onConfirm}
             >
               {confirmLabel}
             </button>

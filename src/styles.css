@@ -7001,6 +7001,15 @@ input[type="date"].input { min-height: 48px; }
   color: var(--accent-text);
 }
 
+.bookingMonthDay.past {
+  background: #e6e7e9;
+  color: #414750;
+}
+
+.bookingMonthDay.past.selected {
+  border: 2px solid var(--accent);
+}
+
 .bookingMonthDay i {
   position: absolute;
   bottom: 3px;
@@ -7073,8 +7082,57 @@ input[type="date"].input { min-height: 48px; }
   }
 }
 
+.dentistFreeProcedureButton {
+  display: block;
+  margin-top: 6px;
+}
+
 .walkInServiceField {
+  grid-column: 1 / -1;
   min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.walkInBookingModal .fieldGroupLabel {
+  margin: 0;
+}
+
+.walkInBookingModal .walkInPatientHeading {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.walkInScheduleFields {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.walkInScheduleFields .field { min-width: 0; }
+
+.walkInServiceHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.walkInServiceHeading > span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.walkInServiceOption strong,
+.walkInServiceOption small {
+  display: block;
+}
+
+.walkInServiceOption small {
+  margin-top: 3px;
+  color: var(--muted);
 }
 
 .walkInServiceField .fieldLabel > span { color: var(--muted); font-weight: 400; }
@@ -7455,6 +7513,8 @@ html[data-theme="blue"] .rescheduleFields select { color-scheme: light; }
     padding: 14px;
   }
   .addPatientModal .modalFoot { padding: 10px 14px; }
+  .walkInServiceOptions,
+  .walkInScheduleFields { grid-template-columns: minmax(0, 1fr); }
 }
 .modalHeader {
   display: flex;
@@ -15891,7 +15951,7 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 }
 
 .overviewDashboard .overviewStatsPrimary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .overviewDashboard .overviewStatsPeople {
@@ -15919,6 +15979,17 @@ html[data-dashboard="true"] .servicesAdminModal .servicesAdminCancelButton {
 .overviewDashboard .overviewPeopleCard:hover {
   border-color: color-mix(in srgb, var(--overview-tone) 55%, var(--line));
   box-shadow: 0 4px 13px rgba(26, 34, 46, 0.07);
+}
+
+.overviewDashboard button.overviewStatCard {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.overviewDashboard button.overviewStatCard[aria-expanded="true"] {
+  border-color: var(--accent);
 }
 
 .overviewDashboard .overviewStatCard.yellow {
@@ -17800,6 +17871,24 @@ html[data-dashboard="true"] .adminSurface :is(.patientTable, .bookingsTable, .pa
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--card);
+}
+
+.bookingPage .bookingFormCard > .bookingProfileHeading {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.bookingPage .bookingProfileHeading .bookingProfileHeaderMain {
+  display: contents;
+}
+
+.bookingPage .bookingProfileHeading .bookingProfileHeaderMain > div {
+  grid-column: 2;
+  text-align: center;
+}
+
+.bookingPage .bookingProfileHeading .badge {
+  justify-self: end;
 }
 
 .bookingPage .bookingPatientSummary > div {
@@ -21926,12 +22015,16 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
 
 .bookingPage .bookingPatientSection .bookingSectionHeader {
   align-items: center;
+  display: grid;
+  grid-template-columns: auto 1fr;
 }
 
 .bookingPage .bookingPatientSection .bookingSecondaryBtn {
   min-height: 36px;
   flex: 0 0 auto;
-  margin: 0 0 0 auto;
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin: 0;
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -21981,6 +22074,37 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
 .bookingPage .bookingServicesSection .bookingServiceOptionGrid {
   margin-top: 0;
   grid-auto-rows: minmax(46px, auto);
+}
+
+.bookingBracesPackageDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.bookingServiceTypeField {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  flex: 1 1 180px;
+  max-width: 320px;
+}
+
+.bookingBracesPackageDetails ul {
+  margin: 6px 0 0;
+  padding-inline-start: 20px;
+}
+
+.bookingCrownSelections {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 .bookingPage .bookingServicesSection .bookingServiceOption span {
@@ -22079,12 +22203,8 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
 }
 
 @media (max-width: 640px) {
-  .bookingPage .bookingPatientSection .bookingSectionHeader {
-    flex-wrap: wrap;
-  }
-
-  .bookingPage .bookingPatientSection .bookingSecondaryBtn {
-    margin-left: 33px;
+  .bookingPage .bookingFormCard > .bookingProfileHeading {
+    grid-template-columns: auto 1fr auto;
   }
 
   .bookingPage .bookingPatientDetails {
@@ -23186,6 +23306,8 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
   .staffDashboardStat:hover, .staffDashboardActions > a:hover { transform: none; }
 }
 
+.sessionLoading { min-height: 50vh; display: grid; place-items: center; }
+.serviceCatalogStatus { text-align: center; }
 .actionLoadingIndicator { display: inline-flex; align-items: center; justify-content: center; gap: 9px; vertical-align: middle; }
 .actionLoadingSpinner { display: inline-block; flex-shrink: 0; width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: actionLoadingSpin .75s linear infinite; }
 .bookingActionProgress { padding: 13px 16px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: var(--surface); font-size: 14px; }

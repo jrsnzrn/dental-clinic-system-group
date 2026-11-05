@@ -1,3 +1,5 @@
+import PaginatedRecords from "../../components/PaginatedRecords";
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useEffect, useMemo, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { NavLink } from "react-router-dom";
@@ -5,6 +7,7 @@ import { auth, db } from "../../firebase";
 import { getAuditActionLabel } from "../../utils/audit";
 import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
 import { formatCurrency } from "../../utils/braces";
+import { formatReportDate, getPaymentOverview } from "../../utils/reports";
 import { ROLES } from "../../utils/rbac";
 import { fetchStaffAccounts } from "../../utils/staffAccounts";
 
@@ -15,6 +18,7 @@ const ROUTES = {
   dentists: "/admin/dentists",
   receptionists: "/admin/accounts?role=receptionist",
 };
+const PAYMENT_SOURCES = ["payments", "bracesPayments", "paymentTreatmentSummaries", "bracesAccounts"];
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const pad = (value) => String(value).padStart(2, "0");
 
@@ -133,18 +137,24 @@ function normalizeBooking(entry) {
   };
 }
 
-function StatCard({ icon, label, value, to, tone }) {
+function StatCard({ icon, label, value, to, tone, description, onClick, expanded }) {
   const contents = (
     <>
       <span className="overviewStatIcon" aria-hidden="true">{icon}</span>
       <span className="overviewStatText">
         <span className="overviewStatLabel">{label}</span>
         <strong className="overviewStatValue">{value}</strong>
+        {description ? <small>{description}</small> : null}
       </span>
       <span className="overviewChevron" aria-hidden="true">›</span>
     </>
   );
 
+  if (onClick) return (
+    <button type="button" className={`overviewStatCard ${tone}`} onClick={onClick} aria-expanded={expanded} aria-controls="overview-payment-details">
+      {contents}
+    </button>
+  );
   return (
     <NavLink className={`overviewStatCard ${tone}`} to={to} aria-label={`${label}: ${value}`}>
       {contents}
@@ -201,7 +211,8 @@ export default function Overview() {
   const [patients, setPatients] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [paymentView, setPaymentView] = useState("");
+  const [paymentData, setPaymentData] = useState({});
   const [activities, setActivities] = useState([]);
   const [userName, setUserName] = useState("");
   const [viewMonth, setViewMonth] = useState(() => {
@@ -288,7 +299,7 @@ export default function Overview() {
     });
     const markPaymentSourceReady = (name) => {
       paymentSourcesReady.add(name);
-      if (paymentSourcesReady.size === 2) resolvePaymentsLoaded();
+      if (paymentSourcesReady.size === PAYMENT_SOURCES.length) resolvePaymentsLoaded();
     };
     const subscribePaymentSource = (name) => onSnapshot(
       collection(db, name),
@@ -296,12 +307,8 @@ export default function Overview() {
         const records = snapshot.docs.map((entry) => ({
           id: entry.id,
           ...entry.data(),
-          source: name,
         }));
-        setPayments((current) => [
-          ...current.filter((item) => item.source !== name),
-          ...records,
-        ]);
+        setPaymentData((current) => ({ ...current, [name]: records }));
         setSourceErrors((current) => {
           const next = { ...current };
           delete next[name];
@@ -318,10 +325,7 @@ export default function Overview() {
         markPaymentSourceReady(name);
       }
     );
-    const unsubscribePayments = [
-      subscribePaymentSource("payments"),
-      subscribePaymentSource("bracesPayments"),
-    ];
+    const unsubscribePayments = PAYMENT_SOURCES.map(subscribePaymentSource);
 
     const sourceLoads = Promise.all([
       loadSource("patients", setPatients),
@@ -341,8 +345,14 @@ export default function Overview() {
   }, []);
 
   const today = toISO(new Date(now));
-  const totalPayments = useMemo(() => payments.reduce((total, payment) =>
-    total + (Number(payment.amount ?? payment.paid ?? 0) || 0), 0), [payments]);
+  const paymentTotals = useMemo(() => getPaymentOverview({
+    payments: paymentData.payments,
+    summaries: paymentData.paymentTreatmentSummaries,
+    bracesAccounts: paymentData.bracesAccounts,
+    bracesPayments: paymentData.bracesPayments,
+    patients,
+    bookings,
+  }), [paymentData, patients, bookings]);
 
   const activeBookings = useMemo(() => bookings.filter((booking) =>
     booking.archiveStatus !== "Archived"
@@ -356,7 +366,10 @@ export default function Overview() {
   const receptionists = useMemo(() => activeAccounts.filter((account) =>
     account.role === ROLES.RECEPTIONIST
   ), [activeAccounts]);
-  const paymentsUnavailable = Boolean(sourceErrors.payments || sourceErrors.bracesPayments);
+  const paymentsUnavailable = PAYMENT_SOURCES.some((name) => sourceErrors[name]) || Boolean(sourceErrors.bookings);
+  const showingReceived = paymentView === "received";
+  const paymentRows = showingReceived ? paymentTotals.transactions : paymentTotals.balances;
+  const togglePaymentView = (view) => setPaymentView((current) => current === view ? "" : view);
 
   const appointments = useMemo(() => activeBookings
     .filter((booking) => !selectedDay || booking.date === selectedDay)
@@ -394,7 +407,7 @@ export default function Overview() {
         <span className="overviewWelcomeTooth" aria-hidden="true">{icons.dentists}</span>
         <div>
           <h1>Hi{userName ? `, ${userName}` : ""}!</h1>
-          <p>Here's what's happening at your dental clinic today.</p>
+          <p>Here's what's happening at your dental clinic.</p>
         </div>
       </header>
 
@@ -405,7 +418,43 @@ export default function Overview() {
       <div className="overviewStats overviewStatsPrimary">
         <StatCard icon={icons.patients} label="Total Patients" value={loading ? "…" : sourceErrors.patients ? "—" : patients.length} to={ROUTES.patients} tone="yellow" />
         <StatCard icon={icons.bookings} label="Bookings" value={loading ? "…" : sourceErrors.bookings ? "—" : activeBookings.length} to={ROUTES.bookings} tone="green" />
-        <StatCard icon={icons.payments} label="Payments" value={loading ? "…" : paymentsUnavailable ? "—" : formatCurrency(totalPayments)} to={ROUTES.payments} tone="blue" />
+        <StatCard icon={icons.payments} label="Payments Received" description="Recorded payments, including installments" value={loading ? "…" : paymentsUnavailable ? "—" : formatCurrency(paymentTotals.received)} onClick={() => togglePaymentView("received")} expanded={showingReceived} tone="blue" />
+        <StatCard icon={icons.payments} label="Outstanding Balance" description="Unpaid charges across open accounts" value={loading ? "…" : paymentsUnavailable ? "—" : formatCurrency(paymentTotals.outstanding)} onClick={() => togglePaymentView("outstanding")} expanded={paymentView === "outstanding"} tone="blue" />
+      </div>
+
+      <div id="overview-payment-details" hidden={!paymentView}>
+        {paymentView ? (
+          <section className="overviewPanel overviewPaymentDetails" aria-labelledby="overview-payment-title">
+            <div className="overviewPanelHeader">
+              <div>
+                <h2 id="overview-payment-title">{showingReceived ? "Payments Received" : "Outstanding Balance"}</h2>
+                {!loading && !paymentsUnavailable ? <p>{paymentRows.length} {showingReceived ? "transactions" : "unpaid balances"} · {formatCurrency(paymentTotals[paymentView])} total</p> : null}
+              </div>
+              <NavLink to={ROUTES.payments}>Open Payments</NavLink>
+            </div>
+            {loading ? <p className="overviewEmpty"><LoadingIndicator>Loading payment details…</LoadingIndicator></p> : paymentsUnavailable ? (
+              <p className="overviewEmpty">Payment details are unavailable.</p>
+            ) : paymentRows.length ? (
+              <div className="overviewTableWrap">
+                <table className="overviewTable">
+                  <thead><tr><th>Patient</th><th>Service or account</th><th>{showingReceived ? "Payment date" : "Account date"}</th><th>{showingReceived ? "Received" : "Balance"}</th></tr></thead>
+                  <tbody>
+                    <PaginatedRecords items={paymentRows} tableColumns={4} resetKey={paymentView} label={showingReceived ? "transactions" : "balances"}>
+                      {(row) => (
+                        <tr key={`${row.ledgerSource || row.source}:${row.id}`}>
+                          <td>{row.patientName}</td>
+                          <td>{row.treatmentName || row.treatment || row.ledgerSource}</td>
+                          <td>{formatReportDate(row.date)}</td>
+                          <td>{formatCurrency(showingReceived ? row.amount : row.remainingBalance)}</td>
+                        </tr>
+                      )}
+                    </PaginatedRecords>
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="overviewEmpty">{showingReceived ? "No recorded payments." : "No outstanding balances."}</p>}
+          </section>
+        ) : null}
       </div>
 
       <div className="overviewStats overviewStatsPeople">
@@ -422,7 +471,7 @@ export default function Overview() {
             </div>
             {selectedDay ? <button type="button" className="overviewClearDay" onClick={() => setSelectedDay("")}>Clear date</button> : null}
           </div>
-          {loading ? <p className="overviewEmpty">Loading appointments…</p> : appointments.length ? (
+          {loading ? <p className="overviewEmpty"><LoadingIndicator>Loading appointments…</LoadingIndicator></p> : appointments.length ? (
             <div className="overviewTableWrap">
               <table className="overviewTable">
                 <thead>

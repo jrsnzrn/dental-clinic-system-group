@@ -1,3 +1,5 @@
+import { BRACES_FREE_PROCEDURES, canRecordBracesFreeProcedure } from "../../../functions/bookingServices.mjs";
+import LoadingIndicator from "../../components/LoadingIndicator";
 import SuccessDialog from "../../components/SuccessDialog";
 import PaginatedRecords from "../../components/PaginatedRecords";
 import RecordPagination from "../../components/RecordPagination";
@@ -65,6 +67,7 @@ const TYPE_FILTERS = ["All", ...PATIENT_TYPES];
 const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crowns", "Root canal"];
 const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
 const EMPTY_EXTRA_TOOTH_DRAFT = { name: "", title: "", instructions: "" };
+const RECORD_BRACES_FREE_PROCEDURE = httpsCallable(functions, "recordBracesFreeProcedure");
 const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTreatmentComplete");
 const SYNC_DENTIST_PATIENT_ACCESS = httpsCallable(functions, "syncDentistPatientAccess");
 
@@ -133,7 +136,7 @@ function validatePatientDetails(patient) {
     errors.address = "Address is required.";
   }
   if (
-    patient.patientType === "Ortho" &&
+    patient.patientType === "Ortho" && patient.bracesType &&
     !PATIENT_BRACES_TYPES.some(({ value }) => value === patient.bracesType)
   ) {
     errors.bracesType = "Please select a type of braces.";
@@ -717,7 +720,13 @@ export default function Patients({
   const [chartProcedureDraft, setChartProcedureDraft] = useState(EMPTY_CHART_PROCEDURE_DRAFT);
   const [adminRole, setAdminRole] = useState(ROLES.ADMIN);
   const [loadingPatients, setLoadingPatients] = useState(true);
+  const [loadedChartId, setLoadedChartId] = useState("");
+  const [recordAction, setRecordAction] = useState("");
   const [confirmState, setConfirmState] = useState(null);
+  const [freeProcedureBooking, setFreeProcedureBooking] = useState(null);
+  const [freeProcedure, setFreeProcedure] = useState("");
+  const [savingFreeProcedure, setSavingFreeProcedure] = useState(false);
+  const [freeProcedureError, setFreeProcedureError] = useState("");
   const [openPatientActionsId, setOpenPatientActionsId] = useState("");
   const [processingTreatmentId, setProcessingTreatmentId] = useState("");
   const [treatmentDraft, setTreatmentDraft] = useState(emptyTreatmentDraft());
@@ -796,11 +805,13 @@ export default function Patients({
     let active = true;
     async function loadAdminRole() {
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser) throw new Error("The staff session has ended.");
       setCurrentDentistIdentity({ uid: currentUser.uid });
 
       const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
-      if (active && adminSnap.exists()) {
+      if (!active) return;
+      if (!adminSnap.exists()) throw new Error("The staff profile was not found.");
+      {
         const role = getAdminProfile(adminSnap.data()).role;
         setAdminRole(role);
         try {
@@ -815,7 +826,13 @@ export default function Patients({
       }
     }
 
-    loadAdminRole();
+    void loadAdminRole().catch((error) => {
+      console.error("The staff profile could not load:", error);
+      if (active) {
+        setLoadingPatients(false);
+        setNotice({ type: "error", text: "The staff profile could not load. Please refresh and try again." });
+      }
+    });
     return () => {
       active = false;
       clearDentistWorkspaceListeners();
@@ -1036,12 +1053,15 @@ export default function Patients({
     setTreatmentDraft(emptyTreatmentDraft());
     setCareDraft(emptyCareDraft());
 
+    let active = true;
+    setLoadedChartId("");
+    const chartId = selectedPatient.uid || selectedPatient.id;
     async function loadDentalChart() {
-      const chartId = selectedPatient.uid || selectedPatient.id;
       try {
         const chartData = adminRole === ROLES.DENTIST
           ? dentistDentalCharts[chartId] || {}
           : (await getDoc(doc(db, "dentalCharts", chartId))).data() || {};
+        if (!active) return;
         const chartPlans = Array.isArray(chartData.patientTreatmentPlans)
           ? chartData.patientTreatmentPlans
           : [];
@@ -1049,15 +1069,19 @@ export default function Patients({
         setChartProcedureHistory(chartPlans);
         setChartExtraTeeth(chartExtras);
       } catch (error) {
+        if (!active) return;
         console.error("The patient's dental chart could not load:", error);
         setChartProcedureHistory([]);
         setChartExtraTeeth([]);
         setNotice({ type: "error", text: "Patient details loaded, but the dental chart could not be opened. Please refresh or contact the administrator." });
+      } finally {
+        if (active) setLoadedChartId(chartId);
       }
     }
 
-    loadDentalChart();
-  }, [adminRole, dentistDentalCharts, selectedPatient?.id]);
+    void loadDentalChart();
+    return () => { active = false; };
+  }, [adminRole, dentistDentalCharts, selectedPatient?.id, selectedPatient?.uid]);
 
   function openPatientRecord(patientId) {
     preparePatientRecordNavigation();
@@ -1144,7 +1168,7 @@ export default function Patients({
         email: draft.email.trim(),
         address: draft.address.trim(),
         patientType: draft.patientType,
-        bracesType: draft.patientType === "Ortho" ? draft.bracesType : deleteField(),
+        bracesType: draft.patientType === "Ortho" && draft.bracesType ? draft.bracesType : deleteField(),
         status: draft.status,
       });
 
@@ -1161,7 +1185,7 @@ export default function Patients({
             email: draft.email.trim(),
             address: draft.address.trim(),
             patientType: draft.patientType,
-            bracesType: draft.patientType === "Ortho" ? draft.bracesType : deleteField(),
+            bracesType: draft.patientType === "Ortho" && draft.bracesType ? draft.bracesType : deleteField(),
           },
           { merge: true }
         );
@@ -1495,6 +1519,20 @@ export default function Patients({
     setNotice(null);
   }
 
+  async function runRecordAction(label, action) {
+    if (recordAction) return;
+    setRecordAction(label);
+    setNotice(null);
+    try {
+      await action();
+    } catch (error) {
+      console.error("Patient record action failed:", error);
+      setNotice({ type: "error", text: error.message || "Could not update the patient record. Please try again." });
+    } finally {
+      setRecordAction("");
+    }
+  }
+
   async function addTreatmentPlan() {
     if (!selectedPatient || !treatmentDraft.title.trim()) return;
     if (!selectedTeeth.length) {
@@ -1768,6 +1806,23 @@ export default function Patients({
     });
   }
 
+  async function saveBracesFreeProcedure() {
+    if (!freeProcedureBooking || !freeProcedure || savingFreeProcedure) return;
+    setSavingFreeProcedure(true);
+    setFreeProcedureError("");
+    try {
+      const { data } = await RECORD_BRACES_FREE_PROCEDURE({ bookingId: freeProcedureBooking.id, procedure: freeProcedure });
+      setBookings((current) => current.map((booking) => booking.id === freeProcedureBooking.id && !booking.bracesFreeProcedure
+        ? { ...booking, bracesFreeProcedure: { procedure: data.procedure } } : booking));
+      setFreeProcedureBooking(null);
+      notifySuccess(`Free ${data.procedure.toLowerCase()} recorded.`);
+    } catch (error) {
+      setFreeProcedureError(error.message || "Could not record the free procedure. Please try again.");
+    } finally {
+      setSavingFreeProcedure(false);
+    }
+  }
+
   async function handleConfirmAction() {
     if (!confirmState?.action) return;
     const action = confirmState.action;
@@ -1802,6 +1857,7 @@ export default function Patients({
     }
   }
 
+  const chartLoading = Boolean(selectedPatient && loadedChartId !== (selectedPatient.uid || selectedPatient.id));
   const patientTreatmentPlans = selectedPatient?.treatmentPlans || [];
   const patientTreatmentPlanCreatedAt = new Set(
     patientTreatmentPlans.map((plan) => plan.createdAt).filter(Boolean)
@@ -1875,7 +1931,7 @@ export default function Patients({
               </div>
             </div>
             {loadingPatients ? (
-              <SkeletonList count={2} />
+              <SkeletonList count={2} label="Loading your assigned appointments…" />
             ) : visibleDentistAppointments.length ? (
               <div className="patientTableWrap dentistRecordsTableWrap">
                 <table className={`patientTable ${completedOnly ? "dentistCompletedTable" : "dentistPatientTable"}`}>
@@ -1934,7 +1990,19 @@ export default function Patients({
                               </span>
                             )}
                           </td>
-                          <td data-label="Service">{getBookingServiceLabel(booking)}</td>
+                          <td data-label="Service">
+                            {getBookingServiceLabel(booking)}
+                            {booking.bracesFreeProcedure?.procedure ? (
+                              <small className="dentistRecordTime">Free procedure used: {booking.bracesFreeProcedure.procedure}</small>
+                            ) : canRecordBracesFreeProcedure(booking) ? (
+                              <button type="button" className="btn secondary dentistFreeProcedureButton" onClick={(event) => {
+                                event.stopPropagation();
+                                setFreeProcedure("");
+                                setFreeProcedureError("");
+                                setFreeProcedureBooking(booking);
+                              }}>Record free procedure</button>
+                            ) : null}
+                          </td>
                           <td data-label="Date & time">
                             <span className="dentistRecordDate">
                               {booking.date ? formatDateLabel(booking.date) : "Date unavailable"}
@@ -1963,7 +2031,7 @@ export default function Patients({
                                   booking
                                 )}
                               >
-                                {processingTreatmentId === booking.id ? "Updating..." : "Complete"}
+                                {processingTreatmentId === booking.id ? <LoadingIndicator>Updating…</LoadingIndicator> : "Complete"}
                               </button>
                             </td>
                           ) : null}
@@ -2036,7 +2104,7 @@ export default function Patients({
           </div>
 
           {loadingPatients ? (
-            <SkeletonList count={3} />
+            <SkeletonList count={3} label="Loading patients…" />
           ) : filteredPatientCards.length ? (
             <div className="patientTableWrap">
               <div className="patientTableCount">{filteredPatientCards.length} records</div>
@@ -2168,7 +2236,7 @@ export default function Patients({
               <BackArrow />
             </button>
           {loadingPatients && !selectedPatient ? (
-            <SkeletonList count={2} />
+            <SkeletonList count={2} label="Loading patient record…" />
           ) : !selectedPatient ? (
             <EmptyState
               title="Patient not found"
@@ -2281,7 +2349,6 @@ export default function Patients({
                               onChange={(e) => updateDraft("bracesType", e.target.value)}
                               aria-invalid={Boolean(editErrors.bracesType)}
                               aria-describedby={editErrors.bracesType ? "edit-patient-braces-error" : undefined}
-                              required
                             >
                               <option value="">Select type of braces</option>
                               {PATIENT_BRACES_TYPES.map(({ value, label }) => (
@@ -2335,7 +2402,7 @@ export default function Patients({
 
                         <div className="pdlActions">
                           <button type="submit" className="btn btnSuccess" disabled={savingDetails}>
-                            {savingDetails ? "Saving Changes..." : "Update"}
+                            {savingDetails ? <LoadingIndicator>Saving Changes…</LoadingIndicator> : "Update"}
                           </button>
                           <button type="button" className="btn btnSecondary" onClick={cancelEditing} disabled={savingDetails}>
                             Cancel
@@ -2371,7 +2438,7 @@ export default function Patients({
                         <svg viewBox="0 0 20 20" aria-hidden="true">
                           <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 12.5v4h13v-4" />
                         </svg>
-                        {pdfBusy ? "Preparing PDF" : "Download PDF"}
+                        {pdfBusy ? <LoadingIndicator>Preparing PDF…</LoadingIndicator> : "Download PDF"}
                       </button>
                     </footer>
                   </section>
@@ -2418,6 +2485,7 @@ export default function Patients({
 
               {activePatientView === PATIENT_VIEWS.CHART ? (
                 <section className="panel dentalChartPanel" role="tabpanel" id={`panel-${PATIENT_VIEWS.CHART}`} aria-labelledby={`tab-${PATIENT_VIEWS.CHART}`}>
+                  {chartLoading ? <SkeletonList count={1} label="Loading dental chart…" /> : <>
                   <div className="panelHead dentalChartHeader">
                     <div>
                       <h2 className="panelTitle">Dental Chart</h2>
@@ -2434,7 +2502,7 @@ export default function Patients({
                             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M20 7 10 17l-5-5" />
                             </svg>
-                            {savingDentalChart ? "Updating..." : "Update"}
+                            {savingDentalChart ? <LoadingIndicator>Saving chart…</LoadingIndicator> : "Update"}
                           </button>
                           <button className="btn btnSecondary dentalChartActionButton dentalChartCancelButton" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
                             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2726,6 +2794,7 @@ export default function Patients({
                       message="This patient record is not linked to a signed-in patient account yet, so the dental chart cannot appear in the patient portal."
                     />
                   )}
+                  </>}
                 </section>
               ) : null}
 
@@ -2738,8 +2807,8 @@ export default function Patients({
                     </div>
                     <div className="panelHeadActions">
                       {canEditDentalChart ? (
-                        <button className="btn btnTeal" type="button" onClick={syncPatientPortalRecord}>
-                          Sync patient portal
+                        <button className="btn btnTeal" type="button" disabled={Boolean(recordAction)} onClick={() => runRecordAction("portal", syncPatientPortalRecord)}>
+                          {recordAction === "portal" ? <LoadingIndicator>Syncing patient portal…</LoadingIndicator> : "Sync patient portal"}
                         </button>
                       ) : null}
                       <span className="countLabel">{(selectedPatient.treatmentPlans || []).length + (selectedPatient.careRecommendations || []).length} saved items</span>
@@ -2795,11 +2864,21 @@ export default function Patients({
                         <div className="twoCol">
                           <label className="field">
                             <span className="fieldLabel">Before photo</span>
-                            <input className="input" type="file" accept="image/*" onChange={(e) => handleTreatmentImageUpload("beforeImageUrl", e.target.files?.[0])} />
+                            <input className="input" type="file" accept="image/*" disabled={Boolean(recordAction)} onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) void runRecordAction("before-image", () => handleTreatmentImageUpload("beforeImageUrl", file));
+                            }} />
+                            {recordAction === "before-image" ? <LoadingIndicator>Preparing image…</LoadingIndicator> : null}
                           </label>
                           <label className="field">
                             <span className="fieldLabel">After photo</span>
-                            <input className="input" type="file" accept="image/*" onChange={(e) => handleTreatmentImageUpload("afterImageUrl", e.target.files?.[0])} />
+                            <input className="input" type="file" accept="image/*" disabled={Boolean(recordAction)} onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) void runRecordAction("after-image", () => handleTreatmentImageUpload("afterImageUrl", file));
+                            }} />
+                            {recordAction === "after-image" ? <LoadingIndicator>Preparing image…</LoadingIndicator> : null}
                           </label>
                         </div>
                         {(treatmentDraft.beforeImageUrl || treatmentDraft.afterImageUrl) ? (
@@ -2824,7 +2903,7 @@ export default function Patients({
                           </div>
                         ) : null}
                         <div className="formActions">
-                          <button className="btn btnSuccess" type="button" onClick={addTreatmentPlan}>Save Procedure Plan</button>
+                          <button className="btn btnSuccess" type="button" disabled={Boolean(recordAction)} onClick={() => runRecordAction("plan", addTreatmentPlan)}>{recordAction === "plan" ? <LoadingIndicator>Saving procedure…</LoadingIndicator> : "Save Procedure Plan"}</button>
                         </div>
                       </div>
 
@@ -2845,7 +2924,7 @@ export default function Patients({
                           </label>
                         </div>
                         <div className="formActions">
-                          <button className="btn btnSuccess" type="button" onClick={addCareRecommendation}>Save Follow-Up Guidance</button>
+                          <button className="btn btnSuccess" type="button" disabled={Boolean(recordAction)} onClick={() => runRecordAction("care", addCareRecommendation)}>{recordAction === "care" ? <LoadingIndicator>Saving guidance…</LoadingIndicator> : "Save Follow-Up Guidance"}</button>
                         </div>
                       </div>
                     </div>
@@ -3045,6 +3124,24 @@ export default function Patients({
         </main>
       ) : null}
 
+      <ConfirmDialog
+        open={Boolean(freeProcedureBooking)}
+        title="Record free braces procedure"
+        message="Select the procedure the patient received. Each braces package covers one of these procedures."
+        confirmLabel={savingFreeProcedure ? <LoadingIndicator>Recording…</LoadingIndicator> : "Record procedure"}
+        confirmDisabled={!freeProcedure || savingFreeProcedure}
+        onClose={() => { if (!savingFreeProcedure) setFreeProcedureBooking(null); }}
+        onConfirm={saveBracesFreeProcedure}
+      >
+        <label className="field">
+          <span className="fieldLabel">Procedure used</span>
+          <select className="input" value={freeProcedure} disabled={savingFreeProcedure} onChange={(event) => setFreeProcedure(event.target.value)}>
+            <option value="">Select a procedure</option>
+            {BRACES_FREE_PROCEDURES.map((procedure) => <option key={procedure}>{procedure}</option>)}
+          </select>
+        </label>
+        {freeProcedureError ? <div className="error" role="alert">{freeProcedureError}</div> : null}
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(confirmState)}
         title={confirmState?.title}

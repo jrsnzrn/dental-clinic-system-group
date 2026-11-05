@@ -1,3 +1,4 @@
+import LoadingIndicator from "../../components/LoadingIndicator";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -372,7 +373,7 @@ export default function Promotions() {
 
             <div className="inlineActionRow promoFormActions">
               <button className="btn btnShine" disabled={saving}>
-                {saving ? "Saving…" : editingId ? "Update" : "Create promo"}
+                {saving ? <LoadingIndicator>Saving…</LoadingIndicator> : editingId ? "Update" : "Create promo"}
               </button>
               <button className="btn btnGhost" type="button" onClick={closeForm} disabled={saving}>Cancel</button>
             </div>
@@ -389,7 +390,7 @@ export default function Promotions() {
         </div>
 
         {loading ? (
-          <p className="sub">Loading promotions…</p>
+          <p className="sub"><LoadingIndicator>Loading promotions…</LoadingIndicator></p>
         ) : !promotions.length ? (
           <p className="sub">No active promotions. Add a promo or check the archive.</p>
         ) : (
@@ -422,7 +423,7 @@ export default function Promotions() {
                     disabled={archivingId === promotion.id}
                     onClick={() => archivePromotion(promotion)}
                   >
-                    {archivingId === promotion.id ? "Archiving…" : "Archive"}
+                    {archivingId === promotion.id ? <LoadingIndicator>Archiving…</LoadingIndicator> : "Archive"}
                   </button>
                 </div>
               </article>

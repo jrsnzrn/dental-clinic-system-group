@@ -1,3 +1,6 @@
+import BookingCrownPicker from "../components/BookingCrownPicker";
+import LoadingIndicator from "../components/LoadingIndicator";
+import { BRACES_PACKAGE_INCLUSIONS, BRACES_TYPES, MAX_BOOKING_SERVICES, canBookService, isBracesPackage, isCrownTypeService, isGenericBracesPackage, isBracesPackageInclusion, selectBookingService } from "../../functions/bookingServices.mjs";
 import { formatStaffDisplayName } from "../utils/staffProfile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -115,6 +118,7 @@ function generateUpcomingDates(startDate, count, lastDate) {
 
 export default function Book() {
   const navigate = useNavigate();
+  const [signingIn, setSigningIn] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);
   const [patientProfile, setPatientProfile] = useState(null);
@@ -122,12 +126,16 @@ export default function Book() {
   const [profileDraft, setProfileDraft] = useState(getEmptyProfile());
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingDentists, setLoadingDentists] = useState(true);
+  const [dentistLoadError, setDentistLoadError] = useState("");
   const [searchParams] = useSearchParams();
   const editingProfile = searchParams.get("editProfile") === "1";
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [selectedServices, setSelectedServices] = useState([]);
+  const [bracesType, setBracesType] = useState("");
   const [clinicServices, setClinicServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [serviceLoadError, setServiceLoadError] = useState("");
   const [clinicClosures, setClinicClosures] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [selectedDentistId, setSelectedDentistId] = useState("");
@@ -169,7 +177,15 @@ export default function Book() {
     []
   );
   const upcomingDates = useMemo(() => generateUpcomingDates(new Date(`${datePageStart}T00:00:00`), 8, lastBookingDate), [datePageStart, lastBookingDate]);
-  const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices), [clinicServices]);
+  const patientType = patientProfile?.patientType;
+  const activeServiceOptions = useMemo(() => getBookingServiceOptions(clinicServices).filter((option) => canBookService(option, patientType)), [clinicServices, patientType]);
+  const bracesPackage = activeServiceOptions.find((option) => selectedServices.includes(option.name) && isBracesPackage(option));
+  const needsBracesType = Boolean(bracesPackage && isGenericBracesPackage(bracesPackage));
+  const serviceLabel = (name) => needsBracesType && name === bracesPackage.name && bracesType ? `${bracesType} Braces` : name;
+  const profileDirty = ["firstName", "middleName", "lastName", "age", "phone"].some((field) => {
+    const normalize = field === "phone" ? toStoredPhilippineMobile : (value) => String(value ?? "").trim();
+    return normalize(profileDraft[field] || "") !== normalize(patientProfile?.[field] || "");
+  });
   const selectedClosure = useMemo(() => getActiveClosureForDate(clinicClosures, date), [clinicClosures, date]);
   const service = selectedServices.join(", ");
   const appointmentDurationMinutes = BOOKING_SLOT_INTERVAL_MINUTES;
@@ -187,6 +203,7 @@ export default function Book() {
       setPatientProfileUid("");
       setProfileDraft(getEmptyProfile(u?.email || ""));
       setSelectedServices([]);
+      setBracesType("");
       setSavingProfile(false);
       setLoadingProfile(Boolean(u));
       setBookingStep("info");
@@ -263,6 +280,9 @@ export default function Book() {
       });
       setDentists(list);
       setLoadingDentists(false);
+    }, () => {
+      setDentistLoadError("Could not load dentists. Refresh to try again.");
+      setLoadingDentists(false);
     });
 
     return () => unsub();
@@ -272,6 +292,11 @@ export default function Book() {
     const unsubServices = onSnapshot(query(collection(db, "clinicServices"), orderBy("name", "asc")), (snap) => {
       const nextServices = snap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
       setClinicServices(nextServices);
+      setServiceLoadError("");
+      setLoadingServices(false);
+    }, () => {
+      setServiceLoadError("Could not load the clinic service list.");
+      setLoadingServices(false);
     });
 
     const unsubClosures = onSnapshot(query(collection(db, "clinicClosures"), orderBy("date", "asc")), (snap) => {
@@ -285,8 +310,6 @@ export default function Book() {
   }, []);
 
   useEffect(() => {
-    if (!activeServiceOptions.length) return;
-
     setSelectedServices((current) => {
       const stillAvailable = current.filter((name) =>
         activeServiceOptions.some((entry) => entry.name === name)
@@ -295,13 +318,9 @@ export default function Book() {
     });
   }, [activeServiceOptions]);
 
-  function toggleService(serviceName) {
-    setSelectedServices((current) => {
-      if (current.includes(serviceName)) {
-        return current.filter((entry) => entry !== serviceName);
-      }
-      return [...current, serviceName];
-    });
+  function toggleService(option) {
+    setSelectedServices((current) => selectBookingService(current, option, activeServiceOptions));
+    setTime("");
   }
 
   const availableDentists = useMemo(() => {
@@ -408,6 +427,8 @@ export default function Book() {
   }
 
   async function loginGoogle() {
+    if (signingIn) return;
+    setSigningIn(true);
     setError("");
     try {
       const provider = new GoogleAuthProvider();
@@ -424,6 +445,8 @@ export default function Book() {
         console.error(e);
         setError("Google sign-in failed. Try again.");
       }
+    } finally {
+      setSigningIn(false);
     }
   }
 
@@ -445,7 +468,7 @@ export default function Book() {
     e.preventDefault();
     setError("");
 
-    if (savingProfile || loadingProfile) return;
+    if (savingProfile || loadingProfile || !profileDirty) return;
     if (!user) {
       setError("Please sign in first.");
       return;
@@ -538,6 +561,7 @@ export default function Book() {
     if (isSunday(date)) return setError("Clinic is closed on Sundays. Please choose Monday to Saturday.");
     if (selectedClosure) return setError(`${selectedClosure.label} blocks booking on ${formatDateLabel(date)}. Please choose another day.`);
     if (!selectedServices.length) return setError("Please choose at least one service.");
+    if (needsBracesType && !bracesType) return setError("Please choose a type of braces.");
     if (!time) return setError("Please choose a time.");
     if (!agreedToPrivacyConsent) {
       return setError("Please confirm the confidentiality and clinic-use consent before submitting.");
@@ -600,6 +624,7 @@ export default function Book() {
         date,
         time,
         selectedServices,
+        ...(needsBracesType ? { bracesType } : {}),
         notes: notes.trim(),
         privacyConsentAccepted: true,
       });
@@ -610,7 +635,7 @@ export default function Book() {
         serviceDetails: selectedServices.map((name) => {
           const serviceOption = activeServiceOptions.find((option) => option.name === name);
           return {
-            name,
+            name: serviceLabel(name),
             startingRate: serviceOption?.startingRate || "",
           };
         }),
@@ -736,7 +761,7 @@ export default function Book() {
     return (
       <div className="container bookingPage">
         <div className="googleGate">
-          <SkeletonList count={1} />
+          <SkeletonList count={1} label="Checking your session…" />
         </div>
       </div>
     );
@@ -755,9 +780,8 @@ export default function Book() {
             Use your Google account to sign in or create your patient account.
           </p>
 
-          <button type="button" className="googleGateBtn" onClick={loginGoogle}>
-            <img src={GOOGLE_ICON_URL} alt="" />
-            Sign in with Google
+          <button type="button" className="googleGateBtn" onClick={loginGoogle} disabled={signingIn}>
+            {signingIn ? <LoadingIndicator>Signing in…</LoadingIndicator> : <><img src={GOOGLE_ICON_URL} alt="" /> Sign in with Google</>}
           </button>
 
           {error ? <div className="error" style={{ marginTop: 12 }}>{error}</div> : null}
@@ -794,7 +818,7 @@ export default function Book() {
       <div className="grid" style={{ marginTop: 0, gridTemplateColumns: "1fr" }}>
         <div className="card bookingFormCard">
           {!profileReady ? (
-            <div className="cardHeader bookingProfileHeader">
+            <div className={`cardHeader bookingProfileHeader${editingProfile ? " bookingProfileHeading" : ""}`}>
               <div className="bookingProfileHeaderMain">
                 <button
                   type="button"
@@ -818,7 +842,7 @@ export default function Book() {
             </div>
           ) : null}
 
-          {loadingProfile ? <SkeletonList count={1} /> : null}
+          {loadingProfile ? <SkeletonList count={1} label="Loading your patient profile…" /> : null}
 
           {!loadingProfile && !profileReady ? (
             <form className="form bookingProfileForm" onSubmit={saveProfile} style={{ marginTop: 12 }}>
@@ -906,8 +930,8 @@ export default function Book() {
                 </span>
               </label>
 
-              <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile}>
-                {savingProfile ? "Saving..." : loadingProfile ? "Loading..." : "Update"}
+              <button className="btn btnShine bookingPrimaryBtn" disabled={savingProfile || loadingProfile || !profileDirty}>
+                {savingProfile ? <LoadingIndicator>Saving profile…</LoadingIndicator> : "Save Profile"}
               </button>
             </form>
           ) : null}
@@ -956,7 +980,7 @@ export default function Book() {
                       </span>
                       <span className="bookingSectionHeading">
                         <h2>Choose Services</h2>
-                        <p>Select one or more services for this appointment.</p>
+                        <p>Select up to {MAX_BOOKING_SERVICES} services. A braces package counts as one service.</p>
                       </span>
                       <strong className="bookingServiceCount">
                         {selectedServices.length} selected
@@ -964,7 +988,9 @@ export default function Book() {
                     </header>
 
                     <div className="bookingServiceOptionGrid">
-                      {activeServiceOptions.map((option) => {
+                      {loadingServices ? <SkeletonList count={3} label="Loading services…" /> : null}
+                      {serviceLoadError ? <p role="alert">{serviceLoadError}</p> : null}
+                      {!loadingServices && !serviceLoadError && activeServiceOptions.filter((option) => !isCrownTypeService(option) && (!bracesPackage || !isBracesPackageInclusion(option))).map((option) => {
                         const active = selectedServices.includes(option.name);
 
                         return (
@@ -972,16 +998,36 @@ export default function Book() {
                             key={option.name}
                             type="button"
                             className={`bookingServiceOption ${active ? "active" : ""}`}
-                            onClick={() => toggleService(option.name)}
-                            disabled={!user || saving}
+                            onClick={() => toggleService(option)}
+                            disabled={!user || saving || (!active && selectBookingService(selectedServices, option, activeServiceOptions) === selectedServices)}
                             aria-pressed={active}
                           >
-                            <span>{option.name}</span>
+                            <span>{isGenericBracesPackage(option) ? "Braces Package" : option.name}</span>
                             <strong>{option.startingRate || "Pricing not set"}</strong>
                           </button>
                         );
                       })}
                     </div>
+                    {!loadingServices && !serviceLoadError ? (
+                      <BookingCrownPicker options={activeServiceOptions} selectedServices={selectedServices} onToggle={toggleService} disabled={saving} />
+                    ) : null}
+                    {bracesPackage ? (
+                      <div className="bookingBracesPackageDetails">
+                        {needsBracesType ? (
+                          <label className="bookingServiceTypeField">
+                            <strong>Type of Braces</strong>
+                            <select className="input" value={bracesType} onChange={(event) => setBracesType(event.target.value)} required disabled={saving}>
+                              <option value="">Select a type</option>
+                              {BRACES_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                          </label>
+                        ) : null}
+                        <div>
+                          <strong>Package Inclusions</strong>
+                          <ul>{BRACES_PACKAGE_INCLUSIONS.map((inclusion) => <li key={inclusion}>{inclusion}</li>)}</ul>
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
 
                   <section className="bookingPageSection bookingInfoSection bookingInfoSchedule">
@@ -1016,10 +1062,12 @@ export default function Book() {
                                 </option>
                               ))
                             ) : (
-                              <option value="">No dentist available on this day</option>
+                              <option value="">{loadingDentists ? "Loading dentists…" : dentistLoadError ? "Dentist list unavailable" : "No dentist available on this day"}</option>
                             )}
                           </select>
                         </div>
+                        {loadingDentists ? <LoadingIndicator>Loading dentists…</LoadingIndicator> : null}
+                        {dentistLoadError ? <span className="error" role="alert">{dentistLoadError}</span> : null}
                       </label>
 
                       <label className="bookingFieldCard">
@@ -1075,7 +1123,7 @@ export default function Book() {
                             {!selectedServices.length
                               ? "Select at least one service to see available appointment times."
                               : loadingAvailability
-                                ? "Loading live slot availability..."
+                                ? <LoadingIndicator>Checking available times…</LoadingIndicator>
                                 : availabilityError
                                   ? "Availability could not be checked. Refresh the page and try again."
                                   : `${availableSlots.length} open start time${availableSlots.length === 1 ? "" : "s"}. Each new request reserves one ${BOOKING_SLOT_INTERVAL_MINUTES}-minute booking block; the clinic can extend the end time if treatment needs longer.`}
@@ -1150,7 +1198,7 @@ export default function Book() {
                         ) : null}
                         {availabilityError ? <div className="error">{availabilityError}</div> : null}
 
-                        {!loadingDentists && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
+                        {!loadingDentists && !dentistLoadError && !availableDentists.length && !isSunday(date) && !selectedClosure ? (
                           <EmptyState
                             compact
                             title="No dentist available on this day"
@@ -1263,12 +1311,13 @@ export default function Book() {
                               const serviceOption = activeServiceOptions.find((option) => option.name === name);
                               return (
                                 <li key={name}>
-                                  <span>{name}</span>
+                                  <span>{serviceLabel(name)}</span>
                                   <strong>{serviceOption?.startingRate || "Pricing not set"}</strong>
                                 </li>
                               );
                             })}
                           </ul>
+                          {bracesPackage ? <p>{BRACES_PACKAGE_INCLUSIONS.join(" · ")}</p> : null}
                         </section>
 
                         <section className="bookingReviewModalSection">
@@ -1307,7 +1356,7 @@ export default function Book() {
                           onClick={confirmBookingSubmission}
                           disabled={!bookingConfirmation || saving}
                         >
-                          {saving ? "Confirming..." : "Confirm Booking"}
+                          {saving ? <LoadingIndicator>Confirming booking…</LoadingIndicator> : "Confirm Booking"}
                         </button>
                         <button
                           type="button"

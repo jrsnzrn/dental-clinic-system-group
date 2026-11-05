@@ -1,3 +1,7 @@
+import { BRACES_PACKAGE_INCLUSIONS, BRACES_TYPES, MAX_BOOKING_SERVICES, canBookService, isBracesPackage, isBracesPackageInclusion, isCrownTypeService, isGenericBracesPackage, selectBookingService } from "../../../functions/bookingServices.mjs";
+import { getClinicDate } from "../../../functions/bookingWindow.mjs";
+import { getBookingServiceOptions } from "../../utils/clinic";
+import BookingCrownPicker from "../../components/BookingCrownPicker";
 import SuccessDialog from "../../components/SuccessDialog";
 import RecordPagination from "../../components/RecordPagination";
 import useRecordPagination from "../../hooks/useRecordPagination";
@@ -31,7 +35,6 @@ const RESCHEDULE_BOOKING = httpsCallable(functions, "rescheduleBooking");
 const CREATE_STAFF_WALK_IN_BOOKING = httpsCallable(functions, "createStaffWalkInBooking");
 const GET_BOOKING_AVAILABILITY = httpsCallable(functions, "getBookingAvailability");
 const WALK_IN_PATIENT_TYPES = ["Regular", "Ortho"];
-const WALK_IN_BRACES_TYPES = ["Metal Braces", "Ceramic Braces", "Sapphire Braces", "Self-Ligating Braces"];
 
 function getEmptyWalkInDraft() {
   return {
@@ -341,6 +344,8 @@ function BookingDetailDrawer({
                 <div className="detailRow">
                   <dt>Type of Patient</dt>
                   <dd><BookingDetailValue value={booking.patientType} /></dd>
+                  {booking.bracesPackage ? <><dt>Braces package</dt><dd>{booking.bracesPackage.type} · {booking.bracesPackage.inclusions.join(" · ")}</dd></> : null}
+                  {booking.bracesFreeProcedure?.procedure ? <><dt>Free procedure used</dt><dd>{booking.bracesFreeProcedure.procedure}</dd></> : null}
                 </div>
                 <div className="detailRow">
                   <dt>Phone</dt>
@@ -384,7 +389,7 @@ function BookingDetailDrawer({
               {status === "completed" ? (
                 <div className="drawerNote bookingPaymentNote">
                   <span className="drawerNoteLabel">Payment details</span>
-                  {paymentLoading ? <p>Loading payment details…</p> : null}
+                  {paymentLoading ? <p><LoadingIndicator>Loading payment details…</LoadingIndicator></p> : null}
                   {paymentError ? <p role="status">{paymentError}</p> : null}
                   {!paymentLoading && !paymentError && paymentSummaries.length ? (
                     <dl className="appointmentPaymentDetails">
@@ -672,6 +677,8 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const [bookings, setBookings] = useState([]);
   const [dentists, setDentists] = useState([]);
   const [clinicServices, setClinicServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [serviceLoadError, setServiceLoadError] = useState("");
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [confirmState, setConfirmState] = useState(null);
   const [actionError, setActionError] = useState("");
@@ -736,16 +743,23 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   }), []);
 
   useEffect(() => onSnapshot(collection(db, "clinicServices"), (snapshot) => {
-    setClinicServices(snapshot.docs
-      .map((entry) => ({ id: entry.id, ...entry.data() }))
-      .filter((service) => service.active !== false)
-      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""))));
+    const options = getBookingServiceOptions(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+    setClinicServices(options);
+    setWalkInDraft((current) => {
+      const services = current.services.filter((name) => options.some((option) => option.name === name && canBookService(option, current.patientType)));
+      return services.length === current.services.length ? current : { ...current, services, time: "" };
+    });
+    setServiceLoadError("");
+    setLoadingServices(false);
   }, (readError) => {
     console.error("Clinic services could not load for walk-in booking:", readError);
-    setActionError("The clinic service list could not be loaded. Please try again.");
+    setServiceLoadError("The clinic service list could not be loaded.");
+    setLoadingServices(false);
   }), []);
 
-  const walkInServiceKey = walkInDraft.services.join("\u0000");
+  const walkInOptions = clinicServices.filter((service) => canBookService(service, walkInDraft.patientType));
+  const walkInPackage = walkInOptions.find((service) => walkInDraft.services.includes(service.name) && isBracesPackage(service));
+  const walkInNeedsBracesType = Boolean(walkInPackage && isGenericBracesPackage(walkInPackage));
   useEffect(() => {
     if (!walkInOpen || !walkInDraft.dentistId || !walkInDraft.date || !walkInDraft.services.length) {
       setWalkInTimeOptions([]);
@@ -790,16 +804,16 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       cancelled = true;
       window.clearTimeout(requestTimer);
     };
-  }, [walkInOpen, walkInDraft.date, walkInDraft.dentistId, walkInServiceKey]);
+  }, [walkInOpen, walkInDraft.date, walkInDraft.dentistId, walkInDraft.services]);
 
   useEffect(() => {
     if (!walkInOpen) return undefined;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") setWalkInOpen(false);
+      if (event.key === "Escape" && !walkInSaving) setWalkInOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [walkInOpen]);
+  }, [walkInOpen, walkInSaving]);
 
   // Resolve deep-link state after the Firestore booking snapshot is available.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -850,6 +864,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
     [bookings]
   );
 
+  const clinicToday = getClinicDate();
   const calendarDays = useMemo(() => getMonthCalendarDays(calendarMonth), [calendarMonth]);
   const calendarCounts = useMemo(
     () => activeBookings.reduce((counts, booking) => {
@@ -952,18 +967,18 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
     setWalkInDraft((current) => ({
       ...current,
       [key]: value,
-      ...(key === "date" || key === "dentistId" ? { time: "" } : {}),
+      ...(["date", "dentistId", "patientType"].includes(key) ? { time: "" } : {}),
+      ...(key === "patientType" ? { services: current.services.filter((name) => clinicServices.some((service) => service.name === name && canBookService(service, value))) } : {}),
       ...(key === "patientType" && value !== "Ortho" ? { bracesType: "" } : {}),
     }));
     setWalkInError("");
   }
 
-  function toggleWalkInService(serviceName) {
+  function toggleWalkInService(service) {
     setWalkInDraft((current) => ({
       ...current,
-      services: current.services.includes(serviceName)
-        ? current.services.filter((service) => service !== serviceName)
-        : [...current.services, serviceName],
+      services: selectBookingService(current.services, service, walkInOptions),
+      ...(isGenericBracesPackage(service) && current.services.includes(service.name) ? { bracesType: "" } : {}),
       time: "",
     }));
     setWalkInError("");
@@ -998,7 +1013,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
           phone: walkInDraft.phone.trim(),
           email: walkInDraft.email.trim(),
           patientType: walkInDraft.patientType,
-          bracesType: walkInDraft.patientType === "Ortho" ? walkInDraft.bracesType : "",
+          bracesType: walkInNeedsBracesType ? walkInDraft.bracesType : "",
         },
         appointment: {
           dentistId: walkInDraft.dentistId,
@@ -1167,7 +1182,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
           ) : null}
 
           {loadingBookings ? (
-            <SkeletonList count={4} />
+            <SkeletonList count={4} label="Loading bookings…" />
           ) : activeItems.length ? (
             <div className="bookingsTableWrap">
               <table className="bookingsTable">
@@ -1211,7 +1226,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
             >
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4.5-5.5 5.5 5.5 5.5" /></svg>
             </button>
-            <h2>{calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2>
+            <h2>{calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}{loadingBookings ? <> <LoadingIndicator>Loading appointments…</LoadingIndicator></> : null}</h2>
             <button
               className="bookingMonthNav"
               type="button"
@@ -1229,7 +1244,8 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
               if (!date) return <span key={`blank-${index}`} className="bookingDayBlank" aria-hidden="true" />;
               const dateKey = getLocalDateKey(date);
               const count = calendarCounts.get(dateKey) || 0;
-              const isToday = dateKey === getLocalDateKey(new Date());
+              const isToday = dateKey === clinicToday;
+              const isPast = dateKey < clinicToday;
               const isSelected = dateKey === selectedDate;
               const highlightToday = isToday && (!selectedDate || isSelected);
               return (
@@ -1238,7 +1254,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                   type="button"
                   aria-label={`${date.toLocaleDateString(undefined, { dateStyle: "full" })}, ${count} appointment${count === 1 ? "" : "s"}`}
                   aria-pressed={isSelected}
-                  className={`bookingMonthDay${highlightToday ? " today" : ""}${isSelected ? " selected" : ""}${count ? " hasAppointments" : ""}`}
+                  className={`bookingMonthDay${isPast ? " past" : ""}${highlightToday ? " today" : ""}${isSelected ? " selected" : ""}${count ? " hasAppointments" : ""}`}
                   onClick={() => setSelectedDate(isSelected ? "" : dateKey)}
                 >
                   <span>{date.getDate()}</span>
@@ -1341,9 +1357,9 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
       />
 
       {walkInOpen ? (
-        <div className="modalOverlay addPatientModalOverlay" onClick={() => setWalkInOpen(false)} role="presentation">
+        <div className="modalOverlay addPatientModalOverlay" onClick={() => { if (!walkInSaving) setWalkInOpen(false); }} role="presentation">
           <form
-            className="modalCard addPatientModal"
+            className="modalCard addPatientModal walkInBookingModal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="walk-in-booking-title"
@@ -1352,10 +1368,11 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
           >
             <div className="modalHead">
               <h2 id="walk-in-booking-title" className="modalTitle">Add Walk-In Patient &amp; Appointment</h2>
-              <button type="button" className="iconBtn" aria-label="Close" onClick={() => setWalkInOpen(false)}>&times;</button>
+              <button type="button" className="iconBtn" aria-label="Close" disabled={walkInSaving} onClick={() => setWalkInOpen(false)}>&times;</button>
             </div>
             <div className="modalBody addPatientModalBody">
               {walkInError ? <div className="formError walkInAppointmentError" role="alert">{walkInError}</div> : null}
+              <h3 className="fieldGroupLabel walkInPatientHeading">Patient details</h3>
               <label className="field">
                 <span className="fieldLabel">First name</span>
                 <input className="input" required value={walkInDraft.firstName} onChange={(event) => updateWalkInDraft("firstName", event.target.value)} />
@@ -1377,8 +1394,9 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                 <input className="input" type="tel" required value={walkInDraft.phone} onChange={(event) => updateWalkInDraft("phone", event.target.value)} />
               </label>
               <label className="field">
-                <span className="fieldLabel">Email</span>
-                <input className="input" type="email" value={walkInDraft.email} onChange={(event) => updateWalkInDraft("email", event.target.value)} />
+                <span className="fieldLabel">Email (optional)</span>
+                <input className="input" type="email" value={walkInDraft.email} onChange={(event) => updateWalkInDraft("email", event.target.value)} aria-describedby="walk-in-email-hint" />
+                <small id="walk-in-email-hint">Use the patient’s Gmail if they want to link this visit to their online account.</small>
               </label>
               <label className="field">
                 <span className="fieldLabel">Type of patient</span>
@@ -1386,55 +1404,70 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
                   {WALK_IN_PATIENT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
               </label>
-              {walkInDraft.patientType === "Ortho" ? (
-                <label className="field">
-                  <span className="fieldLabel">Type of braces</span>
-                  <select className="input" required value={walkInDraft.bracesType} onChange={(event) => updateWalkInDraft("bracesType", event.target.value)}>
-                    <option value="">Select type of braces</option>
-                    {WALK_IN_BRACES_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                  </select>
-                </label>
-              ) : null}
-              <div className="fieldGroupLabel">Appointment details</div>
-              <label className="field">
-                <span className="fieldLabel">Dentist</span>
-                <select className="input" required value={walkInDraft.dentistId} onChange={(event) => updateWalkInDraft("dentistId", event.target.value)}>
-                  <option value="">Select a dentist</option>
-                  {dentists.map((dentist) => <option key={dentist.id} value={dentist.id}>{dentist.name}</option>)}
-                </select>
-              </label>
+              <h3 className="fieldGroupLabel">Appointment details</h3>
               <div className="field walkInServiceField" role="group" aria-labelledby="walk-in-services-label">
-                <span className="fieldLabel" id="walk-in-services-label">Services <span>(choose one or more)</span></span>
-                {clinicServices.length ? (
+                <div className="walkInServiceHeading">
+                  <span className="fieldLabel" id="walk-in-services-label">Services</span>
+                  <span aria-live="polite">{walkInDraft.services.length} of {MAX_BOOKING_SERVICES} selected</span>
+                </div>
+                {loadingServices ? <LoadingIndicator>Loading services…</LoadingIndicator> : serviceLoadError ? <span role="alert">{serviceLoadError}</span> : walkInOptions.length ? (
                   <div className="walkInServiceOptions">
-                    {clinicServices.map((service) => (
-                      <label className="walkInServiceOption" key={service.id}>
+                    {walkInOptions.filter((service) => !isCrownTypeService(service) && (!walkInPackage || !isBracesPackageInclusion(service))).map((service) => (
+                      <label className="walkInServiceOption" key={service.name}>
                         <input
                           type="checkbox"
                           checked={walkInDraft.services.includes(service.name)}
-                          onChange={() => toggleWalkInService(service.name)}
+                          onChange={() => toggleWalkInService(service)}
+                          disabled={walkInSaving || selectBookingService(walkInDraft.services, service, walkInOptions) === walkInDraft.services}
                         />
-                        <span>{service.name}</span>
+                        <span><strong>{isGenericBracesPackage(service) ? "Braces Package" : service.name}</strong>{service.startingRate ? <small>{service.startingRate}</small> : null}</span>
                       </label>
                     ))}
                   </div>
                 ) : <span className="walkInAvailabilityError">No active services available.</span>}
+                {walkInPackage ? (
+                  <div className="bookingBracesPackageDetails">
+                    {walkInNeedsBracesType ? (
+                      <label className="bookingServiceTypeField">
+                        <strong>Type of Braces</strong>
+                        <select className="input" required value={walkInDraft.bracesType} onChange={(event) => updateWalkInDraft("bracesType", event.target.value)} disabled={walkInSaving}>
+                          <option value="">Select a type</option>
+                          {BRACES_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                      </label>
+                    ) : null}
+                    <div><strong>Package Inclusions</strong><ul>{BRACES_PACKAGE_INCLUSIONS.map((inclusion) => <li key={inclusion}>{inclusion}</li>)}</ul></div>
+                  </div>
+                ) : null}
+                {!loadingServices && !serviceLoadError ? (
+                  <BookingCrownPicker options={walkInOptions} selectedServices={walkInDraft.services} onToggle={toggleWalkInService} disabled={walkInSaving} />
+                ) : null}
               </div>
-              <label className="field">
-                <span className="fieldLabel">Appointment date</span>
-                <input className="input" type="date" min={getLocalDateKey(new Date())} required value={walkInDraft.date} onChange={(event) => updateWalkInDraft("date", event.target.value)} />
-              </label>
-              <label className="field">
-                <span className="fieldLabel">Appointment time</span>
-                <select className="input" required value={walkInDraft.time} onChange={(event) => updateWalkInDraft("time", event.target.value)} disabled={loadingWalkInTimes || !walkInTimeOptions.length}>
-                  <option value="">{loadingWalkInTimes ? "Checking availability…" : walkInTimeOptions.length ? "Select a time" : "Choose dentist, services, and date first"}</option>
-                  {walkInTimeOptions.map((time) => <option key={time} value={time}>{formatTimeLabel(time)}</option>)}
-                </select>
-                {walkInAvailabilityError ? <span className="walkInAvailabilityError">{walkInAvailabilityError}</span> : null}
-              </label>
+              <div className="walkInScheduleFields">
+                <label className="field">
+                  <span className="fieldLabel">Dentist</span>
+                  <select className="input" required value={walkInDraft.dentistId} onChange={(event) => updateWalkInDraft("dentistId", event.target.value)}>
+                    <option value="">Select a dentist</option>
+                    {dentists.map((dentist) => <option key={dentist.id} value={dentist.id}>{dentist.name}</option>)}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="fieldLabel">Appointment date</span>
+                  <input className="input" type="date" min={clinicToday} required value={walkInDraft.date} onChange={(event) => updateWalkInDraft("date", event.target.value)} />
+                </label>
+                <label className="field">
+                  <span className="fieldLabel">Appointment time</span>
+                  <select className="input" required value={walkInDraft.time} onChange={(event) => updateWalkInDraft("time", event.target.value)} disabled={loadingWalkInTimes || !walkInTimeOptions.length}>
+                    <option value="">{loadingWalkInTimes ? "Checking availability…" : walkInTimeOptions.length ? "Select a time" : "Choose dentist, services, and date first"}</option>
+                    {walkInTimeOptions.map((time) => <option key={time} value={time}>{formatTimeLabel(time)}</option>)}
+                  </select>
+                  {loadingWalkInTimes ? <LoadingIndicator>Checking available times…</LoadingIndicator> : null}
+                  {walkInAvailabilityError ? <span className="walkInAvailabilityError">{walkInAvailabilityError}</span> : null}
+                </label>
+              </div>
             </div>
             <div className="modalFoot">
-              <button type="button" className="btn btnSecondary" onClick={() => setWalkInOpen(false)}>Cancel</button>
+              <button type="button" className="btn btnSecondary" disabled={walkInSaving} onClick={() => setWalkInOpen(false)}>Cancel</button>
               <button className="btn btnSuccess" type="submit" disabled={walkInSaving || loadingWalkInTimes || !walkInTimeOptions.length}>
                 {walkInSaving ? <LoadingIndicator>Saving appointment…</LoadingIndicator> : "Add Patient & Appointment"}
               </button>

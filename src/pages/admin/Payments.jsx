@@ -1,5 +1,9 @@
+import BookingCrownPicker from "../../components/BookingCrownPicker";
+import { BRACES_PACKAGE_INCLUSIONS, isBracesPackageInclusion, isCrownTypeService, isOrthodonticService } from "../../../functions/bookingServices.mjs";
+import { getBookingServiceOptions } from "../../utils/clinic";
+import LoadingIndicator from "../../components/LoadingIndicator";
 import SuccessDialog from "../../components/SuccessDialog";
-import { groupBookingPaymentRows, groupBookingReceipts } from "../../utils/bookingPayments";
+import { getUnchargedPaymentServices, groupBookingPaymentRows, groupBookingReceipts } from "../../utils/bookingPayments";
 import { recordBookingPayment } from "../../utils/recordBookingPayment";
 import PaginatedRecords from "../../components/PaginatedRecords";
 import RecordPagination from "../../components/RecordPagination";
@@ -25,7 +29,7 @@ import {
   recordRegularPayment,
 } from "../../utils/paymentTransactions";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
-import { calculateCharges } from "../../utils/paymentPricing";
+import { calculateCharges, getStartingCharge } from "../../utils/paymentPricing";
 import { MAX_RECEIPT_PHOTOS, prepareReceiptPhoto } from "../../utils/receiptPhotos";
 
 const DETAIL_PAYMENT_METHODS = ["Cash", "GCash", "Maya", "Bank Transfer", "Card"];
@@ -35,6 +39,10 @@ const GET_BOOKING_PAYMENT_PROMOTION = httpsCallable(functions, "getBookingPaymen
 function toAmount(value) {
   const amount = Number(value);
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+function isBracesPackageExtra(service) {
+  return !isOrthodonticService(service) && !isBracesPackageInclusion(service);
 }
 
 function formatPatientBracesType(value) {
@@ -566,10 +574,7 @@ export default function Payments() {
     [regularPayments, regularTreatmentSummaries, patients, bookings]
   );
   const additionalServiceOptions = useMemo(
-    () => clinicServices
-      .map((service) => String(service.name || "").trim())
-      .filter((name) => name && name.toLowerCase() !== "dental x-ray")
-      .sort((left, right) => left.localeCompare(right)),
+    () => getBookingServiceOptions(clinicServices),
     [clinicServices]
   );
   const appointmentTotals = useMemo(() => {
@@ -645,6 +650,22 @@ export default function Payments() {
   const isBracesInstallment = selectedPaymentRow?.source === "Ortho" && selectedPatientType === "Ortho";
   const selectedPaymentCompleted = isFullyPaid(selectedPaymentRow || {});
   const selectedBooking = bookings.find((booking) => booking.id === selectedPaymentRow?.appointmentId);
+  const savedBracesExtras = isBracesInstallment ? (selectedPaymentRow.additionalServices || []) : [];
+  const hasBracesPackage = isBracesInstallment || Boolean(selectedBooking?.bracesPackage);
+  const allowedAdditionalServices = (detailDraft.additionalServices || []).filter((name) => !hasBracesPackage || isBracesPackageExtra({ name }));
+  const chargedServiceNames = [
+    ...(detailDraft.treatmentName || "Dental treatment").split(",").map((name) => name.trim()).filter(Boolean),
+    ...(selectedPaymentRow?.chargeBreakdown?.serviceCharges || []).map((line) => line.name),
+    ...savedBracesExtras,
+  ];
+  const eligibleAdditionalServices = additionalServiceOptions.filter((service) => hasBracesPackage
+    ? isBracesPackageExtra(service)
+    : service.name.toLowerCase() !== "dental x-ray");
+  const visibleAdditionalServices = getUnchargedPaymentServices([
+    ...eligibleAdditionalServices,
+    ...allowedAdditionalServices.filter((name) => !eligibleAdditionalServices.some((service) => service.name === name)).map((name) => ({ name })),
+  ], chargedServiceNames);
+  const otherAdditionalServices = visibleAdditionalServices.filter((service) => !isCrownTypeService(service)).map((service) => service.name);
   const promotionId = selectedBooking?.promotionId || "";
   const promotionBookingId = selectedBooking?.id || "";
   useEffect(() => {
@@ -661,8 +682,8 @@ export default function Payments() {
   const promotionError = promotionId && paymentPromotion.bookingId === promotionBookingId ? paymentPromotion.error : "";
   const promotion = promotionId && paymentPromotion.bookingId === promotionBookingId ? paymentPromotion.promotion : null;
   const serviceNames = [...new Set([
-    ...(detailDraft.treatmentName || "Dental treatment").split(",").map(name => name.trim()).filter(Boolean),
-    ...detailDraft.additionalServices,
+    ...chargedServiceNames,
+    ...allowedAdditionalServices,
   ])];
   const previousDiscount = selectedPaymentRow?.treatments ? 0 : regularTreatmentSummaries.filter(summary =>
     summary.appointmentId === selectedBooking?.id && summary.treatmentId !== selectedPaymentRow?.treatmentId &&
@@ -670,7 +691,11 @@ export default function Payments() {
   ).reduce((sum, summary) => sum + (Number(summary.chargeBreakdown?.discountAmount) || 0), 0);
   const chargeBreakdown = calculateCharges(serviceNames.map(name => ({ name, amount: detailDraft.serviceCharges?.[name] || 0 })), promotion, previousDiscount);
   const priorPaid = isBracesInstallment ? detailBracesSummary?.amountPaid || 0 : selectedPaymentRow?.amountPaid || 0;
-  const calculatedTotal = isBracesInstallment ? Number(detailDraft.totalCost) || 0 : chargeBreakdown.totalCost;
+  const newBracesExtras = isBracesInstallment ? getUnchargedPaymentServices(allowedAdditionalServices.map((name) => ({ name })), savedBracesExtras) : [];
+  const bracesExtraCharges = calculateCharges(newBracesExtras.map(({ name }) => ({ name, amount: detailDraft.serviceCharges[name] })));
+  const calculatedTotal = isBracesInstallment
+    ? calculateCharges([{ name: "Existing plan", amount: detailDraft.totalCost }, ...bracesExtraCharges.serviceCharges]).totalCost
+    : chargeBreakdown.totalCost;
   const paymentBalance = Math.max(0, calculatedTotal - priorPaid);
   const canEditAppointmentCharge = selectedPaymentRow?.source !== "Appointment" || selectedPaymentRow.paymentReady === true;
   const hasValidAppointmentCharge = selectedPaymentRow?.source !== "Appointment" ||
@@ -747,15 +772,32 @@ export default function Payments() {
     setDetailDraft({
       treatmentName: row.treatmentName || "",
       totalCost: String(row.totalCost || ""),
+      initialBracesTotal: row.source === "Ortho" ? row.totalCost : undefined,
       amount: "",
       paymentDate: new Date().toISOString().slice(0, 10),
       referenceNumber: "",
-      additionalServices: Array.isArray(row.additionalServices) ? row.additionalServices : [],
+      additionalServices: row.source !== "Ortho" && Array.isArray(row.additionalServices) ? row.additionalServices : [],
       serviceCharges,
       receiptPhotos: [],
       method: DETAIL_PAYMENT_METHODS.includes(row.method) ? row.method : "Cash",
     });
     setDetailError("");
+  }
+
+  function toggleAdditionalService(name) {
+    const option = visibleAdditionalServices.find((service) => service.name === name);
+    if (!option || savingDetails) return;
+    const suggestedCharge = isBracesInstallment ? getStartingCharge(option.startingRate) : 0;
+    setDetailDraft((current) => {
+      const selected = current.additionalServices.includes(name);
+      return {
+        ...current,
+        additionalServices: selected ? current.additionalServices.filter((service) => service !== name) : [...current.additionalServices, name],
+        serviceCharges: !selected && suggestedCharge && current.serviceCharges[name] === undefined
+          ? { ...current.serviceCharges, [name]: String(suggestedCharge) }
+          : current.serviceCharges,
+      };
+    });
   }
 
   async function importReceiptPhotos(event) {
@@ -787,6 +829,10 @@ export default function Payments() {
     }
     const totalCost = calculatedTotal;
     const amount = detailDraft.amount === "" ? 0 : Number(detailDraft.amount);
+    if (isBracesInstallment && bracesExtraCharges.serviceCharges.some((line) => line.amount <= 0)) {
+      setDetailError("Enter a charge greater than zero for each selected additional service.");
+      return;
+    }
     if (!Number.isFinite(totalCost) || (isBracesInstallment ? totalCost <= 0 : chargeBreakdown.grossTotal <= 0)) {
       setDetailError("Enter service charges greater than zero.");
       return;
@@ -816,14 +862,16 @@ export default function Payments() {
         savedId = await recordBracesPayment({
           patient: selectedPatientRecord,
           accountId: detailBracesAccount.id,
-          totalCost,
+          totalCost: Number(detailDraft.totalCost),
+          expectedAccountTotal: detailDraft.initialBracesTotal,
+          additionalServiceCharges: bracesExtraCharges.serviceCharges,
           amount,
           paymentDate: detailDraft.paymentDate,
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
-          additionalServices: detailDraft.additionalServices,
           receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
         });
+        setDetailDraft((current) => ({ ...current, totalCost: String(totalCost), initialBracesTotal: totalCost, additionalServices: [], serviceCharges: {} }));
         await logAdminAction({
           action: amount > 0 ? "log_braces_payment" : "update_braces_account",
           targetType: amount > 0 ? "braces_payment" : "braces_account",
@@ -850,7 +898,7 @@ export default function Payments() {
           paymentDate: detailDraft.paymentDate,
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
-          additionalServices: detailDraft.additionalServices,
+          additionalServices: allowedAdditionalServices,
           chargeBreakdown: selectedPaymentRow.treatments
             ? { ...chargeBreakdown, eligibleServiceNames: promotion?.services || [] } : chargeBreakdown,
           receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
@@ -891,7 +939,7 @@ export default function Payments() {
         <div className="formError" role="alert">
           Payment records could not be fully loaded. {loadError}
           <button type="button" className="paymentsRetry" onClick={load} disabled={loading}>
-            {loading ? "Reloading..." : "Try again"}
+            {loading ? <LoadingIndicator>Reloading…</LoadingIndicator> : "Try again"}
           </button>
         </div>
       ) : null}
@@ -938,7 +986,7 @@ export default function Payments() {
             <div className="formError" role="alert">
               Some payment details may be unavailable because a data source failed to load: {loadError}
               <button type="button" className="paymentsRetry" onClick={load} disabled={loading}>
-                {loading ? "Reloading..." : "Retry loading"}
+                {loading ? <LoadingIndicator>Reloading…</LoadingIndicator> : "Retry loading"}
               </button>
             </div>
           ) : null}
@@ -986,7 +1034,7 @@ export default function Payments() {
                 <div className="paymentsDetailsFields">
                   {isBracesInstallment ? (
                   <label className="paymentsField">
-                    <span>Total fee (₱)</span>
+                    <span>Current plan total (₱)</span>
                     <input
                       className="input"
                       type="number"
@@ -1007,9 +1055,19 @@ export default function Payments() {
                         required />
                     </label>
                   ))}
-                  {!isBracesInstallment ? <div className="paymentsField paymentsFieldWide">
-                    {promotionLoading ? <p role="status">Loading booking promotion…</p> : promotionError ? <p className="formError" role="alert">{promotionError}</p> : <PaymentChargeBreakdown breakdown={chargeBreakdown} paid={priorPaid} received={Number(detailDraft.amount) || 0} />}
-                  </div> : null}
+                  {isBracesInstallment ? (
+                    <section className="paymentsField paymentsFieldWide paymentsChargeBreakdown" aria-label="Braces installment summary">
+                      <h3>Braces installment</h3>
+                      <dl className="appointmentPaymentDetails">
+                        <div className="detailRow"><dt>Additional charges</dt><dd>{formatCurrency(bracesExtraCharges.totalCost)}</dd></div>
+                        <div className="detailRow"><dt>Updated total</dt><dd>{formatCurrency(calculatedTotal)}</dd></div>
+                        <div className="detailRow"><dt>Previously paid</dt><dd>{formatCurrency(priorPaid)}</dd></div>
+                        <div className="detailRow"><dt>Balance after this payment</dt><dd>{formatCurrency(Math.max(0, paymentBalance - (Number(detailDraft.amount) || 0)))}</dd></div>
+                      </dl>
+                    </section>
+                  ) : <div className="paymentsField paymentsFieldWide">
+                    {promotionLoading ? <p><LoadingIndicator>Loading booking promotion…</LoadingIndicator></p> : promotionError ? <p className="formError" role="alert">{promotionError}</p> : <PaymentChargeBreakdown breakdown={chargeBreakdown} paid={priorPaid} received={Number(detailDraft.amount) || 0} />}
+                  </div>}
                   <label className="paymentsField">
                     <span>Amount received (₱)</span>
                     <input
@@ -1068,7 +1126,7 @@ export default function Payments() {
                         <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={importReceiptPhotos}
                           disabled={receiptPhotoLoading || savingDetails || !canRecordSelectedPayment} />
                       </label>
-                      {receiptPhotoLoading ? <p role="status">Preparing receipt photos…</p> : null}
+                      {receiptPhotoLoading ? <p><LoadingIndicator>Preparing receipt photos…</LoadingIndicator></p> : null}
                       <div className="paymentsReceiptPhotos">
                         {detailDraft.receiptPhotos.map((photo, index) => (
                           <figure key={`${photo.name}-${index}`}>
@@ -1082,31 +1140,38 @@ export default function Payments() {
                     </div>
                   ) : null}
                   <div className="paymentsField paymentsFieldWide paymentsAdditionalServiceField">
-                    <span>Additional Service</span>
+                    {hasBracesPackage ? <div className="bookingBracesPackageDetails"><div><strong>Package Inclusions</strong><ul>{BRACES_PACKAGE_INCLUSIONS.map((inclusion) => <li key={inclusion}>{inclusion}</li>)}</ul></div></div> : null}
+                    <span>Additional Services</span>
+                    {savedBracesExtras.length ? <small>Previously listed on this account: {savedBracesExtras.join(", ")}</small> : null}
                     <div className="paymentsAdditionalServiceOptions" role="group" aria-label="Additional Service">
-                      {additionalServiceOptions.length ? additionalServiceOptions.map((service) => (
+                      {otherAdditionalServices.length ? otherAdditionalServices.map((service) => (
                         <label className="paymentsAdditionalServiceOption" key={service}>
                           <input
                             type="checkbox"
                             value={service}
                             checked={detailDraft.additionalServices.includes(service)}
-                            disabled={!canRecordSelectedPayment}
-                            onChange={(event) => setDetailDraft((current) => ({
-                              ...current,
-                              additionalServices: event.target.checked
-                                ? [...current.additionalServices, service]
-                                : current.additionalServices.filter((name) => name !== service),
-                            }))}
+                            disabled={!canRecordSelectedPayment || savingDetails}
+                            onChange={() => toggleAdditionalService(service)}
                           />
                           {service}
                         </label>
-                      )) : <span className="paymentsAdditionalServiceEmpty">No services available.</span>}
+                      )) : !visibleAdditionalServices.length ? <span className="paymentsAdditionalServiceEmpty">No additional services available.</span> : null}
                     </div>
+                    <BookingCrownPicker options={visibleAdditionalServices} selectedServices={allowedAdditionalServices} serviceLimit={Infinity}
+                      disabled={!canRecordSelectedPayment || savingDetails} onToggle={(crown) => toggleAdditionalService(crown.name)} />
                   </div>
+                  {newBracesExtras.map(({ name }) => (
+                    <label className="paymentsField" key={name}>
+                      <span>{name} charge (₱)</span>
+                      <input className="input" type="number" min="0.01" step="0.01" required disabled={savingDetails}
+                        value={detailDraft.serviceCharges[name] ?? ""}
+                        onChange={(event) => setDetailDraft((current) => ({ ...current, serviceCharges: { ...current.serviceCharges, [name]: event.target.value } }))} />
+                    </label>
+                  ))}
                 </div>
                 <footer className="paymentsDetailsActions">
                   <button type="submit" className="btn btnPrimary" disabled={savingDetails || receiptPhotoLoading || promotionSaving || promotionLoading || Boolean(promotionError) || !canRecordSelectedPayment}>
-                    {savingDetails ? "Updating..." : "Update"}
+                    {savingDetails ? <LoadingIndicator>Updating…</LoadingIndicator> : "Update"}
                   </button>
                   <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails || receiptPhotoLoading}>Cancel</button>
                 </footer>
@@ -1171,7 +1236,7 @@ export default function Payments() {
           </label>
         </div>
 
-        {loading ? <SkeletonList count={4} /> : loadError ? (
+        {loading ? <SkeletonList count={4} label="Loading payments…" /> : loadError ? (
           <EmptyState title="Payment records are incomplete" message="One or more payment data sources failed to load. Use Try again to reload before relying on these totals." />
         ) : tabRows.length ? (
           <div className="paymentsTableWrap">
@@ -1192,7 +1257,7 @@ export default function Payments() {
                 </thead>
               ) : (
                 <thead>
-                  <tr><th>Patient</th><th>Type</th><th>Plan</th><th>Balance</th><th>Method</th><th>Status</th></tr>
+                  <tr><th>Patient</th><th>Type</th><th>Plan</th><th>Total Paid</th><th>Method</th><th>Status</th></tr>
                 </thead>
               )}
               <tbody>
@@ -1248,7 +1313,7 @@ export default function Payments() {
                             ? [row.bracesType, row.planLabel].filter((value) => value && value !== "—").join(" · ") || "—"
                             : row.treatmentName || "—"}
                         </td>
-                        <td data-label="Balance">{formatCurrency(row.balance)}</td>
+                        <td data-label="Total Paid">{formatCurrency(row.amountPaid)}</td>
                         <td data-label="Method">{row.method || "—"}</td>
                         <td data-label="Status">Completed</td>
                       </>
