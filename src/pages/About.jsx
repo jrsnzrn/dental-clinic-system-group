@@ -10,16 +10,16 @@ import recep4 from "../assets/recep4.jpg";
 import CursorAura from "../components/CursorAura";
 
 const doctors = [
-  { name: "Dentist 1", role: "Dentist", photo: dentist1, position: "center 30%" },
-  { name: "Dentist 2", role: "Dentist", photo: dentist2, position: "center 30%" },
-  { name: "Dentist 3", role: "Dentist", photo: dentist3, position: "center 38%" },
+  { name: "Dra. Rica", role: "Dentist", photo: dentist1, position: "center 30%" },
+  { name: "Dr. Emerson", role: "Dentist", photo: dentist2, position: "center 30%" },
+  { name: "Dra. Nessa", role: "Dentist", photo: dentist3, position: "center 38%" },
 ];
 
 const frontDesk = [
-  { name: "Recep 1", role: "Front Desk", photo: recep1, position: "center 38%" },
-  { name: "Recep 2", role: "Front Desk", photo: recep2, position: "center 38%" },
-  { name: "Recep 3", role: "Front Desk", photo: recep3, position: "center 38%" },
-  { name: "Recep 4", role: "Front Desk", photo: recep4, position: "center 38%" },
+  { name: "Mr. Adrian", role: "Front Desk", photo: recep1, position: "center 38%" },
+  { name: "Ms. Chloie", role: "Front Desk", photo: recep2, position: "center 38%" },
+  { name: "Mr. Harold", role: "Front Desk", photo: recep3, position: "center 38%" },
+  { name: "Ms. Jahna", role: "Front Desk", photo: recep4, position: "center 38%" },
 ];
 
 const story = [

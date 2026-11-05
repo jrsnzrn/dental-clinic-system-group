@@ -127,8 +127,8 @@ const feedback = [
 ];
 
 const FACEBOOK_URL = "https://www.facebook.com/TopdentDentalClinic";
-const PHONE_DISPLAY = "+63 994 376 6421";
-const PHONE_HREF = "tel:+639943766421";
+const PHONE_DISPLAY = "+63 969 398 0336";
+const PHONE_HREF = "tel:+639693980336";
 
 function formatPromoDate(value) {
   if (!value) return "";

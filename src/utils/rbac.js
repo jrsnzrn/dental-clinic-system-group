@@ -65,9 +65,9 @@ export function getStaffLoginPath(role) {
 export const ADMIN_NAV_BY_ROLE = {
   [ROLES.ADMIN]: [
     { to: "/admin/analytics", label: "Dashboard" },
-    { to: "/admin/patients", label: "Patients" },
+    { to: "/admin/patients", label: "Patient Records" },
     { to: "/admin/bookings", label: "Appointments" },
-    { to: "/admin/payments", label: "Payments" },
+    { to: "/admin/payments", label: "Payment Records" },
     { to: "/admin/dentists", label: "Dentists" },
     { to: "/admin/services", label: "Services" },
      { to: "/admin/promos", label: "Promos" },
@@ -78,10 +78,10 @@ export const ADMIN_NAV_BY_ROLE = {
   ],
   [ROLES.RECEPTIONIST]: [
     { to: "/admin/dashboard", label: "Dashboard" },
-    { to: "/admin/patients", label: "Patients" },
+    { to: "/admin/patients", label: "Patient Records" },
     { to: "/admin/bookings", label: "Appointments" },
     { to: "/admin/queue", label: "Queue" },
-    { to: "/admin/payments", label: "Payments" },
+    { to: "/admin/payments", label: "Payment Records" },
     { to: "/admin/archive", label: "Archive" },
   ],
   [ROLES.DENTIST]: [

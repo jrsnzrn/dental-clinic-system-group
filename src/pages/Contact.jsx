@@ -44,8 +44,8 @@ export default function Contact() {
             <div className="iconBubble">☎</div>
             <div>
               <div><b>Phone</b></div>
-              <a className="smallMuted contactLink" href="tel:+639943766421">
-                +63 994 376 6421
+              <a className="smallMuted contactLink" href="tel:+639693980336">
+                +63 969 398 0336
               </a>
             </div>
           </div>

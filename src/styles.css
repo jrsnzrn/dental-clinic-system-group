@@ -3590,8 +3590,8 @@ html[data-theme="blue"] .mapFrame {
   color: var(--success);
 }
 .verificationCard .error {
-  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line));
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  border: 0;
+  background: transparent;
   color: var(--danger);
 }
 
@@ -22014,20 +22014,30 @@ html[data-dashboard="true"] .adminSurface :is(tr.patientRow, tr.patientTableRow,
 }
 
 .bookingPage .bookingPatientSection .bookingSectionHeader {
-  align-items: center;
+  align-items: start;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .bookingPage .bookingPatientSection .bookingSecondaryBtn {
   min-height: 36px;
   flex: 0 0 auto;
-  grid-column: 1 / -1;
-  justify-self: center;
+  grid-column: auto;
+  justify-self: end;
+  align-self: start;
   margin: 0;
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.bookingPage .bookingPatientSection .bookingSecondaryBtn:hover {
+  border-color: var(--primary-hover);
+  background: var(--primary-hover);
+  color: var(--on-primary);
 }
 
 .bookingPage .bookingPatientDetails {
