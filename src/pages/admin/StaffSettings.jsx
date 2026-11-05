@@ -4,10 +4,11 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { db, functions } from "../../firebase";
-import { buildStaffProfile, formatStaffDisplayName, getStaffTitle, staffProfileDraft, needsStaffProfileSetup } from "../../utils/staffProfile";
+import { buildStaffProfile, formatStaffDisplayName, getStaffTitle, staffProfileDraft, needsStaffProfileSetup, hasStaffProfilePhoto } from "../../utils/staffProfile";
 import { getDefaultAdminPath, ROLE_LABELS } from "../../utils/rbac";
 import SuccessDialog from "../../components/SuccessDialog";
 import LoadingIndicator from "../../components/LoadingIndicator";
+import StaffPhotoPicker from "../../components/StaffPhotoPicker";
 import BackArrow from "../../components/BackArrow";
 
 const UPDATE_PROFILE = httpsCallable(functions, "updateStaffProfile");
@@ -21,6 +22,8 @@ export default function StaffSettings({ uid }) {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [photoDraft, setPhotoDraft] = useState(undefined);
   const [success, setSuccess] = useState("");
   const [completedSetup, setCompletedSetup] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -37,22 +40,34 @@ export default function StaffSettings({ uid }) {
   }, [uid, retry]);
 
   const original = profile ? staffProfileDraft(profile) : {};
-  const dirty = draft && EDITABLE_FIELDS.some(field => String(draft[field] ?? "").trim() !== String(original[field] ?? "").trim());
+  const photo = photoDraft ?? profile?.profilePhoto;
+  const photoRequired = profile?.role === "dentist" || profile?.role === "receptionist";
+  const missingPhoto = photoRequired && !hasStaffProfilePhoto(photo);
+  const photoChanged = photoDraft !== undefined && photoDraft !== (profile?.profilePhoto || "");
+  const dirty = draft && (photoChanged || EDITABLE_FIELDS.some(field => String(draft[field] ?? "").trim() !== String(original[field] ?? "").trim()));
   const setupRequired = profile ? needsStaffProfileSetup(profile, uid) : false;
   const update = (field, value) => setDraft(current => ({ ...current, [field]: value }));
   async function save(event) {
     event.preventDefault();
-    if (submissionLock.current || !profile || !draft || (!dirty && !setupRequired) || loadError) return;
+    if (submissionLock.current || preparingPhoto || !profile || !draft || (!dirty && !setupRequired) || loadError) return;
+    if (missingPhoto) {
+      setError("Upload a profile picture before saving your staff profile.");
+      return;
+    }
     setError("");
     try {
       const fields = buildStaffProfile(draft, profile.role);
       submissionLock.current = true;
       flushSync(() => setSaving(true));
       // The server derives the account ID and role from the signed-in staff member.
-      const result = await UPDATE_PROFILE(Object.fromEntries(EDITABLE_FIELDS.map(field => [field, fields[field]])));
+      const result = await UPDATE_PROFILE({
+        ...Object.fromEntries(EDITABLE_FIELDS.map(field => [field, fields[field]])),
+        ...(photoChanged ? { profilePhoto: photoDraft } : {}),
+      });
       const next = { ...profile, ...result.data };
-      setProfile(next);
+      setProfile(current => ({ ...current, ...result.data }));
       setDraft(staffProfileDraft(next));
+      setPhotoDraft(undefined);
       setCompletedSetup(setupRequired);
       setSuccess(`${setupRequired ? "Your profile setup is complete. You can now use the staff portal." : "Your account details have been saved."}${result.data?.authDisplayNameSynced === false ? " Contact the administrator if your sign-in display name stays out of date." : ""}`);
     } catch (failure) {
@@ -69,17 +84,18 @@ export default function StaffSettings({ uid }) {
       setCompletedSetup(false);
       if (completedSetup) navigate(getDefaultAdminPath(profile.role), { replace: true });
     }} />
-    {!setupRequired ? <button className="appBackAction topdentBackAction staffSettingsBack" type="button" disabled={saving || !profile} onClick={() => {
+    {!setupRequired ? <button className="appBackAction topdentBackAction staffSettingsBack" type="button" disabled={saving || preparingPhoto || !profile} onClick={() => {
       const from = location.state?.from;
       navigate(typeof from === "string" && from.startsWith("/admin/") && !from.startsWith("/admin/settings") ? from : getDefaultAdminPath(profile.role));
     }}><BackArrow /><span>Back</span></button> : null}
     <header className="staffSettingsHeading"><span>Account</span><h1>Settings</h1><p>Keep your personal and contact details up to date.</p></header>
-    {setupRequired ? <div className="staffProfileSetupNotice" role="status"><strong>Complete your profile to continue</strong><p>Review your name, enter your nickname, age, and gender, then select Save and continue. Middle name and contact number are optional.</p></div> : null}
+    {setupRequired ? <div className="staffProfileSetupNotice" role="status"><strong>Complete your profile to continue</strong><p>Review your name, enter your nickname, age, and gender, and upload a profile picture. Then select Save and continue. Middle name and contact number are optional.</p></div> : null}
     {loadError ? <div className="formError" role="alert">{loadError} <button className="btn secondary" onClick={() => setRetry(value => value + 1)}>Try again</button></div> : null}
     {!draft || !profile ? !loadError ? <p><LoadingIndicator>Loading your account details…</LoadingIndicator></p> : null : <>
       <section className="staffSettingsPanel" aria-labelledby="staff-settings-profile"><h2 id="staff-settings-profile">Personal details</h2><p>Your title updates automatically based on your role and gender.</p>
         <form onSubmit={save} aria-busy={saving}>
           <fieldset disabled={saving || Boolean(loadError)} className="staffSettingsFields">
+            <StaffPhotoPicker photo={photo} required={photoRequired} onChange={setPhotoDraft} onBusyChange={setPreparingPhoto} disabled={saving || Boolean(loadError)} />
             {[["firstName", "First name"], ["middleName", "Middle name (optional)"], ["lastName", "Last name"]].map(([field, label]) => <label key={field}><span>{label}</span>
               <input className="input" required={field !== "middleName"} maxLength={80} autoComplete={field === "firstName" ? "given-name" : field === "lastName" ? "family-name" : "additional-name"}
                 value={draft[field]} onChange={event => update(field, event.target.value)} /></label>)}
@@ -95,9 +111,9 @@ export default function StaffSettings({ uid }) {
           {error ? <div className="formError" role="alert">{error}</div> : null}
           <footer className="staffSettingsActions">
             {saving ? <div className="staffSettingsSaveProgress"><LoadingIndicator>Saving your account details…</LoadingIndicator><p>Please wait while your changes are saved.</p><div className="staffSettingsProgressTrack" aria-hidden="true"><span /></div></div> : null}
-            <div className="staffSettingsActionButtons"><button className="btn btnShine" type="submit" disabled={saving || (!dirty && !setupRequired) || Boolean(loadError)} aria-busy={saving}>
+            <div className="staffSettingsActionButtons"><button className="btn btnShine" type="submit" disabled={saving || preparingPhoto || missingPhoto || (!dirty && !setupRequired) || Boolean(loadError)} aria-busy={saving}>
               {saving ? <LoadingIndicator>Saving…</LoadingIndicator> : setupRequired ? "Save and continue" : "Save changes"}</button>
-              <button className="btn secondary" type="button" disabled={saving || !dirty} onClick={() => { setDraft(staffProfileDraft(profile)); setError(""); }}>Reset changes</button>
+              <button className="btn secondary" type="button" disabled={saving || preparingPhoto || !dirty} onClick={() => { setDraft(staffProfileDraft(profile)); setPhotoDraft(undefined); setError(""); }}>Reset changes</button>
             </div>
           </footer>
         </form>

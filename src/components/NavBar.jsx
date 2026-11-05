@@ -228,10 +228,10 @@ function getInitial(user) {
   return getDisplayName(user).charAt(0).toUpperCase();
 }
 
-function StaffAccountInfo({ user, name, role, staffRole, onAppearanceClick, onLogout }) {
+function StaffAccountInfo({ user, name, photo, role, staffRole, onAppearanceClick, onLogout }) {
   const location = useLocation();
   const displayName = staffHeaderName(staffRole, name, user?.displayName);
-  const avatarUser = { displayName };
+  const avatarUser = { displayName, photoURL: photo };
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
@@ -570,6 +570,7 @@ export default function NavBar({
   const [adminRole, setAdminRole] = useState(adminRoleFromApp);
   const [menuOpen, setMenuOpen] = useState(false);
   const [staffName, setStaffName] = useState("");
+  const [staffPhoto, setStaffPhoto] = useState("");
   const [appearanceModalOpen, setAppearanceModalOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -581,6 +582,7 @@ export default function NavBar({
       stopProfile();
       setUser(u);
       setStaffName("");
+      setStaffPhoto("");
       if (!u) {
         setIsAdmin(false);
         setAdminRole("");
@@ -593,10 +595,12 @@ export default function NavBar({
           setIsAdmin(true);
           setAdminRole(profile.role);
           setStaffName(formatStaffDisplayName(profile));
+          setStaffPhoto(profile.profilePhoto || "");
         } else {
           setIsAdmin(false);
           setAdminRole("");
           setStaffName("");
+          setStaffPhoto("");
         }
       }, error => {
         if (auth.currentUser?.uid !== u.uid) return;
@@ -604,6 +608,7 @@ export default function NavBar({
         setIsAdmin(false);
         setAdminRole("");
         setStaffName("");
+        setStaffPhoto("");
       });
     });
     return () => { unsub(); stopProfile(); };
@@ -730,6 +735,7 @@ export default function NavBar({
               <StaffAccountInfo
                 user={user}
                 name={staffName}
+                photo={staffPhoto}
                 staffRole={adminRole}
                 role={ROLE_LABELS[adminRole] || "Staff"}
                 onAppearanceClick={openAppearance}

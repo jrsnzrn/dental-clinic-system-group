@@ -23417,3 +23417,152 @@ button.staffAccountTrigger:hover, button.staffAccountTrigger[aria-expanded="true
 .staffProfileSetupNotice p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
 @media (max-width: 520px) { .staffProfileRequiredDialog { padding: 25px 22px; } }
 .staffNicknameHint { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.5; }
+
+.staffPhotoPicker {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.staffPhotoPreview {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  padding: 2px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.staffPhotoImage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.staffPhotoCamera {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.staffPhotoCamera svg {
+  width: 14px;
+  height: 14px;
+}
+
+.staffPhotoPreview:hover:not(:disabled),
+.staffPhotoPreview:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.staffPhotoPreview:disabled {
+  cursor: default;
+}
+
+.staffPhotoControls {
+  width: min(100%, 320px);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.acctAvatar:has(img) {
+  overflow: hidden;
+}
+
+.staffPhotoPreview img,
+.acctAvatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.staffPhotoCropDialog {
+  width: min(400px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+
+.staffPhotoCropDialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.staffPhotoCropDialog h3,
+.staffPhotoCropDialog p {
+  margin: 0 0 12px;
+}
+
+.staffPhotoCropFrame {
+  position: relative;
+  width: min(100%, 240px);
+  aspect-ratio: 1;
+  margin: 0 auto 14px;
+  overflow: hidden;
+  border-radius: 50%;
+  outline: 2px solid var(--accent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.staffPhotoCropFrame:focus-visible {
+  outline-offset: 4px;
+}
+
+.staffPhotoCropFrame:active {
+  cursor: grabbing;
+}
+
+.staffPhotoCropFrame img {
+  position: absolute;
+  max-width: none;
+  max-height: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.staffPhotoCropZoom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.staffPhotoCropZoom input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.staffPhotoCropActions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}

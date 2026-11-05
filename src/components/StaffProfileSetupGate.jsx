@@ -22,7 +22,8 @@ function RequiredProfilePrompt({ profile }) {
     <ol className="staffProfileRequiredSteps">
       <li><span aria-hidden="true">1</span><div><strong>Review your name</strong><p>Confirm your first, middle, and last name.</p></div></li>
       <li><span aria-hidden="true">2</span><div><strong>Choose your display name</strong><p>Enter your nickname, age, and gender. Your title is set automatically.</p></div></li>
-      <li><span aria-hidden="true">3</span><div><strong>Save and continue</strong><p>You only need to complete this setup once.</p></div></li>
+      <li><span aria-hidden="true">3</span><div><strong>Add a profile picture</strong><p>Choose a JPG, PNG, or WebP photo for your staff account.</p></div></li>
+      <li><span aria-hidden="true">4</span><div><strong>Save and continue</strong><p>You only need to complete this setup once.</p></div></li>
     </ol>
     <button type="button" className="btn btnShine" autoFocus onClick={() => navigate("/admin/settings", { replace: true })}>Update my information <span aria-hidden="true">→</span></button>
   </dialog>;

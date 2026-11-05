@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { buildStaffProfile, dentistNameFields, formatStaffDisplayName } from "../functions/staffProfile.mjs";
+import { buildStaffProfile, dentistNameFields, formatStaffDisplayName, hasStaffProfilePhoto, validateStaffProfilePhoto } from "../functions/staffProfile.mjs";
 
 const source = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");
 const body = source.slice(source.indexOf("exports.updateStaffProfile = onCall("), source.indexOf("exports.syncLinkedDentistName ="))
   .replace("exports.updateStaffProfile =", "const update =").replace('await import("./staffProfile.mjs")', "staffProfileModule");
 
-function harness({ actorRole = "admin", actorUid = "admin", targetRole = "dentist", failWrite = false, ownAccount = false, includeEmail = false } = {}) {
+function harness({ actorRole = "admin", actorUid = "admin", targetRole = "dentist", failWrite = false, ownAccount = false, includeEmail = false, photo, existingPhoto } = {}) {
   const stored = new Map([
-    ["admins/staff", { name: "Old Name", role: targetRole, email: "staff@example.com", mfaEnabled: true }],
+    ["admins/staff", { name: "Old Name", role: targetRole, email: "staff@example.com", mfaEnabled: true, profilePhoto: existingPhoto }],
     ["dentists/linked", { name: "Old Name", linkedStaffUid: "staff", schedule: { monday: { active: true } } }],
     ["dentists/other", { name: "Other Dentist", linkedStaffUid: "other" }],
   ]);
@@ -33,11 +33,11 @@ function harness({ actorRole = "admin", actorUid = "admin", targetRole = "dentis
   const update = new Function("onCall", "getStaffContextFromRequest", "HttpsError", "ALLOWED_ROLES", "db", "staffProfileModule", "admin", "auth", "writeStaffAuditLog", `${body}; return update;`)(
     callback => callback,
     async (_request, roles) => { if (!roles.includes(actorRole)) throw new HttpsError("permission-denied", "Staff access required"); return { uid: actorUid, role: actorRole }; },
-    HttpsError, ["dentist", "receptionist"], db, { buildStaffProfile, dentistNameFields, formatStaffDisplayName }, { firestore: { FieldValue: { serverTimestamp: () => "now" } } },
+    HttpsError, ["dentist", "receptionist"], db, { buildStaffProfile, dentistNameFields, formatStaffDisplayName, hasStaffProfilePhoto, validateStaffProfilePhoto }, { firestore: { FieldValue: { serverTimestamp: () => "now" } } },
     { updateUser: async (uid, data) => authUpdates.push({ uid, data }) }, async (_actor, entry) => audit.push(entry),
   );
   const request = { data: { ...(ownAccount ? {} : { uid: "staff" }), firstName: "Maria", middleName: "", lastName: "Reyes", nickname: "Mia", age: 30, gender: "female", phone: "09123456789",
-    role: "admin", ...(includeEmail ? { email: "changed@example.com" } : {}), mfaEnabled: false } };
+    ...(photo === undefined ? {} : { profilePhoto: photo }), role: "admin", ...(includeEmail ? { email: "changed@example.com" } : {}), mfaEnabled: false } };
   return { stored, update: () => update(request), authUpdates, audit };
 }
 
@@ -84,7 +84,7 @@ test("staff cannot edit someone else's profile, and partial profile writes are n
 
 test("dentists and receptionists can update themselves without changing email, role, or MFA", async () => {
   for (const actorRole of ["dentist", "receptionist"]) {
-    const h = harness({ actorRole, actorUid: "staff", targetRole: actorRole, ownAccount: true });
+    const h = harness({ actorRole, actorUid: "staff", targetRole: actorRole, ownAccount: true, existingPhoto: "data:image/jpeg;base64,/9j/4P/Z" });
     await h.update();
     const saved = h.stored.get("admins/staff");
     assert.equal(saved.role, actorRole);
@@ -110,5 +110,31 @@ test("staff email changes are rejected even when someone manually modifies a sel
     await assert.rejects(h.update(), /Only an administrator can change/);
     assert.equal(h.stored.get("admins/staff").email, "staff@example.com");
     assert.equal(h.authUpdates.length, 0);
+  }
+});
+
+test("staff and administrators can save a profile photo, keep it on unrelated edits, or remove it", async () => {
+  const photo = "data:image/jpeg;base64,/9j/4P/Z";
+  const self = harness({ actorRole: "dentist", actorUid: "staff", ownAccount: true, photo });
+  assert.equal((await self.update()).profilePhoto, photo);
+  assert.equal(self.stored.get("admins/staff").profilePhoto, photo);
+  assert.equal(self.stored.get("dentists/linked").profilePhoto, undefined);
+  const keep = harness({ existingPhoto: photo });
+  await keep.update();
+  assert.equal(keep.stored.get("admins/staff").profilePhoto, photo);
+  const remove = harness({ existingPhoto: photo, photo: "" });
+  await remove.update();
+  assert.equal(remove.stored.get("admins/staff").profilePhoto, "");
+  await assert.rejects(harness({ photo: "https://example.com/image.jpg" }).update(), /valid profile picture/);
+  await assert.rejects(harness({ actorRole: "receptionist", photo }).update(), /own account/);
+});
+
+test("staff cannot complete setup or remove their own picture without leaving a valid photo on the profile", async () => {
+  for (const role of ["dentist", "receptionist"]) {
+    const options = { actorRole: role, actorUid: "staff", targetRole: role, ownAccount: true };
+    await assert.rejects(harness(options).update(), /Upload a profile picture/);
+    const remove = harness({ ...options, existingPhoto: "data:image/jpeg;base64,/9j/4P/Z", photo: "" });
+    await assert.rejects(remove.update(), /Upload a profile picture/);
+    assert.equal(remove.stored.get("admins/staff").profilePhoto, "data:image/jpeg;base64,/9j/4P/Z");
   }
 });

@@ -64,7 +64,21 @@ export function needsStaffProfileSetup(profile = {}, uid) {
   if (!["dentist", "receptionist"].includes(role)) return false;
   const confirmed = profile.profileSetupCompleted === true && profile.profileSetupCompletedBy === uid;
   const previouslySavedOwnProfile = profile.profileSetupCompleted == null && profile.updatedBy === uid && Boolean(profile.updatedAt);
-  if (!uid || (!confirmed && !previouslySavedOwnProfile)) return true;
+  if (!uid || (!confirmed && !previouslySavedOwnProfile) || !hasStaffProfilePhoto(profile.profilePhoto)) return true;
   try { buildStaffProfile(profile, role); return false; }
   catch { return true; }
+}
+
+export const MAX_STAFF_PROFILE_PHOTO_LENGTH = 32768;
+
+export function hasStaffProfilePhoto(photo) {
+  return typeof photo === "string" && photo.length <= MAX_STAFF_PROFILE_PHOTO_LENGTH &&
+    /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(photo);
+}
+
+export function validateStaffProfilePhoto(photo) {
+  if (photo !== "" && !hasStaffProfilePhoto(photo)) {
+    throw new Error("Choose a valid profile picture.");
+  }
+  return photo;
 }

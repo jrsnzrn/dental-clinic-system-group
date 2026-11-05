@@ -1,6 +1,6 @@
 import { splitFullName } from "./names.js";
 import { dentistNameFields } from "../../functions/staffProfile.mjs";
-export { buildStaffProfile, formatStaffName, formatStaffDisplayName, getStaffTitle, staffHeaderName, needsStaffProfileSetup } from "../../functions/staffProfile.mjs";
+export { buildStaffProfile, formatStaffName, formatStaffDisplayName, getStaffTitle, staffHeaderName, needsStaffProfileSetup, hasStaffProfilePhoto } from "../../functions/staffProfile.mjs";
 
 export function staffProfileDraft(account) {
   const bareName = String(account.fullName || account.name || "").replace(/^(?:dra?\.?|mr\.?|ms\.?|admin)\s+/i, "");

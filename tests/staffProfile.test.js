@@ -74,9 +74,10 @@ test("new and admin-filled staff profiles require personal confirmation, while a
 });
 
 test("a valid self-confirmed profile stays complete across logins and refreshes", () => {
-  const profile = { ...buildStaffProfile(draft, "dentist"), role: "dentist", profileSetupCompleted: true, profileSetupCompletedBy: "staff" };
+  const profile = { ...buildStaffProfile(draft, "dentist"), role: "dentist", profilePhoto: "data:image/jpeg;base64,/9j/4P/Z", profileSetupCompleted: true, profileSetupCompletedBy: "staff" };
   assert.equal(needsStaffProfileSetup(profile, "staff"), false);
   assert.equal(needsStaffProfileSetup(structuredClone(profile), "staff"), false);
+  assert.equal(needsStaffProfileSetup({ ...profile, profilePhoto: "" }, "staff"), true);
   assert.equal(needsStaffProfileSetup({ ...profile, age: "" }, "staff"), true);
   assert.equal(needsStaffProfileSetup({ ...profile, gender: "" }, "staff"), true);
   assert.equal(needsStaffProfileSetup({ ...profile, nickname: "" }, "staff"), true);
@@ -95,7 +96,7 @@ test("nickname is separate from the legal name and controls all public display l
 });
 
 test("profiles already saved personally before setup was added do not force a second review", () => {
-  const profile = { ...buildStaffProfile(draft, "receptionist"), role: "receptionist", updatedBy: "staff", updatedAt: "saved" };
+  const profile = { ...buildStaffProfile(draft, "receptionist"), role: "receptionist", updatedBy: "staff", updatedAt: "saved", profilePhoto: "data:image/jpeg;base64,/9j/4P/Z" };
   assert.equal(needsStaffProfileSetup(profile, "staff"), false);
   assert.equal(needsStaffProfileSetup({ ...profile, updatedBy: "admin" }, "staff"), true);
 });

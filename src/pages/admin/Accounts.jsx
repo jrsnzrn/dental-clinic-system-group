@@ -1,3 +1,4 @@
+import StaffPhotoPicker from "../../components/StaffPhotoPicker";
 import LoadingIndicator from "../../components/LoadingIndicator";
 import { buildStaffProfile, getStaffTitle, staffProfileDraft } from "../../utils/staffProfile";
 import RecordPagination from "../../components/RecordPagination";
@@ -66,7 +67,7 @@ function AccountRow({
   return (
     <li className={`acctRow${account.disabled ? " isDisabled" : ""}`} title={`Account ID: ${account.id}`}>
       <span className="acctAvatar" aria-hidden="true">
-        {initials(account)}
+        {account.profilePhoto ? <img src={account.profilePhoto} alt="" /> : initials(account)}
       </span>
 
       <div className="acctWho">
@@ -136,6 +137,8 @@ export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [photoDraft, setPhotoDraft] = useState(undefined);
   const [editingAccountId, setEditingAccountId] = useState("");
   const [emailAccount, setEmailAccount] = useState(null);
   const [newEmail, setNewEmail] = useState("");
@@ -187,7 +190,7 @@ export default function Accounts() {
       if (!event.target.closest?.(".acctMenuWrap")) setMenuId("");
     }
     function onKeyDown(event) {
-      if (event.key === "Escape" && !submitting) {
+      if (event.key === "Escape" && !submitting && !preparingPhoto) {
         setMenuId("");
         setShowPassword(false);
         setShowForm(false);
@@ -199,7 +202,7 @@ export default function Accounts() {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [submitting]);
+  }, [submitting, preparingPhoto]);
 
   function openForm() {
     setEditingAccountId("");
@@ -210,13 +213,14 @@ export default function Accounts() {
   }
 
   function closeForm() {
-    if (submitting) return;
+    if (submitting || preparingPhoto) return;
     setShowPassword(false);
     setShowForm(false);
     setFormError("");
   }
 
   function editStaff(account) {
+    setPhotoDraft(undefined);
     setEditingAccountId(account.id);
     setDraft(staffProfileDraft(account));
     setFormError("");
@@ -241,7 +245,7 @@ export default function Accounts() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (submitting) return;
+    if (submitting || preparingPhoto) return;
     setFormError("");
 
     try {
@@ -252,7 +256,8 @@ export default function Accounts() {
       setSubmitting(true);
       const result = editingAccountId
         ? await UPDATE_STAFF_PROFILE({ uid: editingAccountId, firstName: profile.firstName, middleName: profile.middleName,
-          lastName: profile.lastName, nickname: profile.nickname, age: profile.age, gender: profile.gender, phone: profile.phone })
+          lastName: profile.lastName, nickname: profile.nickname, age: profile.age, gender: profile.gender, phone: profile.phone,
+          ...(photoDraft === undefined ? {} : { profilePhoto: photoDraft }) })
         : await CREATE_STAFF({ ...profile, email: draft.email.trim(), password: draft.password, role: draft.role });
 
       const created = result.data || {};
@@ -508,13 +513,15 @@ export default function Accounts() {
           <form className="acctDialog" onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-labelledby="acctDialogTitle">
             <div className="acctDialogHead">
               <h3 id="acctDialogTitle">{editingAccountId ? "Edit staff details" : "Add staff account"}</h3>
-              <button className="acctIconBtn" type="button" aria-label="Close" onClick={closeForm} disabled={submitting}>
+              <button className="acctIconBtn" type="button" aria-label="Close" onClick={closeForm} disabled={submitting || preparingPhoto}>
                 ✕
               </button>
             </div>
             <p className="acctHint">The title is set automatically from the staff member’s role and gender.</p>
 
             <div className="acctFields">
+              {editingAccountId ? <StaffPhotoPicker photo={photoDraft ?? staffAccounts.find((account) => account.id === editingAccountId)?.profilePhoto}
+                onChange={setPhotoDraft} onBusyChange={setPreparingPhoto} disabled={submitting} /> : null}
               {[["firstName", "First name"], ["middleName", "Middle name (optional)"], ["lastName", "Last name"]].map(([field, label]) => <label className="acctField" key={field}><span>{label}</span>
                 <input className="input" value={draft[field]} maxLength={80} autoComplete={field === "firstName" ? "given-name" : field === "lastName" ? "family-name" : "additional-name"}
                   required={field !== "middleName"} disabled={submitting} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} />
@@ -600,10 +607,10 @@ export default function Accounts() {
             {formError ? <div className="error acctBanner" role="alert">{formError}</div> : null}
 
             <div className="acctDialogActions">
-              <button className="btn btnShine" type="submit" disabled={submitting}>
+              <button className="btn btnShine" type="submit" disabled={submitting || preparingPhoto}>
                 {submitting ? <LoadingIndicator>{editingAccountId ? "Saving…" : "Creating…"}</LoadingIndicator> : editingAccountId ? "Save staff details" : "Create account"}
               </button>
-              <button className="btn secondary" type="button" onClick={closeForm} disabled={submitting}>
+              <button className="btn secondary" type="button" onClick={closeForm} disabled={submitting || preparingPhoto}>
                 Cancel
               </button>
             </div>

@@ -145,6 +145,7 @@ function serializeAdminDoc(id, data = {}) {
     gender: data.gender || "",
     title: data.title || "",
     phone: data.phone || "",
+    profilePhoto: data.profilePhoto || "",
     email: data.email || "",
     role: data.role || "",
     disabled: Boolean(data.disabled),
@@ -1686,7 +1687,7 @@ exports.updateStaffProfile = onCall(async (request) => {
   if (actor.role !== "admin" && Object.prototype.hasOwnProperty.call(request.data || {}, "email")) {
     throw new HttpsError("permission-denied", "Only an administrator can change a staff sign-in email.");
   }
-  const { buildStaffProfile, dentistNameFields, formatStaffDisplayName } = await import("./staffProfile.mjs");
+  const { buildStaffProfile, dentistNameFields, formatStaffDisplayName, hasStaffProfilePhoto, validateStaffProfilePhoto } = await import("./staffProfile.mjs");
   let fields;
   let targetRole;
   await db.runTransaction(async transaction => {
@@ -1696,12 +1697,20 @@ exports.updateStaffProfile = onCall(async (request) => {
     const role = String(snapshot.data().role || "").trim().toLowerCase();
     targetRole = role;
     if (!ALLOWED_ROLES.includes(role) && !(role === "admin" && editingSelf)) throw new HttpsError("permission-denied", "Only your own account or dentist and receptionist profiles can be edited here.");
-    try { fields = buildStaffProfile(request.data, role); }
+    try {
+      fields = buildStaffProfile(request.data, role);
+      if (Object.prototype.hasOwnProperty.call(request.data || {}, "profilePhoto")) {
+        fields.profilePhoto = validateStaffProfilePhoto(request.data.profilePhoto);
+      }
+    }
     catch (error) { throw new HttpsError("invalid-argument", error.message); }
     const dentists = role === "dentist"
       ? await transaction.get(db.collection("dentists").where("linkedStaffUid", "==", uid)) : { docs: [] };
     if (dentists.docs.length > 400) throw new HttpsError("failed-precondition", "Too many linked dentist profiles. Contact the administrator.");
     const confirmedOwnProfile = editingSelf && ALLOWED_ROLES.includes(role);
+    if (confirmedOwnProfile && !hasStaffProfilePhoto(fields.profilePhoto ?? snapshot.data().profilePhoto)) {
+      throw new HttpsError("invalid-argument", "Upload a profile picture before saving your staff profile.");
+    }
     transaction.update(staffRef, { ...fields,
       ...(confirmedOwnProfile ? { profileSetupCompleted: true, profileSetupCompletedBy: actor.uid,
         profileSetupCompletedAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
