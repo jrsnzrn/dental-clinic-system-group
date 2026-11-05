@@ -6998,12 +6998,6 @@ input[type="date"].input { min-height: 48px; }
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
-.bookingMonthDay:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--booking-border));
-  background: var(--secondary);
-}
-
-.bookingMonthDay.today,
 .bookingMonthDay.selected {
   border-color: var(--accent);
   background: var(--accent);
@@ -7011,20 +7005,22 @@ input[type="date"].input { min-height: 48px; }
   font-weight: 700;
 }
 
-.bookingMonthDay.today:hover,
-.bookingMonthDay.selected:hover {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-text);
-}
-
-.bookingMonthDay.past {
+.bookingMonthDay.past.selected {
   background: #e6e7e9;
   color: #414750;
+  border: 2px solid var(--accent);
 }
 
-.bookingMonthDay.past.selected {
-  border: 2px solid var(--accent);
+@media (hover: hover) {
+  .bookingMonthDay:not(.selected):hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--booking-border));
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  }
+
+  .bookingMonthDay.past:not(.selected):hover {
+    border-color: var(--booking-border);
+    background: color-mix(in srgb, var(--text) 10%, var(--surface));
+  }
 }
 
 .bookingMonthDay i {

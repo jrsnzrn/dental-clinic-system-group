@@ -1394,14 +1394,14 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
               const isToday = dateKey === clinicToday;
               const isPast = dateKey < clinicToday;
               const isSelected = dateKey === selectedDate;
-              const highlightToday = isToday && (!selectedDate || isSelected);
               return (
                 <button
                   key={dateKey}
                   type="button"
                   aria-label={`${date.toLocaleDateString(undefined, { dateStyle: "full" })}, ${count} appointment${count === 1 ? "" : "s"}`}
                   aria-pressed={isSelected}
-                  className={`bookingMonthDay${isPast ? " past" : ""}${highlightToday ? " today" : ""}${isSelected ? " selected" : ""}${count ? " hasAppointments" : ""}`}
+                  aria-current={isToday ? "date" : undefined}
+                  className={`bookingMonthDay${isPast ? " past" : ""}${isSelected ? " selected" : ""}${count ? " hasAppointments" : ""}`}
                   onClick={() => setSelectedDate(isSelected ? "" : dateKey)}
                 >
                   <span>{date.getDate()}</span>
