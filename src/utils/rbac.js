@@ -64,7 +64,7 @@ export function getStaffLoginPath(role) {
 
 export const ADMIN_NAV_BY_ROLE = {
   [ROLES.ADMIN]: [
-    { to: "/admin/analytics", label: "Overview" },
+    { to: "/admin/analytics", label: "Dashboard" },
     { to: "/admin/patients", label: "Patients" },
     { to: "/admin/bookings", label: "Appointments" },
     { to: "/admin/payments", label: "Payments" },

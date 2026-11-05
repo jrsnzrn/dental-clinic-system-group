@@ -26,7 +26,6 @@ const ROLE_FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: ROLES.DENTIST, label: ROLE_LABELS[ROLES.DENTIST] },
   { value: ROLES.RECEPTIONIST, label: ROLE_LABELS[ROLES.RECEPTIONIST] },
-  { value: ROLES.ADMIN, label: ROLE_LABELS[ROLES.ADMIN] },
   { value: "disabled", label: "Disabled" },
 ];
 

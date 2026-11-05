@@ -136,7 +136,7 @@ function AppearanceModal({ open, theme, onThemeChange, onClose, titleId }) {
 
 const ADMIN_NAV_ICONS = {
   "/admin/analytics": (
-    <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg>
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
   ),
   "/admin/reports": (
     <svg viewBox="0 0 24 24"><path d="M3 19V5"/><path d="M3 19h18"/><path d="m7 15 4-4 3 2 5-7"/><path d="M19 6h-4"/></svg>
