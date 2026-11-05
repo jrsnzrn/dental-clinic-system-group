@@ -26,3 +26,10 @@ export function getAppointmentStatusClass(status) {
   if (normalized === "pending-payment") return "pending";
   return normalized || "pending";
 }
+
+export function hasPendingCancellationRequest(booking) {
+  const request = booking?.cancellationRequest;
+  return Boolean(request && String(request.status || "pending").trim().toLowerCase() === "pending" &&
+    booking.archiveStatus !== "Archived" &&
+    ["pending", "approved"].includes(String(booking.status || "pending").trim().toLowerCase()));
+}

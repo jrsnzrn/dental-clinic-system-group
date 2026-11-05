@@ -132,6 +132,8 @@ service cloud.firestore {
           "rescheduleRequest",
           "cancellationRequest"
         ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["cancellationRequest"]) ||
+          resource.data.status != "cancelled") &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.patientProfileId == resource.data.patientProfileId &&
         request.resource.data.patientType == resource.data.patientType &&

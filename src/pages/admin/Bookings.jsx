@@ -12,7 +12,6 @@ import {
   Timestamp,
   collection,
   onSnapshot,
-  orderBy,
   query,
   where,
 } from "firebase/firestore";
@@ -24,7 +23,7 @@ import BookingPromotionSelect from "../../components/BookingPromotionSelect";
 import EmptyState from "../../components/EmptyState";
 import BookingToolbar from "../../components/BookingToolbar";
 import { SkeletonList } from "../../components/LoadingSkeleton";
-import { formatAppointmentStatusLabel, getAppointmentStatusClass } from "../../utils/appointmentStatus";
+import { formatAppointmentStatusLabel, getAppointmentStatusClass, hasPendingCancellationRequest } from "../../utils/appointmentStatus";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 
 const SET_BOOKING_STATUS = httpsCallable(functions, "setBookingStatus");
@@ -219,6 +218,9 @@ function BookingRow({ booking, onOpen, highlighted }) {
         {reschedule?.status === "pending" ? (
           <span className="bookingTableStatus bookingTableStatus-pending">reschedule</span>
         ) : null}
+        {hasPendingCancellationRequest(booking) ? (
+          <span className="bookingTableStatus bookingTableStatus-cancelled">Cancellation requested</span>
+        ) : null}
       </td>
     </tr>
   );
@@ -249,6 +251,8 @@ function BookingDetailDrawer({
   actionError,
 }) {
   const reschedule = booking?.rescheduleRequest;
+  const cancellation = booking?.cancellationRequest;
+  const cancellationPending = hasPendingCancellationRequest(booking);
   const busy = Boolean(pendingAction || checkingIn);
   const status = booking?.status || "pending";
   const headingStatus = booking?.checkedInAt ? "checked_in" : status;
@@ -312,6 +316,16 @@ function BookingDetailDrawer({
 
             <div className="patientDrawerBody">
               {actionError ? <div className="formError" role="alert">{actionError}</div> : null}
+              {cancellation ? (
+                <section className={`bookingCancellationNotice${cancellationPending ? " attention" : ""}`} aria-label="Patient cancellation request">
+                  <div className="bookingCancellationHeading">
+                    <strong>Patient cancellation request</strong>
+                    <span>{formatAppointmentStatusLabel(cancellation.status)}</span>
+                  </div>
+                  <p>{cancellation.reason || "No reason provided."}</p>
+                  {cancellation.requestedAt ? <small>Requested {formatTimestamp(cancellation.requestedAt)}</small> : null}
+                </section>
+              ) : null}
               <dl className="detailList">
                 <div className="detailRow bookingDetailsName">
                   <dt>Name</dt>
@@ -450,20 +464,15 @@ function BookingDetailDrawer({
               </div>
             ) : null}
 
-            {status === "pending" || (status === "approved" && !booking.checkedInAt) ? (
-              <div className="actionColumn actionColumnFriendly">
+            {status === "pending" || (status === "approved" && !booking.checkedInAt) || cancellationPending ? (
+              <div className={`actionColumn actionColumnFriendly${cancellationPending ? " bookingCancellationActions" : ""}`}>
                 {status === "pending" ? (
-                  <>
-                    <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove} disabled={busy} aria-busy={Boolean(pendingAction)}>
-                      {pendingAction ? <LoadingIndicator>Approving…</LoadingIndicator> : "Approve"}
-                    </button>
-                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
-                      Cancel
-                    </button>
-                  </>
+                  <button className="btn btnShine patientActionBtn" type="button" onClick={onApprove} disabled={busy} aria-busy={Boolean(pendingAction)}>
+                    {pendingAction ? <LoadingIndicator>Approving…</LoadingIndicator> : cancellationPending ? "Approve booking" : "Approve"}
+                  </button>
                 ) : null}
 
-                {status === "approved" ? (
+                {status === "approved" && !booking.checkedInAt ? (
                   <>
                     <button
                       className="btn btnShine patientActionBtn"
@@ -480,11 +489,11 @@ function BookingDetailDrawer({
                     <button className="btn secondary btnSoft patientActionBtn" type="button" onClick={onReassign} disabled={busy}>
                       Reassign dentist
                     </button>
-                    <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
-                      Cancel
-                    </button>
                   </>
                 ) : null}
+                <button className="btn danger patientActionBtn" type="button" onClick={onCancel} disabled={busy}>
+                  {cancellationPending ? "Accept request" : "Cancel"}
+                </button>
               </div>
             ) : null}
           </div>
@@ -713,9 +722,7 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
   const [highlightedBookingIds, setHighlightedBookingIds] = useState([]);
 
   useEffect(() => {
-    const q = query(collection(db, "bookings"), orderBy("appointmentAt", "asc"));
-
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(collection(db, "bookings"), (snap) => {
       setBookings(
         snap.docs.map((d) => ({
           id: d.id,
@@ -1320,11 +1327,12 @@ export default function Bookings({ search, onSearchChange, sortBy, onSortChange 
         onCancel={() => {
           const b = selectedBooking;
           if (!b) return;
+          const cancellationPending = hasPendingCancellationRequest(b);
           closeDrawer();
           openConfirm({
-            title: "Cancel this booking?",
+            title: cancellationPending ? "Accept this cancellation request?" : "Cancel this booking?",
             message: "This booking will remain in the Cancelled tab until you choose to archive it.",
-            confirmLabel: "Cancel",
+            confirmLabel: cancellationPending ? "Accept and cancel booking" : "Cancel",
             showCancelButton: false,
             successMessage: "Appointment cancelled successfully. It is now in the Cancelled tab.",
             tone: "danger",

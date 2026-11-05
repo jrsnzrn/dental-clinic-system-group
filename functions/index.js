@@ -2710,6 +2710,15 @@ exports.setBookingStatus = onCall(
         updatePayload.approvedAt = now;
       }
 
+      if (nextStatus === "cancelled" && booking.cancellationRequest &&
+        String(booking.cancellationRequest.status || "pending").trim().toLowerCase() === "pending") {
+        updatePayload.cancellationRequest = {
+          ...booking.cancellationRequest,
+          status: "approved",
+          reviewedAt: now,
+        };
+      }
+
       if (["cancelled", "no-show"].includes(nextStatus)) {
         const { lockRefs, lockSnaps } = await getLockSnapshots(transaction, booking);
         deleteOwnedLocks(transaction, lockRefs, lockSnaps, bookingId);

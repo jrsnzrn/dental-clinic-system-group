@@ -4,6 +4,7 @@ import { collection, getDocs, onSnapshot, query, where } from "firebase/firestor
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { ROLES } from "../utils/rbac";
+import { hasPendingCancellationRequest } from "../utils/appointmentStatus";
 
 const READ_KEY = "topdentOverviewRead";
 
@@ -42,6 +43,8 @@ function normalizeBooking(entry) {
     added: toISO(data.createdAt) || toISO(data.date),
     status: String(data.status || "pending").toLowerCase().replace(" ", "-"),
     archiveStatus: data.archiveStatus || "",
+    cancellationRequested: hasPendingCancellationRequest(data),
+    cancellationRequestedAt: data.cancellationRequest?.requestedAt?.toMillis?.() || 0,
   };
 }
 
@@ -112,6 +115,19 @@ export default function StaffNotificationBell({ adminRole }) {
     const items = [];
     if (canAccessBookings) {
       bookings
+        .filter((booking) => booking.cancellationRequested)
+        .sort((a, b) => b.cancellationRequestedAt - a.cancellationRequestedAt)
+        .forEach((booking) => {
+          items.push({
+            id: `cancellation-request:${booking.id}:${booking.cancellationRequestedAt}`,
+            kind: "cancellation-request",
+            bookingId: booking.id,
+            title: `Cancellation requested: ${booking.name}`,
+            sub: `${formatDate(booking.date)}${booking.time ? `, ${booking.time}` : ""}`,
+          });
+        });
+
+      bookings
         .filter((booking) => booking.status === "pending")
         .sort((a, b) => b.added.localeCompare(a.added))
         .forEach((booking) => {
@@ -159,6 +175,7 @@ export default function StaffNotificationBell({ adminRole }) {
 
   const unread = notifications.filter((item) => !readIds.has(item.id)).length;
   const compactNotifications = notifications.filter((item) => item.kind === "today").concat(
+    notifications.filter((item) => item.kind === "cancellation-request").slice(0, 6),
     notifications.filter((item) => item.kind === "pending").slice(0, 6),
     notifications.filter((item) => item.kind === "cancelled").slice(0, 4)
   );

@@ -11907,6 +11907,52 @@ html[data-theme="blue"] .bookingInputSpecial {
   background: var(--secondary);
 }
 
+.bookingDetailsModal .bookingCancellationNotice {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.bookingDetailsModal .bookingCancellationNotice.attention {
+  border-color: var(--button-danger-border);
+  background: var(--button-danger-background);
+}
+
+.bookingCancellationHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 14px;
+}
+
+.bookingCancellationHeading span {
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.bookingCancellationNotice.attention .bookingCancellationHeading span {
+  color: var(--button-danger-color);
+}
+
+.bookingCancellationNotice p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.bookingCancellationNotice small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .bookingDetailsModal .actionColumnFriendly {
   flex: 0 0 auto;
   display: flex;
@@ -11931,6 +11977,14 @@ html[data-theme="blue"] .bookingInputSpecial {
   line-height: 1.2;
   white-space: normal;
   transition: none;
+}
+
+.bookingDetailsModal .bookingCancellationActions {
+  align-items: stretch;
+}
+
+.bookingDetailsModal .bookingCancellationActions .patientActionBtn {
+  height: auto;
 }
 
 .bookingDetailsModal .actionColumnFriendly .patientActionBtn:hover:not(:disabled) {

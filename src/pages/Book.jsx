@@ -146,7 +146,6 @@ export default function Book() {
   const [agreedToPrivacyConsent, setAgreedToPrivacyConsent] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [recentlySubmitted, setRecentlySubmitted] = useState(false);
 
   const [datePageStart, setDatePageStart] = useState(() => getClinicDate());
   const [slotOptions, setSlotOptions] = useState([]);
@@ -156,15 +155,7 @@ export default function Book() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
   const [bookingStep, setBookingStep] = useState("info");
-  const [availabilityRefreshVersion, setAvailabilityRefreshVersion] = useState(0);
-  const availabilityRefreshTimer = useRef(null);
   const profileLoadRequest = useRef(0);
-
-  useEffect(() => () => {
-    if (availabilityRefreshTimer.current) {
-      window.clearTimeout(availabilityRefreshTimer.current);
-    }
-  }, []);
 
   const todayStr = getClinicDate();
   const lastBookingDate = getLatestBookingDate(todayStr);
@@ -211,7 +202,6 @@ export default function Book() {
 
       if (!u) {
         setLoadingProfile(false);
-        setRecentlySubmitted(false);
         setAgreedToPrivacyConsent(false);
         setSlotOptions([]);
         setBlockedRanges([]);
@@ -417,7 +407,7 @@ export default function Book() {
       cancelled = true;
       window.clearTimeout(requestTimer);
     };
-  }, [availabilityRefreshVersion, date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
+  }, [date, getBookingAvailability, selectedClosure, selectedDentistRecord, selectedServices, user]);
 
   function moveSuggestedDates(amount) {
     const nextStart = new Date(`${datePageStart}T00:00:00`);
@@ -644,32 +634,16 @@ export default function Book() {
         timeRange: bookingConfirmation.requestedTimeRange,
         notes: notes.trim(),
       };
-      const reservedStartMinutes = timeToMinutes(time);
-      const reservedEndMinutes = bookingConfirmation.requestedEnd;
-      const bookedRange = `${formatTimeLabel(time)}-${formatTimeLabel(minutesToTime(reservedEndMinutes))}`;
-      setSlotOptions((current) => current.map((slot) => {
-        const slotStart = timeToMinutes(slot.value);
-        const slotEnd = slotStart + BOOKING_SLOT_INTERVAL_MINUTES;
-        if (slotStart < reservedEndMinutes && slotEnd > reservedStartMinutes) {
-          return { ...slot, disabled: true, disabledReason: `Booked ${bookedRange}` };
-        }
-        return slot;
-      }));
-      setBlockedRanges((current) => [
-        ...current,
-        { start: time, end: minutesToTime(reservedEndMinutes), reason: "occupied" },
-      ]);
-      if (availabilityRefreshTimer.current) {
-        window.clearTimeout(availabilityRefreshTimer.current);
-      }
-      availabilityRefreshTimer.current = window.setTimeout(() => {
-        setAvailabilityRefreshVersion((current) => current + 1);
-        availabilityRefreshTimer.current = null;
-      }, 2200);
       setBookingConfirmation(null);
+      setSelectedServices([]);
+      setBracesType("");
+      setSelectedDentistId("");
+      setDate(initialDate);
+      setDatePageStart(initialDate);
+      setTime("");
+      setSlotOptions([]);
       setNotes("");
       setAgreedToPrivacyConsent(false);
-      setRecentlySubmitted(true);
       setBookingStep("info");
       notifySuccess(
         "Your request is waiting for admin approval.",
@@ -746,16 +720,6 @@ export default function Book() {
     && !savingProfile
   );
 
-  useEffect(() => {
-    if (!recentlySubmitted) return;
-
-    const timer = setTimeout(() => {
-      setRecentlySubmitted(false);
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [recentlySubmitted]);
-
   // Waiting for Firebase to tell us if someone is already signed in
   if (!authReady) {
     return (
@@ -807,7 +771,7 @@ export default function Book() {
 
   return (
     <>
-    <BookingLeaveGuard active={Boolean(user && !recentlySubmitted && (
+    <BookingLeaveGuard active={Boolean(user && (
       selectedServices.length || time || notes.trim() || date !== initialDate
     ))} />
     <div className="container bookingPage">
@@ -1270,7 +1234,7 @@ export default function Book() {
                 <button
                   type="submit"
                   className="btn btnShine bookingPrimaryBtn"
-                  disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || !availableSlots.length || recentlySubmitted || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
+                  disabled={!user || saving || !selectedServices.length || loadingAvailability || Boolean(availabilityError) || !availableSlots.length || isSunday(date) || Boolean(selectedClosure) || !selectedDentistId || !agreedToPrivacyConsent}
                 >
                   Review Appointment Details
                 </button>
