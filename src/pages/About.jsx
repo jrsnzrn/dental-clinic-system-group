@@ -10,16 +10,16 @@ import recep4 from "../assets/recep4.jpg";
 import CursorAura from "../components/CursorAura";
 
 const doctors = [
-  { name: "Dentist 1", role: "Dentist", photo: dentist1 },
-  { name: "Dentist 2", role: "Dentist", photo: dentist2 },
-  { name: "Dentist 3", role: "Dentist", photo: dentist3 },
+  { name: "Dentist 1", role: "Dentist", photo: dentist1, position: "center 30%" },
+  { name: "Dentist 2", role: "Dentist", photo: dentist2, position: "center 30%" },
+  { name: "Dentist 3", role: "Dentist", photo: dentist3, position: "center 38%" },
 ];
 
 const frontDesk = [
-  { name: "Recep 1", role: "Front Desk", photo: recep1 },
-  { name: "Recep 2", role: "Front Desk", photo: recep2 },
-  { name: "Recep 3", role: "Front Desk", photo: recep3 },
-  { name: "Recep 4", role: "Front Desk", photo: recep4 },
+  { name: "Recep 1", role: "Front Desk", photo: recep1, position: "center 38%" },
+  { name: "Recep 2", role: "Front Desk", photo: recep2, position: "center 38%" },
+  { name: "Recep 3", role: "Front Desk", photo: recep3, position: "center 38%" },
+  { name: "Recep 4", role: "Front Desk", photo: recep4, position: "center 38%" },
 ];
 
 const story = [
@@ -65,20 +65,18 @@ const privacy = [
 
 function TeamGroup({ label, people }) {
   return (
-    <div className="aboutTeamGroup">
-      <span className="detailLabel aboutTeamGroupLabel">{label}</span>
+    <div className={`aboutTeamGroup${label === "Dentists" ? " aboutTeamGroupDentists" : ""}`}>
+      <h3 className="aboutTeamGroupLabel">{label.toUpperCase()}</h3>
       <div className="aboutTeamGrid">
-        {people.map((person, i) => (
+        {people.map((person) => (
           <div
-            className="aboutTeamCard revealOnScroll"
-            style={{ "--d": `${i * 80}ms` }}
+            className="aboutTeamCard"
             key={person.name}
           >
             <div className="aboutTeamCardPhoto">
-              <img src={person.photo} alt={person.name} />
+              <img src={person.photo} alt={person.name} style={{ objectPosition: person.position }} />
             </div>
             <strong>{person.name}</strong>
-            <span className="detailLabel">{person.role}</span>
           </div>
         ))}
       </div>
@@ -88,10 +86,8 @@ function TeamGroup({ label, people }) {
 
 function TeamSection() {
   return (
-    <section className="aboutSection">
-      <h3 className="title">Meet the Team</h3>
-      <p className="sub">The dentists and front-desk staff who take care of you at every visit.</p>
-
+    <section className="aboutSection aboutTeamSection">
+      <h2 className="aboutTeamTitle">Meet the Team</h2>
       <TeamGroup label="Dentists" people={doctors} />
       <TeamGroup label="Front Desk" people={frontDesk} />
     </section>

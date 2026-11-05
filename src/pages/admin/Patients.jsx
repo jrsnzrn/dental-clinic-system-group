@@ -23,7 +23,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PatientPaymentReceipts from "../../components/PatientPaymentReceipts";
 import BackArrow from "../../components/BackArrow";
-import ToothNumberDisplay from "../../components/ToothNumberDisplay";
 import DentalTreatmentOverlay, { DentalProcedureLegend } from "../../components/DentalTreatmentOverlay";
 import ProcedureBadge from "../../components/ProcedureBadge";
 import EmptyState from "../../components/EmptyState";
@@ -65,8 +64,49 @@ const PATIENT_PHONE_ERROR = "Contact number must start with 09 and contain exact
 const TYPE_FILTERS = ["All", ...PATIENT_TYPES];
 const DENTAL_CHART_PROCEDURES = ["Restoration", "Extraction", "Dentures", "Crowns", "Root canal"];
 const EMPTY_CHART_PROCEDURE_DRAFT = { title: "", targetDate: "", instructions: "", createdAt: "" };
+const EMPTY_EXTRA_TOOTH_DRAFT = { name: "", title: "", instructions: "" };
 const MARK_DENTIST_TREATMENT_COMPLETE = httpsCallable(functions, "markDentistTreatmentComplete");
 const SYNC_DENTIST_PATIENT_ACCESS = httpsCallable(functions, "syncDentistPatientAccess");
+
+function getNextExtraToothId(extraTeeth) {
+  const usedIds = new Set(extraTeeth.map((tooth) => String(tooth.id || "")));
+  let sequence = 1;
+  while (usedIds.has(`EX-${String(sequence).padStart(2, "0")}`)) sequence += 1;
+  return `EX-${String(sequence).padStart(2, "0")}`;
+}
+
+function getProcedureDateValues(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return {
+    createdAt: date.toISOString(),
+    targetDate: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+  };
+}
+
+function formatDentalProcedureDate(entry) {
+  const value = entry.targetDate || entry.createdAt;
+  let date;
+  if (value && typeof value.toDate === "function") {
+    date = value.toDate();
+  } else if (value && typeof value === "object" && Number.isFinite(value.seconds)) {
+    date = new Date(value.seconds * 1000);
+  } else if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    date = new Date(year, month - 1, day);
+  } else {
+    date = new Date(value);
+  }
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function getProcedureToothNumbers(entry) {
+  const values = Array.isArray(entry.toothNumbers)
+    ? entry.toothNumbers
+    : String(entry.toothNumbers || "").split(",");
+  return values.map((value) => String(value || "").trim()).filter(Boolean);
+}
 
 function validatePatientDetails(patient) {
   const errors = {};
@@ -663,6 +703,7 @@ export default function Patients({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [chartProcedureHistory, setChartProcedureHistory] = useState([]);
+  const [chartExtraTeeth, setChartExtraTeeth] = useState([]);
   const [dentistDentalCharts, setDentistDentalCharts] = useState({});
   const [selectedTeeth, setSelectedTeeth] = useState([]);
   const [chartSelectionBeforeEdit, setChartSelectionBeforeEdit] = useState([]);
@@ -671,6 +712,8 @@ export default function Patients({
   const [isEditingDentalChart, setIsEditingDentalChart] = useState(false);
   const [savingDentalChart, setSavingDentalChart] = useState(false);
   const [pendingChartProcedures, setPendingChartProcedures] = useState([]);
+  const [pendingExtraTeeth, setPendingExtraTeeth] = useState([]);
+  const [extraToothDraft, setExtraToothDraft] = useState(EMPTY_EXTRA_TOOTH_DRAFT);
   const [chartProcedureDraft, setChartProcedureDraft] = useState(EMPTY_CHART_PROCEDURE_DRAFT);
   const [adminRole, setAdminRole] = useState(ROLES.ADMIN);
   const [loadingPatients, setLoadingPatients] = useState(true);
@@ -968,10 +1011,13 @@ export default function Patients({
       setDraft(getEmptyDraft());
       setIsEditing(false);
       setChartProcedureHistory([]);
+      setChartExtraTeeth([]);
       setSelectedTeeth([]);
       setIsEditingDentalChart(false);
       setSelectedChartTooth("");
       setPendingChartProcedures([]);
+      setPendingExtraTeeth([]);
+      setExtraToothDraft(EMPTY_EXTRA_TOOTH_DRAFT);
       setChartProcedureDraft(EMPTY_CHART_PROCEDURE_DRAFT);
       setTreatmentDraft(emptyTreatmentDraft());
       setCareDraft(emptyCareDraft());
@@ -983,6 +1029,8 @@ export default function Patients({
     setSelectedChartTooth("");
     setIsEditingDentalChart(false);
     setPendingChartProcedures([]);
+    setPendingExtraTeeth([]);
+    setExtraToothDraft(EMPTY_EXTRA_TOOTH_DRAFT);
     setChartProcedureDraft(EMPTY_CHART_PROCEDURE_DRAFT);
     setDraft(buildDraftFromPatient(selectedPatient));
     setTreatmentDraft(emptyTreatmentDraft());
@@ -997,17 +1045,13 @@ export default function Patients({
         const chartPlans = Array.isArray(chartData.patientTreatmentPlans)
           ? chartData.patientTreatmentPlans
           : [];
+        const chartExtras = Array.isArray(chartData.extraTeeth) ? chartData.extraTeeth : [];
         setChartProcedureHistory(chartPlans);
-        const recordedTeeth = [
-          ...(selectedPatient.treatmentPlans || []),
-          ...chartPlans,
-        ].flatMap((plan) => plan.toothNumbers || []);
-        const nextSelectedTeeth = [...new Set(recordedTeeth.map(String))];
-        setSelectedTeeth(nextSelectedTeeth);
-        setSelectedChartTooth(nextSelectedTeeth[0] || "");
+        setChartExtraTeeth(chartExtras);
       } catch (error) {
         console.error("The patient's dental chart could not load:", error);
         setChartProcedureHistory([]);
+        setChartExtraTeeth([]);
         setNotice({ type: "error", text: "Patient details loaded, but the dental chart could not be opened. Please refresh or contact the administrator." });
       }
     }
@@ -1148,18 +1192,34 @@ export default function Patients({
 
   function focusChartTooth(tooth) {
     setSelectedChartTooth(tooth);
-    setSelectedTeeth((current) => current.includes(tooth) ? current : [...current, tooth]);
-    const pending = pendingChartProcedures.find((entry) => entry.toothNumbers[0] === tooth);
-    setChartProcedureDraft(pending ? { ...pending } : { ...EMPTY_CHART_PROCEDURE_DRAFT });
+    setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
   }
 
   function toggleChartTooth(tooth) {
+    if (selectedTeeth.includes(tooth)) {
+      const nextSelectedTeeth = selectedTeeth.filter((selectedTooth) => selectedTooth !== tooth);
+      setSelectedTeeth(nextSelectedTeeth);
+      setSelectedChartTooth((current) => current === tooth ? nextSelectedTeeth.at(-1) || "" : current);
+      setPendingChartProcedures((current) => current.filter(
+        (entry) => entry.toothType === "extra" || entry.toothNumbers?.[0] !== tooth
+      ));
+      setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
+      return;
+    }
+
+    setSelectedTeeth((current) => [...current, tooth]);
     setSelectedChartTooth(tooth);
-    setSelectedTeeth((current) => current.includes(tooth)
-      ? current.filter((selectedTooth) => selectedTooth !== tooth)
-      : [...current, tooth]);
-    const pending = pendingChartProcedures.find((entry) => entry.toothNumbers[0] === tooth);
-    setChartProcedureDraft(pending ? { ...pending } : { ...EMPTY_CHART_PROCEDURE_DRAFT });
+    setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
+  }
+
+  function removeSelectedChartTooth(tooth) {
+    const nextSelectedTeeth = selectedTeeth.filter((selectedTooth) => selectedTooth !== tooth);
+    setSelectedTeeth(nextSelectedTeeth);
+    setSelectedChartTooth((current) => current === tooth ? nextSelectedTeeth.at(-1) || "" : current);
+    setPendingChartProcedures((current) => current.filter(
+      (entry) => entry.toothType === "extra" || entry.toothNumbers?.[0] !== tooth
+    ));
+    setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
   }
 
   function handleChartSurfaceClick(event) {
@@ -1176,87 +1236,99 @@ export default function Patients({
     }
   }
 
-  function addOrUpdateChartProcedure() {
-    if (!selectedChartTooth || !TOOTH_IDS.includes(selectedChartTooth)) {
-      setNotice({ type: "error", text: "Select a tooth on the dental chart first." });
+  function addExtraTooth() {
+    const name = extraToothDraft.name.trim();
+    const title = extraToothDraft.title.trim();
+    const instructions = extraToothDraft.instructions.trim();
+    if (!name || !title) {
+      setNotice({ type: "error", text: "Enter a field name and procedure for the extra tooth." });
       return;
     }
-    if (!selectedTeeth.includes(selectedChartTooth)) {
-      setNotice({ type: "error", text: "Select the active tooth before adding its procedure." });
+    const duplicate = pendingChartProcedures.some(
+      (entry) => entry.toothType === "extra" &&
+        entry.extraToothName === name &&
+        entry.title === title &&
+        entry.instructions === instructions
+    );
+    if (duplicate) {
+      setNotice({ type: "error", text: "This extra-tooth procedure is already ready to save." });
+      return;
+    }
+
+    const draftKey = `extra-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const pendingTooth = {
+      draftKey,
+      id: getNextExtraToothId([...chartExtraTeeth, ...pendingExtraTeeth]),
+      name,
+    };
+    setPendingExtraTeeth((current) => [...current, pendingTooth]);
+    setPendingChartProcedures((current) => [...current, {
+      title,
+      targetDate: "",
+      status: "Completed",
+      instructions,
+      patientSummary: "",
+      beforeImageUrl: "",
+      afterImageUrl: "",
+      patientVisible: true,
+      toothType: "extra",
+      extraToothDraftKey: draftKey,
+      extraToothName: name,
+      createdAt: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    }]);
+    setExtraToothDraft(EMPTY_EXTRA_TOOTH_DRAFT);
+    setNotice(null);
+  }
+
+  function addOrUpdateChartProcedure() {
+    if (!selectedChartTooth || !TOOTH_IDS.includes(selectedChartTooth) || !selectedTeeth.includes(selectedChartTooth)) {
+      setNotice({ type: "error", text: "Select a tooth on the FDI chart before assigning a procedure." });
       return;
     }
     if (!DENTAL_CHART_PROCEDURES.includes(chartProcedureDraft.title)) {
       setNotice({ type: "error", text: "Select a procedure from the list." });
       return;
     }
-    if (!chartProcedureDraft.targetDate) {
-      setNotice({ type: "error", text: "Enter a procedure date." });
+    const duplicate = pendingChartProcedures.some(
+      (entry) => entry.toothType !== "extra" &&
+        entry.toothNumbers?.[0] === selectedChartTooth &&
+        entry.title === chartProcedureDraft.title
+    );
+    if (duplicate) {
+      setNotice({ type: "error", text: "This procedure is already assigned to the selected tooth." });
       return;
     }
 
-    const currentEntry = pendingChartProcedures.find(
-      (entry) => entry.toothNumbers[0] === selectedChartTooth
-    );
-    let createdAt = currentEntry?.createdAt || chartProcedureDraft.createdAt || new Date().toISOString();
-    const usedCreatedAt = new Set([
-      ...chartProcedureHistory.map((entry) => entry.createdAt),
-      ...(selectedPatient?.treatmentPlans || []).map((entry) => entry.createdAt),
-      ...pendingChartProcedures
-        .filter((entry) => entry.toothNumbers[0] !== selectedChartTooth)
-        .map((entry) => entry.createdAt),
-    ]);
-    while (usedCreatedAt.has(createdAt)) {
-      createdAt = new Date(Date.parse(createdAt) + 1).toISOString();
-    }
-    const nextEntry = {
+    const draftKey = `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setPendingChartProcedures((current) => [...current, {
       title: chartProcedureDraft.title,
-      targetDate: chartProcedureDraft.targetDate,
+      targetDate: "",
       status: "Completed",
-      instructions: chartProcedureDraft.instructions.trim(),
+      instructions: "",
       patientSummary: "",
       beforeImageUrl: "",
       afterImageUrl: "",
       patientVisible: true,
       toothNumbers: [selectedChartTooth],
-      createdAt,
-    };
-    setPendingChartProcedures((current) => currentEntry
-      ? current.map((entry) => entry.toothNumbers[0] === selectedChartTooth ? nextEntry : entry)
-      : [...current, nextEntry]);
-    setChartProcedureDraft(nextEntry);
+      createdAt: draftKey,
+    }]);
+    setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
     setNotice(null);
-  }
-
-  function removePendingChartProcedure(tooth) {
-    setPendingChartProcedures((current) => current.filter((entry) => entry.toothNumbers[0] !== tooth));
-    if (selectedChartTooth === tooth) {
-      setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
-    }
   }
 
   async function saveDentalChart() {
     if (!selectedPatient?.id || !isEditingDentalChart || savingDentalChart) return;
     if (pendingChartProcedures.some((entry) =>
-      !TOOTH_IDS.includes(entry.toothNumbers?.[0]) ||
-      !DENTAL_CHART_PROCEDURES.includes(entry.title) ||
-      !entry.targetDate
+      entry.toothType === "extra"
+        ? (!entry.extraToothId && !entry.extraToothDraftKey) || !entry.title?.trim()
+        : !TOOTH_IDS.includes(entry.toothNumbers?.[0]) ||
+          !DENTAL_CHART_PROCEDURES.includes(entry.title)
     )) {
-      setNotice({ type: "error", text: "Every pending procedure must have a tooth, procedure, and date." });
+      setNotice({ type: "error", text: "Every procedure must have a tooth and a valid procedure." });
       return;
     }
-    const currentPendingEntry = pendingChartProcedures.find(
-      (entry) => entry.toothNumbers[0] === selectedChartTooth
-    );
-    const hasUnlistedFormChanges = Boolean(
-      chartProcedureDraft.title || chartProcedureDraft.targetDate || chartProcedureDraft.instructions
-    ) && (
-      !currentPendingEntry ||
-      chartProcedureDraft.title !== currentPendingEntry.title ||
-      chartProcedureDraft.targetDate !== currentPendingEntry.targetDate ||
-      chartProcedureDraft.instructions !== currentPendingEntry.instructions
-    );
-    if (hasUnlistedFormChanges) {
-      setNotice({ type: "error", text: "Add or update the selected tooth procedure in the list before saving changes." });
+    if (chartProcedureDraft.title || extraToothDraft.name || extraToothDraft.title || extraToothDraft.instructions) {
+      setNotice({ type: "error", text: "Assign or add the procedure before saving changes." });
       return;
     }
 
@@ -1268,24 +1340,91 @@ export default function Patients({
       let nextHistory = [];
       await runTransaction(db, async (transaction) => {
         const chartSnap = await transaction.get(chartRef);
-        const existingHistory = chartSnap.exists() && Array.isArray(chartSnap.data().patientTreatmentPlans)
-          ? chartSnap.data().patientTreatmentPlans
+        const chartData = chartSnap.exists() ? chartSnap.data() : {};
+        const existingHistory = Array.isArray(chartData.patientTreatmentPlans)
+          ? chartData.patientTreatmentPlans
           : [];
-        const historyByCreatedAt = new Set(existingHistory.map((entry) => entry.createdAt).filter(Boolean));
+        const usedCreatedAt = new Set([
+          ...existingHistory.map((entry) => entry.createdAt),
+          ...(selectedPatient.treatmentPlans || []).map((entry) => entry.createdAt),
+        ].filter(Boolean));
+        const savedProcedureKeys = new Set(existingHistory.map((entry) => entry.procedureKey).filter(Boolean));
+        const existingExtraTeeth = Array.isArray(chartData.extraTeeth) ? chartData.extraTeeth : [];
+        const nextExtraTeeth = [...existingExtraTeeth];
+        const extraToothIdsByDraftKey = new Map();
+        pendingExtraTeeth.forEach((tooth) => {
+          const existingExtraTooth = nextExtraTeeth.find((entry) => entry.creationKey === tooth.draftKey);
+          if (existingExtraTooth) {
+            extraToothIdsByDraftKey.set(tooth.draftKey, existingExtraTooth.id);
+            return;
+          }
+          const id = getNextExtraToothId(nextExtraTeeth);
+          nextExtraTeeth.push({
+            id,
+            name: tooth.name,
+            creationKey: tooth.draftKey,
+          });
+          extraToothIdsByDraftKey.set(tooth.draftKey, id);
+        });
+
         nextHistory = [...existingHistory];
         pendingChartProcedures.forEach((entry) => {
-          if (historyByCreatedAt.has(entry.createdAt)) return;
-          nextHistory.push(entry);
-          historyByCreatedAt.add(entry.createdAt);
+          const procedureKey = entry.createdAt;
+          if (savedProcedureKeys.has(procedureKey)) return;
+          let saveDate = new Date();
+          let dateValues = getProcedureDateValues(saveDate);
+          while (usedCreatedAt.has(dateValues.createdAt)) {
+            saveDate = new Date(saveDate.getTime() + 1);
+            dateValues = getProcedureDateValues(saveDate);
+          }
+          const savedProcedure = { ...entry, ...dateValues, procedureKey };
+          if (savedProcedure.toothType === "extra") {
+            const extraToothId = savedProcedure.extraToothDraftKey
+              ? extraToothIdsByDraftKey.get(savedProcedure.extraToothDraftKey)
+              : savedProcedure.extraToothId;
+            const extraTooth = nextExtraTeeth.find((tooth) => tooth.id === extraToothId);
+            if (!extraTooth) {
+              throw new Error("The selected extra tooth could not be linked to its procedure.");
+            }
+            const savedEntry = { ...savedProcedure, extraToothId };
+            delete savedEntry.extraToothDraftKey;
+            nextHistory.push(savedEntry);
+          } else {
+            nextHistory.push(savedProcedure);
+          }
+          usedCreatedAt.add(dateValues.createdAt);
+          savedProcedureKeys.add(procedureKey);
         });
-        transaction.set(chartRef, {
+        const chartUpdate = {
           uid: selectedPatient.uid || "",
           patientName: selectedPatient.name || "",
           patientEmail: selectedPatient.email || "",
-          authorizedDentistUids: chartSnap.data()?.authorizedDentistUids || selectedPatient.authorizedDentistUids || [],
+          authorizedDentistUids: chartData.authorizedDentistUids || selectedPatient.authorizedDentistUids || [],
           patientTreatmentPlans: nextHistory,
-        }, { merge: true });
+        };
+        if (pendingExtraTeeth.length) chartUpdate.extraTeeth = nextExtraTeeth;
+        transaction.set(chartRef, chartUpdate, { merge: true });
       });
+
+      const savedStandardToothNumbers = new Set(
+        pendingChartProcedures
+          .filter((entry) => entry.toothType !== "extra" &&
+            nextHistory.some((savedEntry) => savedEntry.procedureKey === entry.createdAt))
+          .flatMap(getProcedureToothNumbers)
+      );
+      if (savedStandardToothNumbers.size) {
+        const remainingSelectedTeeth = selectedTeeth.filter(
+          (tooth) => !savedStandardToothNumbers.has(tooth)
+        );
+        setSelectedTeeth((current) => current.filter(
+          (tooth) => !savedStandardToothNumbers.has(tooth)
+        ));
+        setSelectedChartTooth((current) =>
+          savedStandardToothNumbers.has(current)
+            ? remainingSelectedTeeth.at(-1) || ""
+            : current
+        );
+      }
 
       await logAdminAction({
         action: "save_dental_chart",
@@ -1295,11 +1434,19 @@ export default function Patients({
         details: {
           selectedTeeth,
           procedureCount: pendingChartProcedures.length,
+          extraToothCount: pendingExtraTeeth.length,
         },
       });
 
       setChartProcedureHistory(nextHistory);
+      if (pendingExtraTeeth.length) {
+        const chartSnap = await getDoc(doc(db, "dentalCharts", chartId));
+        const savedExtraTeeth = chartSnap.data()?.extraTeeth;
+        setChartExtraTeeth(Array.isArray(savedExtraTeeth) ? savedExtraTeeth : []);
+      }
       setPendingChartProcedures([]);
+      setPendingExtraTeeth([]);
+      setExtraToothDraft(EMPTY_EXTRA_TOOTH_DRAFT);
       setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
       setIsEditingDentalChart(false);
       await load();
@@ -1317,21 +1464,22 @@ export default function Patients({
     setChartSelectionBeforeEdit([...selectedTeeth]);
     setChartToothBeforeEdit(selectedChartTooth);
     setPendingChartProcedures([]);
+    setPendingExtraTeeth([]);
+    setExtraToothDraft(EMPTY_EXTRA_TOOTH_DRAFT);
     setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
     setIsEditingDentalChart(true);
     setNotice(null);
   }
 
   function cancelEditingDentalChart() {
-    const hasDraftProcedure = Boolean(
-      chartProcedureDraft.title ||
-      chartProcedureDraft.targetDate ||
-      chartProcedureDraft.instructions
+    const hasDraftProcedure = Boolean(chartProcedureDraft.title);
+    const hasExtraToothDraft = Boolean(
+      extraToothDraft.name || extraToothDraft.title || extraToothDraft.instructions
     );
     const hasChangedSelection = [...selectedTeeth].sort().join(",")
       !== [...chartSelectionBeforeEdit].sort().join(",");
     if (
-      (pendingChartProcedures.length || hasDraftProcedure || hasChangedSelection) &&
+      (pendingChartProcedures.length || pendingExtraTeeth.length || hasDraftProcedure || hasExtraToothDraft || hasChangedSelection) &&
       !window.confirm("Discard your unsaved dental chart changes?")
     ) {
       return;
@@ -1340,6 +1488,8 @@ export default function Patients({
     setSelectedTeeth(chartSelectionBeforeEdit);
     setSelectedChartTooth(chartToothBeforeEdit);
     setPendingChartProcedures([]);
+    setPendingExtraTeeth([]);
+    setExtraToothDraft(EMPTY_EXTRA_TOOTH_DRAFT);
     setChartProcedureDraft({ ...EMPTY_CHART_PROCEDURE_DRAFT });
     setIsEditingDentalChart(false);
     setNotice(null);
@@ -1665,11 +1815,23 @@ export default function Patients({
   const isPendingProcedure = (plan) => ["planned", "pending", "in progress"].includes(
     String(plan.status || "Planned").trim().toLowerCase()
   );
-  const persistedPendingProcedures = savedProcedureHistory.filter(isPendingProcedure);
-  const displayedPendingProcedures = [...persistedPendingProcedures, ...pendingChartProcedures];
   const recordedProcedureHistory = savedProcedureHistory.filter((plan) => !isPendingProcedure(plan));
   const chartDisplayProcedures = [...recordedProcedureHistory, ...pendingChartProcedures];
   const chartTreatmentByTooth = getLatestToothTreatments(chartDisplayProcedures);
+  const selectedToothRows = selectedTeeth
+    .filter((tooth) => TOOTH_IDS.includes(tooth))
+    .map((tooth) => {
+      const assignedProcedure = [...pendingChartProcedures].reverse().find(
+        (entry) => entry.toothType !== "extra" && entry.toothNumbers?.[0] === tooth
+      ) || [...recordedProcedureHistory].reverse().find(
+        (entry) => entry.toothType !== "extra" && getProcedureToothNumbers(entry).includes(tooth)
+      );
+      return { tooth, procedure: assignedProcedure?.title || "—" };
+    });
+  const standardProcedureHistoryRows = recordedProcedureHistory
+    .filter((entry) => entry.toothType !== "extra")
+    .flatMap((entry) => getProcedureToothNumbers(entry).map((tooth) => ({ entry, tooth })));
+  const extraProcedureHistory = recordedProcedureHistory.filter((entry) => entry.toothType === "extra");
   const patientPage = useRecordPagination(filteredPatientCards, JSON.stringify([search, typeFilter]));
   const dentistPage = useRecordPagination(visibleDentistAppointments, JSON.stringify([dentistSearch, dentistPatientTypeFilter, completedOnly]));
   const isDentist = adminRole === ROLES.DENTIST;
@@ -2268,16 +2430,26 @@ export default function Patients({
                     {canEditDentalChart ? (
                       isEditingDentalChart ? (
                         <div className="formActions dentalChartActions">
-                          <button className="btn btnSuccess" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
-                            {savingDentalChart ? "Saving..." : "Save Changes"}
+                          <button className="btn btnPrimary dentalChartActionButton" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 7 10 17l-5-5" />
+                            </svg>
+                            {savingDentalChart ? "Updating..." : "Update"}
                           </button>
-                          <button className="btn btnSecondary" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
+                          <button className="btn btnSecondary dentalChartActionButton dentalChartCancelButton" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="m18 6-12 12M6 6l12 12" />
+                            </svg>
                             Cancel
                           </button>
                         </div>
                       ) : (
-                        <button className="btn btnPrimary" type="button" onClick={startEditingDentalChart}>
-                          Edit Mode
+                        <button className="btn btnPrimary dentalChartActionButton dentalChartEditButton" type="button" onClick={startEditingDentalChart}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m18 2 4 4-14 14-6 2 2-6Z" />
+                            <path d="m16 4 4 4" />
+                          </svg>
+                          Edit Chart
                         </button>
                       )
                     ) : (
@@ -2287,9 +2459,15 @@ export default function Patients({
 
                   {selectedPatient.uid || selectedPatient.id ? (
                     <>
-                    <div className="chartLayout dentalChartLayout">
+                    <div
+                      className="chartLayout dentalChartLayout"
+                      style={{
+                        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))",
+                        gridTemplateAreas: "none",
+                      }}
+                    >
                       <div className="chartCol">
-                        <div className="toothViewer">
+                        <div className="toothViewer" style={{ gridArea: "auto" }}>
                           <div className="dentalChartSectionHeader">
                             <h3 className="dentalChartSectionTitle">Dental Numbering System</h3>
                             <span className="countLabel">FDI</span>
@@ -2298,7 +2476,7 @@ export default function Patients({
                             <div
                               className="toothImageSurface"
                               aria-label={isEditingDentalChart ? "Select a tooth for its procedure" : "Dental chart in view mode"}
-                              onClick={isEditingDentalChart ? handleChartSurfaceClick : undefined}
+                              onClick={isEditingDentalChart && !savingDentalChart ? handleChartSurfaceClick : undefined}
                             >
                               <img className="toothReferenceImage" src={DENTAL_CHART_IMAGE} alt="Dental numbering system" />
                               <div className="toothViewerOverlay">
@@ -2314,7 +2492,7 @@ export default function Patients({
                                       left: TOOTH_MARKERS[tooth]?.left,
                                       "--treatment-color": chartTreatmentByTooth.get(tooth)?.color,
                                     }}
-                                    disabled={!isEditingDentalChart}
+                                    disabled={!isEditingDentalChart || savingDentalChart}
                                     tabIndex={isEditingDentalChart ? 0 : -1}
                                     aria-pressed={selectedTeeth.includes(tooth)}
                                     aria-label={`Tooth ${tooth} ${TOOTH_LABELS[tooth]}`}
@@ -2325,81 +2503,60 @@ export default function Patients({
                             <DentalProcedureLegend />
                           </div>
                         </div>
-                        <section className="dentistEditorSection dentalChartSection pendingProceduresSection" aria-labelledby="pendingProcedureTitle">
-                            <div className="blockHead">
-                              <h3 className="blockTitle" id="pendingProcedureTitle">Pending Procedures</h3>
-                              <span className="countLabel">{displayedPendingProcedures.length}</span>
-                            </div>
-                            {displayedPendingProcedures.length ? (
-                              <div className="patientTableWrap dentalChartTableWrap">
-                                <table className="patientTable dentalChartTable">
-                                  <thead>
-                                    <tr>
-                                      <th>Tooth Number</th>
-                                      <th>Procedure</th>
-                                      <th>Scheduled Date</th>
-                                      <th>Notes</th>
-                                      {isEditingDentalChart ? <th>Actions</th> : null}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    <PaginatedRecords items={displayedPendingProcedures} tableColumns={isEditingDentalChart ? 5 : 4} resetKey={selectedPatientId}>{(entry, index) => {
-                                      const tooth = entry.toothNumbers?.[0] || "—";
-                                      const isDraft = pendingChartProcedures.some((draft) => draft.createdAt === entry.createdAt);
-                                      return (
-                                        <tr key={entry.createdAt || `${entry.title}-${index}`} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
-                                          <td data-label="Tooth Number"><ToothNumberDisplay toothNumber={tooth} /></td>
-                                          <td data-label="Procedure">{entry.title}</td>
-                                          <td data-label="Scheduled Date">{entry.targetDate}</td>
-                                          <td data-label="Notes">{entry.instructions || "—"}</td>
-                                          {isEditingDentalChart ? (
-                                            <td data-label="Actions">
-                                              {isDraft ? (
-                                                <div className="itemActions">
-                                                  <button className="btn btnSmall btnSecondary" type="button" onClick={() => focusChartTooth(tooth)}>
-                                                    Edit
-                                                  </button>
-                                                  <button className="btn btnSmall btnDanger" type="button" onClick={() => removePendingChartProcedure(tooth)}>
-                                                    Remove
-                                                  </button>
-                                                </div>
-                                              ) : "—"}
-                                            </td>
-                                          ) : null}
-                                        </tr>
-                                      );
-                                    }}</PaginatedRecords>
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <p className="dentalChartEmpty">No pending procedures.</p>
-                            )}
-                        </section>
                       </div>
 
-                      <div className="chartForm">
-                        {isEditingDentalChart ? (
-                          <div className="formActions">
-                            <button className="btn btnSuccess" type="button" onClick={saveDentalChart} disabled={savingDentalChart}>
-                              {savingDentalChart ? "Saving..." : "Update"}
-                            </button>
-                            <button className="btn btnSecondary" type="button" onClick={cancelEditingDentalChart} disabled={savingDentalChart}>
-                              Cancel
-                            </button>
+                      <div className="chartForm" style={{ gridArea: "auto" }}>
+                        <section className="dentistEditorSection dentalChartSection procedureHistorySection" aria-labelledby="selectedTeethTitle">
+                          <div className="dentalChartSectionHeader">
+                            <h3 className="dentalChartSectionTitle" id="selectedTeethTitle">Selected Teeth and Procedures</h3>
+                            <span className="countLabel">{selectedToothRows.length}</span>
                           </div>
-                        ) : null}
-                        {isEditingDentalChart ? (
-                          <>
-                            <div className="infoBlock dentalChartProcedureForm">
-                              <span className="detailLabel">Selected Tooth and Procedure</span>
-                              <div className="field">
-                                <span className="fieldLabel">Selected Tooth</span>
-                                <p className="itemMeta">
-                                  <strong>{selectedChartTooth || "Select a tooth"}</strong>
-                                  {selectedChartTooth ? ` · ${TOOTH_LABELS[selectedChartTooth]}` : ""}
-                                </p>
-                              </div>
+                          {selectedToothRows.length ? (
+                            <div className="patientTableWrap dentalChartTableWrap">
+                              <table className="patientTable dentalChartTable">
+                                <thead>
+                                  <tr>
+                                    <th>FDI No.</th>
+                                    <th>Name of Tooth</th>
+                                    <th>Procedure</th>
+                                    {isEditingDentalChart ? <th>Action</th> : null}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {selectedToothRows.map(({ tooth, procedure }) => (
+                                    <tr key={tooth} className={selectedChartTooth === tooth ? "selectedRecord" : ""}>
+                                      <td data-label="FDI No.">
+                                        {isEditingDentalChart ? (
+                                          <button className="btn btnSmall btnSecondary" type="button" onClick={() => focusChartTooth(tooth)} disabled={savingDentalChart}>
+                                            {tooth}
+                                          </button>
+                                        ) : tooth}
+                                      </td>
+                                      <td data-label="Name of Tooth">{TOOTH_LABELS[tooth] || "—"}</td>
+                                      <td data-label="Procedure">{procedure}</td>
+                                      {isEditingDentalChart ? (
+                                        <td data-label="Action">
+                                          <button
+                                            className="btn btnSmall btnSecondary"
+                                            type="button"
+                                            onClick={() => removeSelectedChartTooth(tooth)}
+                                            aria-label={`Remove tooth ${tooth} from selection`}
+                                            disabled={savingDentalChart}
+                                          >
+                                            ×
+                                          </button>
+                                        </td>
+                                      ) : null}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="dentalChartEmpty">Select a tooth on the chart to assign a procedure.</p>
+                          )}
+                          {isEditingDentalChart ? (
+                            <div className="dentalChartProcedureForm">
                               <label className="field">
                                 <span className="fieldLabel">Procedure</span>
                                 <select
@@ -2414,69 +2571,150 @@ export default function Patients({
                                   ))}
                                 </select>
                               </label>
+                              <div className="formActions">
+                                <button
+                                  className="btn btnPrimary dentalChartActionButton"
+                                  type="button"
+                                  onClick={addOrUpdateChartProcedure}
+                                  disabled={!selectedChartTooth || savingDentalChart}
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 5v14M5 12h14" />
+                                  </svg>
+                                  Assign Procedure
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </section>
+
+                        {isEditingDentalChart ? (
+                          <section className="dentistEditorSection dentalChartSection procedureHistorySection" aria-labelledby="extraToothTitle">
+                            <h3 className="dentalChartSectionTitle" id="extraToothTitle">Extra Tooth</h3>
+                            <div className="dentalChartProcedureForm">
                               <label className="field">
-                                <span className="fieldLabel">Procedure Date</span>
+                                <span className="fieldLabel">Field Name</span>
                                 <input
                                   className="input"
-                                  type="date"
-                                  required
-                                  value={chartProcedureDraft.targetDate}
-                                  onChange={(event) => setChartProcedureDraft((current) => ({ ...current, targetDate: event.target.value }))}
+                                  value={extraToothDraft.name}
+                                  onChange={(event) => setExtraToothDraft((current) => ({ ...current, name: event.target.value }))}
+                                  placeholder="Supernumerary tooth"
                                 />
                               </label>
                               <label className="field">
-                                <span className="fieldLabel">Procedure Notes (optional)</span>
+                                <span className="fieldLabel">Procedure</span>
+                                <input
+                                  className="input"
+                                  value={extraToothDraft.title}
+                                  onChange={(event) => setExtraToothDraft((current) => ({ ...current, title: event.target.value }))}
+                                  placeholder="Enter procedure"
+                                />
+                              </label>
+                              <label className="field">
+                                <span className="fieldLabel">Notes (optional)</span>
                                 <textarea
                                   className="input"
                                   rows={3}
-                                  value={chartProcedureDraft.instructions}
-                                  onChange={(event) => setChartProcedureDraft((current) => ({ ...current, instructions: event.target.value }))}
+                                  value={extraToothDraft.instructions}
+                                  onChange={(event) => setExtraToothDraft((current) => ({ ...current, instructions: event.target.value }))}
                                 />
                               </label>
                               <div className="formActions">
-                                <button className="btn btnSuccess" type="button" onClick={addOrUpdateChartProcedure}>
+                                <button className="btn btnPrimary dentalChartActionButton" type="button" onClick={addExtraTooth} disabled={savingDentalChart}>
+                                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 5v14M5 12h14" />
+                                  </svg>
                                   Add Procedure
                                 </button>
                               </div>
                             </div>
-                          </>
+                            {pendingExtraTeeth.length ? (
+                              <div className="patientTableWrap dentalChartTableWrap">
+                                <table className="patientTable dentalChartTable">
+                                  <thead>
+                                    <tr><th>Field Name</th><th>Procedure</th><th>Notes</th></tr>
+                                  </thead>
+                                  <tbody>
+                                    {pendingExtraTeeth.map((tooth) => {
+                                      const entry = pendingChartProcedures.find(
+                                        (procedure) => procedure.extraToothDraftKey === tooth.draftKey
+                                      );
+                                      return (
+                                        <tr key={tooth.draftKey}>
+                                          <td data-label="Field Name">{tooth.name}</td>
+                                          <td data-label="Procedure">{entry?.title || "—"}</td>
+                                          <td data-label="Notes">{entry?.instructions || "—"}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : null}
+                          </section>
                         ) : null}
-                        <section className="dentistEditorSection dentalChartSection procedureHistorySection" aria-labelledby="procedureHistoryTitle">
+
+                        <section className="dentistEditorSection dentalChartSection procedureHistorySection" aria-labelledby="standardHistoryTitle">
                           <div className="dentalChartSectionHeader">
-                            <h3 className="dentalChartSectionTitle" id="procedureHistoryTitle">Procedure History</h3>
-                            <span className="countLabel">{recordedProcedureHistory.length}</span>
+                            <h3 className="dentalChartSectionTitle" id="standardHistoryTitle">Tooth Procedures History (Standard)</h3>
+                            <span className="countLabel">{standardProcedureHistoryRows.length}</span>
                           </div>
-                          {recordedProcedureHistory.length ? (
+                          {standardProcedureHistoryRows.length ? (
                             <div className="patientTableWrap dentalChartTableWrap">
                               <table className="patientTable dentalChartTable">
                                 <thead>
-                                  <tr>
-                                    <th>TOOTH NUMBER</th>
-                                    <th>PROCEDURE</th>
-                                    <th>PROCEDURE DATE</th>
-                                    <th>PROCEDURE NOTES</th>
-                                  </tr>
+                                  <tr><th>Date</th><th>FDI No.</th><th>Name of Tooth</th><th>Procedure</th></tr>
                                 </thead>
                                 <tbody>
-                                  <PaginatedRecords items={recordedProcedureHistory} tableColumns={4} resetKey={selectedPatientId}>{(entry, index) => (
-                                    <tr key={`${entry.createdAt || entry.title}-${index}`}>
-                                      <td data-label="TOOTH NUMBER">
-                                        <ToothNumberDisplay toothNumbers={entry.toothNumbers} procedure={entry.title} />
-                                      </td>
-                                      <td data-label="PROCEDURE"><ProcedureBadge procedure={entry.title} /></td>
-                                      <td data-label="PROCEDURE DATE">{entry.targetDate || "—"}</td>
-                                      <td data-label="PROCEDURE NOTES">{entry.instructions || "—"}</td>
-                                    </tr>
-                                  )}</PaginatedRecords>
+                                  <PaginatedRecords items={standardProcedureHistoryRows} tableColumns={4} resetKey={selectedPatientId}>
+                                    {({ entry, tooth }, index) => (
+                                      <tr key={`${entry.createdAt || entry.title}-${tooth}-${index}`}>
+                                        <td data-label="Date">{formatDentalProcedureDate(entry)}</td>
+                                        <td data-label="FDI No.">{tooth}</td>
+                                        <td data-label="Name of Tooth">{TOOTH_LABELS[tooth] || "—"}</td>
+                                        <td data-label="Procedure"><ProcedureBadge procedure={entry.title} /></td>
+                                      </tr>
+                                    )}
+                                  </PaginatedRecords>
                                 </tbody>
                               </table>
                             </div>
-                          ) : (
-                            <div className="emptyBlock">
-                              <strong>No procedures recorded</strong>
-                              <p>Saved procedures will appear here.</p>
+                          ) : <p className="dentalChartEmpty">No standard tooth procedures recorded.</p>}
+                        </section>
+
+                        <section className="dentistEditorSection dentalChartSection procedureHistorySection" aria-labelledby="extraHistoryTitle">
+                          <div className="dentalChartSectionHeader">
+                            <h3 className="dentalChartSectionTitle" id="extraHistoryTitle">Extra Tooth Procedures History</h3>
+                            <span className="countLabel">{extraProcedureHistory.length}</span>
+                          </div>
+                          {extraProcedureHistory.length ? (
+                            <div className="patientTableWrap dentalChartTableWrap">
+                              <table className="patientTable dentalChartTable">
+                                <thead>
+                                  <tr><th>Date</th><th>Field Name</th><th>Procedure</th><th>Notes</th></tr>
+                                </thead>
+                                <tbody>
+                                  <PaginatedRecords items={extraProcedureHistory} tableColumns={4} resetKey={selectedPatientId}>
+                                    {(entry, index) => {
+                                      const extraTooth = chartExtraTeeth.find((tooth) => tooth.id === entry.extraToothId);
+                                      return (
+                                        <tr key={`${entry.createdAt || entry.title}-${index}`}>
+                                          <td data-label="Date">{formatDentalProcedureDate(entry)}</td>
+                                            <td data-label="Field Name">
+                                              {entry.extraToothName || (extraTooth
+                                                ? `${extraTooth.name}${entry.extraToothLocation ? ` (${entry.extraToothLocation})` : ""}`
+                                                : "—")}
+                                            </td>
+                                          <td data-label="Procedure">{entry.title || "—"}</td>
+                                          <td data-label="Notes">{entry.instructions || "—"}</td>
+                                        </tr>
+                                      );
+                                    }}
+                                  </PaginatedRecords>
+                                </tbody>
+                              </table>
                             </div>
-                          )}
+                          ) : <p className="dentalChartEmpty">No extra tooth procedures recorded.</p>}
                         </section>
                       </div>
                     </div>

@@ -1001,26 +1001,6 @@ export default function Book() {
 
                     <div className="bookingScheduleControls">
                       <label className="bookingFieldCard">
-                        <span className="detailLabel">Day</span>
-                        <span className="bookingDateInputShell">
-                          <span>{formatDateLabel(date)}</span>
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="3.5" y="5" width="17" height="16" rx="2" />
-                            <path d="M7.5 3.5v3M16.5 3.5v3M3.5 9.5h17M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
-                          </svg>
-                          <input
-                            type="date"
-                            aria-label="Choose appointment day"
-                            min={todayStr}
-                            max={lastBookingDate}
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            disabled={!user || saving}
-                          />
-                        </span>
-                      </label>
-
-                      <label className="bookingFieldCard">
                         <span className="detailLabel">Available Dentist</span>
                         <div className="bookingSelectShell">
                           <select
@@ -1040,6 +1020,26 @@ export default function Book() {
                             )}
                           </select>
                         </div>
+                      </label>
+
+                      <label className="bookingFieldCard">
+                        <span className="detailLabel">Day</span>
+                        <span className="bookingDateInputShell">
+                          <span>{formatDateLabel(date)}</span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="5" width="17" height="16" rx="2" />
+                            <path d="M7.5 3.5v3M16.5 3.5v3M3.5 9.5h17M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
+                          </svg>
+                          <input
+                            type="date"
+                            aria-label="Choose appointment day"
+                            min={todayStr}
+                            max={lastBookingDate}
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            disabled={!user || saving}
+                          />
+                        </span>
                       </label>
 
                       <div className="bookingTimeSlotField">

@@ -1,5 +1,6 @@
 import PaginatedRecords from "../components/PaginatedRecords";
 import ModalPortal from "../components/ModalPortal";
+import PatientPaymentReceipts from "../components/PatientPaymentReceipts";
 import { useEffect, useMemo, useState } from "react";
 import { notifySuccess } from "../utils/successDialog";
 import {
@@ -303,7 +304,7 @@ export default function MyAppointments() {
   const appointmentStatusTabs = [
     { id: "pending", label: "Pending", bookings: groupedBookings.pending, subtitle: "Appointments waiting for clinic approval." },
     { id: "approved", label: "Approved", bookings: groupedBookings.approved, subtitle: "Confirmed appointments ready for your visit." },
-    { id: "pendingPayment", label: "Pending Payment", bookings: groupedBookings.pendingPayment, subtitle: "Treatment is finished and payment is pending." },
+    { id: "pendingPayment", label: "Payment History", bookings: groupedBookings.pendingPayment, subtitle: "Recorded receipts and appointments with payment pending." },
     { id: "completed", label: "Completed", bookings: groupedBookings.completed, subtitle: "Appointments already checked in and completed." },
     { id: "cancelled", label: "Cancelled", bookings: groupedBookings.cancelled, subtitle: "Appointments cancelled by the clinic or patient flow." },
   ];
@@ -489,8 +490,18 @@ export default function MyAppointments() {
         <div
           id="appointment-status-panel"
           className="appointmentStatusPanel"
-          aria-label={`${activeStatusGroup.label} appointments`}
+          aria-label={activeStatusTab === "pendingPayment" ? "Payment history" : `${activeStatusGroup.label} appointments`}
         >
+          {activeStatusTab === "pendingPayment" && user ? (
+            <section className="card patientDentalRecordsCard patientRecordSection" aria-label="Payment receipts">
+              <PatientPaymentReceipts
+                key={user.uid}
+                uid={user.uid}
+                patientName={user.displayName || ""}
+                bookings={bookings}
+              />
+            </section>
+          ) : null}
           <div className="appointmentTableWrap">
             <table className="appointmentTable" aria-label={`${activeStatusGroup.label} appointments`}>
               <thead>
