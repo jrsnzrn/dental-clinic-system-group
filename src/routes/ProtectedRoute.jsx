@@ -1,7 +1,7 @@
 import LoadingIndicator from "../components/LoadingIndicator";
 import { Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { canAccessRoute, getAdminProfile, getDefaultAdminPath, hasFreshStaffMfa, requiresStaffMfa } from "../utils/rbac";
 
@@ -13,6 +13,7 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
 
   useEffect(() => {
     let alive = true;
+    let unsubscribe;
 
     async function checkAdmin() {
       if (!user) {
@@ -24,14 +25,18 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
       }
 
       try {
-        const ref = doc(db, "admins", user.uid);
-        const [snap, tokenResult] = await Promise.all([getDoc(ref), user.getIdTokenResult()]);
+        const tokenResult = await user.getIdTokenResult();
+        if (!alive) return;
 
-        if (alive) {
+        setLoginAuthTime(tokenResult.claims.auth_time);
+        unsubscribe = onSnapshot(doc(db, "admins", user.uid), (snap) => {
           setAdminProfile(snap.exists() ? getAdminProfile(snap.data()) : null);
-          setLoginAuthTime(tokenResult.claims.auth_time);
           setLoading(false);
-        }
+        }, (error) => {
+          console.error("Admin profile listener failed:", error);
+          setAdminProfile(null);
+          setLoading(false);
+        });
       } catch (err) {
         console.error("Admin access check failed:", err);
         if (alive) {
@@ -44,8 +49,9 @@ export default function ProtectedRoute({ user, children, allowedRoles = [] }) {
     checkAdmin();
     return () => {
       alive = false;
+      unsubscribe?.();
     };
-  }, [allowedRoles, user]);
+  }, [user]);
 
   if (!user) return <Navigate to="/admin/login" replace />;
   if (!user.emailVerified) {

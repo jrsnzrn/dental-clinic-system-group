@@ -291,23 +291,18 @@ service cloud.firestore {
         resource.data.uid == request.auth.uid
       );
 
-      allow create, update: if isAdminOrReceptionist() && validReceiptPhotos(request.resource.data);
+      allow create: if isAdminOrReceptionist() && validNewPaymentReference(request.resource.data);
+      allow update: if isAdminOrReceptionist() &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(["receiptPhotos", "method", "referenceNumber"]);
       allow delete: if isAdmin();
     }
 
-    function validReceiptPhoto(photo) {
-      return photo is map && photo.keys().hasOnly(["name", "dataUrl"]) &&
-        photo.name is string && photo.name.size() <= 150 &&
-        photo.dataUrl is string && photo.dataUrl.size() <= 200000 &&
-        photo.dataUrl.matches("^data:image/jpeg;base64,[A-Za-z0-9+/=]+$");
-    }
-
-    function validReceiptPhotos(data) {
-      let photos = data.get("receiptPhotos", []);
-      return photos is list && photos.size() <= 3 &&
-        (photos.size() < 1 || validReceiptPhoto(photos[0])) &&
-        (photos.size() < 2 || validReceiptPhoto(photos[1])) &&
-        (photos.size() < 3 || validReceiptPhoto(photos[2]));
+    function validNewPaymentReference(data) {
+      let method = data.get("method", "Cash");
+      let reference = data.get("referenceNumber", "");
+      return data.get("receiptPhotos", []) == [] &&
+        method is string && reference is string && reference.size() <= 100 &&
+        (method == "Cash" ? reference == "" : reference.trim().size() > 0);
     }
 
     function validChargeBreakdown(data) {
@@ -353,9 +348,7 @@ service cloud.firestore {
         request.resource.data.treatmentId is string &&
         request.resource.data.get("paymentGroupId", "") is string &&
         request.resource.data.patientType in ["Regular", "Ortho"] &&
-        request.resource.data.get("referenceNumber", "") is string &&
-        request.resource.data.get("referenceNumber", "").size() <= 100 &&
-        validReceiptPhotos(request.resource.data) && validChargeBreakdown(request.resource.data) &&
+        validNewPaymentReference(request.resource.data) && validChargeBreakdown(request.resource.data) &&
         request.resource.data.get("additionalServices", []) is list &&
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&

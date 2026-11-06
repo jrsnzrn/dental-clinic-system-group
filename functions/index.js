@@ -1824,57 +1824,52 @@ exports.getStaffAccounts = onCall({ invoker: "public" }, async (request) => {
   }
 });
 
-exports.setStaffAccountDisabled = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "You must be signed in.");
+exports.setStaffAccountDisabled = onCall({ invoker: "public" }, async (request) => {
+  const actor = await getStaffContextFromRequest(request, ["admin"]);
+  const targetUid = String(request.data?.uid || "").trim();
+  const disabled = request.data?.disabled;
+  if (!targetUid || typeof disabled !== "boolean") {
+    throw new HttpsError("invalid-argument", "A target staff UID and disabled status are required.");
+  }
+  if (targetUid === actor.uid) {
+    throw new HttpsError("failed-precondition", "You cannot change the status of your own account.");
   }
 
-  const callerUid = request.auth.uid;
-  const callerSnap = await db.collection("admins").doc(callerUid).get();
-  if (!callerSnap.exists) {
-    throw new HttpsError("permission-denied", "Only admin accounts can manage staff accounts.");
+  return changeStaffAccountStatus(actor, targetUid, disabled, "toggle_staff_account");
+});
+
+async function changeStaffAccountStatus(actor, targetUid, disabled, action) {
+  const target = await getManageableStaffTarget(targetUid);
+  const targetRef = db.collection("admins").doc(targetUid);
+  try {
+    await auth.updateUser(targetUid, { disabled });
+  } catch (error) {
+    if (error?.code !== "auth/user-not-found") {
+      console.error("Could not change Firebase Auth staff status:", error);
+      throw new HttpsError("internal", "Could not change the staff sign-in status. Try again.");
+    }
+    if (!disabled) {
+      throw new HttpsError("failed-precondition", "This staff profile has no linked sign-in account.");
+    }
   }
 
-  const callerRole = String(callerSnap.data()?.role || "").trim().toLowerCase();
-  if (callerRole !== "admin") {
-    throw new HttpsError("permission-denied", "Only administrator accounts can manage staff accounts.");
-  }
-
-  const payload = request.data || {};
-  const targetUid = String(payload.uid || "").trim();
-  const disabled = Boolean(payload.disabled);
-
-  if (!targetUid) {
-    throw new HttpsError("invalid-argument", "Target staff UID is required.");
-  }
-
-  await auth.updateUser(targetUid, { disabled });
-  await db.collection("admins").doc(targetUid).set({ disabled }, { merge: true });
-
-  const targetSnap = await db.collection("admins").doc(targetUid).get();
-  const targetData = targetSnap.exists ? targetSnap.data() : {};
-
-  await writeAuditLog({
-    actorUid: callerUid,
-    actorName: callerSnap.data()?.name || request.auth.token.email || "Administrator",
-    actorEmail: request.auth.token.email || "",
-    actorRole: callerRole,
-    action: "toggle_staff_account",
+  await targetRef.update({
+    disabled,
+    archiveStatus: disabled ? "Archived" : "Active",
+    ...(disabled
+      ? { archivedAt: admin.firestore.FieldValue.serverTimestamp() }
+      : { restoredAt: admin.firestore.FieldValue.serverTimestamp() }),
+  });
+  await writeStaffAuditLog(actor, {
+    action,
     targetType: "admin_account",
     targetId: targetUid,
-    targetLabel: targetData?.email || targetData?.name || "Staff account",
-    details: {
-      disabled,
-      role: targetData?.role || "",
-    },
+    targetLabel: target.email || target.name || "Staff account",
+    details: { disabled, role: target.role || "" },
   });
 
-  return {
-    success: true,
-    uid: targetUid,
-    disabled,
-  };
-});
+  return { success: true, uid: targetUid, disabled };
+}
 
 async function getAdminActorContext(request, actionLabel = "manage staff accounts") {
   if (!request.auth) {
@@ -1950,34 +1945,14 @@ exports.archiveStaffAccount = onCall(async (request) => {
   return { success: true, uid: targetUid };
 });
 
-exports.restoreStaffAccount = onCall(async (request) => {
-  const actor = await getAdminActorContext(request, "restore staff accounts");
+exports.restoreStaffAccount = onCall({ invoker: "public" }, async (request) => {
+  const actor = await getStaffContextFromRequest(request, ["admin"]);
   const targetUid = String(request.data?.uid || "").trim();
   if (!targetUid) {
     throw new HttpsError("invalid-argument", "Target staff UID is required.");
   }
 
-  const target = await getManageableStaffTarget(targetUid);
-  await db.collection("admins").doc(targetUid).set(
-    {
-      archiveStatus: "Active",
-      restoredAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-
-  await writeAuditLog({
-    actorUid: actor.uid,
-    actorName: actor.name,
-    actorEmail: actor.email,
-    actorRole: actor.role,
-    action: "restore_staff_account",
-    targetType: "admin_account",
-    targetId: targetUid,
-    targetLabel: target.email || target.name || "Staff account",
-  });
-
-  return { success: true, uid: targetUid };
+  return changeStaffAccountStatus(actor, targetUid, false, "restore_staff_account");
 });
 
 exports.deleteArchivedStaffAccount = onCall(async (request) => {

@@ -59,6 +59,7 @@ function getEmptyPaymentDraft() {
     amount: "",
     paymentDate: new Date().toISOString().slice(0, 10),
     method: "Cash",
+    referenceNumber: "",
     notes: "",
   };
 }
@@ -451,6 +452,7 @@ export default function Braces() {
         amount: Number(paymentDraft.amount || 0),
         paymentDate: paymentDraft.paymentDate || "",
         method: paymentDraft.method || "Cash",
+        referenceNumber: paymentDraft.referenceNumber,
         notes: paymentDraft.notes.trim(),
       });
 
@@ -994,18 +996,29 @@ export default function Braces() {
                           <select
                             className="input bookingInputSpecial"
                             value={paymentDraft.method}
-                            onChange={(e) => setPaymentDraft((current) => ({ ...current, method: e.target.value }))}
+                            onChange={(e) => setPaymentDraft((current) => ({ ...current, method: e.target.value, referenceNumber: "" }))}
                           >
                             <option>Cash</option>
                             <option>Bank Transfer</option>
                             <option>E-wallet</option>
                           </select>
                         </label>
+                        {paymentDraft.method !== "Cash" ? (
+                          <label className="bookingFieldCard">
+                            <span className="detailLabel">Reference number (required)</span>
+                            <input
+                              className="input bookingInputSpecial"
+                              maxLength={100}
+                              value={paymentDraft.referenceNumber}
+                              onChange={(e) => setPaymentDraft((current) => ({ ...current, referenceNumber: e.target.value }))}
+                            />
+                          </label>
+                        ) : null}
                         <label className="bookingFieldCard">
                           <span className="detailLabel">Payment note</span>
                           <input
                             className="input bookingInputSpecial"
-                            placeholder="Receipt, reference, or front-desk note"
+                            placeholder="Front-desk note"
                             value={paymentDraft.notes}
                             onChange={(e) => setPaymentDraft((current) => ({ ...current, notes: e.target.value }))}
                           />

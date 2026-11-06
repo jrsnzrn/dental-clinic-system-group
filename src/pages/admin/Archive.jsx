@@ -36,6 +36,11 @@ const ARCHIVE_FILTERS = {
     subtitle: "Disabled receptionist and dentist accounts moved away from the active staff list.",
     emptyText: "No archived staff accounts matched your search.",
   },
+  dentists: {
+    title: "Archived Dentist Schedules",
+    subtitle: "Dentist schedules removed from booking availability.",
+    emptyText: "No archived dentist schedules matched your search.",
+  },
   bookings: {
     title: "Archived Appointments",
     subtitle: "Old or inactive appointment records separated from the live appointments board.",
@@ -196,7 +201,7 @@ export default function Archive({ adminRole, search }) {
       setAccounts(
         accountResult.value.docs
           .map((entry) => ({ id: entry.id, ...entry.data() }))
-          .filter((entry) => entry.role === "receptionist" || entry.role === "dentist")
+          .filter((entry) => ["receptionist", "dentist"].includes(normalizeValue(entry.role)))
       );
     } else {
       setAccounts([]);
@@ -285,7 +290,7 @@ export default function Archive({ adminRole, search }) {
 
   const archivedAccounts = useMemo(() => {
     return accounts
-      .filter((account) => isArchivedValue(account.archiveStatus))
+      .filter((account) => account.disabled || isArchivedValue(account.archiveStatus))
       .filter((account) =>
         normalizeValue(account.name || account.email).includes(term)
       );
@@ -359,7 +364,7 @@ export default function Archive({ adminRole, search }) {
     dentists: archivedDentists.map((dentist) => ({
       id: `dentist-${dentist.id}`,
       title: dentist.name || "No name",
-      category: "Dentist",
+      category: "Dentist schedule",
       subtitle: dentist.specialization || "No specialization",
       meta: getListMeta(dentist),
       details: getRecordDetails(dentist),
@@ -401,6 +406,7 @@ export default function Archive({ adminRole, search }) {
   const currentRows = section === "all"
     ? [
         ...rows.accounts,
+        ...rows.dentists,
         ...rows.bookings,
         ...rows.promotions,
       ]
@@ -409,8 +415,9 @@ export default function Archive({ adminRole, search }) {
   const selectedCurrentRows = (currentRows || []).filter((row) => selectedIds.includes(row.id));
   const allCurrentRowsSelected = archivePage.items.length > 0 && archivePage.items.every((row) => selectedIds.includes(row.id));
   const archiveCategories = [
-    { section: "all", label: "All records", count: rows.accounts.length + rows.bookings.length + rows.promotions.length },
+    { section: "all", label: "All records", count: rows.accounts.length + rows.dentists.length + rows.bookings.length + rows.promotions.length },
     ...(isAdmin ? [{ section: "accounts", label: "Staff accounts", count: rows.accounts.length }] : []),
+    { section: "dentists", label: "Dentist schedules", count: rows.dentists.length },
     { section: "bookings", label: "Appointments", count: rows.bookings.length },
     ...(isAdmin ? [{ section: "promotions", label: "Promotions", count: rows.promotions.length }] : []),
   ];

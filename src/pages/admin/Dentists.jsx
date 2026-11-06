@@ -1,3 +1,4 @@
+import ConfirmDialog from "../../components/ConfirmDialog";
 import RecordPagination from "../../components/RecordPagination";
 import LoadingIndicator from "../../components/LoadingIndicator";
 import { linkedDentistNameFields, formatStaffDisplayName } from "../../utils/staffProfile";
@@ -12,7 +13,10 @@ import {
   orderBy,
   serverTimestamp,
   getDocs,
+  getDocsFromServer,
+  where,
   doc,
+  runTransaction,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -24,6 +28,7 @@ import {
 } from "../../utils/schedule";
 import { logAdminAction } from "../../utils/audit";
 import { ROLES } from "../../utils/rbac";
+import { notifySuccess } from "../../utils/successDialog";
 
 const todayKey = DAY_ORDER[(new Date().getDay() + 6) % 7].key;
 
@@ -35,6 +40,7 @@ export default function Dentists() {
   const [detailDrafts, setDetailDrafts] = useState({});
   const [draftSchedules, setDraftSchedules] = useState({});
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState("");
   const [savingAction, setSavingAction] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
@@ -45,13 +51,11 @@ export default function Dentists() {
   const [linkedStaffUid, setLinkedStaffUid] = useState("");
 
   useEffect(() => {
-    const q = query(collection(db, "dentists"), orderBy("createdAt", "desc"));
-
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(collection(db, "dentists"), (snap) => {
       const nextDentists = snap.docs.map((entry) => ({
         id: entry.id,
         ...entry.data(),
-      }));
+      })).sort((left, right) => (right.createdAt?.toMillis?.() || 0) - (left.createdAt?.toMillis?.() || 0));
 
       setDentists(nextDentists);
       setDetailDrafts((current) => {
@@ -83,7 +87,7 @@ export default function Dentists() {
       setStaffAccounts(
         snap.docs
           .map((entry) => ({ id: entry.id, ...entry.data() }))
-          .filter((entry) => entry.role === ROLES.DENTIST && entry.archiveStatus !== "Archived")
+          .filter((entry) => entry.role === ROLES.DENTIST && !entry.disabled && entry.archiveStatus !== "Archived")
       );
     });
 
@@ -104,7 +108,7 @@ export default function Dentists() {
     if (!expandedDentistId && !addModalOpen) return;
 
     const onKeyDown = (event) => {
-      if (event.key === "Escape" && !saving) {
+      if (event.key === "Escape" && !saving && !pendingConfirmation) {
         setExpandedDentistId("");
         setAddModalOpen(false);
       }
@@ -112,14 +116,14 @@ export default function Dentists() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addModalOpen, expandedDentistId, saving]);
+  }, [addModalOpen, expandedDentistId, pendingConfirmation, saving]);
 
   function clearSaveFeedback() {
     setSaveError("");
     setSaveSuccess("");
   }
 
-  async function runSave(action, save, successMessage) {
+  async function runSave(action, save, successMessage = "") {
     if (saving) return;
     setSavingAction(action);
     clearSaveFeedback();
@@ -134,9 +138,24 @@ export default function Dentists() {
     }
   }
 
+  async function resolveStaffLink(uid, currentUid = "") {
+    if (!uid) return null;
+    const account = staffAccounts.find((entry) => entry.id === uid);
+    if (!account) {
+      throw new Error("The selected staff account is unavailable. Select an active account or choose No linked dentist login.");
+    }
+    if (uid !== currentUid) {
+      const links = await getDocsFromServer(query(collection(db, "dentists"), where("linkedStaffUid", "==", uid)));
+      if (!links.empty) {
+        throw new Error("That staff account is already linked to a dentist schedule. Select another account.");
+      }
+    }
+    return account;
+  }
+
   async function addDentist() {
     const schedule = createDefaultSchedule();
-    const linkedStaff = staffAccounts.find((entry) => entry.id === linkedStaffUid) || null;
+    const linkedStaff = await resolveStaffLink(linkedStaffUid);
 
     await addDoc(collection(db, "dentists"), {
       name: name.trim(),
@@ -193,7 +212,7 @@ export default function Dentists() {
 
     const nextEmail = draft.email.trim();
     const nextSpecialization = draft.specialization.trim();
-    const linkedStaff = staffAccounts.find((entry) => entry.id === draft.linkedStaffUid) || null;
+    const linkedStaff = await resolveStaffLink(draft.linkedStaffUid, dentist.linkedStaffUid);
 
     await updateDoc(doc(db, "dentists", dentist.id), {
       email: nextEmail,
@@ -272,6 +291,39 @@ export default function Dentists() {
     });
   }
 
+  async function archiveDentist(dentist) {
+    const ref = doc(db, "dentists", dentist.id);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) throw new Error("This dentist schedule could not be found.");
+      const current = snapshot.data();
+      if ((current.linkedStaffUid || "") !== (dentist.linkedStaffUid || "") ||
+          (current.linkedStaffEmail || "") !== (dentist.linkedStaffEmail || "")) {
+        throw new Error("The linked staff account changed. Review the schedule and try again.");
+      }
+      transaction.update(ref, {
+        linkedStaffUid: "",
+        linkedStaffEmail: "",
+        linkedStaffName: "",
+        archiveStatus: "Archived",
+        archivedAt: serverTimestamp(),
+      });
+    });
+    setDetailDrafts((current) => {
+      const next = { ...current };
+      delete next[dentist.id];
+      return next;
+    });
+    setExpandedDentistId("");
+    await logAdminAction({
+      action: "archive_dentist",
+      targetType: "dentist",
+      targetId: dentist.id,
+      targetLabel: dentist.name || "Dentist",
+    });
+    notifySuccess("Dentist schedule moved to Archived Records.", "Schedule archived");
+  }
+
   const visibleDentists = useMemo(
     () => dentists.filter((dentist) => dentist.archiveStatus !== "Archived"),
     [dentists]
@@ -280,6 +332,12 @@ export default function Dentists() {
   // The dentist currently open in the modal (if any)
   const dentistPage = useRecordPagination(visibleDentists);
   const openDentist = visibleDentists.find((entry) => entry.id === expandedDentistId) || null;
+  const linkedStaffIds = new Set(dentists.map((dentist) => dentist.linkedStaffUid).filter(Boolean));
+  const availableStaffAccounts = staffAccounts.filter((account) => !linkedStaffIds.has(account.id));
+  const editableStaffAccounts = staffAccounts.filter((account) =>
+    !linkedStaffIds.has(account.id) || account.id === openDentist?.linkedStaffUid
+  );
+  const linkedAccount = openDentist?.linkedStaffName || openDentist?.linkedStaffEmail || openDentist?.linkedStaffUid;
   const openDetailDraft = openDentist
     ? detailDrafts[openDentist.id] || {
         email: openDentist.email || "",
@@ -290,6 +348,16 @@ export default function Dentists() {
   const openSchedule = openDentist
     ? normalizeSchedule(draftSchedules[openDentist.id] || openDentist.schedule)
     : null;
+  const replacingLink = Boolean(openDetailDraft?.linkedStaffUid);
+
+  function requestSaveDentistDetails() {
+    if (linkedAccount && (openDentist.linkedStaffUid !== (openDetailDraft.linkedStaffUid || "") ||
+        !openDetailDraft.linkedStaffUid)) {
+      setPendingConfirmation("unlink");
+      return;
+    }
+    runSave("details", () => saveDentistDetails(openDentist), "Dentist details saved.");
+  }
 
   return (
     <div className="container adminSurface dentistManagementPage">
@@ -426,7 +494,7 @@ export default function Dentists() {
                     onChange={(event) => setLinkedStaffUid(event.target.value)}
                   >
                     <option value="">Link dentist staff account</option>
-                    {staffAccounts.map((account) => (
+                    {availableStaffAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
                         {account.name || account.email} {account.email ? `- ${account.email}` : ""}
                       </option>
@@ -512,7 +580,7 @@ export default function Dentists() {
                         onChange={(event) => updateDetailDraft(openDentist.id, "linkedStaffUid", event.target.value)}
                       >
                         <option value="">No linked dentist login</option>
-                        {staffAccounts.map((account) => (
+                        {editableStaffAccounts.map((account) => (
                           <option key={account.id} value={account.id}>
                             {account.name || account.email} {account.email ? `- ${account.email}` : ""}
                           </option>
@@ -523,7 +591,7 @@ export default function Dentists() {
 
                   <div className="inlineActionRow dentistEditorActions">
                     <button className="btn btnShine" type="button" disabled={saving}
-                      onClick={() => runSave("details", () => saveDentistDetails(openDentist), "Dentist details saved.")}>
+                      onClick={requestSaveDentistDetails}>
                       {savingAction === "details" ? <LoadingIndicator>Saving details…</LoadingIndicator> : "Save Dentist Details"}
                     </button>
                     <button
@@ -542,6 +610,10 @@ export default function Dentists() {
                       }
                     >
                       Reset Details
+                    </button>
+                    <button className="btn archiveButton" type="button" disabled={saving}
+                      onClick={() => setPendingConfirmation("archive")}>
+                      Archive Schedule
                     </button>
                   </div>
                 </section>
@@ -620,6 +692,34 @@ export default function Dentists() {
             document.body
           )
         : null}
+      <ConfirmDialog
+        open={pendingConfirmation === "archive" && Boolean(openDentist)}
+        title={linkedAccount ? "Unlink account and archive schedule?" : "Archive this dentist schedule?"}
+        message={linkedAccount
+          ? `${linkedAccount} will be unlinked from this schedule and can still sign in. The schedule will be removed from new bookings. You can link an account again after restoring the schedule.`
+          : "This schedule will be removed from new bookings. You can restore it from Archived Records."}
+        confirmLabel={linkedAccount ? "Unlink and Archive" : "Archive Schedule"}
+        tone="archive"
+        onClose={() => setPendingConfirmation("")}
+        onConfirm={() => {
+          setPendingConfirmation("");
+          runSave("archive", () => archiveDentist(openDentist));
+        }}
+      />
+      <ConfirmDialog
+        open={pendingConfirmation === "unlink" && Boolean(openDentist)}
+        title={replacingLink ? "Change the linked staff account?" : "Unlink this staff account?"}
+        message={replacingLink
+          ? `${linkedAccount} will be unlinked and the selected staff account will take its place.`
+          : `${linkedAccount} will be unlinked from this schedule and can still sign in.`}
+        confirmLabel={replacingLink ? "Change Linked Account" : "Unlink Account"}
+        tone="danger"
+        onClose={() => setPendingConfirmation("")}
+        onConfirm={() => {
+          setPendingConfirmation("");
+          runSave("details", () => saveDentistDetails(openDentist), "Dentist details saved.");
+        }}
+      />
     </div>
   );
 }

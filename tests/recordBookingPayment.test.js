@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { allocateBookingPayment } from "../src/utils/bookingPayments.js";
 import { calculateCharges, money } from "../src/utils/paymentPricing.js";
-import { validateReceiptPhotos } from "../src/utils/receiptPhotos.js";
+import { getPaymentReference } from "../src/utils/paymentReference.js";
 
 const source = fs.readFileSync(new URL("../src/utils/recordBookingPayment.js", import.meta.url), "utf8");
 const body = source.slice(source.indexOf("export async function")).replace("export ", "");
@@ -23,8 +23,8 @@ function harness({ failWrite = false, initial = [] } = {}) {
   let sequence = 0;
   const ref = path => ({ path, id: path.split("/").at(-1) });
   const snapshot = path => ({ ref: ref(path), id: ref(path).id, exists: () => stored.has(path), data: () => stored.get(path) });
-  const record = new Function("validateReceiptPhotos", "collection", "doc", "getDocs", "query", "where", "runTransaction", "serverTimestamp", "db", "money", "allocateBookingPayment", `${body}; return recordBookingPayment;`)(
-    validateReceiptPhotos, (_db, name) => ({ name }),
+  const record = new Function("getPaymentReference", "collection", "doc", "getDocs", "query", "where", "runTransaction", "serverTimestamp", "db", "money", "allocateBookingPayment", `${body}; return recordBookingPayment;`)(
+    getPaymentReference, (_db, name) => ({ name }),
     (...args) => args.length === 1 ? ref(`${args[0].name}/new-${++sequence}`) : ref(`${args[1]}/${args[2]}`),
     async query => ({ docs: [...stored].filter(([path, data]) => path.startsWith(`${query.collection.name}/`) && data[query.filter.field] === query.filter.value).map(([path]) => snapshot(path)) }),
     (collection, filter) => ({ collection, filter }), (field, _operator, value) => ({ field, value }),
@@ -47,7 +47,8 @@ test("one submitted payment updates every service atomically and shares one rece
   assert.equal(ledger.length, 2);
   assert.deepEqual(ledger.map(entry => entry.amount), [800, 200]);
   assert.equal(new Set(ledger.map(entry => entry.paymentGroupId)).size, 1);
-  assert.deepEqual(ledger[0].receiptPhotos, payment.receiptPhotos);
+  assert.equal(ledger[0].referenceNumber, payment.referenceNumber);
+  assert.equal(ledger[0].receiptPhotos, undefined);
   assert.equal(stored.get("paymentTreatmentSummaries/Cleaning").remainingBalance, 0);
   assert.equal(stored.get("paymentTreatmentSummaries/Braces").remainingBalance, 1800);
   await record({ ...payment, amount: 1800 });
@@ -84,3 +85,12 @@ test("a fully discounted booking writes settled service summaries without zero-v
     assert.equal(stored.get(`paymentTreatmentSummaries/${name}`).remainingBalance, 0);
   }
 });
+
+test("non-cash payments require a reference and cash payments discard it", async () => {
+  const { stored, record } = harness();
+  await assert.rejects(record({ ...payment, referenceNumber: "  " }), /Enter the reference number/);
+  await record({ ...payment, method: "Cash" });
+  const ledger = [...stored].filter(([path]) => path.startsWith("payments/")).map(([, data]) => data);
+  assert.equal(ledger.length, 2);
+  assert.ok(ledger.every(entry => entry.referenceNumber === ""));
+})

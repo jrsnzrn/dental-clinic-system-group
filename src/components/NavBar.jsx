@@ -666,6 +666,30 @@ export default function NavBar({
 
   if (isStaffVerificationRoute || (user && isAdmin && !user.emailVerified)) return null;
 
+  const logoutDialog = (
+    <ConfirmDialog
+      open={logoutConfirmOpen}
+      title="Log Out?"
+      message={logoutError || "Are you sure you want to log out of your TopDent account?"}
+      confirmLabel="Log Out"
+      cancelLabel="Cancel"
+      tone="danger"
+      className="logoutConfirmModal"
+      overlayClassName="logoutConfirmOverlay"
+      icon={ACCOUNT_ICONS.logout}
+      closeIcon="×"
+      onConfirm={async () => {
+        const didLogout = await logoutAccount();
+        if (didLogout) setLogoutConfirmOpen(false);
+        else setLogoutError("Unable to log out. Please try again.");
+      }}
+      onClose={() => {
+        setLogoutConfirmOpen(false);
+        setLogoutError("");
+      }}
+    />
+  );
+
   return (
     isAdmin ? (
       <>
@@ -800,27 +824,7 @@ export default function NavBar({
           onClose={() => setAppearanceModalOpen(false)}
           titleId="appearanceModalTitle"
         />
-        <ConfirmDialog
-          open={logoutConfirmOpen}
-          title="Log Out?"
-          message={logoutError || "Are you sure you want to log out of your TopDent account?"}
-          confirmLabel="Log Out"
-          cancelLabel="Cancel"
-          tone="danger"
-          className="logoutConfirmModal"
-          overlayClassName="logoutConfirmOverlay"
-          icon={ACCOUNT_ICONS.logout}
-          closeIcon="×"
-          onConfirm={async () => {
-            const didLogout = await logoutAccount();
-            if (didLogout) setLogoutConfirmOpen(false);
-            else setLogoutError("Unable to log out. Please try again.");
-          }}
-          onClose={() => {
-            setLogoutConfirmOpen(false);
-            setLogoutError("");
-          }}
-        />
+        {logoutDialog}
       </>
     ) : (
       <div className="nav">
@@ -859,7 +863,7 @@ export default function NavBar({
               key={`${location.pathname}:${menuOpen}`}
               user={user}
               items={USER_ACCOUNT_ITEMS}
-              onLogout={logoutAccount}
+              onLogout={openLogoutConfirm}
             />
           )}
           {!user && (
@@ -872,6 +876,7 @@ export default function NavBar({
             </NavLink>
           )}
         </div>
+        {logoutDialog}
       </div>
     )
   );

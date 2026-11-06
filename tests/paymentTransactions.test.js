@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { getUnchargedPaymentServices } from "../src/utils/bookingPayments.js";
 import { buildBracesAccount } from "../src/utils/braces.js";
 import { calculateCharges, money } from "../src/utils/paymentPricing.js";
-import { validateReceiptPhotos } from "../src/utils/receiptPhotos.js";
+import { getPaymentReference } from "../src/utils/paymentReference.js";
 
 const source = fs.readFileSync(new URL("../src/utils/paymentTransactions.js", import.meta.url), "utf8");
 const body = source.slice(source.indexOf("export async function recordRegularPayment"), source.indexOf("export async function recordBracesPayment")).replace("export ", "");
@@ -17,7 +17,7 @@ function harness(initial = [], braces = false) {
   let sequence = 0;
   const ref = path => ({ path, id: path.split("/").pop() });
   const snapshot = path => ({ ref: ref(path), exists: () => stored.has(path), data: () => stored.get(path) });
-  const record = new Function("collection", "doc", "getDocs", "query", "where", "runTransaction", "serverTimestamp", "db", "toAmount", "makeRegularSummaryId", "validateReceiptPhotos", "getUnchargedPaymentServices", "money", "buildBracesAccount", `${braces ? bracesBody : body}; return ${braces ? "recordBracesPayment" : "recordRegularPayment"};`)(
+  const record = new Function("collection", "doc", "getDocs", "query", "where", "runTransaction", "serverTimestamp", "db", "toAmount", "makeRegularSummaryId", "getPaymentReference", "getUnchargedPaymentServices", "money", "buildBracesAccount", `${braces ? bracesBody : body}; return ${braces ? "recordBracesPayment" : "recordRegularPayment"};`)(
     (_db, name) => ({ name }),
     (...args) => args.length === 1 ? ref(`${args[0].name}/new-${++sequence}`) : ref(`${args[1]}/${args[2]}`),
     async query => ({ docs: [...stored].filter(([path, data]) => path.startsWith(`${query.collection.name}/`) && data[query.filter.field] === query.filter.value).map(([path]) => snapshot(path)) }),
@@ -28,7 +28,7 @@ function harness(initial = [], braces = false) {
       await callback({ get: async reference => snapshot(reference.path), set: (reference, data, options) => pending.push([reference.path, options?.merge ? { ...stored.get(reference.path), ...data } : data]) });
       for (const [path, data] of pending) { stored.set(path, data); writes.push({ path, data }); }
     },
-    () => "timestamp", {}, value => Math.max(0, Number(value) || 0), (patientId, treatmentId) => `${patientId.length}_${patientId}${treatmentId}`, validateReceiptPhotos, getUnchargedPaymentServices, money, buildBracesAccount,
+    () => "timestamp", {}, value => Math.max(0, Number(value) || 0), (patientId, treatmentId) => `${patientId.length}_${patientId}${treatmentId}`, getPaymentReference, getUnchargedPaymentServices, money, buildBracesAccount,
   );
   return { record, stored, writes };
 }
@@ -42,13 +42,14 @@ const payment = {
   referenceNumber: "BANK-12345", receiptPhotos: [{ name: "receipt.jpg", dataUrl: "data:image/jpeg;base64,YWJj" }],
 };
 
-test("partial payments preserve discounted totals, receipt photos, and the running balance", async () => {
+test("partial payments preserve discounted totals, references, and the running balance", async () => {
   const { record, writes } = harness();
   await record(payment);
   assert.equal(writes[0].data.totalCost, 800);
   assert.equal(writes[0].data.amountPaidBefore, 0);
   assert.equal(writes[0].data.balanceAfterPayment, 500);
-  assert.deepEqual(writes[0].data.receiptPhotos, payment.receiptPhotos);
+  assert.equal(writes[0].data.referenceNumber, payment.referenceNumber);
+  assert.equal(writes[0].data.receiptPhotos, undefined);
   assert.deepEqual(writes[1].data.chargeBreakdown, breakdown);
   assert.equal(writes[1].data.remainingBalance, 500);
 });

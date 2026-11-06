@@ -11,7 +11,7 @@ import { db } from "../firebase";
 import { getUnchargedPaymentServices } from "./bookingPayments.js";
 import { money } from "./paymentPricing.js";
 import { buildBracesAccount } from "./braces";
-import { validateReceiptPhotos } from "./receiptPhotos";
+import { getPaymentReference } from "./paymentReference";
 
 function toAmount(value) {
   const amount = Number(value);
@@ -66,12 +66,13 @@ export async function recordRegularPayment(payment) {
   const requestedTotalCost = toAmount(payment.totalCost);
   const allowZeroAmount = payment.allowZeroAmount === true;
   const patientId = String(payment.patientId || "");
-  const referenceNumber = String(payment.referenceNumber || "").trim();
+  const method = payment.method || "Cash";
+  const referenceNumber = getPaymentReference(method, payment.referenceNumber, amount);
   const paymentRef = doc(collection(db, "payments"));
   const treatmentId = String(payment.treatmentId || paymentRef.id);
   const paymentData = { ...payment };
   delete paymentData.allowZeroAmount;
-  validateReceiptPhotos(payment.receiptPhotos || []);
+  delete paymentData.receiptPhotos;
   if (payment.chargeBreakdown && Math.abs(requestedTotalCost - payment.chargeBreakdown.totalCost) > 0.005) {
     throw new Error("The total fee does not match the service charge calculation.");
   }
@@ -85,9 +86,6 @@ export async function recordRegularPayment(payment) {
     (requestedTotalCost <= 0 && !fullyDiscounted)
   ) {
     throw new Error("A patient, treatment, positive total cost, and valid payment amount are required.");
-  }
-  if (referenceNumber.length > 100) {
-    throw new Error("The reference number must be 100 characters or fewer.");
   }
 
   const summaryRef = doc(
@@ -178,6 +176,7 @@ export async function recordRegularPayment(payment) {
     if (amount > 0) {
       transaction.set(paymentRef, {
         ...paymentData,
+        method,
         referenceNumber,
         patientType,
         treatmentId,
@@ -222,18 +221,13 @@ export async function recordBracesPayment({
   paymentDate,
   referenceNumber,
   additionalServices,
-  method,
+  method = "Cash",
   notes,
-  receiptPhotos = [],
 }) {
-  validateReceiptPhotos(receiptPhotos);
   const amount = toAmount(rawAmount);
-  const normalizedReferenceNumber = String(referenceNumber || "").trim();
+  const normalizedReferenceNumber = getPaymentReference(method, referenceNumber, amount);
   if (!patient?.id || !accountId || Number(rawAmount) < 0 || !paymentDate) {
     throw new Error("A braces account, non-negative payment amount, and payment date are required.");
-  }
-  if (normalizedReferenceNumber.length > 100) {
-    throw new Error("The reference number must be 100 characters or fewer.");
   }
 
   const accountRef = doc(db, "bracesAccounts", accountId);
@@ -299,8 +293,7 @@ export async function recordBracesPayment({
           paymentDate,
           ...(normalizedReferenceNumber ? { referenceNumber: normalizedReferenceNumber } : {}),
           additionalServices: addedServiceNames.length ? addedServiceNames : additionalServices || [],
-          receiptPhotos,
-          method: method || "Cash",
+          method,
           notes: String(notes || "").trim(),
           createdAt: serverTimestamp(),
         }

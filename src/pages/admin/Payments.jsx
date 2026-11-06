@@ -30,7 +30,6 @@ import {
 } from "../../utils/paymentTransactions";
 import { formatDateLabel, formatTimeLabel, formatTimestamp } from "../../utils/schedule";
 import { calculateCharges, getStartingCharge } from "../../utils/paymentPricing";
-import { MAX_RECEIPT_PHOTOS, prepareReceiptPhoto } from "../../utils/receiptPhotos";
 
 const DETAIL_PAYMENT_METHODS = ["Cash", "GCash", "Maya", "Bank Transfer", "Card"];
 const COMPLETE_PAID_APPOINTMENT = httpsCallable(functions, "completePaidAppointment");
@@ -475,13 +474,11 @@ export default function Payments() {
     referenceNumber: "",
     additionalServices: [],
     serviceCharges: {},
-    receiptPhotos: [],
     method: "Cash",
   });
   const [savingDetails, setSavingDetails] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [receiptPhotoLoading, setReceiptPhotoLoading] = useState(false);
   const [promotionSaving, setPromotionSaving] = useState(false);
   const [paymentPromotion, setPaymentPromotion] = useState({ bookingId: "", promotion: null, error: "" });
   const unsubscribeRef = useRef([]);
@@ -541,13 +538,13 @@ export default function Payments() {
   }
 
   const closePatientDetails = useCallback(() => {
-    if (submissionLockRef.current || receiptPhotoLoading) return;
+    if (submissionLockRef.current) return;
     setSelectedPatientId("");
     setSelectedPatientFallback(null);
     setSelectedPaymentRowId("");
     setSelectedTreatmentId("");
     setDetailError("");
-  }, [receiptPhotoLoading]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -778,7 +775,6 @@ export default function Payments() {
       referenceNumber: "",
       additionalServices: row.source !== "Ortho" && Array.isArray(row.additionalServices) ? row.additionalServices : [],
       serviceCharges,
-      receiptPhotos: [],
       method: DETAIL_PAYMENT_METHODS.includes(row.method) ? row.method : "Cash",
     });
     setDetailError("");
@@ -800,28 +796,9 @@ export default function Payments() {
     });
   }
 
-  async function importReceiptPhotos(event) {
-    const files = [...event.target.files];
-    event.target.value = "";
-    if (detailDraft.receiptPhotos.length + files.length > MAX_RECEIPT_PHOTOS) {
-      setDetailError("Attach up to three receipt photos for this payment.");
-      return;
-    }
-    setReceiptPhotoLoading(true);
-    setDetailError("");
-    try {
-      const photos = await Promise.all(files.map(prepareReceiptPhoto));
-      setDetailDraft(current => ({ ...current, receiptPhotos: [...current.receiptPhotos, ...photos] }));
-    } catch (error) {
-      setDetailError(error.message);
-    } finally {
-      setReceiptPhotoLoading(false);
-    }
-  }
-
   async function saveSelectedPaymentDetails(event) {
     event.preventDefault();
-    if (submissionLockRef.current || receiptPhotoLoading || promotionSaving || !selectedPatientRecord || selectedPaymentCompleted || promotionLoading || promotionError) return;
+    if (submissionLockRef.current || promotionSaving || !selectedPatientRecord || selectedPaymentCompleted || promotionLoading || promotionError) return;
     setDetailError("");
     if (!canRecordSelectedPayment) {
       setDetailError("Payment can be recorded after the dentist marks the treatment as completed and sends it to Payments, and a valid charge is available.");
@@ -845,8 +822,8 @@ export default function Payments() {
       setDetailError("Amount received cannot exceed the outstanding balance.");
       return;
     }
-    if (detailDraft.method !== "Cash" && detailDraft.receiptPhotos.length && amount <= 0) {
-      setDetailError("Enter the amount received before saving receipt photos.");
+    if (detailDraft.method !== "Cash" && amount > 0 && !detailDraft.referenceNumber.trim()) {
+      setDetailError("Enter the reference number for this payment.");
       return;
     }
 
@@ -869,7 +846,6 @@ export default function Payments() {
           paymentDate: detailDraft.paymentDate,
           referenceNumber: detailDraft.referenceNumber,
           method: detailDraft.method,
-          receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
         });
         setDetailDraft((current) => ({ ...current, totalCost: String(totalCost), initialBracesTotal: totalCost, additionalServices: [], serviceCharges: {} }));
         await logAdminAction({
@@ -901,7 +877,6 @@ export default function Payments() {
           additionalServices: allowedAdditionalServices,
           chargeBreakdown: selectedPaymentRow.treatments
             ? { ...chargeBreakdown, eligibleServiceNames: promotion?.services || [] } : chargeBreakdown,
-          receiptPhotos: detailDraft.method === "Cash" ? [] : detailDraft.receiptPhotos,
           allowZeroAmount: true,
         });
         if ((amount > 0 || totalCost === 0) && selectedPaymentRow.appointmentId) {
@@ -920,7 +895,7 @@ export default function Payments() {
           details: { treatmentId: selectedPaymentRow.treatmentId, totalCost },
         });
       }
-      setDetailDraft((current) => ({ ...current, amount: "", receiptPhotos: [], referenceNumber: "" }));
+      setDetailDraft((current) => ({ ...current, amount: "", referenceNumber: "" }));
       if (completionWarning) setDetailError(completionWarning);
       else setSuccessMessage(amount > 0 ? "Payment recorded successfully. The patient’s balance and receipt have been updated." : "Payment charges saved successfully.");
     } catch (error) {
@@ -1098,46 +1073,24 @@ export default function Payments() {
                       className="input"
                       value={detailDraft.method}
                       disabled={!canRecordSelectedPayment}
-                      onChange={(event) => setDetailDraft((current) => ({ ...current, method: event.target.value }))}
+                      onChange={(event) => setDetailDraft((current) => ({ ...current, method: event.target.value, referenceNumber: "" }))}
                     >
                       {DETAIL_PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
                     </select>
                   </label>
-                  <label className="paymentsField">
-                    <span>Reference Number (optional)</span>
-                    <input
-                      className="input"
-                      type="text"
-                      maxLength={100}
-                      value={detailDraft.referenceNumber}
-                      disabled={!canRecordSelectedPayment}
-                      onChange={(event) =>
-                        setDetailDraft((current) => ({
-                          ...current,
-                          referenceNumber: event.target.value.slice(0, 100),
-                        }))
-                      }
-                    />
-                  </label>
                   {detailDraft.method !== "Cash" ? (
-                    <div className="paymentsField paymentsFieldWide">
-                      <label className="paymentsField">
-                        <span>Receipt photos (optional, up to 3)</span>
-                        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={importReceiptPhotos}
-                          disabled={receiptPhotoLoading || savingDetails || !canRecordSelectedPayment} />
-                      </label>
-                      {receiptPhotoLoading ? <p><LoadingIndicator>Preparing receipt photos…</LoadingIndicator></p> : null}
-                      <div className="paymentsReceiptPhotos">
-                        {detailDraft.receiptPhotos.map((photo, index) => (
-                          <figure key={`${photo.name}-${index}`}>
-                            <img src={photo.dataUrl} alt={`Receipt preview: ${photo.name}`} />
-                            <figcaption>{photo.name}</figcaption>
-                            <button type="button" className="btn secondary" disabled={savingDetails || receiptPhotoLoading}
-                              onClick={() => setDetailDraft(current => ({ ...current, receiptPhotos: current.receiptPhotos.filter((_, photoIndex) => photoIndex !== index) }))}>Remove photo</button>
-                          </figure>
-                        ))}
-                      </div>
-                    </div>
+                    <label className="paymentsField">
+                      <span>Reference number</span>
+                      <input
+                        className="input"
+                        type="text"
+                        maxLength={100}
+                        value={detailDraft.referenceNumber}
+                        disabled={!canRecordSelectedPayment}
+                        required={Number(detailDraft.amount) > 0}
+                        onChange={(event) => setDetailDraft((current) => ({ ...current, referenceNumber: event.target.value }))}
+                      />
+                    </label>
                   ) : null}
                   <div className="paymentsField paymentsFieldWide paymentsAdditionalServiceField">
                     {hasBracesPackage ? <div className="bookingBracesPackageDetails"><div><strong>Package Inclusions</strong><ul>{BRACES_PACKAGE_INCLUSIONS.map((inclusion) => <li key={inclusion}>{inclusion}</li>)}</ul></div></div> : null}
@@ -1170,10 +1123,10 @@ export default function Payments() {
                   ))}
                 </div>
                 <footer className="paymentsDetailsActions">
-                  <button type="submit" className="btn btnPrimary" disabled={savingDetails || receiptPhotoLoading || promotionSaving || promotionLoading || Boolean(promotionError) || !canRecordSelectedPayment}>
+                  <button type="submit" className="btn btnPrimary" disabled={savingDetails || promotionSaving || promotionLoading || Boolean(promotionError) || !canRecordSelectedPayment}>
                     {savingDetails ? <LoadingIndicator>Updating…</LoadingIndicator> : "Update"}
                   </button>
-                  <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails || receiptPhotoLoading}>Cancel</button>
+                  <button type="button" className="btn secondary" onClick={closePatientDetails} disabled={savingDetails}>Cancel</button>
                 </footer>
               </form>
                 </>

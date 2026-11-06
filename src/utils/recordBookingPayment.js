@@ -2,16 +2,16 @@ import { collection, doc, getDocs, query, runTransaction, serverTimestamp, where
 import { db } from "../firebase";
 import { allocateBookingPayment } from "./bookingPayments";
 import { money } from "./paymentPricing";
-import { validateReceiptPhotos } from "./receiptPhotos";
+import { getPaymentReference } from "./paymentReference";
 
 export async function recordBookingPayment(payment) {
-  validateReceiptPhotos(payment.receiptPhotos || []);
   if (!payment.patientId || !payment.appointmentId || !payment.chargeBreakdown ||
     !Number.isFinite(Number(payment.amount)) || Number(payment.amount) < 0 || !payment.paymentDate ||
-    String(payment.referenceNumber || "").trim().length > 100 ||
     Math.abs(Number(payment.totalCost) - payment.chargeBreakdown.totalCost) > 0.005) {
     throw new Error("A booking, patient, and valid service charges are required.");
   }
+  const method = payment.method || "Cash";
+  const referenceNumber = getPaymentReference(method, payment.referenceNumber, payment.amount);
   const matches = data => data.patientId === payment.patientId || (payment.uid && data.uid === payment.uid);
   const [summaries, ledger] = await Promise.all([
     getDocs(query(collection(db, "paymentTreatmentSummaries"), where("appointmentId", "==", payment.appointmentId))),
@@ -53,8 +53,7 @@ export async function recordBookingPayment(payment) {
       };
       if (entry.amount > 0) transaction.set(generatedRefs[index], {
         ...common, paymentGroupId: groupId, amount: entry.amount, paymentDate: payment.paymentDate,
-        method: payment.method || "Cash", referenceNumber: String(payment.referenceNumber || "").trim(),
-        receiptPhotos: payment.receiptPhotos || [], amountPaidBefore: entry.amountPaid,
+        method, referenceNumber, amountPaidBefore: entry.amountPaid,
         balanceAfterPayment: money(entry.totalCost - entry.amountPaid - entry.amount), createdAt: now,
       });
       transaction.set(references[index], {

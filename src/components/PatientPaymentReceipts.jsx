@@ -4,7 +4,7 @@ import { collection, onSnapshot, or, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import PaymentReceipts from "./PaymentReceipts";
 
-export default function PatientPaymentReceipts({ patientId = "", uid = "", patientName = "", bookings }) {
+export default function PatientPaymentReceipts({ patientId = "", uid = "", patientName = "", bookings, showReceiptPhotos = true }) {
   const [sources, setSources] = useState({});
   const [retry, setRetry] = useState(0);
   const identity = JSON.stringify([patientId, uid, retry]);
@@ -42,7 +42,7 @@ export default function PatientPaymentReceipts({ patientId = "", uid = "", patie
     <div className="patientPaymentReceipts">
       {loading ? <p><LoadingIndicator>Loading payment receipts…</LoadingIndicator></p> : null}
       {error ? <div className="formError" role="alert">{error} <button type="button" className="btn secondary" onClick={() => setRetry(value => value + 1)}>Try again</button></div> : null}
-      {!loading ? <PaymentReceipts payments={receipts} patientName={patientName} bookings={bookings || current.bookings?.records || []} /> : null}
+      {!loading ? <PaymentReceipts payments={receipts} patientName={patientName} bookings={bookings || current.bookings?.records || []} showReceiptPhotos={showReceiptPhotos} /> : null}
     </div>
   );
 }

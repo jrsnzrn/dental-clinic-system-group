@@ -5,13 +5,14 @@ import { formatDateLabel, formatTimestamp } from "../utils/schedule";
 import PaymentChargeBreakdown from "./PaymentChargeBreakdown";
 import { groupBookingReceipts } from "../utils/bookingPayments";
 
-export default function PaymentReceipts({ payments: rawPayments, patientName, booking, bookings = [] }) {
+export default function PaymentReceipts({ payments: rawPayments, patientName, booking, bookings = [], showReceiptPhotos = true }) {
   const payments = groupBookingReceipts(rawPayments);
   const [preview, setPreview] = useState(null);
   const dialogRef = useRef(null);
   const previewTitleId = useId();
   useEffect(() => {
     const dialog = dialogRef.current;
+    if (!dialog) return;
     if (preview && !dialog.open) dialog.showModal();
     if (!preview && dialog.open) dialog.close();
   }, [preview]);
@@ -19,7 +20,7 @@ export default function PaymentReceipts({ payments: rawPayments, patientName, bo
   return (
     <section className="paymentReceipts" aria-label="Payment receipts">
       <header className="receiptSectionHeader">
-        <div><h3>Payment receipts</h3><p>Your payment details and proof of payment, kept together.</p></div>
+        <div><h3>Payment receipts</h3><p>View payment details and transaction references.</p></div>
         <span className="receiptCount">{payments.length} receipt{payments.length === 1 ? "" : "s"}</span>
       </header>
       {payments.length ? <PaginatedRecords items={payments} resetKey={booking?.id || patientName} label="receipts" hideSinglePageControls>{payment => {
@@ -27,7 +28,7 @@ export default function PaymentReceipts({ payments: rawPayments, patientName, bo
         const service = payment.treatmentName || receiptBooking?.service || receiptBooking?.services?.join(", ") || (payment.accountId ? "Braces installment" : "Dental payment");
         const date = payment.paymentDate ? formatDateLabel(payment.paymentDate) : payment.createdAt ? formatTimestamp(payment.createdAt) : "Date not recorded";
         const method = payment.method || payment.paymentMethod || "Method not recorded";
-        const photos = Array.isArray(payment.receiptPhotos) ? payment.receiptPhotos : [];
+        const photos = showReceiptPhotos && Array.isArray(payment.receiptPhotos) ? payment.receiptPhotos : [];
         return (
           <article className="paymentReceiptCard" key={`${payment.receiptSource || "payment"}-${payment.id}`} aria-label={`Receipt for ${service}`}>
             <header className="paymentReceiptHeader">
@@ -39,7 +40,7 @@ export default function PaymentReceipts({ payments: rawPayments, patientName, bo
                 ["Patient", payment.patientName || patientName || "Patient"],
                 ["Appointment", receiptBooking?.date ? formatDateLabel(receiptBooking.date) : ""],
                 ["Dentist", receiptBooking?.selectedDentist || ""],
-                ["Reference number", payment.referenceNumber || (method === "Cash" ? "Not required for cash" : "Not provided")],
+                ["Reference number", method.trim().toLowerCase() === "cash" ? "" : payment.referenceNumber || "Not provided"],
                 ["Additional services", Array.isArray(payment.additionalServices) ? payment.additionalServices.join(", ") : ""],
               ].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
             </dl>
@@ -47,9 +48,9 @@ export default function PaymentReceipts({ payments: rawPayments, patientName, bo
               <summary>View service charges and discount</summary>
               <PaymentChargeBreakdown breakdown={payment.chargeBreakdown} paid={Number(payment.amountPaidBefore) || 0} received={Number(payment.amount) || 0} />
             </details> : null}
-            <section className="receiptAttachments" aria-label="Uploaded proof of payment">
-              <div className="receiptAttachmentsHeading"><h5>Proof of payment</h5><span>{photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : "No attachment"}</span></div>
-              {photos.length ? <div className="receiptPhotoGrid">{photos.map((photo, index) => (
+            {photos.length ? <section className="receiptAttachments" aria-label="Uploaded proof of payment">
+              <div className="receiptAttachmentsHeading"><h5>Proof of payment</h5><span>{photos.length} photo{photos.length === 1 ? "" : "s"}</span></div>
+              <div className="receiptPhotoGrid">{photos.map((photo, index) => (
                 <figure className="receiptPhotoCard" key={`${payment.id}-${index}`}>
                   <button type="button" className="receiptPhotoPreview" onClick={() => setPreview({ ...photo, patientName: payment.patientName || patientName, index })} aria-label={`View receipt photo ${index + 1}`}>
                     <img src={photo.dataUrl} alt={`Proof of payment ${index + 1}`} loading="lazy" />
@@ -57,8 +58,8 @@ export default function PaymentReceipts({ payments: rawPayments, patientName, bo
                   </button>
                   <figcaption><span>Receipt photo {index + 1}</span><a href={photo.dataUrl} download={photo.name || `receipt-${payment.id}-${index + 1}.jpg`}>Download</a></figcaption>
                 </figure>
-              ))}</div> : <p className="receiptNoAttachment">No receipt photo was attached to this payment.</p>}
-            </section>
+              ))}</div>
+            </section> : null}
             <details className="receiptDetails receiptIdentifiers"><summary>Receipt and booking IDs</summary>
               <dl className="paymentReceiptFacts">{[
                 ["Receipt ID", payment.id], ["Booking ID", payment.appointmentId || receiptBooking?.id || "Not linked"], ["Braces account", payment.accountId || ""],
@@ -66,14 +67,14 @@ export default function PaymentReceipts({ payments: rawPayments, patientName, bo
             </details>
           </article>
         );
-      }}</PaginatedRecords> : <div className="receiptEmptyState"><strong>No payment receipts yet</strong><p>Recorded payments and uploaded receipt photos will appear here.</p></div>}
-      <dialog ref={dialogRef} className="receiptPhotoDialog" aria-labelledby={previewTitleId} onCancel={() => setPreview(null)} onClose={() => setPreview(null)} onClick={event => { if (event.target === event.currentTarget) setPreview(null); }}>
+      }}</PaginatedRecords> : <div className="receiptEmptyState"><strong>No payment receipts yet</strong><p>Recorded payments will appear here.</p></div>}
+      {showReceiptPhotos ? <dialog ref={dialogRef} className="receiptPhotoDialog" aria-labelledby={previewTitleId} onCancel={() => setPreview(null)} onClose={() => setPreview(null)} onClick={event => { if (event.target === event.currentTarget) setPreview(null); }}>
         {preview ? <>
           <header><h3 id={previewTitleId}>Receipt photo {preview.index + 1}</h3><button type="button" className="btn secondary" onClick={() => setPreview(null)}>Close</button></header>
           <img src={preview.dataUrl} alt={`Payment receipt for ${preview.patientName || "patient"}`} />
           <footer><a className="btn" href={preview.dataUrl} download={preview.name || "payment-receipt.jpg"}>Download photo</a></footer>
         </> : null}
-      </dialog>
+      </dialog> : null}
     </section>
   );
 }

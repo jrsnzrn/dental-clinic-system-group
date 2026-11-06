@@ -16,7 +16,6 @@ const CREATE_STAFF = httpsCallable(functions, "createStaffAccount");
 const UPDATE_STAFF_PROFILE = httpsCallable(functions, "updateStaffProfile");
 const SET_STAFF_EMAIL = httpsCallable(functions, "setStaffAccountEmail");
 const SET_STAFF_DISABLED = httpsCallable(functions, "setStaffAccountDisabled");
-const ARCHIVE_STAFF_ACCOUNT = httpsCallable(functions, "archiveStaffAccount");
 const SET_STAFF_MFA_REQUIRED = httpsCallable(functions, "setStaffMfaRequired");
 
 function emptyDraft() {
@@ -27,7 +26,6 @@ const ROLE_FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: ROLES.DENTIST, label: ROLE_LABELS[ROLES.DENTIST] },
   { value: ROLES.RECEPTIONIST, label: ROLE_LABELS[ROLES.RECEPTIONIST] },
-  { value: "disabled", label: "Disabled" },
 ];
 
 function compareAccountNames(a, b) {
@@ -51,12 +49,10 @@ function AccountRow({
   setMenuId,
   onToggleMfa,
   onRequestStatusChange,
-  onRequestArchive,
   onEdit,
   onChangeEmail,
 }) {
   const isAdmin = account.role === ROLES.ADMIN;
-  const canArchive = account.disabled && !isAdmin;
   const roleLabel = ROLE_LABELS[account.role] || account.role || "No role saved";
   const displayName = account.name || account.email || (isAdmin ? "Administrator" : "No staff name saved");
   const run = (action) => () => {
@@ -109,17 +105,9 @@ function AccountRow({
                   {account.mfaEnabled ? "Turn MFA off" : "Turn MFA on"}
                 </button>
               )}
-              <button className="acctMenuItem" type="button" role="menuitem" onClick={run(onRequestStatusChange)}>
-                {account.disabled ? "Enable account" : "Disable account"}
-              </button>
-              {canArchive ? (
-                <button
-                  className="acctMenuItem isDanger"
-                  type="button"
-                  role="menuitem"
-                  onClick={run(onRequestArchive)}
-                >
-                  Archive account
+              {!isAdmin ? (
+                <button className="acctMenuItem isDanger" type="button" role="menuitem" onClick={run(onRequestStatusChange)}>
+                  Disable account
                 </button>
               ) : null}
             </div>
@@ -167,7 +155,7 @@ export default function Accounts() {
       setListError("");
       const accounts = await fetchStaffAccounts();
 
-      const active = accounts.filter((entry) => entry.archiveStatus !== "Archived");
+      const active = accounts.filter((entry) => !entry.disabled && !["archived", "archive"].includes(String(entry.archiveStatus || "").trim().toLowerCase()));
       setStaffAccounts(active.filter((entry) => entry.role === ROLES.RECEPTIONIST || entry.role === ROLES.DENTIST));
       setAdminAccounts(active.filter((entry) => entry.role === ROLES.ADMIN));
     } catch (err) {
@@ -292,7 +280,6 @@ export default function Accounts() {
 
   const roleFilteredAccounts = useMemo(
     () => allAccounts.filter((account) => {
-      if (roleFilter === "disabled") return account.disabled;
       return roleFilter === "all" || account.role === roleFilter;
     }),
     [allAccounts, roleFilter]
@@ -309,87 +296,24 @@ export default function Accounts() {
       .sort(compareAccountNames);
   }, [roleFilteredAccounts, searchTerm]);
 
-  function requestStatusChange(account) {
-    setPendingAction({
-      type: "status",
-      disabled: !account.disabled,
-      accounts: [account],
-    });
-  }
-
-  function requestArchive(account) {
-    if (!account.disabled || account.role === ROLES.ADMIN) return;
-    setPendingAction({ type: "archive", accounts: [account] });
-  }
-
-  async function handleConfirmAction() {
+  async function handleConfirmDisable() {
     if (!pendingAction || actionSubmitting) return;
-    const action = pendingAction;
     setActionSubmitting(true);
-    setPendingAction(null);
-    setMenuId("");
-
-    const results = await Promise.allSettled(action.accounts.map(async (account) => {
-      if (action.type === "archive") {
-        if (!account.disabled || account.role === ROLES.ADMIN) {
-          throw new Error(`${labelOf(account)} is not eligible for archiving.`);
-        }
-        return ARCHIVE_STAFF_ACCOUNT({ uid: account.id });
-      }
-
-      if (action.disabled === account.disabled) {
-        throw new Error(`${labelOf(account)} is no longer eligible for this status change.`);
-      }
-      return SET_STAFF_DISABLED({ uid: account.id, disabled: action.disabled });
-    }));
-
-    const succeeded = results.filter((result) => result.status === "fulfilled").length;
-    const failures = results.filter((result) => result.status === "rejected");
-    await loadStaffAccounts();
-    setActionSubmitting(false);
-
-    if (failures.length) {
-      const firstFailure = failures[0].reason?.message || "An account action failed.";
-      setListError(
-        succeeded
-          ? `${succeeded} account${succeeded === 1 ? "" : "s"} updated; ${failures.length} failed. ${firstFailure}`
-          : firstFailure
-      );
-    }
-    if (succeeded) {
-      const verb = action.type === "archive"
-        ? "archived"
-        : action.disabled
-          ? "disabled"
-          : "enabled";
-      notifySuccess(`${succeeded} account${succeeded === 1 ? "" : "s"} ${verb} successfully.`);
+    setListError("");
+    try {
+      await SET_STAFF_DISABLED({ uid: pendingAction.id, disabled: true });
+      setPendingAction(null);
+      await loadStaffAccounts();
+      notifySuccess("Account disabled and moved to Archived Records.");
+    } catch (error) {
+      setListError(error?.message || "The account could not be disabled.");
+      setPendingAction(null);
+    } finally {
+      setActionSubmitting(false);
     }
   }
 
-  const plural = (n) => `${n} ${n === 1 ? "account" : "accounts"}`;
-
-  const confirmationDetails = useMemo(() => {
-    if (!pendingAction) return null;
-    const { type, disabled, accounts: affected } = pendingAction;
-    const target = labelOf(affected[0]);
-    if (type === "archive") {
-      return {
-        title: "Archive this account?",
-        message: `${target} will be removed from the active accounts list.`,
-        confirmLabel: "Archive Account",
-        tone: "archive",
-      };
-    }
-    const verb = disabled ? "Disable" : "Enable";
-    const stateWord = verb === "Disable" ? "disabled" : "enabled";
-    return {
-      title: `${verb} this account?`,
-      message: `${target} will be ${stateWord}.`,
-      confirmLabel: `${verb} Account`,
-      tone: verb === "Disable" ? "danger" : "default",
-    };
-  }, [pendingAction]);
-
+  const plural = (n) => `${n} account${n === 1 ? "" : "s"}`;
   const accountPage = useRecordPagination(visibleAccounts, JSON.stringify([searchTerm, roleFilter]));
   return (
     <div className="container adminSurface acctPage">
@@ -491,8 +415,7 @@ export default function Accounts() {
                   menuOpen={menuId === account.id}
                   setMenuId={setMenuId}
                   onToggleMfa={toggleStaffMfa}
-                  onRequestStatusChange={requestStatusChange}
-                  onRequestArchive={requestArchive}
+                  onRequestStatusChange={setPendingAction}
                   onEdit={editStaff}
                   onChangeEmail={account => { setEmailAccount(account); setNewEmail(account.email || ""); setEmailError(""); }}
                 />
@@ -642,14 +565,15 @@ export default function Accounts() {
 
       <ConfirmDialog
         open={Boolean(pendingAction)}
-        title={confirmationDetails?.title}
-        message={confirmationDetails?.message}
-        confirmLabel={confirmationDetails?.confirmLabel}
-        tone={confirmationDetails?.tone}
+        title="Disable this account?"
+        message={pendingAction ? `${labelOf(pendingAction)} will lose access and move to Archived Records.` : ""}
+        confirmLabel={actionSubmitting ? "Disabling…" : "Disable Account"}
+        confirmDisabled={actionSubmitting}
+        tone="danger"
         onClose={() => {
           if (!actionSubmitting) setPendingAction(null);
         }}
-        onConfirm={handleConfirmAction}
+        onConfirm={handleConfirmDisable}
       />
     </div>
   );

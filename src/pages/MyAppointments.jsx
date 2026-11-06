@@ -605,6 +605,7 @@ export default function MyAppointments() {
                 uid={user.uid}
                 patientName={user.displayName || ""}
                 bookings={bookings}
+                showReceiptPhotos={false}
               />
             </section>
           ) : null}

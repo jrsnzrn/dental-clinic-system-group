@@ -2477,7 +2477,7 @@ export default function Patients({
 
               {activePatientView === PATIENT_VIEWS.PAYMENTS && canEditPatientProfile ? (
                 <section className="panel" role="tabpanel" id={`panel-${PATIENT_VIEWS.PAYMENTS}`} aria-labelledby={`tab-${PATIENT_VIEWS.PAYMENTS}`}>
-                  <p className="panelSub">Payment details and uploaded receipt photos for this patient's appointments.</p>
+                  <p className="panelSub">Payment details and transaction references for this patient's appointments.</p>
                   <PatientPaymentReceipts key={selectedPatient.id} patientId={selectedPatient.id}
                     uid={selectedPatient.uid || ""} patientName={selectedPatient.name} bookings={bookings} />
                 </section>

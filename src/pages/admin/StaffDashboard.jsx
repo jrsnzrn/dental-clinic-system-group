@@ -44,7 +44,7 @@ export default function StaffDashboard({ uid, role }) {
     ["Manage appointments", "Review requests and manage bookings.", "/admin/bookings/calendar"],
     ["Patient queue", "Check arrivals and manage the waiting list.", "/admin/queue"],
     ["Patient records", "Find patient profiles and visit details.", "/admin/patients"],
-    ["Payments", "Record payments and attach receipt photos.", "/admin/payments"],
+    ["Payments", "Record payments and transaction references.", "/admin/payments"],
   ];
 
   return <div className="container adminSurface staffDashboardPage">
